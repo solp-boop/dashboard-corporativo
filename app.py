@@ -1,5 +1,5 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
+from st_gsheets_connection import GSheetsConnection
 
 # Configuración visual de alta gama
 st.set_page_config(page_title="Dashboard Gerencial", layout="wide")
@@ -16,7 +16,7 @@ with st.sidebar:
     st.header("Navegación")
     
     # IMPORTANTE: Aquí escribe los nombres EXACTOS de tus pestañas de Google Sheets
-    # Por ejemplo: ["Ventas", "Gastos", "Inventario"]
+    # Si tus hojas se llaman "Ventas", "Gastos", etc., cámbialos aquí abajo:
     opciones = ["Hoja 1", "Hoja 2", "Hoja 3", "Hoja 4"]
     
     seleccion = st.selectbox("Selecciona la pestaña:", opciones)
@@ -41,4 +41,5 @@ try:
 
 except Exception as e:
     st.error("⚠️ Error de conexión")
-    st.write("Verifica que los 'Secrets' en Streamlit tengan el link correcto y que la hoja sea pública.")
+    st.write(f"Detalle técnico: {e}")
+    st.info("Verifica que los 'Secrets' en Streamlit tengan el link correcto y que la hoja sea pública (Cualquier persona con el enlace).")
