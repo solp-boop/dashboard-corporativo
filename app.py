@@ -1,6 +1,5 @@
 import streamlit as st
 from st_gsheets_connection import GSheetsConnection
-
 # Configuración visual de alta gama
 st.set_page_config(page_title="Dashboard Gerencial", layout="wide")
 
