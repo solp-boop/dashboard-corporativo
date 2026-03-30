@@ -4,7 +4,7 @@ import pandas as pd
 # Configuración de página
 st.set_page_config(page_title="BICOM | Gestión Logística", layout="wide")
 
-# --- DISEÑO UNIFICADO DE ALTO IMPACTO (CSS) ---
+# --- ESTILO (Centrado estricto y botones) ---
 st.markdown("""
     <style>
     .main { background-color: #040911; color: #ffffff; }
@@ -13,46 +13,37 @@ st.markdown("""
         padding: 30px; border-radius: 15px; border: 1px solid #004080;
         text-align: center; margin-bottom: 20px;
     }
+    .bicom-header h1 { font-size: 45px; letter-spacing: 4px; color: #ffffff; font-weight: 800; margin:0; }
     
-    /* Estilo para los TABS centrados */
+    /* CENTRADO DE TABS */
     .stTabs [data-baseweb="tab-list"] { justify-content: center; gap: 20px; }
-
-    /* FORMATO UNIFICADO DE TARJETAS (Estáticas y Botones) */
-    .metric-box {
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        padding: 30px;
-        border-radius: 20px;
-        text-align: center;
-        height: 180px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
+    
+    /* MÉTRICAS ESTÁTICAS */
+    .static-metric {
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        padding: 20px; border-radius: 15px; text-align: center;
     }
 
-    /* Estilo para que los botones parezcan tarjetas métricas */
+    /* BOTONES DE INSTRUCCIÓN (Centrados y con estilo) */
+    .stButton { display: flex; justify-content: center; }
     .stButton>button {
-        background: rgba(255, 255, 255, 0.03) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        border-radius: 20px !important;
+        border-radius: 15px !important;
         color: white !important;
-        width: 100%;
-        height: 180px;
+        width: 300px; /* Tamaño fijo para centrar mejor */
+        height: 120px;
         transition: all 0.3s ease;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
+        font-weight: 700 !important;
     }
     
-    /* Colores de acento para los botones interactivos */
-    div[data-testid="column"]:nth-child(1) .stButton > button { border-bottom: 4px solid #00ff88 !important; }
-    div[data-testid="column"]:nth-child(2) .stButton > button { border-bottom: 4px solid #ff4b4b !important; }
+    /* Verde para el primero (Instruido), Rojo para el segundo (Pendiente) */
+    div[data-testid="column"]:nth-child(2) .stButton > button { border: 1px solid #00ff88 !important; background: rgba(0, 255, 136, 0.05) !important; }
+    div[data-testid="column"]:nth-child(3) .stButton > button { border: 1px solid #ff4b4b !important; background: rgba(255, 75, 75, 0.05) !important; }
     
-    .stButton>button:hover { border: 1px solid #00a8ff !important; background: rgba(0, 168, 255, 0.05) !important; transform: translateY(-5px); }
+    .stButton>button:hover { transform: scale(1.02); }
     
-    .label-text { font-size: 12px; color: #808495; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
-    .value-text { font-size: 50px; font-weight: 800; color: #ffffff; margin: 0; }
+    /* Centrado de títulos y textos */
+    h3, .section-msg { text-align: center; width: 100%; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -79,48 +70,55 @@ try:
     # --- HEADER ---
     st.markdown("<div class='bicom-header'><h1>BICOM</h1><p style='color:#00a8ff; letter-spacing:2px; margin:0;'>LOGÍSTICA INTERNACIONAL</p></div>", unsafe_allow_html=True)
 
+    # --- TABS CENTRADOS ---
     tabs = st.tabs(["ORIGEN", "STATUS CARGAS", "INDICADORES", "AGENTES", "ANALISTAS", "FLETES"])
 
     with tabs[0]:
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # --- FILA 1: MÉTRICAS ESTÁTICAS ---
+        # MÉTRICAS ESTÁTICAS
         c1, c2 = st.columns(2)
         with c1:
-            st.markdown(f"<div class='metric-box'><p class='label-text'>CANTIDAD DE SO</p><p class='value-text'>{int(cant_so)}</p></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='static-metric'><p style='color:#808495; font-size:12px; letter-spacing:2px;'>CANTIDAD DE SO</p><p style='font-size:45px; font-weight:800; margin:0;'>{int(cant_so)}</p></div>", unsafe_allow_html=True)
         with c2:
-            st.markdown(f"<div class='metric-box'><p class='label-text'>VOLUMEN TOTAL</p><p class='value-text'>{int(m3_totales):,}<span style='font-size:20px;'> M3</span></p></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='static-metric'><p style='color:#808495; font-size:12px; letter-spacing:2px;'>VOLUMEN TOTAL</p><p style='font-size:45px; font-weight:800; margin:0;'>{int(m3_totales):,}<span style='font-size:18px; color:#00a8ff;'> M3</span></p></div>", unsafe_allow_html=True)
 
-        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("<br><hr style='opacity:0.1'><p class='section-msg' style='color:#808495; font-size:11px; letter-spacing:2px;'>SELECCIONE PARA VER O OCULTAR DESGLOSE</p>", unsafe_allow_html=True)
 
-        # --- FILA 2: BOTONES MÉTRICOS (INSTRUIDO VS PENDIENTE) ---
-        b1, b2 = st.columns(2)
+        # BOTONES DE ACCIÓN CENTRADOS (Usando columnas para centrar)
+        _, b_col1, b_col2, _ = st.columns([1, 2, 2, 1])
         
-        with b1:
-            # El botón ahora tiene el mismo formato visual de texto que las tarjetas estáticas
-            if st.button(f"CONSOLIDADO INSTRUIDO \n {int(perc_instruido)}%"):
-                st.session_state.filtro = None if st.session_state.get('filtro') == 'instruido' else 'instruido'
+        # Lógica de Toggle (Abrir/Cerrar)
+        with b_col1:
+            if st.button(f"CONSOLIDADO INSTRUIDO \n\n {int(perc_instruido)}%"):
+                if st.session_state.get('filtro') == 'instruido':
+                    st.session_state.filtro = None
+                else:
+                    st.session_state.filtro = 'instruido'
         
-        with b2:
-            if st.button(f"PENDIENTE INSTRUCCIÓN \n {int(perc_pendiente)}%"):
-                st.session_state.filtro = None if st.session_state.get('filtro') == 'pendiente' else 'pendiente'
+        with b_col2:
+            if st.button(f"PENDIENTE INSTRUCCIÓN \n\n {int(perc_pendiente)}%"):
+                if st.session_state.get('filtro') == 'pendiente':
+                    st.session_state.filtro = None
+                else:
+                    st.session_state.filtro = 'pendiente'
 
-        # Desglose interactivo
+        # Mostrar/Ocultar información según el estado
         filtro = st.session_state.get('filtro')
         if filtro:
-            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("---")
             if filtro == "instruido":
-                st.markdown("<h3 style='text-align:center; color:#00ff88;'>Detalle de Cargas Instruidas</h3>", unsafe_allow_html=True)
+                st.markdown("<h3 style='color:#00ff88;'>Detalle de Cargas Instruidas</h3>", unsafe_allow_html=True)
                 detalle = df[df['Es_Instruido'] == True][['SO', 'Pais Destino', 'M3 Total', 'Fecha de Instruccion']]
                 st.dataframe(detalle.style.format({'M3 Total': '{:,.0f}'}), use_container_width=True)
             elif filtro == "pendiente":
-                st.markdown("<h3 style='text-align:center; color:#ff4b4b;'>Urgente: Cargas Pendientes de Instrucción</h3>", unsafe_allow_html=True)
+                st.markdown("<h3 style='color:#ff4b4b;'>Urgente: Cargas Pendientes de Instrucción</h3>", unsafe_allow_html=True)
                 detalle = df[df['Es_Instruido'] == False][['SO', 'Pais Destino', 'M3 Total', 'Status Pago']]
                 st.dataframe(detalle.style.format({'M3 Total': '{:,.0f}'}), use_container_width=True)
 
-        st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
+        st.markdown("<br><br>", unsafe_allow_html=True)
 
-        # TABLA DE DESTINOS
+        # TABLA DE DESTINOS CON TOTAL GENERAL
         st.markdown("<p style='text-align:center; letter-spacing:2px; color:#808495;'>PARTICIPACIÓN POR PAÍS DE DESTINO</p>", unsafe_allow_html=True)
         resumen = df.groupby('Pais Destino').agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT. SO', 'M3 Total': 'M3'})
         resumen['%'] = ((resumen['M3'] / m3_totales) * 100).round(0)
