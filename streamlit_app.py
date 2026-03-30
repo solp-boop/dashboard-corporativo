@@ -3,19 +3,17 @@ import pandas as pd
 
 st.set_page_config(page_title="Dashboard Logístico", layout="wide")
 
-# --- ESTILO PARA MÉTRICAS ---
+# --- ESTILO ---
 st.markdown("""
     <style>
     [data-testid="stMetricValue"] { font-size: 35px; color: #1E88E5; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("📊 Control de Cargas Corporativo")
-
 try:
     # 1. Obtención de datos
     base_url = "https://docs.google.com/spreadsheets/d/1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI"
-    GID_HOJA = "0" # Asegúrate que sea el GID de 'Planif cargas'
+    GID_HOJA = "0" 
     csv_url = f"{base_url}/export?format=csv&gid={GID_HOJA}"
     
     df = pd.read_csv(csv_url)
@@ -26,44 +24,52 @@ try:
         df['M3 Total'] = df['M3 Total'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
         df['M3 Total'] = pd.to_numeric(df['M3 Total'], errors='coerce').fillna(0)
 
-    # --- CREACIÓN DE SOLAPAS (TABS) ---
+    # --- TITULO PRINCIPAL ---
+    st.title("🏗️ Origen")
+
+    # --- SOLAPAS ---
     tab1, tab2, tab3 = st.tabs(["🏗️ Status Origen", "🚢 En Tránsito", "🏁 Destino Final"])
 
     with tab1:
-        st.subheader("Análisis de Carga en Origen")
-        
         # Métricas principales
         m3_totales = df['M3 Total'].sum()
         cant_so = df['SO'].nunique() if 'SO' in df.columns else len(df)
         
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         c1.metric("📦 Cantidad de SO", f"{cant_so}")
         c2.metric("📐 Volumen Total", f"{m3_totales:,.2f} m³")
-        c3.metric("🎯 Eficiencia", "100%") # Ejemplo de métrica extra
 
         st.markdown("---")
 
-        # --- TABLA CON PORCENTAJES ---
+        # --- TABLA CON PORCENTAJES Y TOTALES ---
         if 'Pais Destino' in df.columns:
-            st.write("### Participación por Destino")
+            st.subheader("Participación por Destino")
             
-            # Agrupamos
+            # Agrupamos por país
             resumen = df.groupby('Pais Destino').agg({
                 'SO': 'count',
                 'M3 Total': 'sum'
             }).rename(columns={'SO': 'Cant. SO', 'M3 Total': 'M3 en Origen'})
             
-            # Calculamos el % de representación
-            resumen['% del Total'] = (resumen['M3 en Origen'] / m3_totales) * 100
-            
-            # Ordenamos
+            # Cálculo de % redondeado (0 decimales)
+            resumen['% del Total'] = ((resumen['M3 en Origen'] / m3_totales) * 100).round(0).astype(int)
             resumen = resumen.sort_values(by='M3 en Origen', ascending=False)
+
+            # Crear Fila de Total
+            total_row = pd.DataFrame({
+                'Cant. SO': [resumen['Cant. SO'].sum()],
+                'M3 en Origen': [resumen['M3 en Origen'].sum()],
+                '% del Total': [100]
+            }, index=['TOTAL'])
+
+            # Unir tabla con el total
+            resumen_con_total = pd.concat([resumen, total_row])
             
-            # Formateamos para mostrar en pantalla
+            # Mostrar tabla formateada
             st.dataframe(
-                resumen.style.format({
+                resumen_con_total.style.format({
                     'M3 en Origen': '{:,.2f}',
-                    '% del Total': '{:.1f}%'
+                    '% del Total': '{:d}%'
                 }), 
                 use_container_width=True
             )
@@ -71,10 +77,10 @@ try:
             st.warning("No se encontró la columna 'Pais Destino'.")
 
     with tab2:
-        st.info("🚧 Sección en desarrollo: Aquí irán las cargas con Status 'Embarcado' o 'En Tránsito'.")
+        st.info("🚧 Sección en desarrollo.")
 
     with tab3:
-        st.info("🚧 Sección en desarrollo: Seguimiento de arribos y entregas finales.")
+        st.info("🚧 Sección en desarrollo.")
 
 except Exception as e:
-    st.error(f"Ocurrió un error: {e}")
+    st.error(f"Error: {e}")
