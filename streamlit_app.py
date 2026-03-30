@@ -2,15 +2,15 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# --- CONFIGURACIÓN DE PÁGINA (CORREGIDA) ---
-st.set_page_config(page_title="BIDCOM | Dashboard Ejecutivo", layout="wide")
+# --- CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(page_title="BIDCOM | Dashboard Operativo", layout="wide")
 
-# --- DISEÑO BIDCOM DE MÁXIMO IMPACTO (CSS CUSTOM) ---
+# --- DISEÑO BIDCOM DE MÁXIMO IMPACTO (CSS) ---
 st.markdown("""
     <style>
     .main { background-color: #040911; color: #ffffff; }
     
-    /* Header Principal */
+    /* Header BIDCOM */
     .bidcom-header {
         background: linear-gradient(135deg, #001f3f 0%, #003366 100%);
         padding: 40px; border-radius: 20px; border: 1px solid #004080;
@@ -18,39 +18,39 @@ st.markdown("""
     }
     .bidcom-header h1 { font-size: 55px; letter-spacing: 10px; color: #ffffff; font-weight: 900; margin:0; }
     
-    /* Centrado de Tabs */
+    /* Tabs Centrados */
     .stTabs [data-baseweb="tab-list"] { justify-content: center; gap: 30px; margin-bottom: 40px; }
 
-    /* --- CONTENEDOR DE MÉTRICAS GIGANTES --- */
+    /* --- TARJETAS DE MÉTRICAS MASIVAS --- */
     .big-metric-card {
         background: rgba(255, 255, 255, 0.03);
         border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 25px;
-        padding: 40px 20px;
+        padding: 50px 20px;
         text-align: center;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        box-shadow: 0 15px 35px rgba(0,0,0,0.6);
+        margin-bottom: 20px;
     }
     
     .label-massive { 
-        font-size: 18px; 
-        color: #808495; 
-        letter-spacing: 5px; 
+        font-size: 28px; /* Título mucho más grande */
+        color: #00a8ff; 
+        letter-spacing: 4px; 
         text-transform: uppercase; 
-        font-weight: 700;
-        margin-bottom: 10px;
+        font-weight: 800;
+        margin-bottom: 15px;
     }
     .value-massive { 
-        font-size: 130px; /* Tamaño masivo para llamar la atención */
+        font-size: 140px; /* Números gigantes */
         font-weight: 900; 
         color: #ffffff; 
         line-height: 1; 
         margin: 0;
-        text-shadow: 0 0 40px rgba(0,168,255,0.3);
+        text-shadow: 0 0 50px rgba(0,168,255,0.4);
     }
-    .unit-massive { font-size: 35px; color: #00a8ff; font-weight: 400; }
+    .unit-massive { font-size: 40px; color: #ffffff; font-weight: 300; }
 
-    /* Botones Interactivos (Instruido / Pendiente) */
-    .stButton { display: flex; justify-content: center; }
+    /* Botones Interactivos */
     .stButton>button {
         border-radius: 20px !important; color: white !important;
         width: 100%; height: 180px; transition: all 0.3s ease;
@@ -58,58 +58,64 @@ st.markdown("""
         background: rgba(255, 255, 255, 0.03) !important;
         border: 1px solid rgba(255, 255, 255, 0.1) !important;
     }
-    .stButton>button:hover {
-        background-color: #003366 !important; 
-        border: 2px solid #00a8ff !important;
-    }
+    .stButton>button:hover { background-color: #003366 !important; border-color: #00a8ff !important; }
     
-    /* Indicadores de color en botones */
-    div[data-testid="column"]:nth-child(1) .stButton > button { border-bottom: 8px solid #00ff88 !important; }
-    div[data-testid="column"]:nth-child(2) .stButton > button { border-bottom: 8px solid #ff4b4b !important; }
-
+    /* Estilo de Tabla y Totales */
+    [data-testid="stDataFrame"] { display: flex; justify-content: center; margin-top: 40px; }
     </style>
     """, unsafe_allow_html=True)
 
 try:
-    # 1. Carga de Datos
+    # 1. Carga de Datos desde Google Sheets
     base_url = "https://docs.google.com/spreadsheets/d/1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI"
     GID_HOJA = "0" 
     csv_url = f"{base_url}/export?format=csv&gid={GID_HOJA}"
     df = pd.read_csv(csv_url)
     df.columns = df.columns.str.strip()
 
-    # Procesamiento de M3
+    # Procesamiento M3
     if 'M3 Total' in df.columns:
         df['M3 Total'] = df['M3 Total'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
         df['M3 Total'] = pd.to_numeric(df['M3 Total'], errors='coerce').fillna(0)
     
-    # Lógica de Instrucción
+    # Lógica Instrucción
     df['Es_Instruido'] = df['Fecha de Instruccion'].notna() & (df['Fecha de Instruccion'].astype(str).str.upper() != 'SIN INSTRUCCION')
     
-    # Cálculos masivos
+    # Cálculos Masivos
     m3_totales = df['M3 Total'].sum()
     cant_so = df['SO'].nunique() if 'SO' in df.columns else len(df)
-    cant_proveedores = df['Proveedor'].nunique() if 'Proveedor' in df.columns else 0
+    cant_proveedores = df['Proveedor'].nunique() if 'Proveedor' in df.columns else 0 # Columna AE
 
-    # --- HEADER BIDCOM ---
+    # --- HEADER ---
     st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><p style='color:#00a8ff; letter-spacing:3px;'>OPERACIONES LOGÍSTICAS INTERNACIONALES</p></div>", unsafe_allow_html=True)
 
     tabs = st.tabs(["ORIGEN", "STATUS CARGAS", "INDICADORES", "AGENTES", "ANALISTAS", "FLETES"])
 
     with tabs[0]:
-        # --- BLOQUE SUPERIOR MASIVO ---
+        # --- BLOQUE SUPERIOR GIGANTE ---
         m1, m2, m3 = st.columns(3)
         
         with m1:
-            st.markdown(f"<div class='big-metric-card'><p class='label-massive'>Cantidad de SO</p><p class='value-massive'>{int(cant_so)}</p></div>", unsafe_allow_html=True)
+            st.markdown(f"""<div class='big-metric-card'>
+                <p class='label-massive'>CANTIDAD DE SO</p>
+                <p class='value-massive'>{int(cant_so)}</p>
+            </div>""", unsafe_allow_html=True)
+            
         with m2:
-            st.markdown(f"<div class='big-metric-card'><p class='label-massive'>Volumen Total</p><p class='value-massive'>{int(m3_totales):,}<span class='unit-massive'> M3</span></p></div>", unsafe_allow_html=True)
+            st.markdown(f"""<div class='big-metric-card'>
+                <p class='label-massive'>VOLUMEN TOTAL</p>
+                <p class='value-massive'>{int(m3_totales):,}<span class='unit-massive'> M3</span></p>
+            </div>""", unsafe_allow_html=True)
+            
         with m3:
-            st.markdown(f"<div class='big-metric-card'><p class='label-massive'>Proveedores</p><p class='value-massive'>{int(cant_proveedores)}</p></div>", unsafe_allow_html=True)
+            st.markdown(f"""<div class='big-metric-card'>
+                <p class='label-massive'>PROVEEDORES</p>
+                <p class='value-massive'>{int(cant_proveedores)}</p>
+            </div>""", unsafe_allow_html=True)
 
         st.markdown("<br><br>", unsafe_allow_html=True)
 
-        # --- BOTONES DE ACCIÓN (Centrados) ---
+        # --- BOTONES DE INSTRUCCIÓN ---
         _, b1_col, b2_col, _ = st.columns([0.5, 2, 2, 0.5])
         
         instruidos_m3 = df[df['Es_Instruido'] == True]['M3 Total'].sum()
@@ -128,15 +134,15 @@ try:
         if filtro:
             st.markdown("---")
             if filtro == "instruido":
-                st.subheader("Cargas con Instrucción Consolidada")
+                st.subheader("Cargas con Instrucción")
                 st.dataframe(df[df['Es_Instruido'] == True][['SO', 'Pais Destino', 'M3 Total', 'Fecha de Instruccion']], use_container_width=True)
             else:
-                st.subheader("Cargas Pendientes de Instrucción")
+                st.subheader("Cargas sin Instrucción")
                 st.dataframe(df[df['Es_Instruido'] == False][['SO', 'Pais Destino', 'M3 Total', 'Status Pago']], use_container_width=True)
 
         st.markdown("<br><br>", unsafe_allow_html=True)
 
-        # --- CUADRO DE PARTICIPACIÓN ---
+        # --- TABLA DE PARTICIPACIÓN ---
         st.markdown("<p style='text-align:center; letter-spacing:2px; color:#808495; font-weight:bold;'>PARTICIPACIÓN POR PAÍS DE DESTINO</p>", unsafe_allow_html=True)
         resumen = df.groupby('Pais Destino').agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT. SO', 'M3 Total': 'M3'})
         resumen['%'] = ((resumen['M3'] / m3_totales) * 100).round(0)
@@ -162,4 +168,4 @@ try:
         st.plotly_chart(fig, use_container_width=True)
 
 except Exception as e:
-    st.error(f"Fallo en la carga de componentes: {e}")
+    st.error(f"Error de sistema: {e}")
