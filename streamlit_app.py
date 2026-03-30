@@ -35,7 +35,7 @@ st.markdown("""
     }
     .stButton>button:hover { background-color: #003366 !important; border-color: #00a8ff !important; }
     
-    .chart-title { text-align: center; letter-spacing: 2px; color: #ffffff; font-weight: bold; font-size: 16px; margin-bottom: 10px; text-transform: uppercase; }
+    .chart-title { text-align: center; letter-spacing: 2px; color: #ffffff; font-weight: bold; font-size: 16px; margin-bottom: 15px; text-transform: uppercase; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -47,7 +47,6 @@ try:
     df = pd.read_csv(csv_url)
     df.columns = df.columns.str.strip()
 
-    # --- LIMPIEZA DE DATOS ---
     if 'M3 Total' in df.columns:
         df['M3 Total'] = df['M3 Total'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
         df['M3 Total'] = pd.to_numeric(df['M3 Total'], errors='coerce').fillna(0)
@@ -77,7 +76,7 @@ try:
         m1, m2, m3 = st.columns(3)
         with m1: st.markdown(f"<div class='big-metric-card'><p class='label-massive'>CANTIDAD DE SO</p><p class='value-massive'>{int(cant_so)}</p></div>", unsafe_allow_html=True)
         with m2: st.markdown(f"<div class='big-metric-card'><p class='label-massive'>VOLUMEN TOTAL</p><p class='value-massive'>{int(m3_totales):,} M3</p></div>", unsafe_allow_html=True)
-        with m3: st.markdown(f"<div class='big-metric-card'><p class='label-massive'>PROVEEDORES</p><p class='label-massive'>{int(cant_proveedores)}</p></div>", unsafe_allow_html=True)
+        with m3: st.markdown(f"<div class='big-metric-card'><p class='label-massive'>PROVEEDORES</p><p class='value-massive'>{int(cant_proveedores)}</p></div>", unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
@@ -104,42 +103,49 @@ try:
 
         st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
 
-        # --- BLOQUE 3: EL CUADRO RESUMEN QUE FALTABA ---
+        # --- BLOQUE 3: CUADRO RESUMEN ---
         st.markdown("<p class='chart-title'>Participación por País de Destino</p>", unsafe_allow_html=True)
         resumen = df.groupby('Pais Destino').agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT. SO', 'M3 Total': 'M3'})
         resumen['%'] = ((resumen['M3'] / m3_totales) * 100).round(0)
         resumen = resumen.sort_values(by='M3', ascending=False)
         df_total = pd.DataFrame({'CANT. SO': [resumen['CANT. SO'].sum()], 'M3': [resumen['M3'].sum()], '%': [100]}, index=['TOTAL GENERAL'])
         resumen_final = pd.concat([resumen, df_total])
-        
         st.dataframe(resumen_final.style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL GENERAL' else '' for _ in s], axis=1).format({'CANT. SO': '{:,.0f}', 'M3': '{:,.0f}', '%': '{:.0f}%'}), use_container_width=True)
 
         st.markdown("<br><br>", unsafe_allow_html=True)
 
-        # --- BLOQUE 4: GRÁFICOS ---
-        g1, g2, g3 = st.columns(3)
+        # --- BLOQUE 4: GRÁFICOS (Ajuste de Altura y Etiquetas) ---
+        g1, g2, g3 = st.columns([1.2, 1, 1]) # Damos un poco más de ancho a Puertos
 
         with g1:
             st.markdown("<p class='chart-title'>Distribución por Puerto</p>", unsafe_allow_html=True)
             col_puerto = 'Puerto de Salida' if 'Puerto de Salida' in df.columns else df.columns[41]
             df[col_puerto] = df[col_puerto].fillna('SIN DEFINIR')
             p_df = df.groupby(col_puerto).agg({'M3 Total': 'sum'}).reset_index().sort_values(by='M3 Total')
-            fig_p = px.bar(p_df, y=col_puerto, x='M3 Total', orientation='h', text_auto=',.0f', color_discrete_sequence=['#00a8ff'], template='plotly_dark')
-            fig_p.update_layout(xaxis_title=None, yaxis_title=None, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=300)
+            
+            fig_p = px.bar(p_df, y=col_puerto, x='M3 Total', orientation='h', 
+                           text_auto=',.0f', # Muestra números
+                           color_discrete_sequence=['#00a8ff'], template='plotly_dark')
+            
+            fig_p.update_layout(xaxis_title=None, yaxis_title=None, paper_bgcolor='rgba(0,0,0,0)', 
+                                plot_bgcolor='rgba(0,0,0,0)', height=500) # ALTURA AUMENTADA
+            fig_p.update_traces(textposition='outside', textfont_size=14)
             st.plotly_chart(fig_p, use_container_width=True)
 
         with g2:
             st.markdown(f"<p class='chart-title'>ETD (Desde {hoy.strftime('%m/%Y')})</p>", unsafe_allow_html=True)
             etd_plot = df_proyeccion_etd.groupby('Mes_ETD').agg({'M3 Total': 'sum'}).reset_index().sort_values('Mes_ETD')
             fig_etd = px.bar(etd_plot, x='Mes_ETD', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#00ff88'], template='plotly_dark')
-            fig_etd.update_layout(xaxis_title=None, yaxis_title=None, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=300)
+            fig_etd.update_layout(xaxis_title=None, yaxis_title=None, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=500)
+            fig_etd.update_traces(textposition='outside', textfont_size=14)
             st.plotly_chart(fig_etd, use_container_width=True)
 
         with g3:
             st.markdown("<p class='chart-title'>ETA (Futuro)</p>", unsafe_allow_html=True)
             eta_plot = df_proyeccion_eta.groupby('Mes_ETA').agg({'M3 Total': 'sum'}).reset_index().sort_values('Mes_ETA')
             fig_eta = px.bar(eta_plot, x='Mes_ETA', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#ff4b4b'], template='plotly_dark')
-            fig_eta.update_layout(xaxis_title=None, yaxis_title=None, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=300)
+            fig_eta.update_layout(xaxis_title=None, yaxis_title=None, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=500)
+            fig_eta.update_traces(textposition='outside', textfont_size=14)
             st.plotly_chart(fig_eta, use_container_width=True)
 
 except Exception as e:
