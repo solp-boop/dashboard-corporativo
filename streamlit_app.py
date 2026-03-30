@@ -1,39 +1,19 @@
-import os
-import subprocess
-import sys
-
-# TRUCO MAESTRO: Si la librería no aparece, la instalamos a la fuerza al arrancar
-try:
-    from st_gsheets_connection import GSheetsConnection
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "st-gsheets-connection"])
-    from st_gsheets_connection import GSheetsConnection
-
 import streamlit as st
+import pandas as pd
+import gspread
+from google.oauth2.service_account import Credentials
 
-# Configuración de la página
 st.set_page_config(page_title="Dashboard Corporativo", layout="wide")
+st.title("📊 Panel de Control Directo")
 
-st.title("📊 Panel de Control Gerencial")
-
-# Conexión
+# Método alternativo directo si la otra librería falla
 try:
-    conn = st.connection("gsheets", type=GSheetsConnection)
+    url = st.secrets["connections"]["gsheets"]["spreadsheet"]
+    # Intentamos leerlo como CSV público (más rápido y sin errores de módulos)
+    csv_url = url.replace("/edit?gid=", "/export?format=csv&gid=")
+    df = pd.read_csv(csv_url)
     
-    # --- CONFIGURACIÓN DE PESTAÑAS ---
-    # Cambia estos nombres por los de tus hojas reales si hace falta
-    pestanas_reales = ["Hoja 1", "Hoja 2", "Hoja 3", "Hoja 4"]
-    seleccion = st.sidebar.selectbox("Selecciona la pestaña de datos:", pestanas_reales)
-
-    # Leer la hoja seleccionada
-    df = conn.read(worksheet=seleccion)
-    
-    # Mostrar resultados
-    st.subheader(f"Mostrando datos de: {seleccion}")
-    st.metric("Total Filas", len(df))
+    st.success("✅ Conexión exitosa")
     st.dataframe(df, use_container_width=True)
-
 except Exception as e:
-    st.error("⚠️ Error de conexión o configuración")
-    st.write(f"Detalle: {e}")
-    st.info("Revisa los 'Secrets' y que la hoja de Google sea pública.")
+    st.error(f"Error: {e}")
