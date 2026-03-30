@@ -1,71 +1,56 @@
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(page_title="Dashboard Corporativo", layout="wide")
-st.title("📊 Panel de Control Directo")
+st.set_page_config(page_title="Dashboard Logístico", layout="wide")
+st.title("📊 Panel de Control Directo (Planif Cargas)")
 
 try:
-    # 1. Obtención de datos
-    url = st.secrets["connections"]["gsheets"]["spreadsheet"]
-    # Forzamos la descarga de la hoja específica "Planif cargas" mediante su GID
-    # Nota: El GID 0 suele ser la primera hoja. 
-    csv_url = url.replace("/edit?gid=", "/export?format=csv&gid=")
+    # 1. Configuración del Link y la Hoja
+    base_url = "https://docs.google.com/spreadsheets/d/1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI"
+    
+    # IMPORTANTE: Reemplaza el 0 por el número GID que copiaste de tu pestaña "Planif cargas"
+    # Si "Planif cargas" es la primera hoja, déjalo en 0.
+    GID_HOJA = "0" 
+    
+    csv_url = f"{base_url}/export?format=csv&gid={GID_HOJA}"
+    
+    # Leemos los datos (Añadimos decimal=',' por si usas comas en Excel)
     df = pd.read_csv(csv_url)
-    
-    st.success("✅ Datos sincronizados")
+    df.columns = df.columns.str.strip() # Limpiamos espacios en los nombres
 
-    # --- PROCESAMIENTO DE INFORMACIÓN ---
-    
-    # 2. Selección de columnas necesarias (Usamos los nombres exactos que tiene tu Excel)
-    # Columna A: 'SO' (o el nombre que tenga la primera columna)
-    # Columna S: 'Pais Destino'
-    # Columna AY: 'M3 Total' 
-    
-    # Limpiamos los nombres de las columnas por si tienen espacios locos
-    df.columns = df.columns.str.strip()
+    st.success(f"✅ Conexión con 'Planif cargas' exitosa")
 
-    # Convertimos M3 a número por si viene como texto, ignorando errores
+    # --- PROCESAMIENTO DE M3 (COLUMNA AY) ---
     if 'M3 Total' in df.columns:
+        # Convertimos a string, quitamos puntos de miles si existen, cambiamos coma por punto y a número
+        df['M3 Total'] = df['M3 Total'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
         df['M3 Total'] = pd.to_numeric(df['M3 Total'], errors='coerce').fillna(0)
-
-    # 3. CREACIÓN DE MÉTRICAS GLOBALES
-    col1, col2, col3 = st.columns(3)
     
-    with col1:
-        total_so = df['SO'].nunique() if 'SO' in df.columns else len(df)
-        st.metric("📦 Cantidad de SO", f"{total_so}")
-
-    with col2:
-        total_m3 = df['M3 Total'].sum() if 'M3 Total' in df.columns else 0
-        st.metric("📐 M3 Totales", f"{total_m3:,.2f} m³")
-
-    with col3:
-        paises_count = df['Pais Destino'].nunique() if 'Pais Destino' in df.columns else 0
-        st.metric("🌎 Países Destino", paises_count)
+    # --- MÉTRICAS ---
+    m3_totales = df['M3 Total'].sum()
+    cant_so = df['SO'].nunique() if 'SO' in df.columns else len(df)
+    
+    c1, c2 = st.columns(2)
+    c1.metric("📦 Cantidad de SO (Registros)", f"{cant_so}")
+    c2.metric("📐 Volumen Total (M3)", f"{m3_totales:,.2f} m³")
 
     st.markdown("---")
 
-    # 4. TABLA DE RESUMEN POR PAÍS
-    st.subheader("Resumen Logístico por País")
-    
-    if 'Pais Destino' in df.columns and 'M3 Total' in df.columns:
-        # Agrupamos los datos
+    # --- RESUMEN POR PAÍS ---
+    if 'Pais Destino' in df.columns:
+        st.subheader("Análisis por País")
         resumen = df.groupby('Pais Destino').agg({
             'SO': 'count',
             'M3 Total': 'sum'
-        }).rename(columns={'SO': 'Cant. SO', 'M3 Total': 'Volumen (m3)'})
+        }).rename(columns={'SO': 'Cant. SO', 'M3 Total': 'M3 en Origen'})
         
-        # Ordenamos de mayor a menor volumen
-        resumen = resumen.sort_values(by='Volumen (m3)', ascending=False)
+        # Ordenamos para ver dónde hay más volumen
+        resumen = resumen.sort_values(by='M3 en Origen', ascending=False)
         
-        st.table(resumen) # Usamos table para que sea más formal o dataframe para interactiva
+        # Mostramos la tabla con formato
+        st.dataframe(resumen.style.format({'M3 en Origen': '{:,.2f}'}), use_container_width=True)
     else:
-        st.warning("No se encontraron las columnas 'Pais Destino' o 'M3 Total'. Revisa los nombres en el Excel.")
-
-    # 5. VISTA DETALLADA
-    with st.expander("Ver base de datos completa"):
-        st.dataframe(df)
+        st.warning("⚠️ No encontré la columna 'Pais Destino'. Revisa que se llame exactamente así.")
 
 except Exception as e:
-    st.error(f"Error procesando el dashboard: {e}")
-    st.info("Asegúrate de que los nombres de las columnas en el Excel coincidan exactamente con el código.")
+    st.error(f"Error: {e}")
