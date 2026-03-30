@@ -1,5 +1,15 @@
+import os
+import subprocess
+import sys
+
+# TRUCO MAESTRO: Si la librería no aparece, la instalamos a la fuerza al arrancar
+try:
+    from st_gsheets_connection import GSheetsConnection
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "st-gsheets-connection"])
+    from st_gsheets_connection import GSheetsConnection
+
 import streamlit as st
-from st_gsheets_connection import GSheetsConnection
 
 # Configuración de la página
 st.set_page_config(page_title="Dashboard Corporativo", layout="wide")
@@ -7,14 +17,14 @@ st.set_page_config(page_title="Dashboard Corporativo", layout="wide")
 st.title("📊 Panel de Control Gerencial")
 
 # Conexión
-conn = st.connection("gsheets", type=GSheetsConnection)
-
-# --- CONFIGURACIÓN DE PESTAÑAS ---
-# IMPORTANTE: Si tus hojas tienen nombres distintos, cámbialos aquí:
-pestanas_reales = ["Hoja 1", "Hoja 2", "Hoja 3", "Hoja 4"]
-seleccion = st.sidebar.selectbox("Selecciona la pestaña de datos:", pestanas_reales)
-
 try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    
+    # --- CONFIGURACIÓN DE PESTAÑAS ---
+    # Cambia estos nombres por los de tus hojas reales si hace falta
+    pestanas_reales = ["Hoja 1", "Hoja 2", "Hoja 3", "Hoja 4"]
+    seleccion = st.sidebar.selectbox("Selecciona la pestaña de datos:", pestanas_reales)
+
     # Leer la hoja seleccionada
     df = conn.read(worksheet=seleccion)
     
@@ -24,5 +34,6 @@ try:
     st.dataframe(df, use_container_width=True)
 
 except Exception as e:
-    st.error("⚠️ Error al conectar con Google Sheets")
-    st.info("Asegúrate de que el enlace en 'Secrets' sea el correcto y que el archivo de Google sea público.")
+    st.error("⚠️ Error de conexión o configuración")
+    st.write(f"Detalle: {e}")
+    st.info("Revisa los 'Secrets' y que la hoja de Google sea pública.")
