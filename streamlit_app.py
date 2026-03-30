@@ -140,4 +140,4 @@ try:
             st.plotly_chart(fig_eta, use_container_width=True)
 
 except Exception as e:
-    st.error(f"Error de sistema: {e}")}")
+    st.error(f"Error de sistema: {e}")
