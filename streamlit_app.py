@@ -2,13 +2,12 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# --- CONFIGURACIÓN DE PÁGINA (Layout Wide es clave) ---
+# --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="BIDCOM | Dashboard Ejecutivo", layout="wide")
 
-# --- DISEÑO BIDCOM IMPACTO TOTAL (CSS MASIVO) ---
+# --- DISEÑO BIDCOM IMPACTO TOTAL (CSS UNIFICADO) ---
 st.markdown("""
     <style>
-    /* Forzar que el contenedor principal use todo el ancho real */
     .block-container {
         padding-top: 1rem;
         padding-bottom: 0rem;
@@ -18,7 +17,6 @@ st.markdown("""
     
     .main { background-color: #040911; color: #ffffff; }
     
-    /* Header BIDCOM */
     .bidcom-header {
         background: linear-gradient(135deg, #001f3f 0%, #003366 100%);
         padding: 20px; border-radius: 15px; border: 1px solid #004080;
@@ -26,39 +24,43 @@ st.markdown("""
     }
     .bidcom-header h1 { font-size: 40px; letter-spacing: 8px; color: #ffffff; font-weight: 900; margin:0; }
     
-    /* Tabs Centrados */
     .stTabs [data-baseweb="tab-list"] { justify-content: center; gap: 20px; }
 
-    /* --- TARJETAS DE MÉTRICAS GIGANTES --- */
+    /* --- TARJETAS DE MÉTRICAS UNIFICADAS --- */
     .big-metric-card {
         background: rgba(255, 255, 255, 0.03);
         border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 20px;
-        padding: 40px 10px;
+        padding: 50px 10px;
         text-align: center;
         box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         margin: 5px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
     }
     
     .label-massive { 
-        font-size: 24px; /* Título más visible */
+        font-size: 26px; 
         color: #00a8ff; 
-        letter-spacing: 4px; 
+        letter-spacing: 5px; 
         text-transform: uppercase; 
         font-weight: 800;
-        margin-bottom: 10px;
+        margin-bottom: 15px;
     }
+    
+    /* UNIFICACIÓN DE FUENTE: Número y Unidad igual */
     .value-massive { 
-        font-size: 140px; /* ¡SUPER GIGANTE! */
+        font-size: 110px; 
         font-weight: 900; 
         color: #ffffff; 
-        line-height: 0.8; 
+        line-height: 1; 
         margin: 0;
-        text-shadow: 0 0 50px rgba(0,168,255,0.4);
+        text-shadow: 0 0 40px rgba(0,168,255,0.4);
+        display: inline-block;
     }
-    .unit-massive { font-size: 40px; color: #ffffff; font-weight: 300; vertical-align: middle; }
 
-    /* Botones Interactivos */
     .stButton>button {
         border-radius: 15px !important; color: white !important;
         width: 100%; height: 150px; transition: all 0.3s ease;
@@ -94,7 +96,7 @@ try:
     tabs = st.tabs(["ORIGEN", "STATUS CARGAS", "INDICADORES", "AGENTES", "ANALISTAS", "FLETES"])
 
     with tabs[0]:
-        # --- BLOQUE SUPERIOR GIGANTE (Sin márgenes laterales para que crezca) ---
+        # --- BLOQUE SUPERIOR ---
         m1, m2, m3 = st.columns(3)
         
         with m1:
@@ -104,9 +106,10 @@ try:
             </div>""", unsafe_allow_html=True)
             
         with m2:
+            # UNIFICADO: M3 ahora tiene la misma clase que el número
             st.markdown(f"""<div class='big-metric-card'>
                 <p class='label-massive'>VOLUMEN TOTAL</p>
-                <p class='value-massive'>{int(m3_totales):,}<span class='unit-massive'> M3</span></p>
+                <p class='value-massive'>{int(m3_totales):,} M3</p>
             </div>""", unsafe_allow_html=True)
             
         with m3:
