@@ -91,7 +91,22 @@ try:
 # --- SOLAPA 1: ORIGEN ---
     with tabs[0]:
         try:
-            # --- BLOQUE 1: KPIs ULTRA MASIVOS (Mismo formato que Gestión) ---
+            # --- RE-CÁLCULO DE CONDICIONES PARA EVITAR ERRORES DE DEFINICIÓN ---
+            df['Fecha_Inst_DT'] = pd.to_datetime(df['Fecha de Instruccion'], errors='coerce')
+            cond_instruido = df['Fecha_Inst_DT'].notna() & ~(df['Fecha de Instruccion'].astype(str).str.upper().str.contains("SIN INSTRUCCION", na=False))
+            cond_critico = (~cond_instruido) & (df['Fecha_Prior_DT'] <= limite_proximo)
+            cond_resto = (~cond_instruido) & (~cond_critico)
+
+            df_inst = df[cond_instruido].copy()
+            df_criticos = df[cond_critico].copy()
+            df_resto = df[cond_resto].copy()
+
+            # Cálculo de porcentajes locales
+            p_inst_loc = round(df_inst['M3 Total'].sum() / m3_totales_global * 100) if m3_totales_global > 0 else 0
+            p_crit_loc = round(df_criticos['M3 Total'].sum() / m3_totales_global * 100) if m3_totales_global > 0 else 0
+            p_rest_loc = round(df_resto['M3 Total'].sum() / m3_totales_global * 100) if m3_totales_global > 0 else 0
+
+            # --- BLOQUE 1: KPIs ULTRA MASIVOS ---
             st.markdown("<br>", unsafe_allow_html=True)
             o1, o2, o3 = st.columns(3)
             
@@ -124,14 +139,14 @@ try:
 
             st.markdown("<br>", unsafe_allow_html=True)
 
-            # --- BLOQUE 2: BOTONES DE FILTRADO (Mantienen su lógica original) ---
+            # --- BLOQUE 2: BOTONES DE FILTRADO ---
             b1_col, b2_col, b3_col, b4_col, b5_col = st.columns(5)
             
-            if b1_col.button(f"MERCADERIA INSTRUIDA \n {p_inst}%", key="btn_inst"):
+            if b1_col.button(f"MERCADERIA INSTRUIDA \n {p_inst_loc}%", key="btn_inst"):
                 st.session_state.f = 'inst' if st.session_state.get('f') != 'inst' else None
-            if b2_col.button(f"PRÓXIMO A INSTRUIR \n {p_critico}%", key="btn_crit"):
+            if b2_col.button(f"PRÓXIMO A INSTRUIR \n {p_crit_loc}%", key="btn_crit"):
                 st.session_state.f = 'crit' if st.session_state.get('f') != 'crit' else None
-            if b3_col.button(f"RESTO PENDIENTE \n {p_resto}%", key="btn_rest"):
+            if b3_col.button(f"RESTO PENDIENTE \n {p_rest_loc}%", key="btn_rest"):
                 st.session_state.f = 'rest' if st.session_state.get('f') != 'rest' else None
             if b4_col.button("TOP RANKING \n (1-100)", key="btn_rank"):
                 st.session_state.f = 'rank' if st.session_state.get('f') != 'rank' else None
@@ -144,21 +159,18 @@ try:
                 f = st.session_state.f
                 if f == "inst":
                     st.markdown("<h3 style='color:#00a8ff; font-weight:300;'>Detalle: Mercadería Instruida</h3>", unsafe_allow_html=True)
-                    df_mostrar = df_inst[['SO', 'Proveedor', 'M3 Total', 'Fecha de Instruccion']].copy()
-                    st.dataframe(df_mostrar, use_container_width=True)
+                    st.dataframe(df_inst[['SO', 'Proveedor', 'M3 Total', 'Fecha de Instruccion']], use_container_width=True)
                 elif f == "crit":
                     st.markdown("<h3 style='color:#ff4b4b; font-weight:300;'>⚠️ Detalle: Próximo a Instruir</h3>", unsafe_allow_html=True)
-                    df_mostrar = df_criticos[['SO', 'Proveedor', df.columns[99], 'M3 Total']].sort_values(by=df.columns[99])
-                    st.dataframe(df_mostrar, use_container_width=True)
+                    st.dataframe(df_criticos[['SO', 'Proveedor', df.columns[99], 'M3 Total']].sort_values(by=df.columns[99]), use_container_width=True)
                 elif f == "rest":
                     st.markdown("<h3 style='color:#00a8ff; font-weight:300;'>Detalle: Resto Pendiente</h3>", unsafe_allow_html=True)
-                    df_mostrar = df_resto[['SO', 'Proveedor', df.columns[99], 'M3 Total']]
-                    st.dataframe(df_mostrar, use_container_width=True)
+                    st.dataframe(df_resto[['SO', 'Proveedor', df.columns[99], 'M3 Total']], use_container_width=True)
                 elif f == "rank":
                     st.markdown("<h3 style='color:#00a8ff; font-weight:300;'>Top 100 Ranking</h3>", unsafe_allow_html=True)
                     col_rank = df.columns[1]
-                    df_mostrar = df[(pd.to_numeric(df[col_rank], errors='coerce') <= 100)][['SO', col_rank, 'M3 Total']].sort_values(by=col_rank)
-                    st.dataframe(df_mostrar, use_container_width=True)
+                    df_rank = df[(pd.to_numeric(df[col_rank], errors='coerce') <= 100)].sort_values(by=col_rank)
+                    st.dataframe(df_rank[['SO', col_rank, 'M3 Total']], use_container_width=True)
                 elif f == "estr":
                     st.markdown("<h3 style='color:#00a8ff; font-weight:300;'>Estructura de Carga</h3>", unsafe_allow_html=True)
                     col_cp = df.columns[93]
