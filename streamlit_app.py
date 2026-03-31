@@ -72,25 +72,37 @@ try:
         df['M3 Total'] = df['M3 Total'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
         df['M3 Total'] = pd.to_numeric(df['M3 Total'], errors='coerce').fillna(0)
     
-    # Procesamiento Fechas
+   # --- PROCESAMIENTO DE FECHAS (OPTIMIZADO PARA EVITAR "SIN FECHA") ---
+    # Usamos las columnas 23 (ETD) y 24 (ETA) según tu estructura
     df['ETD_DT'] = pd.to_datetime(df.iloc[:, 23], errors='coerce')
     df['ETA_DT'] = pd.to_datetime(df.iloc[:, 24], errors='coerce')
+    
+    # Fecha Prioritaria (Columna 99 / CV)
     df['Fecha_Prior_DT'] = pd.to_datetime(df.iloc[:, 99], errors='coerce') 
+    
     hoy = pd.Timestamp(datetime.now().date())
     inicio_mes = hoy.replace(day=1)
 
     def label_proyeccion(fecha, pivot):
-        if pd.isna(fecha): return "SIN FECHA"
-        if fecha < pivot: return "PASADO/REALIZADO"
+        # Si después de 'coerce' sigue siendo NaT, es que realmente está vacío o el formato es irreconocible
+        if pd.isna(fecha): 
+            return "SIN FECHA"
+        # Si la fecha es muy vieja (ej: año 1900 o error de carga), lo agrupamos en PASADO
+        if fecha.year < 2020:
+            return "PASADO/REALIZADO"
+        if fecha < pivot: 
+            return "PASADO/REALIZADO"
         return fecha.strftime('%m/%Y')
 
+    # Aplicamos la lógica a las nuevas columnas de proyección
     df['Mes_ETD_Full'] = df['ETD_DT'].apply(lambda x: label_proyeccion(x, inicio_mes))
     df['Mes_ETA_Full'] = df['ETA_DT'].apply(lambda x: label_proyeccion(x, hoy))
 
-    m3_totales_global = round(df['M3 Total'].sum())
-    cant_so_global = len(df)
-    cant_proveedores_global = df['Proveedor'].nunique() if 'Proveedor' in df.columns else 0
-
+    # --- ORDENAMIENTO DE LAS COLUMNAS DEL GRÁFICO ---
+    # Esto asegura que PASADO vaya al principio y SIN FECHA al final, no mezclados
+    orden_meses = sorted([m for m in df['Mes_ETA_Full'].unique() if m not in ["PASADO/REALIZADO", "SIN FECHA"]])
+    categoria_orden = ["PASADO/REALIZADO"] + orden_meses + ["SIN FECHA"]
+    df['Mes_ETA_Full'] = pd.Categorical(df['Mes_ETA_Full'], categories=categoria_orden, ordered=True)
     # --- HEADER ---
     st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><div class='bidcom-subtitle'>Tablero Logistica Internacional</div></div>", unsafe_allow_html=True)
     
@@ -137,7 +149,8 @@ try:
 
         # --- LÓGICA DE DESPLEGABLES ---
         if st.session_state.get('f'):
-            st.markdown("---")
+            st.
+            markdown("---")
             f = st.session_state.f
             
             if f == "inst":
