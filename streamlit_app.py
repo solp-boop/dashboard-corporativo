@@ -383,21 +383,56 @@ try:
 
             st.markdown("<br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
 
-            # --- BLOQUE 2: PERFORMANCE GLOBAL ---
-            df_g['ETD_Status_K'] = df_g.iloc[:, 10].astype(str).str.upper().str.strip()
-            confirmados_glob = len(df_g[df_g['ETD_Status_K'] == "OK"])
-            pendientes_glob = len(df_g) - confirmados_glob
-            p_ok_glob = round((confirmados_glob / len(df_g) * 100)) if len(df_g) > 0 else 0
+        # --- BLOQUE 2: BOTONES DE FILTRADO CON RESALTADO DINÁMICO (RESERVAS) ---
+            r1, r2, r3, r4, r5 = st.columns(5)
             
-            _, c_mid, _ = st.columns([0.1, 1, 0.1])
-            with c_mid:
-                m1, m2, m3, m4 = st.columns(4)
-                m1.markdown(f"<div style='text-align:center;'><p style='font-weight:700; font-size:14px; margin:0;'>ETD OK (TOTAL)</p><p style='font-weight:300; font-size:32px; margin:0;'>{confirmados_glob} Emb.</p></div>", unsafe_allow_html=True)
-                m2.markdown(f"<div style='text-align:center;'><p style='font-weight:700; font-size:14px; margin:0;'>PENDIENTES (TOTAL)</p><p style='font-weight:300; font-size:32px; margin:0;'>{pendientes_glob} Emb.</p></div>", unsafe_allow_html=True)
-                m3.markdown(f"<div style='text-align:center;'><p style='font-weight:700; font-size:14px; margin:0;'>% EFECTIVIDAD</p><p style='font-weight:300; font-size:32px; margin:0;'>{int(p_ok_glob)}%</p></div>", unsafe_allow_html=True)
-                m4.markdown(f"<div style='text-align:center;'><p style='font-weight:700; font-size:14px; margin:0;'>% PENDIENTE</p><p style='font-weight:300; font-size:32px; margin:0;'>{int(100 - p_ok_glob)}%</p></div>", unsafe_allow_html=True)
+            # Recuperamos el filtro activo específico de reservas (usamos una clave distinta a origen para que no se pisen)
+            filtro_reserva = st.session_state.get('f_res')
 
-            st.markdown("<br><p style='text-align:center; color:#00a8ff; font-weight:700; letter-spacing:2px; font-size:12px;'>DESGLOSE POR TIPO DE TRANSPORTE</p>", unsafe_allow_html=True)
+            # Función para aplicar estilo de "Resaltado"
+            def get_res_btn_style(target):
+                if filtro_reserva == target:
+                    return "border: 2px solid #00a8ff; background: rgba(0, 168, 255, 0.1);"
+                return "border: 1px solid #1e293b; background: transparent;"
+
+            with r1:
+                st.markdown(f"<div style='{get_res_btn_style('adv')} border-radius:5px;'>", unsafe_allow_html=True)
+                if st.button(f"BOOKING IN \n ADVANCE {p_adv}%", key="btn_adv_r", use_container_width=True):
+                    st.session_state.f_res = 'adv' if filtro_reserva != 'adv' else None
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            with r2:
+                st.markdown(f"<div style='{get_res_btn_style('spot')} border-radius:5px;'>", unsafe_allow_html=True)
+                if st.button(f"BOOKING \n SPOT {p_spot}%", key="btn_spot_r", use_container_width=True):
+                    st.session_state.f_res = 'spot' if filtro_reserva != 'spot' else None
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            with r3:
+                st.markdown(f"<div style='{get_res_btn_style('avi')} border-radius:5px;'>", unsafe_allow_html=True)
+                if st.button(f"AVION / \n COURIER {p_avion}%", key="btn_avi_r", use_container_width=True):
+                    st.session_state.f_res = 'avi' if filtro_reserva != 'avi' else None
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            with r4:
+                st.markdown(f"<div style='{get_res_btn_style('rank_r')} border-radius:5px;'>", unsafe_allow_html=True)
+                if st.button("TOP 100 \n RANKING", key="btn_rank_res", use_container_width=True):
+                    st.session_state.f_res = 'rank_r' if filtro_reserva != 'rank_r' else None
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            with r5:
+                st.markdown(f"<div style='{get_res_btn_style('estr_r')} border-radius:5px;'>", unsafe_allow_html=True)
+                if st.button("ANALISIS \n ESTRUCTURA", key="btn_estr_res", use_container_width=True):
+                    st.session_state.f_res = 'estr_r' if filtro_reserva != 'estr_r' else None
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            # --- LÓGICA DE DESPLIEGUE ---
+            # Asegúrate de que los cuadros de abajo (if f_res == 'adv', etc.) 
+            # usen 'f_res' en lugar de 'f' para mantener las solapas independientes.
 
             # --- BLOQUE 3: MARITIMO VS AEREO ---
             def clasificar_transporte(x):
