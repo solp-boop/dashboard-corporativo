@@ -6,7 +6,7 @@ from datetime import datetime
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="BIDCOM | Dashboard Ejecutivo", layout="wide")
 
-# --- DISEÑO BIDCOM IMPACTO TOTAL (CSS MEJORADO) ---
+# --- DISEÑO BIDCOM IMPACTO TOTAL (CSS) ---
 st.markdown("""
     <style>
     .block-container { padding: 1rem 2rem; }
@@ -37,12 +37,10 @@ st.markdown("""
         text-transform: uppercase; font-weight: 600; margin-top: 5px;
     }
 
-    /* MÉTRICAS MASIVAS */
     .metric-container { text-align: center; padding: 20px; }
     .label-massive { font-size: 24px; color: #00a8ff; letter-spacing: 5px; text-transform: uppercase; font-weight: 800; margin-bottom: 5px; }
     .value-massive { font-size: 120px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 30px rgba(0,168,255,0.5); }
 
-    /* --- BOTONES CON EFECTO CELESTE --- */
     .stButton>button {
         border-radius: 15px !important; 
         color: white !important;
@@ -52,20 +50,11 @@ st.markdown("""
         transition: all 0.3s ease-in-out !important;
     }
 
-    /* Efecto al pasar el mouse (HOVER) */
     .stButton>button:hover { 
         background-color: rgba(0, 168, 255, 0.2) !important; 
         border-color: #00a8ff !important; 
         color: #00a8ff !important;
         box-shadow: 0 0 20px rgba(0, 168, 255, 0.4) !important;
-        transform: translateY(-2px);
-    }
-
-    /* Efecto al hacer clic (ACTIVE) */
-    .stButton>button:active {
-        transform: scale(0.98);
-        background-color: #00a8ff !important;
-        color: white !important;
     }
     
     .chart-title { text-align: center; letter-spacing: 2px; color: #00a8ff; font-weight: 900; font-size: 20px; margin: 25px 0 15px 0; text-transform: uppercase; }
@@ -75,8 +64,7 @@ st.markdown("""
 try:
     # 1. Carga de Datos
     base_url = "https://docs.google.com/spreadsheets/d/1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI"
-    GID_HOJA = "0" 
-    csv_url = f"{base_url}/export?format=csv&gid={GID_HOJA}"
+    csv_url = f"{base_url}/export?format=csv&gid=0"
     df = pd.read_csv(csv_url)
     df.columns = df.columns.str.strip()
 
@@ -98,7 +86,7 @@ try:
     df['Mes_ETD_Full'] = df['ETD_DT'].apply(lambda x: label_proyeccion(x, inicio_mes))
     df['Mes_ETA_Full'] = df['ETA_DT'].apply(lambda x: label_proyeccion(x, hoy))
 
-    m3_totales = df['M3 Total'].sum()
+    m3_totales = round(df['M3 Total'].sum())
     cant_so = len(df)
     cant_proveedores = df['Proveedor'].nunique() if 'Proveedor' in df.columns else 0
 
@@ -137,27 +125,36 @@ try:
             if st.button(f"ESTRUCTURA DE CARGA \n Mono: {p_mono}% | Cons: {100-p_mono}%"):
                 st.session_state.f = None if st.session_state.get('f') == 'estr' else 'estr'
 
-        # --- LÓGICA DE DESPLEGABLES ---
+        # --- LÓGICA DE DESPLEGABLES CON TOTALES ---
         if st.session_state.get('f'):
             st.markdown("---")
             f = st.session_state.f
+            
+            def mostrar_tabla_con_totales(df_filtrado, titulo, cols_mostrar):
+                st.markdown(f"<h3 style='color:#00a8ff;'>{titulo}</h3>", unsafe_allow_html=True)
+                # Crear fila de total para la tabla
+                df_mostrar = df_filtrado[cols_mostrar].copy()
+                total_row = pd.DataFrame(df_mostrar.sum(numeric_only=True)).T
+                total_row.index = ['TOTAL']
+                df_final = pd.concat([df_mostrar, total_row])
+                st.dataframe(df_final.style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL' else '' for _ in s], axis=1).format({'M3 Total': '{:,.0f}', df.columns[1]: '{:,.0f}'}), use_container_width=True)
+
             if f == "inst":
-                st.markdown("<h3 style='color:#00a8ff;'>Detalle: Cargas Instruidas</h3>", unsafe_allow_html=True)
-                st.dataframe(df[df['Es_Instruido'] == True][['SO', 'Proveedor', 'Pais Destino', 'M3 Total', 'Fecha de Instruccion']], use_container_width=True)
+                mostrar_tabla_con_totales(df[df['Es_Instruido'] == True], "Detalle: Cargas Instruidas", ['SO', 'Proveedor', 'Pais Destino', 'M3 Total'])
             elif f == "pend":
-                st.markdown("<h3 style='color:#00a8ff;'>Detalle: Pendientes de Instrucción</h3>", unsafe_allow_html=True)
-                st.dataframe(df[df['Es_Instruido'] == False][['SO', 'Proveedor', 'Pais Destino', 'M3 Total', 'Status Pago']], use_container_width=True)
+                mostrar_tabla_con_totales(df[df['Es_Instruido'] == False], "Detalle: Pendientes de Instrucción", ['SO', 'Proveedor', 'Pais Destino', 'M3 Total'])
             elif f == "rank":
-                st.markdown("<h3 style='color:#00a8ff;'>Top 100: Prioridad de Salida</h3>", unsafe_allow_html=True)
                 col_ranking = df.columns[1]
-                col_puerto = 'Puerto de Salida' if 'Puerto de Salida' in df.columns else df.columns[41]
                 df[col_ranking] = pd.to_numeric(df[col_ranking], errors='coerce')
                 df_ranking = df[(df[col_ranking] >= 1) & (df[col_ranking] <= 100)].sort_values(by=col_ranking)
-                st.dataframe(df_ranking[['SO', col_ranking, df.columns[99], 'M3 Total', df.columns[93], col_puerto]], use_container_width=True)
+                mostrar_tabla_con_totales(df_ranking, "Top 100: Prioridad de Salida", ['SO', col_ranking, 'M3 Total', 'Puerto de Salida'])
             elif f == "estr":
                 st.markdown("<h3 style='color:#00a8ff;'>Análisis Monoproveedor vs Consolidado</h3>", unsafe_allow_html=True)
-                res_tipo = df.groupby(col_cp).agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'Cant. SO', 'M3 Total': 'M3'})
-                st.table(res_tipo.style.format({'M3': '{:,.2f}'}))
+                res_tipo = df.groupby(col_cp).agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'Cant. SO', 'M3 Total': 'M3'}).round(0)
+                # Fila total para el resumen
+                res_total = pd.DataFrame({'Cant. SO': [res_tipo['Cant. SO'].sum()], 'M3': [res_tipo['M3'].sum()]}, index=['TOTAL'])
+                res_final = pd.concat([res_tipo, res_total])
+                st.table(res_final.style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL' else '' for _ in s], axis=1).format({'M3': '{:,.0f}', 'Cant. SO': '{:,.0f}'}))
 
         st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
 
@@ -165,11 +162,9 @@ try:
         st.markdown("<p class='chart-title'>Participación por País de Destino</p>", unsafe_allow_html=True)
         res_p = df.groupby('Pais Destino').agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT. SO', 'M3 Total': 'M3'}).sort_values(by='M3', ascending=False)
         res_p['%'] = (res_p['M3'] / m3_totales * 100).round(0)
-        df_total = pd.DataFrame({'CANT. SO': [res_p['CANT. SO'].sum()], 'M3': [res_p['M3'].sum()], '%': [100]}, index=['TOTAL GENERAL'])
-        res_p_final = pd.concat([res_p, df_total])
-        st.dataframe(res_p_final.style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL GENERAL' else '' for _ in s], axis=1).format({'M3': '{:,.0f}', '%': '{:.0f}%'}), use_container_width=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
+        df_total_p = pd.DataFrame({'CANT. SO': [res_p['CANT. SO'].sum()], 'M3': [res_p['M3'].sum()], '%': [100]}, index=['TOTAL GENERAL'])
+        res_p_final = pd.concat([res_p, df_total_p])
+        st.dataframe(res_p_final.style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL GENERAL' else '' for _ in s], axis=1).format({'M3': '{:,.0f}', '%': '{:.0f}%', 'CANT. SO': '{:,.0f}'}), use_container_width=True)
 
         # --- BLOQUE 4: GRÁFICOS ---
         g1, g2, g3 = st.columns([1.2, 1, 1])
