@@ -191,17 +191,16 @@ try:
             df_res['Fecha_Inst_H'] = df_res.iloc[:, 7].astype(str).str.strip()
             df_g = df_res[df_res['Fecha_Inst_H'].apply(lambda x: len(str(x)) > 4)].copy()
 
-            # --- BLOQUE 1: KPIs GRANDES (Ajustados a tamaño intermedio) ---
+            # --- BLOQUE 1: KPIs GRANDES (Formato Ajustado) ---
             st.markdown("<br>", unsafe_allow_html=True)
             k1, k2, k3 = st.columns(3)
-            # Bajamos de 140px a 90px para un equilibrio perfecto
             with k1: st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>SO INSTRUIDAS</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(len(df_inst))}</p></div>", unsafe_allow_html=True)
             with k2: st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>VOLUMEN (M3)</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(round(df_inst['M3 Total'].sum())):,}</p></div>", unsafe_allow_html=True)
             with k3: st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>PROVEEDORES</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
 
             st.markdown("<br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
 
-            # --- BLOQUE 2: PERFORMANCE GLOBAL (CENTRALIZADO) ---
+            # --- BLOQUE 2: PERFORMANCE GLOBAL ---
             df_g['ETD_Status_K'] = df_g.iloc[:, 10].astype(str).str.upper().str.strip()
             confirmados_glob = len(df_g[df_g['ETD_Status_K'] == "OK"])
             pendientes_glob = len(df_g) - confirmados_glob
@@ -265,7 +264,6 @@ try:
 
             c_btn1, c_btn2 = st.columns(2)
             
-            # Lógica de contracción/despliegue para botones
             if c_btn1.button("ANALISIS BOOKING IN ADVANCE", key="btn_adv", use_container_width=True):
                 st.session_state.mode = 'adv' if st.session_state.get('mode') != 'adv' else None
             if c_btn2.button("ANALISIS MONOPROVEEDOR / CONSOLIDADO", key="btn_mono", use_container_width=True):
@@ -280,8 +278,8 @@ try:
                     mask = df_mar.iloc[:, 8].astype(str).str.strip() == "Booked in Advance"
                     labels = [("Booked in Advance", df_mar[mask]), ("No Booked in Advance", df_mar[~mask])]
                 else:
-                    # AI = índice 34
-                    mask = df_mar.iloc[:, 34].astype(str).str.upper().str.strip() == "SI"
+                    # LÓGICA CORREGIDA: Busca el texto "Monoproveedor" (Columna AI = índice 34)
+                    mask = df_mar.iloc[:, 34].astype(str).str.strip() == "Monoproveedor"
                     labels = [("Monoproveedor", df_mar[mask]), ("Consolidado", df_mar[~mask])]
 
                 total_m = len(df_mar) if len(df_mar) > 0 else 1
