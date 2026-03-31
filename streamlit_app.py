@@ -237,26 +237,54 @@ try:
 
             st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
 
-   # --- BLOQUE 4: PARTICIPACIÓN POR PAÍS (FORMATO CUADRO EJECUTIVO) ---
+ # --- BLOQUE 4: PARTICIPACIÓN POR PAÍS (CON CORRECCIÓN "SIN DEFINIR") ---
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("<p style='color:#00a8ff; font-weight:700; letter-spacing:1px; margin-bottom:10px;'>PARTICIPACIÓN POR PAÍS DE DESTINO</p>", unsafe_allow_html=True)
+            st.markdown("<p style='color:#00a8ff; font-weight:700; letter-spacing:2px; font-size:14px; margin-bottom:20px;'>DISTRIBUCIÓN GEOGRÁFICA DE CARGA</p>", unsafe_allow_html=True)
             
-            res_p = df.groupby('Pais Destino').agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT. SO', 'M3 Total': 'M3'}).sort_values(by='M3', ascending=False)
+            # Limpieza de datos: Rellenamos vacíos en Pais Destino antes de agrupar
+            df['Pais Destino'] = df['Pais Destino'].fillna('SIN DEFINIR').replace('', 'SIN DEFINIR')
             
-            # Calculamos el % de participación sobre el total global
-            res_p['% PARTICIPACIÓN'] = (res_p['M3'] / m3_totales_global * 100).round(0)
+            res_p = df.groupby('Pais Destino').agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT_SO', 'M3 Total': 'M3'}).sort_values(by='M3', ascending=False)
             
-            # Formateamos la tabla para que se vea impecable
-            st.dataframe(
-                res_p.style.format({
-                    'M3': '{:,.0f}', 
-                    'CANT. SO': '{:,.0f}', 
-                    '% PARTICIPACIÓN': '{:.0f}%'
-                }), 
-                use_container_width=True
-            )
+            # Totales para la fila final
+            total_so_p = res_p['CANT_SO'].sum()
+            total_m3_p = res_p['M3'].sum()
 
-            st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
+            # Encabezado con línea blanca sólida
+            h1, h2, h3, h4 = st.columns([1.5, 1, 1, 0.8])
+            h1.markdown("<p style='color:#8899A6; font-size:12px; font-weight:700;'>PAÍS DE DESTINO</p>", unsafe_allow_html=True)
+            h2.markdown("<p style='color:#8899A6; font-size:12px; font-weight:700; text-align:center;'>VOLUMEN (M3)</p>", unsafe_allow_html=True)
+            h3.markdown("<p style='color:#8899A6; font-size:12px; font-weight:700; text-align:center;'>CANTIDAD SO</p>", unsafe_allow_html=True)
+            h4.markdown("<p style='color:#8899A6; font-size:12px; font-weight:700; text-align:right;'>SHARE %</p>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin:0; border: none; border-top: 2px solid #ffffff; opacity:0.8;'>", unsafe_allow_html=True)
+
+            # Filas de países con líneas divisoras blancas sutiles
+            for pais, row in res_p.iterrows():
+                m3_v = int(round(row['M3']))
+                so_v = int(row['CANT_SO'])
+                # Usamos el total calculado de la tabla para que el % sea exacto sobre lo visualizado
+                pct_v = int(round((m3_v / total_m3_p * 100))) if total_m3_p > 0 else 0
+                
+                # Resaltamos "SIN DEFINIR" en un color grisáceo si aparece
+                color_texto = "#ffffff" if pais != "SIN DEFINIR" else "#8899A6"
+                
+                c1, c2, c3, c4 = st.columns([1.5, 1, 1, 0.8])
+                c1.markdown(f"<p style='color:{color_texto}; font-weight:700; font-size:16px; margin:12px 0;'>{pais.upper()}</p>", unsafe_allow_html=True)
+                c2.markdown(f"<p style='color:#00a8ff; font-weight:300; font-size:22px; text-align:center; margin:8px 0;'>{m3_v:,}</p>", unsafe_allow_html=True)
+                c3.markdown(f"<p style='color:{color_texto}; font-weight:300; font-size:22px; text-align:center; margin:8px 0;'>{so_v}</p>", unsafe_allow_html=True)
+                c4.markdown(f"<p style='color:#00ff88; font-weight:700; font-size:18px; text-align:right; margin:10px 0;'>{pct_v}%</p>", unsafe_allow_html=True)
+                
+                st.markdown("<hr style='margin:0; border: none; border-top: 1px solid #ffffff; opacity:0.2;'>", unsafe_allow_html=True)
+
+            # --- FILA DE TOTALES (RESALTADA) ---
+            t1, t2, t3, t4 = st.columns([1.5, 1, 1, 0.8])
+            t1.markdown("<p style='color:#ffffff; font-weight:900; font-size:18px; margin:15px 0;'>TOTAL GENERAL</p>", unsafe_allow_html=True)
+            t2.markdown(f"<p style='color:#00a8ff; font-weight:700; font-size:24px; text-align:center; margin:10px 0;'>{int(round(total_m3_p)):,}</p>", unsafe_allow_html=True)
+            t3.markdown(f"<p style='color:#ffffff; font-weight:700; font-size:24px; text-align:center; margin:10px 0;'>{int(total_so_p)}</p>", unsafe_allow_html=True)
+            t4.markdown("<p style='color:#00ff88; font-weight:900; font-size:20px; text-align:right; margin:15px 0;'>100%</p>", unsafe_allow_html=True)
+            
+            st.markdown("<hr style='margin:0; border: none; border-top: 2px solid #ffffff; opacity:0.8;'>", unsafe_allow_html=True)
+            st.markdown("<br><br>", unsafe_allow_html=True)
 
             # --- BLOQUE 5: GRÁFICOS DE PROYECCIÓN Y SALIDA ---
             g1, g2, g3 = st.columns([1.2, 1, 1])
