@@ -182,7 +182,7 @@ try:
 # --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
     with tabs[1]:
         try:
-            # 1. Carga y Filtro de Reservas (GID 276804813)
+            # 1. Carga de Reservas (GID 276804813)
             url_reserva = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
             df_res = pd.read_csv(url_reserva)
             df_res.columns = df_res.columns.str.strip()
@@ -249,24 +249,33 @@ try:
 
             st.markdown("<br>", unsafe_allow_html=True)
 
-            # --- BLOQUE 4: BOOKING IN ADVANCE (LÓGICA ACTUALIZADA) ---
+            # --- BLOQUE 4: BOOKING IN ADVANCE (BOTÓN IDÉNTICO A ORIGEN) ---
             df_mar = df_g[df_g['Transporte'] == "MARITIMO"].copy()
-            c_btn, _ = st.columns([1.5, 2])
+            
+            # Formato idéntico al botón de Origen
+            c_btn, _ = st.columns([1, 2])
             with c_btn:
-                btn_adv = st.button("BOOKING IN ADVANCE - Análisis Marítimo", key="btn_adv_mar", use_container_width=True)
+                # Usamos st.button que ya tiene el estilo definido en el CSS principal
+                btn_adv = st.button("ANALISIS BOOKING IN ADVANCE", key="btn_adv_bidcom")
 
-            if btn_adv or st.session_state.get('show_adv'):
-                st.session_state.show_adv = True 
-                
-                for col_idx in [1, 29, 21]:
-                    df_mar.iloc[:, col_idx] = pd.to_numeric(df_mar.iloc[:, col_idx].astype(str).str.replace(r'[^0-9.]', '', regex=True), errors='coerce').fillna(0)
+            if btn_adv:
+                st.session_state.show_adv = not st.session_state.get('show_adv', False)
 
-                # FILTRO POR TEXTO EXACTO (Columna I - Índice 8)
+            if st.session_state.get('show_adv'):
+                # Limpieza de datos FOB y numéricos (Columna V = 21)
+                def clean_currency(value):
+                    if pd.isna(value): return 0
+                    s_val = str(value).replace('.', '').replace(',', '.')
+                    return pd.to_numeric(''.join(c for c in s_val if c.isdigit() or c == '.'), errors='coerce')
+
+                df_mar.iloc[:, 1] = pd.to_numeric(df_mar.iloc[:, 1], errors='coerce').fillna(0) # Contenedores
+                df_mar.iloc[:, 29] = pd.to_numeric(df_mar.iloc[:, 29], errors='coerce').fillna(0) # Consolidación
+                df_mar.iloc[:, 21] = df_mar.iloc[:, 21].apply(clean_currency).fillna(0) # FOB SIMI TOTAL
+
                 mask_adv = df_mar.iloc[:, 8].astype(str).str.strip() == "Booked in Advance"
                 grupos = [("Booked in Advance", df_mar[mask_adv]), ("No Booked in Advance", df_mar[~mask_adv])]
                 total_mar = len(df_mar) if len(df_mar) > 0 else 1
 
-                st.markdown("<br>", unsafe_allow_html=True)
                 col_a, col_b = st.columns(2)
                 for i, (titulo, dff) in enumerate(grupos):
                     cant_emb = len(dff)
