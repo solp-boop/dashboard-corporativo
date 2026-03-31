@@ -80,7 +80,7 @@ try:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # --- BLOQUE 2: BOTONES (DISTRIBUIDOS EN 3) ---
+        # --- BLOQUE 2: BOTONES ---
         b1_col, b2_col, b3_col = st.columns(3)
         df['Es_Instruido'] = df['Fecha de Instruccion'].notna() & (df['Fecha de Instruccion'].astype(str).str.upper() != 'SIN INSTRUCCION')
         instruidos_m3 = df[df['Es_Instruido'] == True]['M3 Total'].sum()
@@ -94,7 +94,7 @@ try:
             if st.button(f"PENDIENTE INSTRUCCIÓN {int(perc_pendiente)}%"):
                 st.session_state.filtro = None if st.session_state.get('filtro') == 'pendiente' else 'pendiente'
         with b3_col:
-            if st.button("🔥 PRODUCTOS TOP RANKING (1-100)"):
+            if st.button("PRODUCTOS TOP RANKING (1-100)"):
                 st.session_state.filtro = None if st.session_state.get('filtro') == 'ranking' else 'ranking'
 
         if st.session_state.get('filtro'):
@@ -104,13 +104,14 @@ try:
             elif st.session_state.filtro == "pendiente":
                 st.dataframe(df[df['Es_Instruido'] == False][['SO', 'Pais Destino', 'M3 Total', 'Status Pago']], use_container_width=True)
             elif st.session_state.filtro == "ranking":
-                # Lógica de Ranking: Columna B (índice 1), filtrar 1 a 100
+                # Lógica Ranking
                 col_ranking = df.columns[1]
+                col_puerto = 'Puerto de Salida' if 'Puerto de Salida' in df.columns else df.columns[41]
                 df[col_ranking] = pd.to_numeric(df[col_ranking], errors='coerce')
-                # Filtramos y ordenamos
                 df_ranking = df[(df[col_ranking] >= 1) & (df[col_ranking] <= 100)].sort_values(by=col_ranking)
-                # Seleccionamos columnas: SO (A), Ranking (B), Fecha Prioritaria (CV), M3 Total, Monoproveedor (CP)
-                columnas_ranking = ['SO', col_ranking, df.columns[99], 'M3 Total', df.columns[93]]
+                # Columnas solicitadas + Puerto de Salida
+                columnas_ranking = ['SO', col_ranking, df.columns[99], 'M3 Total', df.columns[93], col_puerto]
+                st.markdown("<h3 style='text-align:center; color:#ff4b4b;'>🔥 PRIORIDAD DE SALIDA: TOP 100 UTILIDAD</h3>", unsafe_allow_html=True)
                 st.dataframe(df_ranking[columnas_ranking], use_container_width=True)
 
         st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
