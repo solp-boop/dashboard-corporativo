@@ -184,30 +184,27 @@ try:
         try:
             # 1. Carga y Filtro de Reservas (GID 276804813)
             url_reserva = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
-            df_reserva = pd.read_csv(url_reserva)
-            df_reserva.columns = df_reserva.columns.str.strip()
+            df_res = pd.read_csv(url_reserva)
+            df_res.columns = df_res.columns.str.strip()
 
-            # Filtrar solo lo instruido (Columna H)
-            df_reserva['Fecha_Inst_H'] = df_reserva.iloc[:, 7].astype(str).str.strip()
-            df_gestion = df_reserva[df_reserva['Fecha_Inst_H'].apply(lambda x: len(str(x)) > 4)].copy()
+            # Filtrar solo lo instruido (Columna H = índice 7)
+            df_res['Fecha_Inst_H'] = df_res.iloc[:, 7].astype(str).str.strip()
+            df_g = df_res[df_res['Fecha_Inst_H'].apply(lambda x: len(str(x)) > 4)].copy()
 
-            # --- BLOQUE 1: KPIs DE VOLUMEN (ARRIBA Y MASIVOS) ---
+            # --- BLOQUE 1: KPIs MASIVOS (Se mantienen igual) ---
             st.markdown("<br>", unsafe_allow_html=True)
             k1, k2, k3 = st.columns(3)
-            with k1: 
-                st.markdown(f"<div class='metric-container'><p class='label-massive' style='font-weight:700;'>SO INSTRUIDAS</p><p class='value-massive' style='font-weight:300;'>{int(len(df_inst))}</p></div>", unsafe_allow_html=True)
-            with k2: 
-                st.markdown(f"<div class='metric-container'><p class='label-massive' style='font-weight:700;'>VOLUMEN (M3)</p><p class='value-massive' style='font-weight:300;'>{int(df_inst['M3 Total'].sum()):,}</p></div>", unsafe_allow_html=True)
-            with k3: 
-                st.markdown(f"<div class='metric-container'><p class='label-massive' style='font-weight:700;'>PROVEEDORES</p><p class='value-massive' style='font-weight:300;'>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
+            with k1: st.markdown(f"<div class='metric-container'><p class='label-massive' style='font-weight:700;'>SO INSTRUIDAS</p><p class='value-massive' style='font-weight:300;'>{int(len(df_inst))}</p></div>", unsafe_allow_html=True)
+            with k2: st.markdown(f"<div class='metric-container'><p class='label-massive' style='font-weight:700;'>VOLUMEN (M3)</p><p class='value-massive' style='font-weight:300;'>{int(df_inst['M3 Total'].sum()):,}</p></div>", unsafe_allow_html=True)
+            with k3: st.markdown(f"<div class='metric-container'><p class='label-massive' style='font-weight:700;'>PROVEEDORES</p><p class='value-massive' style='font-weight:300;'>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
 
             st.markdown("<br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
 
-            # --- BLOQUE 2: PERFORMANCE GLOBAL (CENTRALIZADO) ---
-            df_gestion['ETD_Status_K'] = df_gestion.iloc[:, 10].astype(str).str.upper().str.strip()
-            confirmados_glob = len(df_gestion[df_gestion['ETD_Status_K'] == "OK"])
-            pendientes_glob = len(df_gestion) - confirmados_glob
-            p_ok_glob = round((confirmados_glob / len(df_gestion) * 100)) if len(df_gestion) > 0 else 0
+            # --- BLOQUE 2: PERFORMANCE GLOBAL ---
+            df_g['ETD_Status_K'] = df_g.iloc[:, 10].astype(str).str.upper().str.strip()
+            confirmados_glob = len(df_g[df_g['ETD_Status_K'] == "OK"])
+            pendientes_glob = len(df_g) - confirmados_glob
+            p_ok_glob = round((confirmados_glob / len(df_g) * 100)) if len(df_g) > 0 else 0
             
             _, c_mid, _ = st.columns([0.1, 1, 0.1])
             with c_mid:
@@ -219,18 +216,17 @@ try:
 
             st.markdown("<br><p style='text-align:center; color:#00a8ff; font-weight:700; letter-spacing:2px; font-size:12px;'>DESGLOSE POR TIPO DE TRANSPORTE</p>", unsafe_allow_html=True)
 
-            # --- BLOQUE 3: DESGLOSE TRANSPORTE ---
+            # --- BLOQUE 3: MARITIMO VS AEREO ---
             def clasificar_transporte(x):
                 x = str(x).upper()
                 if any(m in x for m in ["40 HQ", "40 ST", "20 ST", "40NOR"]): return "MARITIMO"
                 if any(a in x for a in ["AVION", "COURIER", "COURRIER"]): return "AVION / COURIER"
                 return "OTROS"
 
-            df_gestion['Transporte'] = df_gestion.iloc[:, 5].apply(clasificar_transporte)
-
+            df_g['Transporte'] = df_g.iloc[:, 5].apply(clasificar_transporte) # Columna F = índice 5
             t1, t2 = st.columns(2)
             for i, tipo in enumerate(["MARITIMO", "AVION / COURIER"]):
-                df_tipo = df_gestion[df_gestion['Transporte'] == tipo]
+                df_tipo = df_g[df_g['Transporte'] == tipo]
                 total_t = len(df_tipo)
                 ok_t = len(df_tipo[df_tipo['ETD_Status_K'] == "OK"])
                 pend_t = total_t - ok_t
@@ -238,52 +234,56 @@ try:
                 pct_pend = 100 - pct_ok if total_t > 0 else 0
                 color_status = "#00ff88" if ok_t >= pend_t and total_t > 0 else "#ff4b4b"
                 flecha = "▲" if ok_t >= pend_t else "▼"
-                
                 with [t1, t2][i]:
-                    st.markdown(f"""
-                        <div style="background: #040911; padding: 20px; border-radius: 10px; border: 1px solid #1e293b; min-height: 140px;">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                                <p style="color: #00a8ff; font-weight: 700; margin: 0; font-size: 16px;">{tipo}</p>
-                                <div style="text-align: right;">
-                                    <p style="color: {color_status}; font-weight: 300; margin: 0; font-size: 18px;">{flecha} {pct_ok}% <span style="font-size:12px; color:#8899A6; margin-left:5px;">OK</span></p>
-                                    <p style="color: #ff4b4b; font-weight: 300; margin: 0; font-size: 14px; opacity: 0.8;">{pct_pend}% <span style="font-size:10px; color:#8899A6;">PEND</span></p>
-                                </div>
+                    st.markdown(f"""<div style="background: #040911; padding: 20px; border-radius: 10px; border: 1px solid #1e293b; min-height: 140px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            <p style="color: #00a8ff; font-weight: 700; margin: 0; font-size: 16px;">{tipo}</p>
+                            <div style="text-align: right;">
+                                <p style="color: {color_status}; font-weight: 300; margin: 0; font-size: 18px;">{flecha} {pct_ok}% <span style="font-size:12px; color:#8899A6; margin-left:5px;">OK</span></p>
+                                <p style="color: #ff4b4b; font-weight: 300; margin: 0; font-size: 14px; opacity: 0.8;">{pct_pend}% <span style="font-size:10px; color:#8899A6;">PEND</span></p>
                             </div>
-                            <p style="font-size: 28px; font-weight: 300; color: #ffffff; margin-top: 10px; margin-bottom: 5px;">Total: {total_t}</p>
-                            <p style="font-size: 12px; color: #94a3b8; font-weight: 300; margin: 0;">
-                                <span style="color: #00ff88;">Confirmados: {ok_t}</span> | 
-                                <span style="color: #ff4b4b;">Pendientes: {pend_t}</span>
-                            </p>
                         </div>
-                    """, unsafe_allow_html=True)
+                        <p style="font-size: 28px; font-weight: 300; color: #ffffff; margin-top: 10px; margin-bottom: 5px;">Total: {total_t}</p>
+                        <p style="font-size: 12px; color: #94a3b8; font-weight: 300; margin: 0;"><span style="color: #00ff88;">Confirmados: {ok_t}</span> | <span style="color: #ff4b4b;">Pendientes: {pend_t}</span></p>
+                    </div>""", unsafe_allow_html=True)
 
             st.markdown("<br>", unsafe_allow_html=True)
 
-            # --- BLOQUE 4: BOOKING IN ADVANCE (BAJO LOS CUADROS DE TRANSPORTE) ---
-            df_mar = df_gestion[df_gestion['Transporte'] == "MARITIMO"].copy()
-            col_btn, _ = st.columns([1.2, 2])
-            with col_btn:
-                btn_advance = st.button("BOOKING IN ADVANCE - Embarques Marítimos", key="btn_advance", use_container_width=True)
+            # --- BLOQUE 4: BOOKING IN ADVANCE (EXPANDIBLE / COMPARATIVO) ---
+            with st.expander("BOOKING IN ADVANCE - Análisis Comparativo Marítimo"):
+                df_mar = df_g[df_g['Transporte'] == "MARITIMO"].copy()
+                
+                # Columna I (index 8) es "Booked in Advance"
+                # Limpieza de datos numéricos para Columnas B(1), AD(29), V(21)
+                for col_idx in [1, 29, 21]:
+                    df_mar.iloc[:, col_idx] = pd.to_numeric(df_mar.iloc[:, col_idx].astype(str).str.replace(r'[^0-9.]', '', regex=True), errors='coerce').fillna(0)
 
-            if btn_advance:
-                # Columna I (index 8): Advance | Columna B (index 1): Contenedores | Columna AD (index 29): Tiempo | Columna V (index 21): FOB
-                df_advance = df_mar[df_mar.iloc[:, 8].astype(str).str.upper().str.contains("SI", na=False)]
-                cant_emb = len(df_advance)
-                cant_cont = pd.to_numeric(df_advance.iloc[:, 1], errors='coerce').sum()
-                prom_cons = round(pd.to_numeric(df_advance.iloc[:, 29], errors='coerce').mean(), 1)
-                fob_total = pd.to_numeric(df_advance.iloc[:, 21], errors='coerce').sum()
+                # Separación de grupos
+                mask_adv = df_mar.iloc[:, 8].astype(str).str.upper().str.strip() == "SI"
+                grupos = [("BOOKED IN ADVANCE", df_mar[mask_adv]), ("NO BOOKED / SPOT", df_mar[~mask_adv])]
+                total_mar = len(df_mar) if len(df_mar) > 0 else 1
 
-                st.markdown(f"""
-                    <div style="background: rgba(0, 168, 255, 0.05); padding: 30px; border-radius: 15px; border: 1px solid #00a8ff; margin-top: 10px;">
-                        <h3 style="color: #00a8ff; font-weight: 700; margin-top: 0; font-size: 18px;">Indicadores: Booking In Advance</h3>
-                        <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 20px;">
-                            <div><p style="font-weight:700; font-size:12px; margin:0; color:#8899A6;">CANT. EMBARQUES</p><p style="font-weight:300; font-size:32px; margin:0; color:#ffffff;">{cant_emb}</p></div>
-                            <div><p style="font-weight:700; font-size:12px; margin:0; color:#8899A6;">CANT. CONTENEDORES</p><p style="font-weight:300; font-size:32px; margin:0; color:#ffffff;">{int(cant_cont)}</p></div>
-                            <div><p style="font-weight:700; font-size:12px; margin:0; color:#8899A6;">PROM. CONSOLIDACIÓN</p><p style="font-weight:300; font-size:32px; margin:0; color:#ffffff;">{prom_cons if not pd.isna(prom_cons) else 0} Días</p></div>
-                            <div><p style="font-weight:700; font-size:12px; margin:0; color:#8899A6;">FOB SIMI TOTAL</p><p style="font-weight:300; font-size:32px; margin:0; color:#ffffff;">USD {fob_total:,.0f}</p></div>
-                        </div>
-                    </div>
-                """, unsafe_allow_html=True)
+                col_a, col_b = st.columns(2)
+                for i, (titulo, dff) in enumerate(grupos):
+                    cant_emb = len(dff)
+                    pct_rel = round((cant_emb / total_mar) * 100)
+                    cant_cont = dff.iloc[:, 1].sum()
+                    prom_cons = round(dff.iloc[:, 29].mean(), 1) if cant_emb > 0 else 0
+                    fob_total = dff.iloc[:, 21].sum()
+                    
+                    with [col_a, col_b][i]:
+                        color_box = "#00a8ff" if i == 0 else "#8899A6"
+                        st.markdown(f"""
+                            <div style="background: rgba(255,255,255,0.02); padding: 20px; border-radius: 10px; border-left: 5px solid {color_box};">
+                                <p style="font-weight:700; color:{color_box}; margin-bottom:10px;">{titulo} ({pct_rel}%)</p>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                    <div><p style="font-size:10px; color:#8899A6; margin:0;">EMBARQUES</p><p style="font-size:24px; font-weight:300; margin:0;">{cant_emb}</p></div>
+                                    <div><p style="font-size:10px; color:#8899A6; margin:0;">CONTENEDORES</p><p style="font-size:24px; font-weight:300; margin:0;">{int(cant_cont)}</p></div>
+                                    <div><p style="font-size:10px; color:#8899A6; margin:0;">PROM. CONSOLIDACIÓN</p><p style="font-size:24px; font-weight:300; margin:0;">{prom_cons}d</p></div>
+                                    <div><p style="font-size:10px; color:#8899A6; margin:0;">FOB TOTAL</p><p style="font-size:20px; font-weight:300; margin:0;">USD {fob_total:,.0f}</p></div>
+                                </div>
+                            </div>
+                        """, unsafe_allow_html=True)
 
         except Exception as e:
             st.error(f"Error en Gestión de Reservas: {e}")
