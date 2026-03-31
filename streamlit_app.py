@@ -95,7 +95,7 @@ try:
     # --- HEADER ---
     st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><div class='bidcom-subtitle'>Tablero Logistica Internacional</div></div>", unsafe_allow_html=True)
     
-    tabs = st.tabs(["ORIGEN", "STATUS CARGAS", "INDICADORES", "AGENTES", "ANALISTAS", "FLETES"])
+
 
     with tabs[0]:
         # --- BLOQUE 1: MÉTRICAS ---
