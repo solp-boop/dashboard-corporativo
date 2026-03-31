@@ -36,36 +36,18 @@ st.markdown("""
     .bidcom-subtitle {
         font-size: 18px; color: #00a8ff; letter-spacing: 4px;
         text-transform: uppercase; font-weight: 600; margin-top: 5px;
+        text-align: center;
     }
 
     .metric-container { text-align: center; padding: 20px; }
-    .label-massive { 
-        font-size: 24px; 
-        color: #00a8ff; 
-        letter-spacing: 5px; 
-        text-transform: uppercase; 
-        font-weight: 800; 
-        margin-bottom: 5px; 
-    }
-    .value-massive { 
-        font-size: 120px; 
-        font-weight: 900; 
-        color: #00a8ff; 
-        line-height: 1; 
-        margin: 0; 
-        text-shadow: 0 0 40px rgba(0,168,255,0.5); 
-    }
+    .label-massive { font-size: 24px; color: #00a8ff; letter-spacing: 5px; text-transform: uppercase; font-weight: 800; margin-bottom: 5px; }
+    .value-massive { font-size: 120px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 40px rgba(0,168,255,0.5); }
 
-    .stButton { display: flex; justify-content: center; }
     .stButton>button {
         border-radius: 15px !important; 
         color: white !important;
-        width: 100%; 
-        height: 140px; 
-        font-weight: 800 !important; 
-        font-size: 18px !important;
-        background: rgba(255, 255, 255, 0.03) !important; 
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        width: 100%; height: 140px; font-weight: 800 !important; font-size: 18px !important;
+        background: rgba(255, 255, 255, 0.03) !important; border: 1px solid rgba(255, 255, 255, 0.1) !important;
     }
     .stButton>button:hover { background-color: #003366 !important; border-color: #00a8ff !important; }
     
@@ -74,7 +56,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 try:
-    # 1. CARGA DE DATOS CON ANTI-CACHÉ
+    # 1. CARGA DE DATOS (ANTI-CACHÉ)
     base_url = "https://docs.google.com/spreadsheets/d/1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI"
     GID_HOJA = "0" 
     csv_url = f"{base_url}/export?format=csv&gid={GID_HOJA}&nocache={time.time()}"
@@ -115,7 +97,7 @@ try:
     tabs = st.tabs(["ORIGEN", "STATUS CARGAS", "INDICADORES", "AGENTES", "ANALISTAS", "FLETES"])
 
     with tabs[0]:
-        # --- BLOQUE 1: MÉTRICAS MASIVAS ---
+        # --- MÉTRICAS ---
         m1, m2, m3 = st.columns(3)
         with m1: st.markdown(f"<div class='metric-container'><p class='label-massive'>CANTIDAD DE SO</p><p class='value-massive'>{int(cant_so)}</p></div>", unsafe_allow_html=True)
         with m2: st.markdown(f"<div class='metric-container'><p class='label-massive'>VOLUMEN TOTAL</p><p class='value-massive'>{int(m3_totales):,}</p></div>", unsafe_allow_html=True)
@@ -123,11 +105,10 @@ try:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # --- BLOQUE 2: BOTONES ---
+        # --- BOTONES ---
         b1, b2, b3, b4 = st.columns(4)
         df['Es_Instruido'] = df['Fecha de Instruccion'].notna() & (df['Fecha de Instruccion'].astype(str).str.upper() != 'SIN INSTRUCCION')
         p_inst = round(df[df['Es_Instruido'] == True]['M3 Total'].sum() / m3_totales * 100) if m3_totales > 0 else 0
-        
         col_cp = df.columns[93]
         stats_tipo = df.groupby(col_cp).size()
         p_mono = round(stats_tipo.get('SI', 0) / len(df) * 100)
@@ -145,7 +126,7 @@ try:
             if st.button(f"ESTRUCTURA DE CARGA \n Mono: {p_mono}% | Cons: {100-p_mono}%"):
                 st.session_state.f = None if st.session_state.get('f') == 'estr' else 'estr'
 
-        # --- BLOQUE DE TABLAS DESPLEGABLES ---
+        # --- TABLAS DESPLEGABLES ---
         if st.session_state.get('f'):
             st.markdown("---")
             if st.session_state.f == "estr":
@@ -162,7 +143,7 @@ try:
 
         st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
 
-        # --- BLOQUE 3: CUADRO PARTICIPACIÓN ---
+        # --- TABLA PARTICIPACIÓN ---
         st.markdown("<p class='chart-title'>Participación por País de Destino</p>", unsafe_allow_html=True)
         res_p = df.groupby('Pais Destino').agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT. SO', 'M3 Total': 'M3'}).sort_values(by='M3', ascending=False)
         res_p['%'] = (res_p['M3'] / m3_totales * 100).round(0)
@@ -172,7 +153,7 @@ try:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # --- BLOQUE 4: FILA DE GRÁFICOS (ÚNICA) ---
+        # --- ÚNICA FILA DE GRÁFICOS ---
         g1, g2, g3 = st.columns([1.2, 1, 1])
 
         with g1:
@@ -185,7 +166,7 @@ try:
             st.plotly_chart(fig_p, use_container_width=True)
 
         with g2:
-            st.markdown("<p class='chart-title'>Proyección ETD (Salidas)</p>", unsafe_allow_html=True)
+            st.markdown("<p class='chart-title'>Proyección ETD</p>", unsafe_allow_html=True)
             etd_p = df.groupby('Mes_ETD_Full').agg({'M3 Total': 'sum'}).reset_index()
             fig_e = px.bar(etd_p, x='Mes_ETD_Full', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#00ff88'], template='plotly_dark')
             fig_e.update_traces(textfont_size=18, textfont_color="white", textposition='outside')
@@ -193,14 +174,14 @@ try:
             st.plotly_chart(fig_e, use_container_width=True)
 
         with g3:
-            st.markdown("<p class='chart-title'>Proyección ETA (Arribos)</p>", unsafe_allow_html=True)
+            st.markdown("<p class='chart-title'>Proyección ETA</p>", unsafe_allow_html=True)
             eta_p = df.groupby('Mes_ETA_Full').agg({'M3 Total': 'sum'}).reset_index()
             fig_a = px.bar(eta_p, x='Mes_ETA_Full', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#ff4b4b'], template='plotly_dark')
             fig_a.update_traces(textfont_size=18, textfont_color="white", textposition='outside')
             fig_a.update_layout(xaxis_title=None, yaxis_title=None, height=500, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig_a, use_container_width=True)
 
-    # --- AUTO-REFRESH ---
+    # --- AUTO-REFRESH (FUERA DEL BUCLE DE TABS) ---
     time.sleep(60)
     st.rerun()
 
