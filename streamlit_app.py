@@ -236,43 +236,50 @@ try:
                             """, unsafe_allow_html=True)
 
             st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
-# --- BLOQUE 4: PARTICIPACIÓN POR PAÍS (REDISEÑO DE ALTO IMPACTO) ---
+# --- BLOQUE 4: PARTICIPACIÓN POR PAÍS (REDISEÑO CON TOTALES Y LÍNEAS) ---
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("<p style='color:#00a8ff; font-weight:700; letter-spacing:2px; font-size:14px; margin-bottom:20px;'>DISTRIBUCIÓN GEOGRÁFICA DE CARGA</p>", unsafe_allow_html=True)
             
             res_p = df.groupby('Pais Destino').agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT_SO', 'M3 Total': 'M3'}).sort_values(by='M3', ascending=False)
             
-            # Encabezado de la "Tabla Pro"
+            # Totales para la fila final
+            total_so_p = res_p['CANT_SO'].sum()
+            total_m3_p = res_p['M3'].sum()
+
+            # Encabezado con línea blanca sólida
             h1, h2, h3, h4 = st.columns([1.5, 1, 1, 0.8])
             h1.markdown("<p style='color:#8899A6; font-size:12px; font-weight:700;'>PAÍS DE DESTINO</p>", unsafe_allow_html=True)
             h2.markdown("<p style='color:#8899A6; font-size:12px; font-weight:700; text-align:center;'>VOLUMEN (M3)</p>", unsafe_allow_html=True)
             h3.markdown("<p style='color:#8899A6; font-size:12px; font-weight:700; text-align:center;'>CANTIDAD SO</p>", unsafe_allow_html=True)
-            h4.markdown("<p style='color:#8899A6; font-size:12px; font-weight:700; text-align:right;'>SHARE</p>", unsafe_allow_html=True)
-            st.markdown("<hr style='margin:0; opacity:0.2;'>", unsafe_allow_html=True)
+            h4.markdown("<p style='color:#8899A6; font-size:12px; font-weight:700; text-align:right;'>SHARE %</p>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin:0; border: none; border-top: 2px solid #ffffff; opacity:0.8;'>", unsafe_allow_html=True)
 
-            # Filas de la tabla con diseño de tarjeta plana
+            # Filas de países con líneas divisoras blancas
             for pais, row in res_p.iterrows():
                 m3_v = int(round(row['M3']))
                 so_v = int(row['CANT_SO'])
                 pct_v = int(round((m3_v / m3_totales_global * 100))) if m3_totales_global > 0 else 0
                 
                 c1, c2, c3, c4 = st.columns([1.5, 1, 1, 0.8])
+                c1.markdown(f"<p style='color:#ffffff; font-weight:700; font-size:16px; margin:12px 0;'>{pais.upper()}</p>", unsafe_allow_html=True)
+                c2.markdown(f"<p style='color:#00a8ff; font-weight:300; font-size:22px; text-align:center; margin:8px 0;'>{m3_v:,}</p>", unsafe_allow_html=True)
+                c3.markdown(f"<p style='color:#ffffff; font-weight:300; font-size:22px; text-align:center; margin:8px 0;'>{so_v}</p>", unsafe_allow_html=True)
+                c4.markdown(f"<p style='color:#00ff88; font-weight:700; font-size:18px; text-align:right; margin:10px 0;'>{pct_v}%</p>", unsafe_allow_html=True)
                 
-                # Nombre del País (Resaltado)
-                c1.markdown(f"<p style='color:#ffffff; font-weight:700; font-size:16px; margin:10px 0;'>{pais.upper()}</p>", unsafe_allow_html=True)
-                
-                # Volumen (Con fuente light pero grande)
-                c2.markdown(f"<p style='color:#00a8ff; font-weight:300; font-size:22px; text-align:center; margin:5px 0;'>{m3_v:,}</p>", unsafe_allow_html=True)
-                
-                # Cantidad de SO
-                c3.markdown(f"<p style='color:#ffffff; font-weight:300; font-size:22px; text-align:center; margin:5px 0;'>{so_v}</p>", unsafe_allow_html=True)
-                
-                # Share con Flecha
-                c4.markdown(f"<p style='color:#00ff88; font-weight:700; font-size:18px; text-align:right; margin:10px 0;'>▲ {pct_v}%</p>", unsafe_allow_html=True)
-                
-                st.markdown("<hr style='margin:0; opacity:0.05;'>", unsafe_allow_html=True)
+                # Línea divisoria blanca sutil entre filas
+                st.markdown("<hr style='margin:0; border: none; border-top: 1px solid #ffffff; opacity:0.2;'>", unsafe_allow_html=True)
 
-            st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
+            # --- FILA DE TOTALES (RESALTADA) ---
+            t1, t2, t3, t4 = st.columns([1.5, 1, 1, 0.8])
+            t1.markdown("<p style='color:#ffffff; font-weight:900; font-size:18px; margin:15px 0;'>TOTAL GENERAL</p>", unsafe_allow_html=True)
+            t2.markdown(f"<p style='color:#00a8ff; font-weight:700; font-size:24px; text-align:center; margin:10px 0;'>{int(round(total_m3_p)):,}</p>", unsafe_allow_html=True)
+            t3.markdown(f"<p style='color:#ffffff; font-weight:700; font-size:24px; text-align:center; margin:10px 0;'>{int(total_so_p)}</p>", unsafe_allow_html=True)
+            t4.markdown("<p style='color:#00ff88; font-weight:900; font-size:20px; text-align:right; margin:15px 0;'>100%</p>", unsafe_allow_html=True)
+            
+            # Cierre con línea blanca sólida inferior
+            st.markdown("<hr style='margin:0; border: none; border-top: 2px solid #ffffff; opacity:0.8;'>", unsafe_allow_html=True)
+
+            st.markdown("<br><br>", unsafe_allow_html=True)
 
             # --- BLOQUE 5: GRÁFICOS DE PROYECCIÓN Y SALIDA ---
             g1, g2, g3 = st.columns([1.2, 1, 1])
