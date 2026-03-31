@@ -185,13 +185,14 @@ try:
             fig_a.update_layout(yaxis_visible=False, xaxis_title=None, height=450)
             st.plotly_chart(fig_a, use_container_width=True)
 
-    # --- SOLAPA 2: STATUS CARGAS (CONTROL DE GESTIÓN DE RESERVAS) ---
+ # --- SOLAPA 2: CONTROL DE GESTIÓN DE RESERVAS ---
     with tabs[1]:
         try:
             url_reserva = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
             df_reserva = pd.read_csv(url_reserva)
             df_reserva.columns = df_reserva.columns.str.strip()
 
+            # 1. FILTRADO: Solo lo que tiene instrucción enviada (Columna H)
             df_reserva['Fecha_Inst_H'] = df_reserva.iloc[:, 7].astype(str).str.strip()
             df_gestion = df_reserva[
                 (df_reserva['Fecha_Inst_H'] != "") & 
@@ -201,23 +202,42 @@ try:
 
             st.markdown("<h2 style='text-align: center; color: #ffffff; letter-spacing: 3px;'>CONTROL DE GESTIÓN DE RESERVAS</h2>", unsafe_allow_html=True)
             
+            # KPI Superiores (Se mantienen igual)
             c1, c2, c3 = st.columns(3)
-            with c1:
-                st.markdown(f"<div class='metric-container'><p class='label-massive'>SO INSTRUIDAS</p><p class='value-massive'>{int(len(df_inst))}</p></div>", unsafe_allow_html=True)
-            with c2:
-                st.markdown(f"<div class='metric-container'><p class='label-massive'>VOLUMEN (M3)</p><p class='value-massive'>{int(df_inst['M3 Total'].sum()):,}</p></div>", unsafe_allow_html=True)
-            with c3:
-                st.markdown(f"<div class='metric-container'><p class='label-massive'>PROVEEDORES</p><p class='value-massive'>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
+            with c1: st.markdown(f"<div class='metric-container'><p class='label-massive'>SO INSTRUIDAS</p><p class='value-massive'>{int(len(df_inst))}</p></div>", unsafe_allow_html=True)
+            with c2: st.markdown(f"<div class='metric-container'><p class='label-massive'>VOLUMEN (M3)</p><p class='value-massive'>{int(df_inst['M3 Total'].sum()):,}</p></div>", unsafe_allow_html=True)
+            with c3: st.markdown(f"<div class='metric-container'><p class='label-massive'>PROVEEDORES</p><p class='value-massive'>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
 
             st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
 
+            # --- NUEVA SECCIÓN: DESGLOSE MARÍTIMO VS AEREO (Columna F) ---
+            def clasificar_transporte(x):
+                x = str(x).upper()
+                if any(m in x for m in ["40 HQ", "40 ST", "40 NOR", "20 ST", "40NOR"]): return "MARÍTIMO"
+                if any(a in x for a in ["COURRIER", "AVION", "COURIER"]): return "AÉREO / COURIER"
+                return "OTROS"
+
+            df_gestion['Transporte'] = df_gestion.iloc[:, 5].apply(clasificar_transporte) # Columna F
+            resumen_trans = df_gestion['Transporte'].value_counts()
+            total_emb = len(df_gestion)
+
+            st.markdown("<p class='chart-title'>Desglose por Tipo de Transporte</p>", unsafe_allow_html=True)
+            t1, t2 = st.columns(2)
+            
+            for i, tipo in enumerate(["MARÍTIMO", "AÉREO / COURIER"]):
+                cantidad = resumen_trans.get(tipo, 0)
+                porcentaje = round((cantidad / total_emb * 100)) if total_emb > 0 else 0
+                with [t1, t2][i]:
+                    st.metric(tipo, f"{cantidad} Emb.", f"{porcentaje}% del Total", delta_color="off")
+
+            st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
+
+            # KPI Performance ETD OK (Se mantienen igual)
             df_gestion['ETD_Status_K'] = df_gestion.iloc[:, 10].astype(str).str.upper().str.strip()
             mask_ok = df_gestion['ETD_Status_K'] == "OK"
             confirmados = df_gestion[mask_ok].shape[0]
             pendientes = df_gestion[~mask_ok].shape[0]
-            total_gestion = df_gestion.shape[0]
-
-            p_ok = round((confirmados / total_gestion * 100)) if total_gestion > 0 else 0
+            p_ok = round((confirmados / total_emb * 100)) if total_emb > 0 else 0
             p_pend = 100 - p_ok if total_gestion > 0 else 0
 
             m_col1, m_col2, m_col3, m_col4 = st.columns(4)
@@ -228,18 +248,13 @@ try:
 
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("<p class='chart-title'>Detalle de Embarques en Gestión</p>", unsafe_allow_html=True)
-            busqueda_res = st.text_input("🔍 Buscar en gestión (SO, Proveedor, Buque...):", key="search_res_new")
-            
-            if busqueda_res:
-                mask_search = df_gestion.astype(str).apply(lambda x: x.str.contains(busqueda_res, case=False)).any(axis=1)
-                df_final_res = df_gestion[mask_search]
-            else:
-                df_final_res = df_gestion
+            busqueda_res = st.text_input("🔍 Buscar en gestión:", key="search_res_new")
+            df_final_res = df_gestion[df_gestion.astype(str).apply(lambda x: x.str.contains(busqueda_res, case=False)).any(axis=1)] if busqueda_res else df_gestion
 
-            st.dataframe(df_final_res.drop(columns=['Fecha_Inst_H', 'ETD_Status_K']), use_container_width=True, height=500)
+            st.dataframe(df_final_res.drop(columns=['Fecha_Inst_H', 'ETD_Status_K', 'Transporte']), use_container_width=True, height=500)
 
         except Exception as e:
-            st.error(f"Error en Control de Gestión: {e}")
+            st.error(f"Error en Control de Gestión: {e}}")
 
 except Exception as e:
     st.error(f"Error general: {e}")
