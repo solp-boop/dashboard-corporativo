@@ -76,6 +76,7 @@ try:
     # Procesamiento Fechas
     df['ETD_DT'] = pd.to_datetime(df.iloc[:, 23], errors='coerce')
     df['ETA_DT'] = pd.to_datetime(df.iloc[:, 24], errors='coerce')
+    df['Fecha_Prior_DT'] = pd.to_datetime(df.iloc[:, 99], errors='coerce') # Col CV (Prioridad)
     hoy = pd.Timestamp(datetime.now().date())
     inicio_mes = hoy.replace(day=1)
 
@@ -108,9 +109,13 @@ try:
         # --- BLOQUE 2: BOTONES ---
         b1_col, b2_col, b3_col, b4_col = st.columns(4)
         
-        # Filtro Mercadería Instruida: Solo filas donde "Fecha de Instruccion" tenga una fecha cargada
+        # Filtro: Instruidos vs Pendientes
         df['Fecha_Inst_DT'] = pd.to_datetime(df['Fecha de Instruccion'], errors='coerce')
-        df_instruidos_only = df[df['Fecha_Inst_DT'].notna()].copy()
+        # Es pendiente si la fecha es nula O si el texto dice "SIN INSTRUCCION"
+        cond_pend = df['Fecha_Inst_DT'].isna() | (df['Fecha de Instruccion'].astype(str).str.upper().str.contains("SIN INSTRUCCION", na=True))
+        
+        df_instruidos_only = df[~cond_pend].copy()
+        df_pendientes_only = df[cond_pend].copy()
         
         p_inst = round(df_instruidos_only['M3 Total'].sum() / m3_totales_global * 100) if m3_totales_global > 0 else 0
 
@@ -140,30 +145,21 @@ try:
             
             if f == "inst":
                 st.markdown("<h3 style='color:#00a8ff;'>Detalle: Mercaderia Instruida</h3>", unsafe_allow_html=True)
-                # Seleccionamos datos relevantes
                 df_mostrar = df_instruidos_only[['SO', 'Proveedor', 'M3 Total', 'Fecha de Instruccion']].copy()
-                
-                # Cálculos de Totales para el listado
-                t_so = len(df_mostrar)
-                t_prov = df_mostrar['Proveedor'].nunique()
-                t_m3 = df_mostrar['M3 Total'].sum()
-                
-                # Fila de totales corregida
-                total_row = pd.DataFrame({
-                    'SO': [f'TOTAL SO: {t_so}'], 
-                    'Proveedor': [f'TOTAL PROV: {t_prov}'], 
-                    'M3 Total': [t_m3], 
-                    'Fecha de Instruccion': ['']
-                })
-                
+                t_so, t_prov, t_m3 = len(df_mostrar), df_mostrar['Proveedor'].nunique(), df_mostrar['M3 Total'].sum()
+                total_row = pd.DataFrame({'SO': [f'TOTAL SO: {t_so}'], 'Proveedor': [f'TOTAL PROV: {t_prov}'], 'M3 Total': [t_m3], 'Fecha de Instruccion': ['']})
                 df_final = pd.concat([df_mostrar, total_row.set_index(pd.Index(['TOTAL']))])
                 st.dataframe(df_final.style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL' else '' for _ in s], axis=1).format({'M3 Total': '{:,.0f}'}), use_container_width=True)
 
             elif f == "pend":
-                st.markdown("<h3 style='color:#00a8ff;'>Detalle: Pendientes de Instrucción</h3>", unsafe_allow_html=True)
-                df_pend = df[df['Fecha_Inst_DT'].isna()].copy()
-                df_mostrar_pend = df_pend[['SO', 'Proveedor', 'Pais Destino', 'M3 Total']].copy()
-                total_row = pd.DataFrame({'SO': [f'TOTAL: {len(df_mostrar_pend)}'], 'Proveedor': [''], 'Pais Destino': [''], 'M3 Total': [df_mostrar_pend['M3 Total'].sum()]})
+                st.markdown("<h3 style='color:#00a8ff;'>Detalle: Pendientes de Instrucción (Por Fecha Prioritaria)</h3>", unsafe_allow_html=True)
+                # Seleccionamos y ordenamos por Fecha Prioritaria (Col CV)
+                df_pend_list = df_pendientes_only.sort_values(by='Fecha_Prior_DT', ascending=True).copy()
+                df_mostrar_pend = df_pend_list[['SO', 'Proveedor', df.columns[99], 'M3 Total']].copy()
+                
+                t_so_p, t_prov_p, t_m3_p = len(df_mostrar_pend), df_mostrar_pend['Proveedor'].nunique(), df_mostrar_pend['M3 Total'].sum()
+                
+                total_row = pd.DataFrame({'SO': [f'TOTAL SO: {t_so_p}'], 'Proveedor': [f'TOTAL PROV: {t_prov_p}'], df.columns[99]: [''], 'M3 Total': [t_m3_p]})
                 df_final = pd.concat([df_mostrar_pend, total_row.set_index(pd.Index(['TOTAL']))])
                 st.dataframe(df_final.style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL' else '' for _ in s], axis=1).format({'M3 Total': '{:,.0f}'}), use_container_width=True)
 
@@ -172,7 +168,7 @@ try:
                 col_rank = df.columns[1]
                 df[col_rank] = pd.to_numeric(df[col_rank], errors='coerce').fillna(0).astype(int)
                 df_rank = df[(df[col_rank] >= 1) & (df[col_rank] <= 100)].sort_values(by=col_rank)
-                df_mostrar = df_rank[['SO', col_rank, 'M3 Total', 'Puerto de Salida']].copy()
+                df_mostrar = df_rank[['SO', col_rank, df.columns[99], 'Fecha de Instruccion', 'M3 Total', 'Puerto de Salida']].copy()
                 st.dataframe(df_mostrar.style.format({'M3 Total': '{:,.0f}'}), use_container_width=True)
 
             elif f == "estr":
