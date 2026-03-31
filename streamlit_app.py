@@ -182,9 +182,20 @@ try:
 # --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
     with tabs[1]:
         try:
-            # 1. Carga de Reservas (GID 276804813)
+            # 1. CARGA DE DATOS CON GESTIÓN DE ERRORES (REINTENTOS)
             url_reserva = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
-            df_res = pd.read_csv(url_reserva)
+            
+            @st.cache_data(ttl=60)  # Caché de 1 minuto para evitar IncompleteRead constantes
+            def load_reserva_data(url):
+                # Intentamos cargar con un motor de lectura más robusto
+                return pd.read_csv(url, engine='python', on_bad_lines='skip')
+
+            try:
+                df_res = load_reserva_data(url_reserva)
+            except Exception:
+                # Si falla el caché o la red, forzamos una lectura limpia
+                df_res = pd.read_csv(url_reserva)
+            
             df_res.columns = df_res.columns.str.strip()
 
             # Filtrar solo lo instruido (Columna H = índice 7)
@@ -284,8 +295,6 @@ try:
                 for i, (titulo, dff) in enumerate(labels):
                     cant_emb = len(dff)
                     pct_rel = round((cant_emb / total_m) * 100)
-                    
-                    # Cálculo cruzado de Booking Advance dentro del grupo actual
                     mask_adv_check = dff.iloc[:, 8].astype(str).str.strip() == "Booked in Advance"
                     cant_adv = len(dff[mask_adv_check])
                     pct_adv = round((cant_adv / cant_emb * 100)) if cant_emb > 0 else 0
