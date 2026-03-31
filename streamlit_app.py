@@ -45,7 +45,10 @@ try:
         df['M3 Total'] = df['M3 Total'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
         df['M3 Total'] = pd.to_numeric(df['M3 Total'], errors='coerce').fillna(0)
     
-    # --- PROCESAMIENTO FECHAS ---
+    # --- PROCESAMIENTO FECHAS (ANTIFALLOS ETA) ---
+    df.iloc[:, 23] = df.iloc[:, 23].astype(str).str.strip()
+    df.iloc[:, 24] = df.iloc[:, 24].astype(str).str.strip()
+    
     df['ETD_DT'] = pd.to_datetime(df.iloc[:, 23], errors='coerce')
     df['ETA_DT'] = pd.to_datetime(df.iloc[:, 24], errors='coerce')
     df['Fecha_Prior_DT'] = pd.to_datetime(df.iloc[:, 99], errors='coerce') 
@@ -56,11 +59,18 @@ try:
 
     def label_proyeccion(fecha, pivot):
         if pd.isna(fecha): return "SIN FECHA"
+        if fecha.year < 2024: return "PASADO/REALIZADO"
         if fecha < pivot: return "PASADO/REALIZADO"
         return fecha.strftime('%m/%Y')
 
     df['Mes_ETD_Full'] = df['ETD_DT'].apply(lambda x: label_proyeccion(x, inicio_mes))
     df['Mes_ETA_Full'] = df['ETA_DT'].apply(lambda x: label_proyeccion(x, hoy))
+
+    # ORDENAMIENTO CRONOLÓGICO PARA ETA
+    meses_eta = [m for m in df['Mes_ETA_Full'].unique() if m not in ["PASADO/REALIZADO", "SIN FECHA"]]
+    meses_eta_ordenados = sorted(meses_eta, key=lambda x: datetime.strptime(x, '%m/%Y'))
+    orden_final_eta = ["PASADO/REALIZADO"] + meses_eta_ordenados + ["SIN FECHA"]
+    df['Mes_ETA_Full'] = pd.Categorical(df['Mes_ETA_Full'], categories=orden_final_eta, ordered=True)
 
     m3_totales_global = round(df['M3 Total'].sum())
     cant_so_global = len(df)
@@ -169,7 +179,8 @@ try:
             st.plotly_chart(fig_e, use_container_width=True)
         with g3:
             st.markdown("<p class='chart-title'>Proyección ETA</p>", unsafe_allow_html=True)
-            eta_p = df.groupby('Mes_ETA_Full').agg({'M3 Total': 'sum'}).reset_index()
+            #observed=True asegura el orden cronológico definido arriba
+            eta_p = df.groupby('Mes_ETA_Full', observed=True).agg({'M3 Total': 'sum'}).reset_index()
             fig_a = px.bar(eta_p, x='Mes_ETA_Full', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#ff4b4b'], template='plotly_dark')
             fig_a.update_traces(textfont_size=14, textposition='outside')
             fig_a.update_layout(yaxis_visible=False, xaxis_title=None, height=450)
