@@ -13,14 +13,12 @@ st.markdown("""
     .block-container { padding: 1rem 2rem; }
     .main { background-color: #040911; color: #ffffff; }
     
-    /* Centrado de Solapas (Tabs) */
     .stTabs [data-baseweb="tab-list"] { 
         justify-content: center !important; 
         gap: 30px; 
         margin-bottom: 40px;
     }
 
-    /* Header BIDCOM con Sombreado Azul/Celeste */
     .bidcom-header {
         background: linear-gradient(135deg, #001f3f 0%, #003366 100%);
         padding: 30px; border-radius: 20px; border: 1px solid #004080;
@@ -40,7 +38,6 @@ st.markdown("""
         text-transform: uppercase; font-weight: 600; margin-top: 5px;
     }
 
-    /* MÉTRICAS MASIVAS (Formato Unificado Celeste) */
     .metric-container { text-align: center; padding: 20px; }
     .label-massive { 
         font-size: 24px; 
@@ -59,7 +56,6 @@ st.markdown("""
         text-shadow: 0 0 40px rgba(0,168,255,0.5); 
     }
 
-    /* BOTONES INTERACTIVOS */
     .stButton { display: flex; justify-content: center; }
     .stButton>button {
         border-radius: 15px !important; 
@@ -132,7 +128,6 @@ try:
         df['Es_Instruido'] = df['Fecha de Instruccion'].notna() & (df['Fecha de Instruccion'].astype(str).str.upper() != 'SIN INSTRUCCION')
         p_inst = round(df[df['Es_Instruido'] == True]['M3 Total'].sum() / m3_totales * 100) if m3_totales > 0 else 0
         
-        # Monoproveedor (Columna CP / índice 93)
         col_cp = df.columns[93]
         stats_tipo = df.groupby(col_cp).size()
         p_mono = round(stats_tipo.get('SI', 0) / len(df) * 100)
@@ -177,7 +172,7 @@ try:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # --- BLOQUE 4: GRÁFICOS (RESTAURADOS ABAJO) ---
+        # --- BLOQUE 4: FILA DE GRÁFICOS (ÚNICA) ---
         g1, g2, g3 = st.columns([1.2, 1, 1])
 
         with g1:
@@ -205,7 +200,7 @@ try:
             fig_a.update_layout(xaxis_title=None, yaxis_title=None, height=500, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig_a, use_container_width=True)
 
-    # --- AUTO-REFRESH (SE EJECUTA AL FINAL) ---
+    # --- AUTO-REFRESH ---
     time.sleep(60)
     st.rerun()
 
