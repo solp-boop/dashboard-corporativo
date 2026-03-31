@@ -45,17 +45,24 @@ try:
         df['M3 Total'] = df['M3 Total'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
         df['M3 Total'] = pd.to_numeric(df['M3 Total'], errors='coerce').fillna(0)
     
-    # --- PROCESAMIENTO FECHAS (ANTIFALLOS ETA) ---
-    df.iloc[:, 23] = df.iloc[:, 23].astype(str).str.strip()
-    df.iloc[:, 24] = df.iloc[:, 24].astype(str).str.strip()
+  # --- 1. LIMPIEZA DE FILAS FANTASMA ---
+    # Eliminamos filas donde la SO esté vacía (esto quita los M3 sin fecha del final del Excel)
+    df = df[df['SO'].notna() & (df['SO'].astype(str).str.strip() != "")]
+
+    # --- 2. PROCESAMIENTO FECHAS (COLUMNAS X=23, Y=24) ---
+    # Limpiamos espacios en blanco de las columnas de fecha
+    df.iloc[:, 23] = df.iloc[:, 23].astype(str).str.strip() # ETD (X)
+    df.iloc[:, 24] = df.iloc[:, 24].astype(str).str.strip() # ETA (Y)
     
-    df['ETD_DT'] = pd.to_datetime(df.iloc[:, 23], errors='coerce')
-    df['ETA_DT'] = pd.to_datetime(df.iloc[:, 24], errors='coerce')
-    df['Fecha_Prior_DT'] = pd.to_datetime(df.iloc[:, 99], errors='coerce') 
+    # Convertimos a fecha real (dayfirst=True para formato DD/MM)
+    df['ETD_DT'] = pd.to_datetime(df.iloc[:, 23], dayfirst=True, errors='coerce')
+    df['ETA_DT'] = pd.to_datetime(df.iloc[:, 24], dayfirst=True, errors='coerce')
+    
+    # Fecha Prioritaria (Columna 99)
+    df['Fecha_Prior_DT'] = pd.to_datetime(df.iloc[:, 99], dayfirst=True, errors='coerce') 
     
     hoy = pd.Timestamp(datetime.now().date())
     inicio_mes = hoy.replace(day=1)
-    limite_proximo = hoy + timedelta(days=30)
 
     def label_proyeccion(fecha, pivot):
         if pd.isna(fecha): return "SIN FECHA"
@@ -66,18 +73,12 @@ try:
     df['Mes_ETD_Full'] = df['ETD_DT'].apply(lambda x: label_proyeccion(x, inicio_mes))
     df['Mes_ETA_Full'] = df['ETA_DT'].apply(lambda x: label_proyeccion(x, hoy))
 
-    # ORDENAMIENTO CRONOLÓGICO PARA ETA
+    # --- 3. ORDENAMIENTO CRONOLÓGICO PARA EL GRÁFICO ---
     meses_eta = [m for m in df['Mes_ETA_Full'].unique() if m not in ["PASADO/REALIZADO", "SIN FECHA"]]
+    # Ordenamos los meses para que el gráfico no salga desordenado
     meses_eta_ordenados = sorted(meses_eta, key=lambda x: datetime.strptime(x, '%m/%Y'))
     orden_final_eta = ["PASADO/REALIZADO"] + meses_eta_ordenados + ["SIN FECHA"]
     df['Mes_ETA_Full'] = pd.Categorical(df['Mes_ETA_Full'], categories=orden_final_eta, ordered=True)
-
-    m3_totales_global = round(df['M3 Total'].sum())
-    cant_so_global = len(df)
-    cant_proveedores_global = df['Proveedor'].nunique() if 'Proveedor' in df.columns else 0
-
-    st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><div class='bidcom-subtitle'>Tablero Logistica Internacional</div></div>", unsafe_allow_html=True)
-    tabs = st.tabs(["ORIGEN", "STATUS CARGAS", "INDICADORES", "AGENTES", "ANALISTAS", "FLETES"])
 
     with tabs[0]:
         # --- BLOQUE 1: MÉTRICAS ---
