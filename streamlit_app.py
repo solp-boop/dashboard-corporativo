@@ -12,14 +12,12 @@ st.markdown("""
     .block-container { padding: 1rem 2rem; }
     .main { background-color: #040911; color: #ffffff; }
     
-    /* Centrado de Solapas (Tabs) */
     .stTabs [data-baseweb="tab-list"] { 
         justify-content: center !important; 
         gap: 30px; 
         margin-bottom: 40px;
     }
 
-    /* Header BIDCOM */
     .bidcom-header {
         background: linear-gradient(135deg, #001f3f 0%, #003366 100%);
         padding: 30px; border-radius: 20px; border: 1px solid #004080;
@@ -43,11 +41,10 @@ st.markdown("""
         margin-top: 5px;
     }
 
-    /* MÉTRICAS MASIVAS (RESALTADO CELESTE) */
     .metric-container { text-align: center; padding: 20px; }
     .label-massive { 
         font-size: 24px; 
-        color: #00a8ff; /* CELESTE HIGHLIGHT */
+        color: #00a8ff; 
         letter-spacing: 5px; 
         text-transform: uppercase; 
         font-weight: 800; 
@@ -56,7 +53,7 @@ st.markdown("""
     .value-massive { 
         font-size: 120px; 
         font-weight: 900; 
-        color: #00a8ff; /* CELESTE HIGHLIGHT */
+        color: #00a8ff; 
         line-height: 1; 
         margin: 0; 
         text-shadow: 0 0 30px rgba(0,168,255,0.5); 
@@ -100,7 +97,6 @@ try:
     hoy = pd.Timestamp(datetime.now().date())
     inicio_mes = hoy.replace(day=1)
 
-    # Lógica para mostrar TOTALIDAD de M3 en proyecciones (Pasado/Sin Fecha + Futuro)
     def label_proyeccion(fecha, pivot):
         if pd.isna(fecha): return "SIN FECHA"
         if fecha < pivot: return "PASADO/REALIZADO"
@@ -119,7 +115,7 @@ try:
     tabs = st.tabs(["ORIGEN", "STATUS CARGAS", "INDICADORES", "AGENTES", "ANALISTAS", "FLETES"])
 
     with tabs[0]:
-        # --- BLOQUE 1: MÉTRICAS CELESTES ---
+        # --- BLOQUE 1: MÉTRICAS ---
         m1, m2, m3 = st.columns(3)
         with m1: st.markdown(f"<div class='metric-container'><p class='label-massive'>CANTIDAD DE SO</p><p class='value-massive'>{int(cant_so)}</p></div>", unsafe_allow_html=True)
         with m2: st.markdown(f"<div class='metric-container'><p class='label-massive'>VOLUMEN TOTAL</p><p class='value-massive'>{int(m3_totales):,}</p></div>", unsafe_allow_html=True)
@@ -142,36 +138,51 @@ try:
             if st.button("PRODUCTOS TOP RANKING (1-100)"):
                 st.session_state.f = None if st.session_state.get('f') == 'rank' else 'rank'
         with b4:
-            # Monoproveedor
             col_cp = df.columns[93]
             stats_tipo = df.groupby(col_cp).size()
             p_mono = round(stats_tipo.get('SI', 0) / len(df) * 100)
             if st.button(f"ESTRUCTURA DE CARGA \n Mono: {p_mono}% | Cons: {100-p_mono}%"):
                 st.session_state.f = None if st.session_state.get('f') == 'estr' else 'estr'
 
+        # --- LÓGICA DE DESPLEGABLES (TABLAS) ---
         if st.session_state.get('f'):
             st.markdown("---")
-            # (Mantener lógica de despliegue de tablas anterior...)
-            st.info("Desplegando detalle seleccionado...")
+            if st.session_state.f == "inst":
+                st.subheader("Detalle: Cargas Instruidas")
+                st.dataframe(df[df['Es_Instruido'] == True][['SO', 'Proveedor', 'Pais Destino', 'M3 Total', 'Fecha de Instruccion']], use_container_width=True)
+            
+            elif st.session_state.f == "pend":
+                st.subheader("Detalle: Pendientes de Instrucción")
+                st.dataframe(df[df['Es_Instruido'] == False][['SO', 'Proveedor', 'Pais Destino', 'M3 Total', 'Status Pago']], use_container_width=True)
+            
+            elif st.session_state.f == "rank":
+                st.subheader("🚀 Top 100: Prioridad de Salida")
+                col_ranking = df.columns[1]
+                col_puerto = 'Puerto de Salida' if 'Puerto de Salida' in df.columns else df.columns[41]
+                df[col_ranking] = pd.to_numeric(df[col_ranking], errors='coerce')
+                df_ranking = df[(df[col_ranking] >= 1) & (df[col_ranking] <= 100)].sort_values(by=col_ranking)
+                columnas_ranking = ['SO', col_ranking, df.columns[99], 'M3 Total', df.columns[93], col_puerto]
+                st.dataframe(df_ranking[columnas_ranking], use_container_width=True)
+            
+            elif st.session_state.f == "estr":
+                st.subheader("Análisis de Estructura: Monoproveedor vs Consolidado")
+                resumen_tipo = df.groupby(col_cp).agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'Cantidad SO', 'M3 Total': 'Volumen M3'})
+                st.table(resumen_tipo.style.format({'Volumen M3': '{:,.2f}'}))
 
         st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
 
-        # --- BLOQUE 3: CUADRO PARTICIPACIÓN CON TOTALES ---
+        # --- BLOQUE 3: CUADRO PARTICIPACIÓN ---
         st.markdown("<p class='chart-title'>Participación por País de Destino</p>", unsafe_allow_html=True)
         res_p = df.groupby('Pais Destino').agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT. SO', 'M3 Total': 'M3'}).sort_values(by='M3', ascending=False)
         res_p['%'] = (res_p['M3'] / m3_totales * 100).round(0)
-        
-        # Añadir Fila de Totales
         df_total = pd.DataFrame({'CANT. SO': [res_p['CANT. SO'].sum()], 'M3': [res_p['M3'].sum()], '%': [100]}, index=['TOTAL GENERAL'])
         res_p_final = pd.concat([res_p, df_total])
-        
         st.dataframe(res_p_final.style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL GENERAL' else '' for _ in s], axis=1).format({'M3': '{:,.0f}', '%': '{:.0f}%'}), use_container_width=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # --- BLOQUE 4: GRÁFICOS CON TÍTULOS Y NÚMEROS GRANDES ---
+        # --- BLOQUE 4: GRÁFICOS ---
         g1, g2, g3 = st.columns([1.2, 1, 1])
-
         with g1:
             st.markdown("<p class='chart-title'>Salida por Puerto</p>", unsafe_allow_html=True)
             col_puerto = 'Puerto de Salida' if 'Puerto de Salida' in df.columns else df.columns[41]
@@ -184,7 +195,6 @@ try:
         with g2:
             st.markdown("<p class='chart-title'>Proyección ETD (Salidas)</p>", unsafe_allow_html=True)
             etd_p = df.groupby('Mes_ETD_Full').agg({'M3 Total': 'sum'}).reset_index()
-            # Ordenar para que Pasado/Sin Fecha queden al final o principio
             fig_e = px.bar(etd_p, x='Mes_ETD_Full', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#00ff88'], template='plotly_dark')
             fig_e.update_traces(textfont_size=18, textfont_color="white", textposition='outside')
             fig_e.update_layout(xaxis_title=None, yaxis_title=None, height=500)
