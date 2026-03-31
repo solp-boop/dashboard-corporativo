@@ -106,28 +106,30 @@ try:
 
         # --- BLOQUE 2: BOTONES ---
         b1_col, b2_col, b3_col, b4_col = st.columns(4)
+        # Identificamos los instruidos (Tienen fecha en la columna de instrucción)
         df['Es_Instruido'] = df['Fecha de Instruccion'].notna() & (df['Fecha de Instruccion'].astype(str).str.upper() != 'SIN INSTRUCCION')
-        p_inst = round(df[df['Es_Instruido'] == True]['M3 Total'].sum() / m3_totales_global * 100) if m3_totales_global > 0 else 0
+        df_instruidos_only = df[df['Es_Instruido'] == True]
+        
+        p_inst = round(df_instruidos_only['M3 Total'].sum() / m3_totales_global * 100) if m3_totales_global > 0 else 0
 
         # Lógica Monoproveedor
         col_cp = df.columns[93]
         df['Tipo_Carga'] = df[col_cp].apply(lambda x: 'MONOPROVEEDOR' if str(x).upper() == 'SI' else 'CONSOLIDADO')
-        
         stats_tipo = df.groupby('Tipo_Carga').agg({'SO': 'count'})
         p_mono_bot = round(stats_tipo.loc['MONOPROVEEDOR', 'SO'] / len(df) * 100) if 'MONOPROVEEDOR' in stats_tipo.index else 0
-        p_cons_bot = 100 - p_mono_bot
 
         with b1_col:
-            if st.button(f"CONSOLIDADO INSTRUIDO {p_inst}%"):
+            # Título arriba, % abajo
+            if st.button(f"MERCADERIA INSTRUIDA \n {p_inst}%"):
                 st.session_state.f = None if st.session_state.get('f') == 'inst' else 'inst'
         with b2_col:
-            if st.button(f"PENDIENTE INSTRUCCIÓN {100-p_inst}%"):
+            if st.button(f"PENDIENTE INSTRUCCIÓN \n {100-p_inst}%"):
                 st.session_state.f = None if st.session_state.get('f') == 'pend' else 'pend'
         with b3_col:
-            if st.button("PRODUCTOS TOP RANKING (1-100)"):
+            if st.button("PRODUCTOS TOP RANKING \n (1-100)"):
                 st.session_state.f = None if st.session_state.get('f') == 'rank' else 'rank'
         with b4_col:
-            if st.button(f"ESTRUCTURA DE CARGA \n Mono: {p_mono_bot}% | Cons: {p_cons_bot}%"):
+            if st.button(f"ESTRUCTURA DE CARGA \n Mono: {p_mono_bot}% | Cons: {100-p_mono_bot}%"):
                 st.session_state.f = None if st.session_state.get('f') == 'estr' else 'estr'
 
         # --- LÓGICA DE DESPLEGABLES ---
@@ -135,43 +137,12 @@ try:
             st.markdown("---")
             f = st.session_state.f
             
-            if f == "estr":
-                st.markdown("<h3 style='color:#00a8ff;'>Análisis Monoproveedor vs Consolidado</h3>", unsafe_allow_html=True)
-                res_tipo = df.groupby('Tipo_Carga').agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'Cant. SO', 'M3 Total': 'M3'})
-                res_tipo['%'] = (res_tipo['M3'] / m3_totales_global * 100).round(0)
-                res_total = pd.DataFrame({'Cant. SO': [res_tipo['Cant. SO'].sum()], 'M3': [res_tipo['M3'].sum()], '%': [100]}, index=['TOTAL'])
-                res_final = pd.concat([res_tipo, res_total])
-                st.table(res_final.style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL' else '' for _ in s], axis=1).format({'M3': '{:,.0f}', 'Cant. SO': '{:,.0f}', '%': '{:.0f}%'}))
-
-            elif f == "rank":
-                st.markdown("<h3 style='color:#00a8ff;'>Top 100: Prioridad de Salida</h3>", unsafe_allow_html=True)
-                col_rank = df.columns[1]
-                col_fecha_prior = df.columns[99] # CV
-                
-                # Modificación 1: Ranking sin decimales
-                df[col_rank] = pd.to_numeric(df[col_rank], errors='coerce').fillna(0).astype(int)
-                df_rank = df[(df[col_rank] >= 1) & (df[col_rank] <= 100)].sort_values(by=col_rank)
-                
-                # Modificación 2: Agregar Fecha de Instrucción
-                df_mostrar = df_rank[['SO', col_rank, col_fecha_prior, 'Fecha de Instruccion', 'M3 Total', 'Puerto de Salida']].copy()
-                
-                # Fila de Totales ajustada
-                total_row = pd.DataFrame({
-                    'SO': ['TOTAL'], 
-                    col_rank: [''], 
-                    col_fecha_prior: [''], 
-                    'Fecha de Instruccion': [''], 
-                    'M3 Total': [df_mostrar['M3 Total'].sum()], 
-                    'Puerto de Salida': ['']
-                })
+            if f == "inst":
+                st.markdown("<h3 style='color:#00a8ff;'>Detalle: Mercaderia Instruida</h3>", unsafe_allow_html=True)
+                df_mostrar = df_instruidos_only[['SO', 'M3 Total', 'Fecha de Instruccion']].copy()
+                # Fila de totales
+                total_row = pd.DataFrame({'SO': ['TOTAL'], 'M3 Total': [df_mostrar['M3 Total'].sum()], 'Fecha de Instruccion': ['']})
                 df_final = pd.concat([df_mostrar, total_row.set_index(pd.Index(['TOTAL']))])
-                st.dataframe(df_final.style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL' else '' for _ in s], axis=1).format({'M3 Total': '{:,.0f}'}), use_container_width=True)
-
-            elif f == "inst":
-                st.markdown("<h3 style='color:#00a8ff;'>Detalle: Cargas Instruidas</h3>", unsafe_allow_html=True)
-                df_inst = df[df['Es_Instruido'] == True][['SO', 'Proveedor', 'Pais Destino', 'M3 Total']].copy()
-                total_row = pd.DataFrame({'SO': ['TOTAL'], 'Proveedor': [''], 'Pais Destino': [''], 'M3 Total': [df_inst['M3 Total'].sum()]})
-                df_final = pd.concat([df_inst, total_row.set_index(pd.Index(['TOTAL']))])
                 st.dataframe(df_final.style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL' else '' for _ in s], axis=1).format({'M3 Total': '{:,.0f}'}), use_container_width=True)
 
             elif f == "pend":
@@ -180,6 +151,25 @@ try:
                 total_row = pd.DataFrame({'SO': ['TOTAL'], 'Proveedor': [''], 'Pais Destino': [''], 'M3 Total': [df_pend['M3 Total'].sum()]})
                 df_final = pd.concat([df_pend, total_row.set_index(pd.Index(['TOTAL']))])
                 st.dataframe(df_final.style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL' else '' for _ in s], axis=1).format({'M3 Total': '{:,.0f}'}), use_container_width=True)
+
+            elif f == "rank":
+                st.markdown("<h3 style='color:#00a8ff;'>Top 100: Prioridad de Salida</h3>", unsafe_allow_html=True)
+                col_rank = df.columns[1]
+                col_fecha_prior = df.columns[99]
+                df[col_rank] = pd.to_numeric(df[col_rank], errors='coerce').fillna(0).astype(int)
+                df_rank = df[(df[col_rank] >= 1) & (df[col_rank] <= 100)].sort_values(by=col_rank)
+                df_mostrar = df_rank[['SO', col_rank, col_fecha_prior, 'Fecha de Instruccion', 'M3 Total', 'Puerto de Salida']].copy()
+                total_row = pd.DataFrame({'SO': ['TOTAL'], col_rank: [''], col_fecha_prior: [''], 'Fecha de Instruccion': [''], 'M3 Total': [df_mostrar['M3 Total'].sum()], 'Puerto de Salida': ['']})
+                df_final = pd.concat([df_mostrar, total_row.set_index(pd.Index(['TOTAL']))])
+                st.dataframe(df_final.style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL' else '' for _ in s], axis=1).format({'M3 Total': '{:,.0f}'}), use_container_width=True)
+
+            elif f == "estr":
+                st.markdown("<h3 style='color:#00a8ff;'>Análisis Monoproveedor vs Consolidado</h3>", unsafe_allow_html=True)
+                res_tipo = df.groupby('Tipo_Carga').agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'Cant. SO', 'M3 Total': 'M3'})
+                res_tipo['%'] = (res_tipo['M3'] / m3_totales_global * 100).round(0)
+                res_total = pd.DataFrame({'Cant. SO': [res_tipo['Cant. SO'].sum()], 'M3': [res_tipo['M3'].sum()], '%': [100]}, index=['TOTAL'])
+                res_final = pd.concat([res_tipo, res_total])
+                st.table(res_final.style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL' else '' for _ in s], axis=1).format({'M3': '{:,.0f}', 'Cant. SO': '{:,.0f}', '%': '{:.0f}%'}))
 
         st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
 
