@@ -187,21 +187,21 @@ try:
             df_reserva = pd.read_csv(url_reserva)
             df_reserva.columns = df_reserva.columns.str.strip()
 
-            # Filtrar solo lo que tiene instrucción (Columna H tiene fecha)
+            # Filtrar solo lo que tiene instrucción (Columna H)
             df_reserva['Fecha_Inst_H'] = df_reserva.iloc[:, 7].astype(str).str.strip()
             df_gestion = df_reserva[df_reserva['Fecha_Inst_H'].apply(lambda x: len(str(x)) > 4)].copy()
 
-            st.markdown("<h1 style='text-align: center; color: #ffffff; font-weight: 900;'>CONTROL DE GESTIÓN DE RESERVAS</h1>", unsafe_allow_html=True)
+            st.markdown("<h1 style='text-align: center; color: #ffffff; font-weight: 300;'>CONTROL DE GESTIÓN DE RESERVAS</h1>", unsafe_allow_html=True)
             
-            # --- KPIs SUPERIORES (Se mantienen igual) ---
+            # --- KPIs SUPERIORES ---
             k1, k2, k3 = st.columns(3)
-            with k1: st.markdown(f"<div class='metric-container'><p class='label-massive'>SO INSTRUIDAS</p><p class='value-massive'>{int(len(df_inst))}</p></div>", unsafe_allow_html=True)
-            with k2: st.markdown(f"<div class='metric-container'><p class='label-massive'>VOLUMEN (M3)</p><p class='value-massive'>{int(df_inst['M3 Total'].sum()):,}</p></div>", unsafe_allow_html=True)
-            with k3: st.markdown(f"<div class='metric-container'><p class='label-massive'>PROVEEDORES</p><p class='value-massive'>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
+            with k1: st.markdown(f"<div class='metric-container'><p class='label-massive' style='font-weight:400;'>SO INSTRUIDAS</p><p class='value-massive' style='font-weight:300;'>{int(len(df_inst))}</p></div>", unsafe_allow_html=True)
+            with k2: st.markdown(f"<div class='metric-container'><p class='label-massive' style='font-weight:400;'>VOLUMEN (M3)</p><p class='value-massive' style='font-weight:300;'>{int(df_inst['M3 Total'].sum()):,}</p></div>", unsafe_allow_html=True)
+            with k3: st.markdown(f"<div class='metric-container'><p class='label-massive' style='font-weight:400;'>PROVEEDORES</p><p class='value-massive' style='font-weight:300;'>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
 
-            st.markdown("<br><p style='text-align:center; color:#00a8ff; font-weight:800; letter-spacing:2px; font-size:14px;'>DESGLOSE POR TIPO DE TRANSPORTE</p>", unsafe_allow_html=True)
+            st.markdown("<br><p style='text-align:center; color:#00a8ff; font-weight:300; letter-spacing:2px; font-size:14px;'>DESGLOSE POR TIPO DE TRANSPORTE</p>", unsafe_allow_html=True)
 
-            # --- LÓGICA DE CLASIFICACIÓN Y SEMÁFORO ---
+            # --- LÓGICA DE CLASIFICACIÓN ---
             def clasificar_transporte(x):
                 x = str(x).upper()
                 if any(m in x for m in ["40 HQ", "40 ST", "20 ST", "40NOR"]): return "MARITIMO"
@@ -219,26 +219,26 @@ try:
                 ok_t = len(df_tipo[df_tipo['ETD_Status_K'] == "OK"])
                 pend_t = total_t - ok_t
                 
-                # Cálculo de porcentaje de efectividad
+                # Cálculo de porcentajes
                 pct_ok = round((ok_t / total_t * 100)) if total_t > 0 else 0
+                pct_pend = 100 - pct_ok if total_t > 0 else 0
                 
-                # Lógica de Color y Flecha
-                if ok_t >= pend_t and total_t > 0:
-                    color_status = "#00ff88" # Verde
-                    flecha = "▲"
-                else:
-                    color_status = "#ff4b4b" # Rojo
-                    flecha = "▼"
+                # Color y Flecha dinámicos
+                color_status = "#00ff88" if ok_t >= pend_t and total_t > 0 else "#ff4b4b"
+                flecha = "▲" if ok_t >= pend_t else "▼"
                 
                 with [t1, t2][i]:
                     st.markdown(f"""
                         <div style="background: #040911; padding: 20px; border-radius: 10px; border: 1px solid #1e293b; min-height: 140px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <p style="color: #00a8ff; font-weight: 700; margin: 0; font-size: 18px;">{tipo}</p>
-                                <p style="color: {color_status}; font-weight: 800; margin: 0; font-size: 20px;">{flecha} {pct_ok}%</p>
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                <p style="color: #00a8ff; font-weight: 400; margin: 0; font-size: 16px; letter-spacing: 0.5px;">{tipo}</p>
+                                <div style="text-align: right;">
+                                    <p style="color: {color_status}; font-weight: 300; margin: 0; font-size: 18px;">{flecha} {pct_ok}% <span style="font-size:12px; color:#8899A6; margin-left:5px;">OK</span></p>
+                                    <p style="color: #ff4b4b; font-weight: 300; margin: 0; font-size: 14px; opacity: 0.8;">{pct_pend}% <span style="font-size:10px; color:#8899A6;">PEND</span></p>
+                                </div>
                             </div>
-                            <p style="font-size: 28px; font-weight: 900; color: #ffffff; margin-top: 15px; margin-bottom: 5px;">Total: {total_t}</p>
-                            <p style="font-size: 12px; color: #94a3b8; font-weight: 500; margin: 0;">
+                            <p style="font-size: 28px; font-weight: 300; color: #ffffff; margin-top: 10px; margin-bottom: 5px;">Total: {total_t}</p>
+                            <p style="font-size: 12px; color: #94a3b8; font-weight: 300; margin: 0;">
                                 <span style="color: #00ff88;">Confirmados: {ok_t}</span> | 
                                 <span style="color: #ff4b4b;">Pendientes: {pend_t}</span>
                             </p>
@@ -247,7 +247,7 @@ try:
 
             st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
 
-            # --- PERFORMANCE GLOBAL (Resumen inferior) ---
+            # --- PERFORMANCE GLOBAL ---
             confirmados_glob = len(df_gestion[df_gestion['ETD_Status_K'] == "OK"])
             pendientes_glob = len(df_gestion) - confirmados_glob
             p_ok_glob = round((confirmados_glob / len(df_gestion) * 100)) if len(df_gestion) > 0 else 0
