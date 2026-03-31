@@ -176,9 +176,11 @@ try:
             fig_e.update_traces(textfont_size=14, textposition='outside')
             fig_e.update_layout(yaxis_visible=False, xaxis_title=None, height=450)
             st.plotly_chart(fig_e, use_container_width=True)
-        with g3:
+      with g3:
             st.markdown("<p class='chart-title'>Proyección ETA</p>", unsafe_allow_html=True)
-            eta_p = df.groupby('Mes_ETA_Full').agg({'M3 Total': 'sum'}).reset_index()
+            # Agregamos observed=True para que respete el orden cronológico
+            eta_p = df.groupby('Mes_ETA_Full', observed=True).agg({'M3 Total': 'sum'}).reset_index()
+            
             fig_a = px.bar(eta_p, x='Mes_ETA_Full', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#ff4b4b'], template='plotly_dark')
             fig_a.update_traces(textfont_size=14, textposition='outside')
             fig_a.update_layout(yaxis_visible=False, xaxis_title=None, height=450)
