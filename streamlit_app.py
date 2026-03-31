@@ -179,53 +179,72 @@ try:
             fig_a.update_layout(yaxis_visible=False, xaxis_title=None, height=450)
             st.plotly_chart(fig_a, use_container_width=True)
 
-    # --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
+  # --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
     with tabs[1]:
         try:
             url_reserva = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
             df_reserva = pd.read_csv(url_reserva)
             df_reserva.columns = df_reserva.columns.str.strip()
 
-            # Filtrar solo lo instruido (Columna H)
+            # 1. Filtrar solo lo instruido (Columna H)
             df_reserva['Fecha_Inst_H'] = df_reserva.iloc[:, 7].astype(str).str.strip()
-            df_gestion = df_reserva[df_reserva['Fecha_Inst_H'].apply(lambda x: len(x) > 4)].copy()
+            df_gestion = df_reserva[df_reserva['Fecha_Inst_H'].apply(lambda x: len(str(x)) > 4)].copy()
 
-            st.markdown("<h2 style='text-align: center; color: #ffffff;'>CONTROL DE GESTIÓN DE RESERVAS</h2>", unsafe_allow_html=True)
+            st.markdown("<h1 style='text-align: center; color: #ffffff; font-weight: 900;'>CONTROL DE GESTIÓN DE RESERVAS</h1>", unsafe_allow_html=True)
             
-            # KPIs Gerenciales
-            c1, c2, c3 = st.columns(3)
-            with c1: st.markdown(f"<div class='metric-container'><p class='label-massive'>SO INSTRUIDAS</p><p class='value-massive'>{int(len(df_inst))}</p></div>", unsafe_allow_html=True)
-            with c2: st.markdown(f"<div class='metric-container'><p class='label-massive'>VOLUMEN (M3)</p><p class='value-massive'>{int(df_inst['M3 Total'].sum()):,}</p></div>", unsafe_allow_html=True)
-            with c3: st.markdown(f"<div class='metric-container'><p class='label-massive'>PROVEEDORES</p><p class='value-massive'>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
+            # --- KPIs SUPERIORES MASIVOS ---
+            k1, k2, k3 = st.columns(3)
+            with k1: st.markdown(f"<div style='text-align:center; padding:20px; border-radius:15px; background:#040911; border:1px solid #004080;'><p style='color:#00a8ff; font-weight:800; margin:0;'>SO INSTRUIDAS</p><p style='font-size:48px; font-weight:900; color:#00a8ff; margin:0;'>{int(len(df_inst))}</p></div>", unsafe_allow_html=True)
+            with k2: st.markdown(f"<div style='text-align:center; padding:20px; border-radius:15px; background:#040911; border:1px solid #004080;'><p style='color:#00a8ff; font-weight:800; margin:0;'>VOLUMEN (M3)</p><p style='font-size:48px; font-weight:900; color:#00a8ff; margin:0;'>{int(df_inst['M3 Total'].sum()):,}</p></div>", unsafe_allow_html=True)
+            with k3: st.markdown(f"<div style='text-align:center; padding:20px; border-radius:15px; background:#040911; border:1px solid #004080;'><p style='color:#00a8ff; font-weight:800; margin:0;'>PROVEEDORES</p><p style='font-size:48px; font-weight:900; color:#00a8ff; margin:0;'>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
+
+            st.markdown("<br><p style='text-align:center; color:#00a8ff; font-weight:800; letter-spacing:2px;'>DESGLOSE POR TIPO DE TRANSPORTE</p>", unsafe_allow_html=True)
+
+            # --- LÓGICA DE CLASIFICACIÓN ---
+            def clasificar_transporte(x):
+                x = str(x).upper()
+                if any(m in x for m in ["40 HQ", "40 ST", "20 ST", "40NOR"]): return "MARITIMO"
+                if any(a in x for a in ["AVION", "COURIER", "COURRIER"]): return "AVION / COURIER"
+                return "OTROS"
+
+            df_gestion['Transporte'] = df_gestion.iloc[:, 5].apply(clasificar_transporte) # Columna F
+            df_gestion['ETD_Status_K'] = df_gestion.iloc[:, 10].astype(str).str.upper().str.strip() # Columna K
+
+            # --- RENDERIZADO DE CAJAS OSCURAS (Según tu imagen) ---
+            t1, t2 = st.columns(2)
+            
+            for i, tipo in enumerate(["MARITIMO", "AVION / COURIER"]):
+                df_tipo = df_gestion[df_gestion['Transporte'] == tipo]
+                total_t = len(df_tipo)
+                ok_t = len(df_tipo[df_tipo['ETD_Status_K'] == "OK"])
+                pend_t = total_t - ok_t
+                
+                with [t1, t2][i]:
+                    st.markdown(f"""
+                        <div style="background: #040911; padding: 25px; border-radius: 15px; border: 1px solid #002244; min-height: 150px;">
+                            <h4 style="color: #00a8ff; margin-bottom: 20px; font-weight: 800; letter-spacing: 1px;">{tipo}</h4>
+                            <p style="font-size: 32px; font-weight: 900; color: #ffffff; margin-bottom: 10px;">Total: {total_t}</p>
+                            <p style="font-size: 14px; color: #8899A6; font-weight: 600;">
+                                <span style="color: #00a8ff;">ETD OK: {ok_t}</span> | 
+                                <span style="color: #ff4b4b;">Pendientes: {pend_t}</span>
+                            </p>
+                        </div>
+                    """, unsafe_allow_html=True)
 
             st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
 
-            # Clasificación de Transporte (Columna F)
-            def clasificar_transporte(x):
-                x = str(x).upper()
-                if any(m in x for m in ["40 HQ", "40 ST", "20 ST", "40NOR"]): return "MARÍTIMO"
-                if any(a in x for a in ["AVION", "COURIER"]): return "AÉREO / COURIER"
-                return "OTROS"
-
-            df_gestion['Transporte'] = df_gestion.iloc[:, 5].apply(clasificar_transporte)
-            res_t = df_gestion['Transporte'].value_counts()
-            
-            t1, t2 = st.columns(2)
-            with t1: st.metric("EMBARQUES MARÍTIMOS", f"{res_t.get('MARÍTIMO', 0)} Emb.")
-            with t2: st.metric("EMBARQUES AÉREO / COURIER", f"{res_t.get('AÉREO / COURIER', 0)} Emb.")
-
-            st.markdown("<br>", unsafe_allow_html=True)
-
-            # Status OK (Columna K)
-            df_gestion['ETD_Status_K'] = df_gestion.iloc[:, 10].astype(str).str.upper().str.strip()
-            confirmados = df_gestion[df_gestion['ETD_Status_K'] == "OK"].shape[0]
+            # --- PERFORMANCE GLOBAL ---
+            confirmados = len(df_gestion[df_gestion['ETD_Status_K'] == "OK"])
             pendientes = len(df_gestion) - confirmados
             p_ok = round((confirmados / len(df_gestion) * 100)) if len(df_gestion) > 0 else 0
+            
+            color_perf = "#00ff88" if confirmados >= pendientes else "#ff4b4b"
 
-            m_col1, m_col2, m_col3 = st.columns(3)
-            m_col1.metric("ETD OK (CONFIRMADOS)", f"{confirmados} Emb.")
-            m_col2.metric("SIN ETD OK (PENDIENTES)", f"{pendientes} Emb.")
-            m_col3.metric("% GESTIÓN OK", f"{p_ok}%", delta=f"{p_ok}%", delta_color="normal" if confirmados >= pendientes else "inverse")
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("ETD OK (TOTAL)", f"{confirmados} Emb.")
+            m2.metric("SIN ETD OK (TOTAL)", f"{pendientes} Emb.")
+            m3.metric("% CONFIRMADO", f"{p_ok}%")
+            m4.metric("% PENDIENTE", f"{100-p_ok}%")
 
             st.markdown("<br>", unsafe_allow_html=True)
             st.dataframe(df_gestion.drop(columns=['Transporte', 'ETD_Status_K', 'Fecha_Inst_H']), use_container_width=True)
