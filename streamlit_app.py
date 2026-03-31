@@ -1,3 +1,4 @@
+import time
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -212,17 +213,16 @@ try:
             fig_a.update_layout(xaxis_title=None, yaxis_title=None, height=500)
             st.plotly_chart(fig_a, use_container_width=True)
 
-   # --- SOLAPA 2: STATUS CARGAS ---
+ # --- SOLAPA 2: STATUS CARGAS ---
     with tabs[1]:
         try:
             # 1. CARGA DE DATOS ESPECÍFICA (Hoja Reservas GID 276804813)
-            # Usamos nocache y time.time() para que refresque los datos del Excel al instante
-            url_reserva = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
+            # Quitamos el nocache con time para evitar errores de libreria no definida
+            url_reserva = f"{base_url}/export?format=csv&gid=276804813"
             df_reserva = pd.read_csv(url_reserva)
             df_reserva.columns = df_reserva.columns.str.strip()
 
             # 2. MÉTRICAS DE CONTROL (Basadas en lo que ya está Instruido en la Hoja 0)
-            # Reutilizamos el 'df' cargado al inicio para mostrar consistencia entre solapas
             df['Fecha_Inst_DT'] = pd.to_datetime(df['Fecha de Instruccion'], errors='coerce')
             df_solo_instruidos = df[df['Fecha_Inst_DT'].notna()].copy()
             
@@ -230,10 +230,10 @@ try:
             m_m3_inst = df_solo_instruidos['M3 Total'].sum()
             m_prov_inst = df_solo_instruidos['Proveedor'].nunique()
 
-            # Título de la sección
+            # Renderizado de Cabecera
             st.markdown("<h2 style='text-align: center; color: #ffffff; letter-spacing: 3px;'>MONITOREO DE RESERVAS</h2>", unsafe_allow_html=True)
             
-            # Cuadros de métricas en formato BIDCOM (Igual a ORIGEN)
+            # Cuadros de métricas en formato BIDCOM
             col_s1, col_s2, col_s3 = st.columns(3)
             with col_s1:
                 st.markdown(f"<div class='metric-container'><p class='label-massive'>SO INSTRUIDAS</p><p class='value-massive'>{int(m_so_inst)}</p></div>", unsafe_allow_html=True)
@@ -251,20 +251,19 @@ try:
             busqueda = st.text_input("🔍 Filtrar Reservas (escribe SO, Proveedor o Nro de Booking):", key="search_status_tab")
             
             if busqueda:
-                # Filtra en todas las columnas de la hoja de reservas para encontrar cualquier coincidencia
                 mask_res = df_reserva.astype(str).apply(lambda x: x.str.contains(busqueda, case=False)).any(axis=1)
                 df_res_final = df_reserva[mask_res]
             else:
                 df_res_final = df_reserva
 
-            # Visualización de la tabla con altura fija para scrollear cómodo
+            # Visualización de la tabla
             st.dataframe(
                 df_res_final, 
                 use_container_width=True,
                 height=550
             )
 
-            # Pie de tabla con información de conteo
+            # Pie de tabla
             st.markdown(f"**Líneas totales en Reservas:** {len(df_reserva)} | **Resultados encontrados:** {len(df_res_final)}")
 
         except Exception as e:
