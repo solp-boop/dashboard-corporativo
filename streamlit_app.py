@@ -133,27 +133,26 @@ try:
             if b5_col.button("MONOPROV. / \n CONSOLIDADO", key="btn_estr_o", use_container_width=True):
                 st.session_state.f = 'estr' if st.session_state.get('f') != 'estr' else None
 
-            # --- BLOQUE 3: CUADROS DESPLEGABLES (Estilo Comparativo de Reservas) ---
+            # --- BLOQUE 3: CUADROS DESPLEGABLES (DISEÑO TARJETA RESERVAS) ---
             f = st.session_state.get('f')
             if f:
                 st.markdown("<br>", unsafe_allow_html=True)
-                # Contenedor con borde similar al de Reservas
-                if f == "inst":
-                    titulo, dff, color = "MERCADERIA INSTRUIDA", df_inst, "#00a8ff"
-                elif f == "crit":
-                    titulo, dff, color = "MERCADERIA PROXIMA A INSTRUIR", df_criticos, "#ff4b4b"
-                elif f == "rest":
-                    titulo, dff, color = "MERCADERIA LISTA (+30 DIAS)", df_resto, "#00a8ff"
                 
                 if f in ["inst", "crit", "rest"]:
-                    cant_emb = len(dff)
-                    m3_sum = int(round(dff['M3 Total'].sum()))
+                    if f == "inst": titulo, dff, color = "MERCADERIA INSTRUIDA", df_inst, "#00a8ff"
+                    elif f == "crit": titulo, dff, color = "PROXIMA A INSTRUIR", df_criticos, "#ff4b4b"
+                    elif f == "rest": titulo, dff, color = "LISTA EN +30 DIAS", df_resto, "#8899A6"
+                    
+                    cant_so_f = len(dff)
+                    m3_f = int(round(dff['M3 Total'].sum()))
+                    
+                    # Diseño de Tarjeta igual a Reservas
                     st.markdown(f"""
-                        <div style="background: rgba(255,255,255,0.02); padding: 25px; border-radius: 10px; border-left: 5px solid {color};">
-                            <p style="font-weight:700; color:{color}; margin-bottom:15px; font-size:14px; letter-spacing:1px;">{titulo}</p>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom:20px;">
-                                <div><p style="font-size:11px; color:#8899A6; margin:0;">TOTAL SO</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{cant_emb}</p></div>
-                                <div><p style="font-size:11px; color:#8899A6; margin:0;">TOTAL M3</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{m3_sum:,}</p></div>
+                        <div style="background: rgba(255,255,255,0.02); padding: 25px; border-radius: 10px; border-left: 5px solid {color}; margin-bottom: 20px;">
+                            <p style="font-weight:700; color:{color}; margin-bottom:15px; font-size:14px; letter-spacing:1px;">{titulo} ({int(round(m3_f/m3_totales_global*100)) if m3_totales_global > 0 else 0}%)</p>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                                <div><p style="font-size:11px; color:#8899A6; margin:0;">CANTIDAD SO</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{cant_so_f}</p></div>
+                                <div><p style="font-size:11px; color:#8899A6; margin:0;">VOLUMEN TOTAL</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{m3_f:,} M3</p></div>
                             </div>
                         </div>
                     """, unsafe_allow_html=True)
@@ -163,20 +162,45 @@ try:
                     col_rank = df.columns[1]
                     col_prior = df.columns[99]
                     df_rank = df[pd.to_numeric(df[col_rank], errors='coerce') <= 100].sort_values(by=col_rank).copy()
-                    df_rank['Status_Inst'] = df_rank['Fecha_Inst_DT'].apply(lambda x: "✅ OK" if pd.notna(x) else "❌ PENDIENTE")
-                    st.markdown(f"<p style='color:#00a8ff; font-weight:700; letter-spacing:1px;'>TOP 100 RANKING - TOTAL M3: {int(df_rank['M3 Total'].sum()):,}</p>", unsafe_allow_html=True)
-                    st.dataframe(df_rank[['SO', col_rank, 'Proveedor', col_prior, 'M3 Total', 'Status_Inst']], use_container_width=True)
+                    df_rank['Status'] = df_rank['Fecha_Inst_DT'].apply(lambda x: "✅ OK" if pd.notna(x) else "❌ PEND")
+                    
+                    st.markdown(f"""
+                        <div style="background: rgba(255,255,255,0.02); padding: 25px; border-radius: 10px; border-left: 5px solid #00a8ff; margin-bottom: 20px;">
+                            <p style="font-weight:700; color:#00a8ff; margin-bottom:15px; font-size:14px; letter-spacing:1px;">TOP 100 RANKING - RESUMEN</p>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                                <div><p style="font-size:11px; color:#8899A6; margin:0;">EMBARQUES EN RANGO</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{len(df_rank)}</p></div>
+                                <div><p style="font-size:11px; color:#8899A6; margin:0;">M3 TOTAL PRIORITARIO</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{int(df_rank['M3 Total'].sum()):,} M3</p></div>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    st.dataframe(df_rank[['SO', col_rank, 'Proveedor', col_prior, 'M3 Total', 'Status']], use_container_width=True)
 
                 elif f == "estr":
                     col_cp = df.columns[93]
                     df['Tipo_Carga'] = df[col_cp].apply(lambda x: 'MONOPROVEEDOR' if str(x).upper() == 'SI' else 'CONSOLIDADO')
-                    res_tipo = df.groupby('Tipo_Carga').agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'Cant. SO', 'M3 Total': 'M3'})
-                    st.markdown("<p style='color:#00a8ff; font-weight:700; letter-spacing:1px;'>ANALISIS ESTRUCTURA: MONOPROVEEDOR VS CONSOLIDADO</p>", unsafe_allow_html=True)
-                    st.table(res_tipo.style.format({'M3': '{:,.0f}'}))
+                    
+                    st.markdown("<p style='color:#00a8ff; font-weight:700; letter-spacing:1px; margin-bottom:15px;'>ANALISIS ESTRUCTURA CARGA</p>", unsafe_allow_html=True)
+                    e1, e2 = st.columns(2)
+                    tipos = ["CONSOLIDADO", "MONOPROVEEDOR"]
+                    colores_e = ["#8899A6", "#00a8ff"]
+                    
+                    for i, t_carga in enumerate(tipos):
+                        df_c = df[df['Tipo_Carga'] == t_carga]
+                        with [e1, e2][i]:
+                            st.markdown(f"""
+                                <div style="background: rgba(255,255,255,0.02); padding: 20px; border-radius: 10px; border-left: 5px solid {colores_e[i]};">
+                                    <p style="font-weight:700; color:{colores_e[i]}; margin-bottom:10px; font-size:13px;">{t_carga}</p>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                        <div><p style="font-size:10px; color:#8899A6; margin:0;">CANT. SO</p><p style="font-size:22px; font-weight:300; margin:0; color:#ffffff;">{len(df_c)}</p></div>
+                                        <div><p style="font-size:10px; color:#8899A6; margin:0;">TOTAL M3</p><p style="font-size:22px; font-weight:300; margin:0; color:#ffffff;">{int(df_c['M3 Total'].sum()):,}</p></div>
+                                    </div>
+                                </div>
+                            """, unsafe_allow_html=True)
 
             st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
 
             # --- BLOQUE 4: GRAFICOS ---
+            # ... (Aquí se mantienen los gráficos que ya tenías optimizados)
             st.markdown("<p class='chart-title' style='font-weight:700;'>Participación por País de Destino</p>", unsafe_allow_html=True)
             res_p = df.groupby('Pais Destino').agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT. SO', 'M3 Total': 'M3'}).sort_values(by='M3', ascending=False)
             res_p['%'] = (res_p['M3'] / m3_totales_global * 100).round(0)
