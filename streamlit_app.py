@@ -146,12 +146,24 @@ try:
             elif f == "rank":
                 st.markdown("<h3 style='color:#00a8ff;'>Top 100: Prioridad de Salida</h3>", unsafe_allow_html=True)
                 col_rank = df.columns[1]
-                col_fecha_prior = df.columns[99] # Columna CV
-                df[col_rank] = pd.to_numeric(df[col_rank], errors='coerce')
+                col_fecha_prior = df.columns[99] # CV
+                
+                # Modificación 1: Ranking sin decimales
+                df[col_rank] = pd.to_numeric(df[col_rank], errors='coerce').fillna(0).astype(int)
                 df_rank = df[(df[col_rank] >= 1) & (df[col_rank] <= 100)].sort_values(by=col_rank)
-                # SE AGREGA FECHA PRIORITARIA NUEVAMENTE
-                df_mostrar = df_rank[['SO', col_rank, col_fecha_prior, 'M3 Total', 'Puerto de Salida']].copy()
-                total_row = pd.DataFrame({'SO': ['TOTAL'], col_rank: [''], col_fecha_prior: [''], 'M3 Total': [df_mostrar['M3 Total'].sum()], 'Puerto de Salida': ['']})
+                
+                # Modificación 2: Agregar Fecha de Instrucción
+                df_mostrar = df_rank[['SO', col_rank, col_fecha_prior, 'Fecha de Instruccion', 'M3 Total', 'Puerto de Salida']].copy()
+                
+                # Fila de Totales ajustada
+                total_row = pd.DataFrame({
+                    'SO': ['TOTAL'], 
+                    col_rank: [''], 
+                    col_fecha_prior: [''], 
+                    'Fecha de Instruccion': [''], 
+                    'M3 Total': [df_mostrar['M3 Total'].sum()], 
+                    'Puerto de Salida': ['']
+                })
                 df_final = pd.concat([df_mostrar, total_row.set_index(pd.Index(['TOTAL']))])
                 st.dataframe(df_final.style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL' else '' for _ in s], axis=1).format({'M3 Total': '{:,.0f}'}), use_container_width=True)
 
