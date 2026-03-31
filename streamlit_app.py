@@ -179,25 +179,19 @@ try:
             st.plotly_chart(fig_e, use_container_width=True)
         with g3:
             st.markdown("<p class='chart-title'>Proyección ETA</p>", unsafe_allow_html=True)
-            #observed=True asegura el orden cronológico definido arriba
             eta_p = df.groupby('Mes_ETA_Full', observed=True).agg({'M3 Total': 'sum'}).reset_index()
             fig_a = px.bar(eta_p, x='Mes_ETA_Full', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#ff4b4b'], template='plotly_dark')
             fig_a.update_traces(textfont_size=14, textposition='outside')
             fig_a.update_layout(yaxis_visible=False, xaxis_title=None, height=450)
             st.plotly_chart(fig_a, use_container_width=True)
 
-    with tabs[1]:
-        # --- STATUS CARGAS ---
-      # --- SOLAPA 2: STATUS CARGAS (CONTROL DE GESTIÓN DE RESERVAS) ---
+    # --- SOLAPA 2: STATUS CARGAS (CONTROL DE GESTIÓN DE RESERVAS) ---
     with tabs[1]:
         try:
-            # 1. CARGA DE DATOS (GID 276804813)
             url_reserva = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
             df_reserva = pd.read_csv(url_reserva)
             df_reserva.columns = df_reserva.columns.str.strip()
 
-            # 2. FILTRADO: Solo lo que tiene instrucción enviada (Columna H no vacía)
-            # Columna H es la índice 7 (A=0, B=1... H=7)
             df_reserva['Fecha_Inst_H'] = df_reserva.iloc[:, 7].astype(str).str.strip()
             df_gestion = df_reserva[
                 (df_reserva['Fecha_Inst_H'] != "") & 
@@ -205,8 +199,6 @@ try:
                 (df_reserva['Fecha_Inst_H'].notna())
             ].copy()
 
-            # 3. MÉTRICAS BASE (Punto 2)
-            # Usamos df_inst de la hoja ORIGEN para estas métricas globales de instrucción
             st.markdown("<h2 style='text-align: center; color: #ffffff; letter-spacing: 3px;'>CONTROL DE GESTIÓN DE RESERVAS</h2>", unsafe_allow_html=True)
             
             c1, c2, c3 = st.columns(3)
@@ -219,11 +211,7 @@ try:
 
             st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
 
-            # 4. MÉTRICAS DE CONFIRMACIÓN (Punto 3 - Columna K)
-            # Columna K es la índice 10 (A=0 ... K=10)
             df_gestion['ETD_Status_K'] = df_gestion.iloc[:, 10].astype(str).str.upper().str.strip()
-            
-            # Filtramos los que dicen "OK"
             mask_ok = df_gestion['ETD_Status_K'] == "OK"
             confirmados = df_gestion[mask_ok].shape[0]
             pendientes = df_gestion[~mask_ok].shape[0]
@@ -233,18 +221,12 @@ try:
             p_pend = 100 - p_ok if total_gestion > 0 else 0
 
             m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-            with m_col1:
-                st.metric("ETD OK (CONFIRMADOS)", f"{confirmados} Emb.")
-            with m_col2:
-                st.metric("SIN ETD OK (PENDIENTES)", f"{pendientes} Emb.")
-            with m_col3:
-                st.metric("% CONFIRMADO", f"{p_ok}%")
-            with m_col4:
-                st.metric("% SIN CONFIRMACIÓN", f"{p_pend}%")
+            with m_col1: st.metric("ETD OK (CONFIRMADOS)", f"{confirmados} Emb.")
+            with m_col2: st.metric("SIN ETD OK (PENDIENTES)", f"{pendientes} Emb.")
+            with m_col3: st.metric("% CONFIRMADO", f"{p_ok}%")
+            with m_col4: st.metric("% SIN CONFIRMACIÓN", f"{p_pend}%")
 
             st.markdown("<br>", unsafe_allow_html=True)
-
-            # 5. TABLA DE DETALLE (Solo lo instruido)
             st.markdown("<p class='chart-title'>Detalle de Embarques en Gestión</p>", unsafe_allow_html=True)
             busqueda_res = st.text_input("🔍 Buscar en gestión (SO, Proveedor, Buque...):", key="search_res_new")
             
@@ -254,12 +236,7 @@ try:
             else:
                 df_final_res = df_gestion
 
-            # Mostramos la tabla (quitando las columnas auxiliares que creamos para el cálculo)
-            st.dataframe(
-                df_final_res.drop(columns=['Fecha_Inst_H', 'ETD_Status_K']), 
-                use_container_width=True, 
-                height=500
-            )
+            st.dataframe(df_final_res.drop(columns=['Fecha_Inst_H', 'ETD_Status_K']), use_container_width=True, height=500)
 
         except Exception as e:
             st.error(f"Error en Control de Gestión: {e}")
