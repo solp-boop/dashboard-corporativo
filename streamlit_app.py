@@ -185,7 +185,7 @@ try:
             fig_a.update_layout(yaxis_visible=False, xaxis_title=None, height=450)
             st.plotly_chart(fig_a, use_container_width=True)
 
- # --- SOLAPA 2: CONTROL DE GESTIÓN DE RESERVAS ---
+# --- SOLAPA 2: CONTROL DE GESTIÓN DE RESERVAS ---
     with tabs[1]:
         try:
             url_reserva = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
@@ -254,7 +254,4 @@ try:
             st.dataframe(df_final_res.drop(columns=['Fecha_Inst_H', 'ETD_Status_K', 'Transporte']), use_container_width=True, height=500)
 
         except Exception as e:
-            st.error(f"Error en Control de Gestión: {e}}")
-
-except Exception as e:
-    st.error(f"Error general: {e}")
+            st.error(f"Error en Control de Gestión: {e}")
