@@ -205,6 +205,23 @@ try:
         except Exception as e:
             st.error(f"Error en Solapa Origen: {e}")
 
+# --- FINAL DE LA SOLAPA 1: GRÁFICOS ---
+            st.plotly_chart(fig_a, use_container_width=True)
+
+        except Exception as e:
+            st.error(f"Error en Solapa Origen: {e}")
+
     # ==========================================
-    # SOLAPA 2: CONTROL GESTIÓN RESERVAS (ESTA SECCIÓN EMPIEZA AQUÍ)
+    # SOLAPA 2: CONTROL GESTIÓN RESERVAS
     # ==========================================
+    with tabs[1]:
+        try:
+            # 1. Carga de datos de Reservas
+            url_reserva = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
+            df_res = pd.read_csv(url_reserva, engine='python')
+            df_res.columns = df_res.columns.str.strip()
+            
+            # (Aquí sigue el resto de tu código de Reservas...)
+
+        except Exception as e:
+            st.error(f"Error en Gestión de Reservas: {e}")
