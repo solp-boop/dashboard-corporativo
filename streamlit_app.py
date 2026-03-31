@@ -191,7 +191,7 @@ try:
             df_res['Fecha_Inst_H'] = df_res.iloc[:, 7].astype(str).str.strip()
             df_g = df_res[df_res['Fecha_Inst_H'].apply(lambda x: len(str(x)) > 4)].copy()
 
-            # --- BLOQUE 1: KPIs GRANDES (Formato Ajustado) ---
+            # --- BLOQUE 1: KPIs GRANDES ---
             st.markdown("<br>", unsafe_allow_html=True)
             k1, k2, k3 = st.columns(3)
             with k1: st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>SO INSTRUIDAS</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(len(df_inst))}</p></div>", unsafe_allow_html=True)
@@ -258,9 +258,9 @@ try:
                 num = ''.join(c for c in s if c.isdigit() or c == '.')
                 return pd.to_numeric(num, errors='coerce') if num else 0
 
-            df_mar.iloc[:, 1] = pd.to_numeric(df_mar.iloc[:, 1], errors='coerce').fillna(0) # Contenedores
-            df_mar.iloc[:, 29] = pd.to_numeric(df_mar.iloc[:, 29], errors='coerce').fillna(0) # Consolidación
-            df_mar.iloc[:, 21] = df_mar.iloc[:, 21].apply(clean_val).fillna(0) # FOB
+            df_mar.iloc[:, 1] = pd.to_numeric(df_mar.iloc[:, 1], errors='coerce').fillna(0)
+            df_mar.iloc[:, 29] = pd.to_numeric(df_mar.iloc[:, 29], errors='coerce').fillna(0)
+            df_mar.iloc[:, 21] = df_mar.iloc[:, 21].apply(clean_val).fillna(0)
 
             c_btn1, c_btn2 = st.columns(2)
             
@@ -274,23 +274,32 @@ try:
                 st.markdown("<br>", unsafe_allow_html=True)
                 col_a, col_b = st.columns(2)
                 
+                # Definición de máscaras y datos (Booking Advance es índice 8)
                 if mode == 'adv':
                     mask = df_mar.iloc[:, 8].astype(str).str.strip() == "Booked in Advance"
                     labels = [("Booked in Advance", df_mar[mask]), ("No Booked in Advance", df_mar[~mask])]
                 else:
-                    # LÓGICA CORREGIDA: Busca el texto "Monoproveedor" (Columna AI = índice 34)
+                    # Monoproveedor es índice 34
                     mask = df_mar.iloc[:, 34].astype(str).str.strip() == "Monoproveedor"
                     labels = [("Monoproveedor", df_mar[mask]), ("Consolidado", df_mar[~mask])]
 
                 total_m = len(df_mar) if len(df_mar) > 0 else 1
                 for i, (titulo, dff) in enumerate(labels):
                     cant_emb = len(dff)
-                    pct = round((cant_emb / total_m) * 100)
+                    pct_rel = round((cant_emb / total_m) * 100)
+                    
+                    # Cálculo cruzado de Booking Advance dentro del grupo actual
+                    cant_adv_dentro = len(dff[dff.iloc[:, 8].astype(str).str.strip() == "Booked in Advance"])
+                    pct_adv_dentro = round((cant_adv_dentro / cant_emb * 100)) if cant_emb > 0 else 0
+                    
                     with [col_a, col_b][i]:
                         color_box = "#00a8ff" if i == 0 else "#8899A6"
                         st.markdown(f"""
                             <div style="background: rgba(255,255,255,0.02); padding: 25px; border-radius: 10px; border-left: 5px solid {color_box};">
-                                <p style="font-weight:700; color:{color_box}; margin-bottom:15px; font-size:14px; letter-spacing:1px;">{titulo.upper()} ({int(pct)}%)</p>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                    <p style="font-weight:700; color:{color_box}; margin:0; font-size:14px; letter-spacing:1px;">{titulo.upper()} ({int(pct_rel)}%)</p>
+                                    <p style="font-size:11px; color:#00ff88; font-weight:700; margin:0; background:rgba(0,255,136,0.1); padding:2px 8px; border-radius:5px;">ADVANCE: {int(pct_adv_dentro)}%</p>
+                                </div>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                                     <div><p style="font-size:11px; color:#8899A6; margin:0;">EMBARQUES</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{int(cant_emb)}</p></div>
                                     <div><p style="font-size:11px; color:#8899A6; margin:0;">CONTENEDORES</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{int(round(dff.iloc[:, 1].sum()))}</p></div>
