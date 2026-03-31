@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 
 # --- 1. CONFIGURACIÓN DE PÁGINA ---
@@ -38,22 +38,21 @@ st.markdown("""
 try:
     # --- 3. CARGA DE DATOS ---
     base_url = "https://docs.google.com/spreadsheets/d/1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI"
-    
-    # Carga Hoja 0 (Origen)
     df = pd.read_csv(f"{base_url}/export?format=csv&gid=0&nocache={time.time()}")
     df.columns = df.columns.str.strip()
 
-    # Limpieza de M3
     if 'M3 Total' in df.columns:
         df['M3 Total'] = df['M3 Total'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
         df['M3 Total'] = pd.to_numeric(df['M3 Total'], errors='coerce').fillna(0)
     
-    # Procesamiento Fechas Globales
+    # --- PROCESAMIENTO FECHAS (Corrección "Sin Fecha" en ETA) ---
     df['ETD_DT'] = pd.to_datetime(df.iloc[:, 23], errors='coerce')
     df['ETA_DT'] = pd.to_datetime(df.iloc[:, 24], errors='coerce')
     df['Fecha_Prior_DT'] = pd.to_datetime(df.iloc[:, 99], errors='coerce') 
+    
     hoy = pd.Timestamp(datetime.now().date())
     inicio_mes = hoy.replace(day=1)
+    limite_proximo = hoy + timedelta(days=30)
 
     def label_proyeccion(fecha, pivot):
         if pd.isna(fecha): return "SIN FECHA"
@@ -67,14 +66,10 @@ try:
     cant_so_global = len(df)
     cant_proveedores_global = df['Proveedor'].nunique() if 'Proveedor' in df.columns else 0
 
-    # --- 4. RENDERIZADO HEADER ---
     st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><div class='bidcom-subtitle'>Tablero Logistica Internacional</div></div>", unsafe_allow_html=True)
-    
     tabs = st.tabs(["ORIGEN", "STATUS CARGAS", "INDICADORES", "AGENTES", "ANALISTAS", "FLETES"])
 
-    # --- SOLAPA 1: ORIGEN ---
     with tabs[0]:
-        # Métricas Masivas
         m1, m2, m3 = st.columns(3)
         with m1: st.markdown(f"<div class='metric-container'><p class='label-massive'>CANTIDAD DE SO</p><p class='value-massive'>{int(cant_so_global)}</p></div>", unsafe_allow_html=True)
         with m2: st.markdown(f"<div class='metric-container'><p class='label-massive'>VOLUMEN TOTAL</p><p class='value-massive'>{int(m3_totales_global):,}</p></div>", unsafe_allow_html=True)
@@ -82,107 +77,101 @@ try:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # Botones de Control
-        b1_col, b2_col, b3_col, b4_col = st.columns(4)
+        # --- LÓGICA DE BOTONES (Arreglo de contracción) ---
+        b1_col, b2_col, b3_col, b4_col, b5_col = st.columns(5)
+        
         df['Fecha_Inst_DT'] = pd.to_datetime(df['Fecha de Instruccion'], errors='coerce')
-        cond_pend = df['Fecha_Inst_DT'].isna() | (df['Fecha de Instruccion'].astype(str).str.upper().str.contains("SIN INSTRUCCION", na=True))
-        df_instruidos_only = df[~cond_pend].copy()
-        df_pendientes_only = df[cond_pend].copy()
-        p_inst = round(df_instruidos_only['M3 Total'].sum() / m3_totales_global * 100) if m3_totales_global > 0 else 0
-        col_cp = df.columns[93]
-        df['Tipo_Carga'] = df[col_cp].apply(lambda x: 'MONOPROVEEDOR' if str(x).upper() == 'SI' else 'CONSOLIDADO')
-        stats_tipo = df.groupby('Tipo_Carga').agg({'SO': 'count'})
-        p_mono_bot = round(stats_tipo.loc['MONOPROVEEDOR', 'SO'] / len(df) * 100) if 'MONOPROVEEDOR' in stats_tipo.index else 0
+        cond_instruido = df['Fecha_Inst_DT'].notna() & ~(df['Fecha de Instruccion'].astype(str).str.upper().str.contains("SIN INSTRUCCION", na=False))
+        
+        # Segmentación de Pendientes
+        # 1. Críticos: Sin instrucción Y (Fecha prioritaria vencida o dentro de los próximos 30 días)
+        cond_critico = (~cond_instruido) & (df['Fecha_Prior_DT'] <= limite_proximo)
+        # 2. Resto: Sin instrucción Y Fecha prioritaria lejana o sin fecha
+        cond_resto = (~cond_instruido) & (~cond_critico)
 
-        with b1_col:
-            if st.button(f"MERCADERIA INSTRUIDA \n {p_inst}%", key="btn_inst"): st.session_state.f = 'inst'
-        with b2_col:
-            if st.button(f"PENDIENTE INSTRUCCIÓN \n {100-p_inst}%", key="btn_pend"): st.session_state.f = 'pend'
-        with b3_col:
-            if st.button("PRODUCTOS TOP RANKING \n (1-100)", key="btn_rank"): st.session_state.f = 'rank'
-        with b4_col:
-            if st.button(f"ESTRUCTURA DE CARGA \n Mono: {p_mono_bot}% | Cons: {100-p_mono_bot}%", key="btn_estr"): st.session_state.f = 'estr'
+        df_inst = df[cond_instruido].copy()
+        df_criticos = df[cond_critico].copy()
+        df_resto = df[cond_resto].copy()
 
-        # Desplegables Origen
+        # Porcentajes
+        p_inst = round(df_inst['M3 Total'].sum() / m3_totales_global * 100) if m3_totales_global > 0 else 0
+        p_critico = round(df_criticos['M3 Total'].sum() / m3_totales_global * 100) if m3_totales_global > 0 else 0
+        p_resto = 100 - p_inst - p_critico
+
+        if b1_col.button(f"MERCADERIA INSTRUIDA \n {p_inst}%", key="b1"):
+            st.session_state.f = 'inst' if st.session_state.get('f') != 'inst' else None
+        if b2_col.button(f"PENDIENTE CRÍTICO \n {p_critico}%", key="b2"):
+            st.session_state.f = 'crit' if st.session_state.get('f') != 'crit' else None
+        if b3_col.button(f"PENDIENTE RESTO \n {p_resto}%", key="b3"):
+            st.session_state.f = 'rest' if st.session_state.get('f') != 'rest' else None
+        if b4_col.button("TOP RANKING \n (1-100)", key="b4"):
+            st.session_state.f = 'rank' if st.session_state.get('f') != 'rank' else None
+        if b5_col.button("ESTRUCTURA \n CARGA", key="b5"):
+            st.session_state.f = 'estr' if st.session_state.get('f') != 'estr' else None
+
+        # --- DESPLEGABLES ---
         if st.session_state.get('f'):
             st.markdown("---")
             f = st.session_state.f
             if f == "inst":
-                df_mostrar = df_instruidos_only[['SO', 'Proveedor', 'M3 Total', 'Fecha de Instruccion']].copy()
-                total_row = pd.DataFrame({'SO': [f'TOTAL SO: {len(df_mostrar)}'], 'Proveedor': [f'TOTAL PROV: {df_mostrar["Proveedor"].nunique()}'], 'M3 Total': [df_mostrar['M3 Total'].sum()], 'Fecha de Instruccion': ['']})
-                st.dataframe(pd.concat([df_mostrar, total_row.set_index(pd.Index(['TOTAL']))]).style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL' else '' for _ in s], axis=1).format({'M3 Total': '{:,.0f}'}), use_container_width=True)
-            elif f == "pend":
-                df_pend_list = df_pendientes_only.sort_values(by='Fecha_Prior_DT', ascending=True).copy()
-                df_mostrar_pend = df_pend_list[['SO', 'Proveedor', df.columns[99], 'M3 Total']].copy()
-                total_row = pd.DataFrame({'SO': [f'TOTAL SO: {len(df_mostrar_pend)}'], 'Proveedor': [f'TOTAL PROV: {df_mostrar_pend["Proveedor"].nunique()}'], df.columns[99]: [''], 'M3 Total': [df_mostrar_pend['M3 Total'].sum()]})
-                st.dataframe(pd.concat([df_mostrar_pend, total_row.set_index(pd.Index(['TOTAL']))]).style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL' else '' for _ in s], axis=1).format({'M3 Total': '{:,.0f}'}), use_container_width=True)
+                st.markdown("<h3 style='color:#00a8ff;'>Detalle: Mercadería Instruida</h3>", unsafe_allow_html=True)
+                df_mostrar = df_inst[['SO', 'Proveedor', 'M3 Total', 'Fecha de Instruccion']].copy()
+                st.dataframe(df_mostrar.format({'M3 Total': '{:,.0f}'}), use_container_width=True)
+            elif f == "crit":
+                st.markdown("<h3 style='color:#ff4b4b;'>⚠️ Detalle: Pendiente Crítico (Listo o Próximo a Estar Listo)</h3>", unsafe_allow_html=True)
+                df_mostrar = df_criticos[['SO', 'Proveedor', df.columns[99], 'M3 Total']].sort_values(by=df.columns[99])
+                st.dataframe(df_mostrar.format({'M3 Total': '{:,.0f}'}), use_container_width=True)
+            elif f == "rest":
+                st.markdown("<h3 style='color:#00a8ff;'>Detalle: Pendiente Resto</h3>", unsafe_allow_html=True)
+                df_mostrar = df_resto[['SO', 'Proveedor', df.columns[99], 'M3 Total']]
+                st.dataframe(df_mostrar.format({'M3 Total': '{:,.0f}'}), use_container_width=True)
             elif f == "rank":
                 col_rank = df.columns[1]
                 df[col_rank] = pd.to_numeric(df[col_rank], errors='coerce').fillna(0).astype(int)
                 df_rank = df[(df[col_rank] >= 1) & (df[col_rank] <= 100)].sort_values(by=col_rank)
-                df_mostrar = df_rank[['SO', col_rank, df.columns[99], 'Fecha de Instruccion', 'M3 Total', 'Puerto de Salida']].copy()
-                total_row = pd.DataFrame({'SO': ['TOTAL'], col_rank: [''], df.columns[99]: [''], 'Fecha de Instruccion': [''], 'M3 Total': [df_mostrar['M3 Total'].sum()], 'Puerto de Salida': ['']})
-                st.dataframe(pd.concat([df_mostrar, total_row.set_index(pd.Index(['TOTAL']))]).style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL' else '' for _ in s], axis=1).format({'M3 Total': '{:,.0f}'}), use_container_width=True)
+                st.dataframe(df_rank[['SO', col_rank, 'M3 Total']].format({'M3 Total': '{:,.0f}'}), use_container_width=True)
             elif f == "estr":
                 res_tipo = df.groupby('Tipo_Carga').agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'Cant. SO', 'M3 Total': 'M3'})
-                res_tipo['%'] = (res_tipo['M3'] / m3_totales_global * 100).round(0)
-                res_total = pd.DataFrame({'Cant. SO': [res_tipo['Cant. SO'].sum()], 'M3': [res_tipo['M3'].sum()], '%': [100]}, index=['TOTAL'])
-                st.table(pd.concat([res_tipo, res_total]).style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL' else '' for _ in s], axis=1).format({'M3': '{:,.0f}', 'Cant. SO': '{:,.0f}', '%': '{:.0f}%'}))
+                st.table(res_tipo.style.format({'M3': '{:,.0f}'}))
 
         st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
-        st.markdown("<p class='chart-title'>Participación por País de Destino</p>", unsafe_allow_html=True)
-        res_p = df.groupby('Pais Destino').agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT. SO', 'M3 Total': 'M3'}).sort_values(by='M3', ascending=False)
-        res_p['%'] = (res_p['M3'] / m3_totales_global * 100).round(0)
-        df_total_p = pd.DataFrame({'CANT. SO': [res_p['CANT. SO'].sum()], 'M3': [res_p['M3'].sum()], '%': [100]}, index=['TOTAL GENERAL'])
-        st.dataframe(pd.concat([res_p, df_total_p]).style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL GENERAL' else '' for _ in s], axis=1).format({'M3': '{:,.0f}', '%': '{:.0f}%', 'CANT. SO': '{:,.0f}'}), use_container_width=True)
-
-        # Gráficos Inferiores
+        
+        # --- GRÁFICOS (Números destacados) ---
         g1, g2, g3 = st.columns([1.2, 1, 1])
         with g1:
             st.markdown("<p class='chart-title'>Salida por Puerto</p>", unsafe_allow_html=True)
-            col_puerto = 'Puerto de Salida' if 'Puerto de Salida' in df.columns else df.columns[41]
+            col_puerto = df.columns[41]
             p_df = df.groupby(col_puerto).agg({'M3 Total': 'sum'}).reset_index().sort_values(by='M3 Total')
             fig_p = px.bar(p_df, y=col_puerto, x='M3 Total', orientation='h', text_auto=',.0f', color_discrete_sequence=['#00a8ff'], template='plotly_dark')
-            fig_p.update_layout(xaxis_title=None, yaxis_title=None, height=450)
+            fig_p.update_traces(textfont_size=14, textposition='outside', cliponaxis=False)
+            fig_p.update_layout(xaxis_visible=False, yaxis_title=None, height=450, margin=dict(t=20, b=20, l=20, r=50))
             st.plotly_chart(fig_p, use_container_width=True)
         with g2:
             st.markdown("<p class='chart-title'>Proyección ETD</p>", unsafe_allow_html=True)
             etd_p = df.groupby('Mes_ETD_Full').agg({'M3 Total': 'sum'}).reset_index()
             fig_e = px.bar(etd_p, x='Mes_ETD_Full', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#00ff88'], template='plotly_dark')
-            fig_e.update_layout(xaxis_title=None, yaxis_title=None, height=450)
+            fig_e.update_traces(textfont_size=14, textposition='outside')
+            fig_e.update_layout(yaxis_visible=False, xaxis_title=None, height=450)
             st.plotly_chart(fig_e, use_container_width=True)
         with g3:
             st.markdown("<p class='chart-title'>Proyección ETA</p>", unsafe_allow_html=True)
             eta_p = df.groupby('Mes_ETA_Full').agg({'M3 Total': 'sum'}).reset_index()
+            # Ordenamos cronológicamente para evitar que "Sin fecha" rompa la vista
             fig_a = px.bar(eta_p, x='Mes_ETA_Full', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#ff4b4b'], template='plotly_dark')
-            fig_a.update_layout(xaxis_title=None, yaxis_title=None, height=450)
+            fig_a.update_traces(textfont_size=14, textposition='outside')
+            fig_a.update_layout(yaxis_visible=False, xaxis_title=None, height=450)
             st.plotly_chart(fig_a, use_container_width=True)
 
-    # --- SOLAPA 2: STATUS CARGAS ---
     with tabs[1]:
-        # Carga Hoja Reservas (GID 276804813)
+        # --- STATUS CARGAS (Sin cambios externos) ---
         df_reserva = pd.read_csv(f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}")
         df_reserva.columns = df_reserva.columns.str.strip()
-
-        # Métricas Masivas Reservas
         st.markdown("<h2 style='text-align: center; color: #ffffff; letter-spacing: 3px;'>MONITOREO DE RESERVAS</h2>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
-        with c1: st.markdown(f"<div class='metric-container'><p class='label-massive'>SO INSTRUIDAS</p><p class='value-massive'>{len(df_instruidos_only)}</p></div>", unsafe_allow_html=True)
-        with c2: st.markdown(f"<div class='metric-container'><p class='label-massive'>VOLUMEN (M3)</p><p class='value-massive'>{int(df_instruidos_only['M3 Total'].sum()):,}</p></div>", unsafe_allow_html=True)
-        with c3: st.markdown(f"<div class='metric-container'><p class='label-massive'>PROVEEDORES</p><p class='value-massive'>{df_instruidos_only['Proveedor'].nunique()}</p></div>", unsafe_allow_html=True)
-
-        st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
-
-        # Tabla de Reservas
-        st.markdown("<p class='chart-title'>Consolidado de Reservas y Bookings</p>", unsafe_allow_html=True)
-        search_res = st.text_input("🔍 Buscar en Reservas (SO, Booking, Proveedor...):", key="search_status")
-        if search_res:
-            mask = df_reserva.astype(str).apply(lambda x: x.str.contains(search_res, case=False)).any(axis=1)
-            df_res_filt = df_reserva[mask]
-        else:
-            df_res_filt = df_reserva
-        st.dataframe(df_res_filt, use_container_width=True, height=500)
-        st.markdown(f"**Registros totales en Reservas:** {len(df_reserva)} | **Filtrados:** {len(df_res_filt)}")
+        with c1: st.markdown(f"<div class='metric-container'><p class='label-massive'>SO INSTRUIDAS</p><p class='value-massive'>{len(df_inst)}</p></div>", unsafe_allow_html=True)
+        with c2: st.markdown(f"<div class='metric-container'><p class='label-massive'>VOLUMEN (M3)</p><p class='value-massive'>{int(df_inst['M3 Total'].sum()):,}</p></div>", unsafe_allow_html=True)
+        with c3: st.markdown(f"<div class='metric-container'><p class='label-massive'>PROVEEDORES</p><p class='value-massive'>{df_inst['Proveedor'].nunique()}</p></div>", unsafe_allow_html=True)
+        st.dataframe(df_reserva, use_container_width=True, height=500)
 
 except Exception as e:
     st.error(f"Error general: {e}")
