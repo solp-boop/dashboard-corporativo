@@ -6,7 +6,7 @@ from datetime import datetime
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="BIDCOM | Dashboard Ejecutivo", layout="wide")
 
-# --- DISEÑO BIDCOM IMPACTO TOTAL (CSS) ---
+# --- DISEÑO BIDCOM IMPACTO TOTAL (CSS MEJORADO) ---
 st.markdown("""
     <style>
     .block-container { padding: 1rem 2rem; }
@@ -33,49 +33,42 @@ st.markdown("""
         text-shadow: 2px 2px 15px rgba(0, 168, 255, 0.8);
     }
     .bidcom-subtitle {
-        font-size: 18px;
-        color: #00a8ff;
-        letter-spacing: 4px;
-        text-transform: uppercase;
-        font-weight: 600;
-        margin-top: 5px;
+        font-size: 18px; color: #00a8ff; letter-spacing: 4px;
+        text-transform: uppercase; font-weight: 600; margin-top: 5px;
     }
 
+    /* MÉTRICAS MASIVAS */
     .metric-container { text-align: center; padding: 20px; }
-    .label-massive { 
-        font-size: 24px; 
-        color: #00a8ff; 
-        letter-spacing: 5px; 
-        text-transform: uppercase; 
-        font-weight: 800; 
-        margin-bottom: 5px; 
-    }
-    .value-massive { 
-        font-size: 120px; 
-        font-weight: 900; 
-        color: #00a8ff; 
-        line-height: 1; 
-        margin: 0; 
-        text-shadow: 0 0 30px rgba(0,168,255,0.5); 
-    }
+    .label-massive { font-size: 24px; color: #00a8ff; letter-spacing: 5px; text-transform: uppercase; font-weight: 800; margin-bottom: 5px; }
+    .value-massive { font-size: 120px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 30px rgba(0,168,255,0.5); }
 
+    /* --- BOTONES CON EFECTO CELESTE --- */
     .stButton>button {
         border-radius: 15px !important; 
         color: white !important;
         width: 100%; height: 140px; font-weight: 800 !important; font-size: 18px !important;
-        background: rgba(255, 255, 255, 0.03) !important; border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        background: rgba(255, 255, 255, 0.03) !important; 
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        transition: all 0.3s ease-in-out !important;
+    }
+
+    /* Efecto al pasar el mouse (HOVER) */
+    .stButton>button:hover { 
+        background-color: rgba(0, 168, 255, 0.2) !important; 
+        border-color: #00a8ff !important; 
+        color: #00a8ff !important;
+        box-shadow: 0 0 20px rgba(0, 168, 255, 0.4) !important;
+        transform: translateY(-2px);
+    }
+
+    /* Efecto al hacer clic (ACTIVE) */
+    .stButton>button:active {
+        transform: scale(0.98);
+        background-color: #00a8ff !important;
+        color: white !important;
     }
     
-    .chart-title { 
-        text-align: center; 
-        letter-spacing: 2px; 
-        color: #00a8ff; 
-        font-weight: 900; 
-        font-size: 20px; 
-        margin: 25px 0 15px 0; 
-        text-transform: uppercase;
-        text-shadow: 0 0 10px rgba(0,168,255,0.3);
-    }
+    .chart-title { text-align: center; letter-spacing: 2px; color: #00a8ff; font-weight: 900; font-size: 20px; margin: 25px 0 15px 0; text-transform: uppercase; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -124,54 +117,51 @@ try:
         st.markdown("<br>", unsafe_allow_html=True)
 
         # --- BLOQUE 2: BOTONES ---
-        b1, b2, b3, b4 = st.columns(4)
+        b1_col, b2_col, b3_col, b4_col = st.columns(4)
         df['Es_Instruido'] = df['Fecha de Instruccion'].notna() & (df['Fecha de Instruccion'].astype(str).str.upper() != 'SIN INSTRUCCION')
         p_inst = round(df[df['Es_Instruido'] == True]['M3 Total'].sum() / m3_totales * 100) if m3_totales > 0 else 0
 
-        with b1:
+        with b1_col:
             if st.button(f"CONSOLIDADO INSTRUIDO {p_inst}%"):
                 st.session_state.f = None if st.session_state.get('f') == 'inst' else 'inst'
-        with b2:
+        with b2_col:
             if st.button(f"PENDIENTE INSTRUCCIÓN {100-p_inst}%"):
                 st.session_state.f = None if st.session_state.get('f') == 'pend' else 'pend'
-        with b3:
+        with b3_col:
             if st.button("PRODUCTOS TOP RANKING (1-100)"):
                 st.session_state.f = None if st.session_state.get('f') == 'rank' else 'rank'
-        with b4:
+        with b4_col:
             col_cp = df.columns[93]
             stats_tipo = df.groupby(col_cp).size()
             p_mono = round(stats_tipo.get('SI', 0) / len(df) * 100)
             if st.button(f"ESTRUCTURA DE CARGA \n Mono: {p_mono}% | Cons: {100-p_mono}%"):
                 st.session_state.f = None if st.session_state.get('f') == 'estr' else 'estr'
 
-        # --- LÓGICA DE DESPLEGABLES (TABLAS) ---
+        # --- LÓGICA DE DESPLEGABLES ---
         if st.session_state.get('f'):
             st.markdown("---")
-            if st.session_state.f == "inst":
-                st.subheader("Detalle: Cargas Instruidas")
+            f = st.session_state.f
+            if f == "inst":
+                st.markdown("<h3 style='color:#00a8ff;'>Detalle: Cargas Instruidas</h3>", unsafe_allow_html=True)
                 st.dataframe(df[df['Es_Instruido'] == True][['SO', 'Proveedor', 'Pais Destino', 'M3 Total', 'Fecha de Instruccion']], use_container_width=True)
-            
-            elif st.session_state.f == "pend":
-                st.subheader("Detalle: Pendientes de Instrucción")
+            elif f == "pend":
+                st.markdown("<h3 style='color:#00a8ff;'>Detalle: Pendientes de Instrucción</h3>", unsafe_allow_html=True)
                 st.dataframe(df[df['Es_Instruido'] == False][['SO', 'Proveedor', 'Pais Destino', 'M3 Total', 'Status Pago']], use_container_width=True)
-            
-            elif st.session_state.f == "rank":
-                st.subheader("🚀 Top 100: Prioridad de Salida")
+            elif f == "rank":
+                st.markdown("<h3 style='color:#00a8ff;'>Top 100: Prioridad de Salida</h3>", unsafe_allow_html=True)
                 col_ranking = df.columns[1]
                 col_puerto = 'Puerto de Salida' if 'Puerto de Salida' in df.columns else df.columns[41]
                 df[col_ranking] = pd.to_numeric(df[col_ranking], errors='coerce')
                 df_ranking = df[(df[col_ranking] >= 1) & (df[col_ranking] <= 100)].sort_values(by=col_ranking)
-                columnas_ranking = ['SO', col_ranking, df.columns[99], 'M3 Total', df.columns[93], col_puerto]
-                st.dataframe(df_ranking[columnas_ranking], use_container_width=True)
-            
-            elif st.session_state.f == "estr":
-                st.subheader("Análisis de Estructura: Monoproveedor vs Consolidado")
-                resumen_tipo = df.groupby(col_cp).agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'Cantidad SO', 'M3 Total': 'Volumen M3'})
-                st.table(resumen_tipo.style.format({'Volumen M3': '{:,.2f}'}))
+                st.dataframe(df_ranking[['SO', col_ranking, df.columns[99], 'M3 Total', df.columns[93], col_puerto]], use_container_width=True)
+            elif f == "estr":
+                st.markdown("<h3 style='color:#00a8ff;'>Análisis Monoproveedor vs Consolidado</h3>", unsafe_allow_html=True)
+                res_tipo = df.groupby(col_cp).agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'Cant. SO', 'M3 Total': 'M3'})
+                st.table(res_tipo.style.format({'M3': '{:,.2f}'}))
 
         st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
 
-        # --- BLOQUE 3: CUADRO PARTICIPACIÓN ---
+        # --- BLOQUE 3: PARTICIPACIÓN PAÍS ---
         st.markdown("<p class='chart-title'>Participación por País de Destino</p>", unsafe_allow_html=True)
         res_p = df.groupby('Pais Destino').agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT. SO', 'M3 Total': 'M3'}).sort_values(by='M3', ascending=False)
         res_p['%'] = (res_p['M3'] / m3_totales * 100).round(0)
