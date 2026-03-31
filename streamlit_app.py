@@ -263,7 +263,6 @@ try:
             df_mar.iloc[:, 21] = df_mar.iloc[:, 21].apply(clean_val).fillna(0)
 
             c_btn1, c_btn2 = st.columns(2)
-            
             if c_btn1.button("ANALISIS BOOKING IN ADVANCE", key="btn_adv", use_container_width=True):
                 st.session_state.mode = 'adv' if st.session_state.get('mode') != 'adv' else None
             if c_btn2.button("ANALISIS MONOPROVEEDOR / CONSOLIDADO", key="btn_mono", use_container_width=True):
@@ -274,12 +273,10 @@ try:
                 st.markdown("<br>", unsafe_allow_html=True)
                 col_a, col_b = st.columns(2)
                 
-                # Definición de máscaras y datos (Booking Advance es índice 8)
                 if mode == 'adv':
                     mask = df_mar.iloc[:, 8].astype(str).str.strip() == "Booked in Advance"
                     labels = [("Booked in Advance", df_mar[mask]), ("No Booked in Advance", df_mar[~mask])]
                 else:
-                    # Monoproveedor es índice 34
                     mask = df_mar.iloc[:, 34].astype(str).str.strip() == "Monoproveedor"
                     labels = [("Monoproveedor", df_mar[mask]), ("Consolidado", df_mar[~mask])]
 
@@ -289,16 +286,21 @@ try:
                     pct_rel = round((cant_emb / total_m) * 100)
                     
                     # Cálculo cruzado de Booking Advance dentro del grupo actual
-                    cant_adv_dentro = len(dff[dff.iloc[:, 8].astype(str).str.strip() == "Booked in Advance"])
-                    pct_adv_dentro = round((cant_adv_dentro / cant_emb * 100)) if cant_emb > 0 else 0
+                    mask_adv_check = dff.iloc[:, 8].astype(str).str.strip() == "Booked in Advance"
+                    cant_adv = len(dff[mask_adv_check])
+                    pct_adv = round((cant_adv / cant_emb * 100)) if cant_emb > 0 else 0
+                    pct_no_adv = 100 - pct_adv if cant_emb > 0 else 0
                     
                     with [col_a, col_b][i]:
                         color_box = "#00a8ff" if i == 0 else "#8899A6"
                         st.markdown(f"""
                             <div style="background: rgba(255,255,255,0.02); padding: 25px; border-radius: 10px; border-left: 5px solid {color_box};">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
                                     <p style="font-weight:700; color:{color_box}; margin:0; font-size:14px; letter-spacing:1px;">{titulo.upper()} ({int(pct_rel)}%)</p>
-                                    <p style="font-size:11px; color:#00ff88; font-weight:700; margin:0; background:rgba(0,255,136,0.1); padding:2px 8px; border-radius:5px;">ADVANCE: {int(pct_adv_dentro)}%</p>
+                                    <div style="text-align: right;">
+                                        <p style="font-size:10px; color:#00ff88; font-weight:700; margin:0;">ADVANCE: {int(pct_adv)}%</p>
+                                        <p style="font-size:10px; color:#ff4b4b; font-weight:700; margin:0;">SPOT: {int(pct_no_adv)}%</p>
+                                    </div>
                                 </div>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                                     <div><p style="font-size:11px; color:#8899A6; margin:0;">EMBARQUES</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{int(cant_emb)}</p></div>
