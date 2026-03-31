@@ -119,19 +119,57 @@ try:
 
             st.markdown("<br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
 
-            # --- BLOQUE 2: BOTONES DE FILTRADO (Toggle Estilo Reservas) ---
+         # --- BLOQUE 2: BOTONES DE FILTRADO CON RESALTADO DINÁMICO ---
             b1_col, b2_col, b3_col, b4_col, b5_col = st.columns(5)
             
-            if b1_col.button(f"MERCADERIA \n INSTRUIDA {p_inst_val}%", key="btn_inst_o", use_container_width=True):
-                st.session_state.f = 'inst' if st.session_state.get('f') != 'inst' else None
-            if b2_col.button(f"PROXIMA A \n INSTRUIR {p_crit_val}%", key="btn_crit_o", use_container_width=True):
-                st.session_state.f = 'crit' if st.session_state.get('f') != 'crit' else None
-            if b3_col.button(f"LISTA EN \n +30 DIAS {p_rest_val}%", key="btn_rest_o", use_container_width=True):
-                st.session_state.f = 'rest' if st.session_state.get('f') != 'rest' else None
-            if b4_col.button("TOP 100 \n RANKING", key="btn_rank_o", use_container_width=True):
-                st.session_state.f = 'rank' if st.session_state.get('f') != 'rank' else None
-            if b5_col.button("MONOPROV. / \n CONSOLIDADO", key="btn_estr_o", use_container_width=True):
-                st.session_state.f = 'estr' if st.session_state.get('f') != 'estr' else None
+            # Recuperamos el filtro activo del session_state
+            filtro_actual = st.session_state.get('f')
+
+            # Función para aplicar estilo de "Resaltado"
+            def get_btn_style(target):
+                if filtro_actual == target:
+                    return "border: 2px solid #00a8ff; background: rgba(0, 168, 255, 0.1);"
+                return "border: 1px solid #1e293b; background: transparent;"
+
+            # Botón 1: MERCADERÍA INSTRUIDA
+            with b1_col:
+                st.markdown(f"<div style='{get_btn_style('inst')} border-radius:5px;'>", unsafe_allow_html=True)
+                if st.button(f"MERCADERIA \n INSTRUIDA {p_inst_val}%", key="btn_inst_o", use_container_width=True):
+                    st.session_state.f = 'inst' if filtro_actual != 'inst' else None
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            # Botón 2: PRÓXIMA A INSTRUIR
+            with b2_col:
+                st.markdown(f"<div style='{get_btn_style('crit')} border-radius:5px;'>", unsafe_allow_html=True)
+                if st.button(f"PROXIMA A \n INSTRUIR {p_crit_val}%", key="btn_crit_o", use_container_width=True):
+                    st.session_state.f = 'crit' if filtro_actual != 'crit' else None
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            # Botón 3: LISTA EN +30 DIAS
+            with b3_col:
+                st.markdown(f"<div style='{get_btn_style('rest')} border-radius:5px;'>", unsafe_allow_html=True)
+                if st.button(f"LISTA EN \n +30 DIAS {p_rest_val}%", key="btn_rest_o", use_container_width=True):
+                    st.session_state.f = 'rest' if filtro_actual != 'rest' else None
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            # Botón 4: TOP 100 RANKING
+            with b4_col:
+                st.markdown(f"<div style='{get_btn_style('rank')} border-radius:5px;'>", unsafe_allow_html=True)
+                if st.button("TOP 100 \n RANKING", key="btn_rank_o", use_container_width=True):
+                    st.session_state.f = 'rank' if filtro_actual != 'rank' else None
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            # Botón 5: MONOPROVEEDOR / CONSOLIDADO
+            with b5_col:
+                st.markdown(f"<div style='{get_btn_style('estr')} border-radius:5px;'>", unsafe_allow_html=True)
+                if st.button("MONOPROV. / \n CONSOLIDADO", key="btn_estr_o", use_container_width=True):
+                    st.session_state.f = 'estr' if filtro_actual != 'estr' else None
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
 
             # --- BLOQUE 3: CUADROS DESPLEGABLES (DISEÑO TARJETA RESERVAS) ---
             f = st.session_state.get('f')
