@@ -191,17 +191,17 @@ try:
             df_res['Fecha_Inst_H'] = df_res.iloc[:, 7].astype(str).str.strip()
             df_g = df_res[df_res['Fecha_Inst_H'].apply(lambda x: len(str(x)) > 4)].copy()
 
-            # --- BLOQUE 1: KPIs ULTRA MASIVOS (GERENCIA) ---
+            # --- BLOQUE 1: KPIs GRANDES (Ajustados a tamaño intermedio) ---
             st.markdown("<br>", unsafe_allow_html=True)
             k1, k2, k3 = st.columns(3)
-            # Aumentamos el tamaño de fuente a 140px y etiquetas a 28px para máximo impacto
-            with k1: st.markdown(f"<div class='metric-container'><p style='font-size: 28px; color: #00a8ff; letter-spacing: 5px; font-weight: 700; margin-bottom: 0;'>SO INSTRUIDAS</p><p style='font-size: 140px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 40px rgba(0,168,255,0.6);'>{int(len(df_inst))}</p></div>", unsafe_allow_html=True)
-            with k2: st.markdown(f"<div class='metric-container'><p style='font-size: 28px; color: #00a8ff; letter-spacing: 5px; font-weight: 700; margin-bottom: 0;'>VOLUMEN (M3)</p><p style='font-size: 140px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 40px rgba(0,168,255,0.6);'>{int(df_inst['M3 Total'].sum()):,}</p></div>", unsafe_allow_html=True)
-            with k3: st.markdown(f"<div class='metric-container'><p style='font-size: 28px; color: #00a8ff; letter-spacing: 5px; font-weight: 700; margin-bottom: 0;'>PROVEEDORES</p><p style='font-size: 140px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 40px rgba(0,168,255,0.6);'>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
+            # Bajamos de 140px a 90px para un equilibrio perfecto
+            with k1: st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>SO INSTRUIDAS</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(len(df_inst))}</p></div>", unsafe_allow_html=True)
+            with k2: st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>VOLUMEN (M3)</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(round(df_inst['M3 Total'].sum())):,}</p></div>", unsafe_allow_html=True)
+            with k3: st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>PROVEEDORES</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
 
             st.markdown("<br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
 
-            # --- BLOQUE 2: PERFORMANCE GLOBAL ---
+            # --- BLOQUE 2: PERFORMANCE GLOBAL (CENTRALIZADO) ---
             df_g['ETD_Status_K'] = df_g.iloc[:, 10].astype(str).str.upper().str.strip()
             confirmados_glob = len(df_g[df_g['ETD_Status_K'] == "OK"])
             pendientes_glob = len(df_g) - confirmados_glob
@@ -212,8 +212,8 @@ try:
                 m1, m2, m3, m4 = st.columns(4)
                 m1.markdown(f"<div style='text-align:center;'><p style='font-weight:700; font-size:14px; margin:0;'>ETD OK (TOTAL)</p><p style='font-weight:300; font-size:32px; margin:0;'>{confirmados_glob} Emb.</p></div>", unsafe_allow_html=True)
                 m2.markdown(f"<div style='text-align:center;'><p style='font-weight:700; font-size:14px; margin:0;'>PENDIENTES (TOTAL)</p><p style='font-weight:300; font-size:32px; margin:0;'>{pendientes_glob} Emb.</p></div>", unsafe_allow_html=True)
-                m3.markdown(f"<div style='text-align:center;'><p style='font-weight:700; font-size:14px; margin:0;'>% EFECTIVIDAD</p><p style='font-weight:300; font-size:32px; margin:0;'>{p_ok_glob}%</p></div>", unsafe_allow_html=True)
-                m4.markdown(f"<div style='text-align:center;'><p style='font-weight:700; font-size:14px; margin:0;'>% PENDIENTE</p><p style='font-weight:300; font-size:32px; margin:0;'>{100 - p_ok_glob}%</p></div>", unsafe_allow_html=True)
+                m3.markdown(f"<div style='text-align:center;'><p style='font-weight:700; font-size:14px; margin:0;'>% EFECTIVIDAD</p><p style='font-weight:300; font-size:32px; margin:0;'>{int(p_ok_glob)}%</p></div>", unsafe_allow_html=True)
+                m4.markdown(f"<div style='text-align:center;'><p style='font-weight:700; font-size:14px; margin:0;'>% PENDIENTE</p><p style='font-weight:300; font-size:32px; margin:0;'>{int(100 - p_ok_glob)}%</p></div>", unsafe_allow_html=True)
 
             st.markdown("<br><p style='text-align:center; color:#00a8ff; font-weight:700; letter-spacing:2px; font-size:12px;'>DESGLOSE POR TIPO DE TRANSPORTE</p>", unsafe_allow_html=True)
 
@@ -240,8 +240,8 @@ try:
                         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                             <p style="color: #00a8ff; font-weight: 700; margin: 0; font-size: 16px;">{tipo}</p>
                             <div style="text-align: right;">
-                                <p style="color: {color_status}; font-weight: 300; margin: 0; font-size: 18px;">{flecha} {pct_ok}% <span style="font-size:12px; color:#8899A6; margin-left:5px;">OK</span></p>
-                                <p style="color: #ff4b4b; font-weight: 300; margin: 0; font-size: 14px; opacity: 0.8;">{pct_pend}% <span style="font-size:10px; color:#8899A6;">PEND</span></p>
+                                <p style="color: {color_status}; font-weight: 300; margin: 0; font-size: 18px;">{flecha} {int(pct_ok)}% <span style="font-size:12px; color:#8899A6; margin-left:5px;">OK</span></p>
+                                <p style="color: #ff4b4b; font-weight: 300; margin: 0; font-size: 14px; opacity: 0.8;">{int(pct_pend)}% <span style="font-size:10px; color:#8899A6;">PEND</span></p>
                             </div>
                         </div>
                         <p style="font-size: 28px; font-weight: 300; color: #ffffff; margin-top: 10px; margin-bottom: 5px;">Total: {total_t}</p>
@@ -250,41 +250,37 @@ try:
 
             st.markdown("<br>", unsafe_allow_html=True)
 
-            # --- BLOQUE 4: ANÁLISIS MARÍTIMO (BOTONES UNIFICADOS) ---
+            # --- BLOQUE 4: ANÁLISIS MARÍTIMO (BOTONES CON TOGGLE) ---
             df_mar = df_g[df_g['Transporte'] == "MARITIMO"].copy()
             
-            # Función de limpieza monetaria para FOB (Columna V = 21)
             def clean_val(value):
                 if pd.isna(value): return 0
                 s = str(value).replace('.', '').replace(',', '.')
-                return pd.to_numeric(''.join(c for c in s if c.isdigit() or c == '.'), errors='coerce')
+                num = ''.join(c for c in s if c.isdigit() or c == '.')
+                return pd.to_numeric(num, errors='coerce') if num else 0
 
-            # Limpieza general de datos para análisis
-            df_mar.iloc[:, 1] = pd.to_numeric(df_mar.iloc[:, 1], errors='coerce').fillna(0) # Contenedores (B)
-            df_mar.iloc[:, 29] = pd.to_numeric(df_mar.iloc[:, 29], errors='coerce').fillna(0) # Consolidación (AD)
-            df_mar.iloc[:, 21] = df_mar.iloc[:, 21].apply(clean_val).fillna(0) # FOB (V)
+            df_mar.iloc[:, 1] = pd.to_numeric(df_mar.iloc[:, 1], errors='coerce').fillna(0) # Contenedores
+            df_mar.iloc[:, 29] = pd.to_numeric(df_mar.iloc[:, 29], errors='coerce').fillna(0) # Consolidación
+            df_mar.iloc[:, 21] = df_mar.iloc[:, 21].apply(clean_val).fillna(0) # FOB
 
             c_btn1, c_btn2 = st.columns(2)
-            with c_btn1:
-                btn_adv = st.button("ANALISIS BOOKING IN ADVANCE", key="btn_adv_bidcom", use_container_width=True)
-            with c_btn2:
-                btn_mono = st.button("ANALISIS ESTRUCTURA CARGA (MONO/CONS)", key="btn_mono_bidcom", use_container_width=True)
+            
+            # Lógica de contracción/despliegue para botones
+            if c_btn1.button("ANALISIS BOOKING IN ADVANCE", key="btn_adv", use_container_width=True):
+                st.session_state.mode = 'adv' if st.session_state.get('mode') != 'adv' else None
+            if c_btn2.button("ANALISIS MONOPROVEEDOR / CONSOLIDADO", key="btn_mono", use_container_width=True):
+                st.session_state.mode = 'mono' if st.session_state.get('mode') != 'mono' else None
 
-            # Manejo de estados de botones
-            if btn_adv: st.session_state.mode = 'adv'
-            if btn_mono: st.session_state.mode = 'mono'
-
-            selected_mode = st.session_state.get('mode')
-
-            if selected_mode:
+            mode = st.session_state.get('mode')
+            if mode:
                 st.markdown("<br>", unsafe_allow_html=True)
                 col_a, col_b = st.columns(2)
                 
-                if selected_mode == 'adv':
+                if mode == 'adv':
                     mask = df_mar.iloc[:, 8].astype(str).str.strip() == "Booked in Advance"
                     labels = [("Booked in Advance", df_mar[mask]), ("No Booked in Advance", df_mar[~mask])]
                 else:
-                    # Columna AI es la número 34 (A=0 ... AI=34)
+                    # AI = índice 34
                     mask = df_mar.iloc[:, 34].astype(str).str.upper().str.strip() == "SI"
                     labels = [("Monoproveedor", df_mar[mask]), ("Consolidado", df_mar[~mask])]
 
@@ -296,12 +292,12 @@ try:
                         color_box = "#00a8ff" if i == 0 else "#8899A6"
                         st.markdown(f"""
                             <div style="background: rgba(255,255,255,0.02); padding: 25px; border-radius: 10px; border-left: 5px solid {color_box};">
-                                <p style="font-weight:700; color:{color_box}; margin-bottom:15px; font-size:14px; letter-spacing:1px;">{titulo.upper()} ({pct}%)</p>
+                                <p style="font-weight:700; color:{color_box}; margin-bottom:15px; font-size:14px; letter-spacing:1px;">{titulo.upper()} ({int(pct)}%)</p>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                                    <div><p style="font-size:11px; color:#8899A6; margin:0;">EMBARQUES</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{cant_emb}</p></div>
-                                    <div><p style="font-size:11px; color:#8899A6; margin:0;">CONTENEDORES</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{int(dff.iloc[:, 1].sum())}</p></div>
-                                    <div><p style="font-size:11px; color:#8899A6; margin:0;">PROM. CONSOLIDACIÓN</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{round(dff.iloc[:, 29].mean(),1)}d</p></div>
-                                    <div><p style="font-size:11px; color:#8899A6; margin:0;">FOB TOTAL</p><p style="font-size:22px; font-weight:300; margin:0; color:#ffffff;">USD {dff.iloc[:, 21].sum():,f}</p></div>
+                                    <div><p style="font-size:11px; color:#8899A6; margin:0;">EMBARQUES</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{int(cant_emb)}</p></div>
+                                    <div><p style="font-size:11px; color:#8899A6; margin:0;">CONTENEDORES</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{int(round(dff.iloc[:, 1].sum()))}</p></div>
+                                    <div><p style="font-size:11px; color:#8899A6; margin:0;">PROM. CONSOLIDACIÓN</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{int(round(dff.iloc[:, 29].mean() if cant_emb > 0 else 0))}d</p></div>
+                                    <div><p style="font-size:11px; color:#8899A6; margin:0;">FOB TOTAL</p><p style="font-size:22px; font-weight:300; margin:0; color:#ffffff;">USD {int(round(dff.iloc[:, 21].sum())):,}</p></div>
                                 </div>
                             </div>
                         """, unsafe_allow_html=True)
