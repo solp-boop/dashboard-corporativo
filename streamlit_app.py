@@ -185,7 +185,7 @@ try:
             fig_a.update_layout(yaxis_visible=False, xaxis_title=None, height=450)
             st.plotly_chart(fig_a, use_container_width=True)
 
-  # --- SOLAPA 2: CONTROL DE GESTIÓN DE RESERVAS ---
+    # --- SOLAPA 2: STATUS CARGAS (CONTROL DE GESTIÓN DE RESERVAS) ---
     with tabs[1]:
         try:
             url_reserva = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
@@ -199,21 +199,18 @@ try:
                 (df_reserva['Fecha_Inst_H'].notna())
             ].copy()
 
-            st.markdown("<h1 style='text-align: center; color: #ffffff; letter-spacing: 5px; font-weight: 900;'>CONTROL DE GESTIÓN DE RESERVAS</h1>", unsafe_allow_html=True)
-            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<h2 style='text-align: center; color: #ffffff; letter-spacing: 3px;'>CONTROL DE GESTIÓN DE RESERVAS</h2>", unsafe_allow_html=True)
+            
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.markdown(f"<div class='metric-container'><p class='label-massive'>SO INSTRUIDAS</p><p class='value-massive'>{int(len(df_inst))}</p></div>", unsafe_allow_html=True)
+            with c2:
+                st.markdown(f"<div class='metric-container'><p class='label-massive'>VOLUMEN (M3)</p><p class='value-massive'>{int(df_inst['M3 Total'].sum()):,}</p></div>", unsafe_allow_html=True)
+            with c3:
+                st.markdown(f"<div class='metric-container'><p class='label-massive'>PROVEEDORES</p><p class='value-massive'>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
 
-            # --- KPI BLOCK SUPERIOR (Métricas Masivas) ---
-            k1, k2, k3 = st.columns(3)
-            with k1:
-                st.markdown(f"<div class='kpi-box'><p class='kpi-label'>SO INSTRUIDAS</p><p class='kpi-value text-blue'>{int(len(df_inst))}</p></div>", unsafe_allow_html=True)
-            with k2:
-                st.markdown(f"<div class='kpi-box'><p class='kpi-label'>VOLUMEN (M3)</p><p class='kpi-value text-blue'>{int(df_inst['M3 Total'].sum()):,}</p></div>", unsafe_allow_html=True)
-            with k3:
-                st.markdown(f"<div class='kpi-box'><p class='kpi-label'>PROVEEDORES</p><p class='kpi-value text-blue'>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
+            st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
 
-            st.markdown("<hr style='opacity:0.2;'>", unsafe_allow_html=True)
-
-            # --- LÓGICA DE COLOR DINÁMICO ---
             df_gestion['ETD_Status_K'] = df_gestion.iloc[:, 10].astype(str).str.upper().str.strip()
             mask_ok = df_gestion['ETD_Status_K'] == "OK"
             confirmados = df_gestion[mask_ok].shape[0]
@@ -222,33 +219,27 @@ try:
 
             p_ok = round((confirmados / total_gestion * 100)) if total_gestion > 0 else 0
             p_pend = 100 - p_ok if total_gestion > 0 else 0
-            
-            # Definir color basado en performance
-            color_class = "text-green" if confirmados >= pendientes else "text-red"
 
-            # --- KPI BLOCK INFERIOR (Performance) ---
-            st.markdown("<p class='chart-title'>Performance de Confirmación de Bookings</p>", unsafe_allow_html=True)
-            p1, p2, p3, p4 = st.columns(4)
-            with p1:
-                st.markdown(f"<div class='kpi-box'><p class='kpi-label'>ETD OK (CONFIRMADOS)</p><p class='kpi-value {color_class}'>{confirmados}</p></div>", unsafe_allow_html=True)
-            with p2:
-                st.markdown(f"<div class='kpi-box'><p class='kpi-label'>SIN ETD OK (PENDIENTES)</p><p class='kpi-value {color_class}'>{pendientes}</p></div>", unsafe_allow_html=True)
-            with p3:
-                st.markdown(f"<div class='kpi-box'><p class='kpi-label'>% CONFIRMADO</p><p class='kpi-value {color_class}'>{p_ok}%</p></div>", unsafe_allow_html=True)
-            with p4:
-                st.markdown(f"<div class='kpi-box'><p class='kpi-label'>% SIN CONFIRMACIÓN</p><p class='kpi-value {color_class}'>{p_pend}%</p></div>", unsafe_allow_html=True)
+            m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+            with m_col1: st.metric("ETD OK (CONFIRMADOS)", f"{confirmados} Emb.")
+            with m_col2: st.metric("SIN ETD OK (PENDIENTES)", f"{pendientes} Emb.")
+            with m_col3: st.metric("% CONFIRMADO", f"{p_ok}%")
+            with m_col4: st.metric("% SIN CONFIRMACIÓN", f"{p_pend}%")
 
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("<p class='chart-title'>Detalle de Embarques en Gestión Operativa</p>", unsafe_allow_html=True)
+            st.markdown("<p class='chart-title'>Detalle de Embarques en Gestión</p>", unsafe_allow_html=True)
+            busqueda_res = st.text_input("🔍 Buscar en gestión (SO, Proveedor, Buque...):", key="search_res_new")
             
-            busqueda_res = st.text_input("🔍 Filtrar Reservas por palabra clave:", key="search_res_final")
-            df_final_res = df_gestion[df_gestion.astype(str).apply(lambda x: x.str.contains(busqueda_res, case=False)).any(axis=1)] if busqueda_res else df_gestion
+            if busqueda_res:
+                mask_search = df_gestion.astype(str).apply(lambda x: x.str.contains(busqueda_res, case=False)).any(axis=1)
+                df_final_res = df_gestion[mask_search]
+            else:
+                df_final_res = df_gestion
 
             st.dataframe(df_final_res.drop(columns=['Fecha_Inst_H', 'ETD_Status_K']), use_container_width=True, height=500)
 
         except Exception as e:
             st.error(f"Error en Control de Gestión: {e}")
-
 
 except Exception as e:
     st.error(f"Error general: {e}")
