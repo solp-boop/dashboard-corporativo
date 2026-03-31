@@ -213,61 +213,80 @@ try:
             fig_a.update_layout(xaxis_title=None, yaxis_title=None, height=500)
             st.plotly_chart(fig_a, use_container_width=True)
 
- # --- SOLAPA 2: STATUS CARGAS ---
+# --- SOLAPA 2: STATUS CARGAS ---
     with tabs[1]:
         try:
             # 1. CARGA DE DATOS ESPECÍFICA (Hoja Reservas GID 276804813)
-            # Quitamos el nocache con time para evitar errores de libreria no definida
             url_reserva = f"{base_url}/export?format=csv&gid=276804813"
             df_reserva = pd.read_csv(url_reserva)
             df_reserva.columns = df_reserva.columns.str.strip()
 
-            # 2. MÉTRICAS DE CONTROL (Basadas en lo que ya está Instruido en la Hoja 0)
-            df['Fecha_Inst_DT'] = pd.to_datetime(df['Fecha de Instruccion'], errors='coerce')
-            df_solo_instruidos = df[df['Fecha_Inst_DT'].notna()].copy()
-            
-            m_so_inst = len(df_solo_instruidos)
-            m_m3_inst = df_solo_instruidos['M3 Total'].sum()
-            m_prov_inst = df_solo_instruidos['Proveedor'].nunique()
+            # --- PROCESAMIENTO DE DATOS ---
+            # Mapeo de TIPO (Columna F: "Tipo Carga")
+            def categorizar_transporte(x):
+                x = str(x).upper()
+                if any(ext in x for ext in ['40 HQ', '40 ST', '20 ST', '40NOR', 'LCL']):
+                    return "MARITIMO"
+                if any(ext in x for ext in ['AVION', 'COURIER', 'AEREO']):
+                    return "AVION / COURIER"
+                return "OTROS"
 
-            # Renderizado de Cabecera
-            st.markdown("<h2 style='text-align: center; color: #ffffff; letter-spacing: 3px;'>MONITOREO DE RESERVAS</h2>", unsafe_allow_html=True)
-            
-            # Cuadros de métricas en formato BIDCOM
-            col_s1, col_s2, col_s3 = st.columns(3)
-            with col_s1:
-                st.markdown(f"<div class='metric-container'><p class='label-massive'>SO INSTRUIDAS</p><p class='value-massive'>{int(m_so_inst)}</p></div>", unsafe_allow_html=True)
-            with col_s2:
-                st.markdown(f"<div class='metric-container'><p class='label-massive'>VOLUMEN (M3)</p><p class='value-massive'>{int(m_m3_inst):,}</p></div>", unsafe_allow_html=True)
-            with col_s3:
-                st.markdown(f"<div class='metric-container'><p class='label-massive'>PROVEEDORES</p><p class='value-massive'>{int(m_prov_inst)}</p></div>", unsafe_allow_html=True)
+            df_reserva['Categoria'] = df_reserva.iloc[:, 5].apply(categorizar_transporte) # Columna F
 
-            st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
-
-            # 3. INTERFAZ DE LA TABLA DE RESERVAS
-            st.markdown("<p class='chart-title'>Consolidado de Reservas y Bookings (Hoja Reservas)</p>", unsafe_allow_html=True)
+            # Fechas para cálculos (Columna K: ETD OK FFWW y Columna de Instrucción si existe)
+            # Asumimos que la columna K es la fecha de confirmación real
+            df_reserva['ETD_OK_DT'] = pd.to_datetime(df_reserva.iloc[:, 10], errors='coerce') # Columna K
             
-            # Buscador para filtrar la tabla de reservas en tiempo real
-            busqueda = st.text_input("🔍 Filtrar Reservas (escribe SO, Proveedor o Nro de Booking):", key="search_status_tab")
+            # 2. CÁLCULO DE INDICADORES
+            total_inst = len(df_reserva)
+            con_etd_ok = df_reserva['ETD_OK_DT'].notna().sum()
+            sin_etd_ok = total_inst - con_etd_ok
+            
+            p_confirmado = (con_etd_ok / total_inst * 100) if total_inst > 0 else 0
+            p_pendiente = 100 - p_confirmado
+
+            # --- RENDERIZADO DE MÉTRICAS ---
+            st.markdown("<h2 style='text-align: center; color: #ffffff; letter-spacing: 3px;'>CONTROL DE GESTIÓN DE RESERVAS</h2>", unsafe_allow_html=True)
+            
+            # Fila 1: Totales de Confirmación
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("EMBARQUES CON ETD OK", f"{con_etd_ok}")
+            m2.metric("SIN ETD OK", f"{sin_etd_ok}")
+            m3.metric("% CONFIRMADO", f"{p_confirmado:.1f}%")
+            m4.metric("% SIN CONFIRMACIÓN", f"{p_pendiente:.1f}%")
+
+            st.markdown("---")
+
+            # Fila 2: Desglose por Tipo (Marítimo vs Avion)
+            st.markdown("<p class='chart-title'>Desglose por Tipo de Transporte</p>", unsafe_allow_html=True)
+            tipo_cols = st.columns(2)
+            
+            for i, tipo in enumerate(["MARITIMO", "AVION / COURIER"]):
+                df_tipo = df_reserva[df_reserva['Categoria'] == tipo]
+                with tipo_cols[i]:
+                    st.markdown(f"""
+                        <div style='background: rgba(0, 168, 255, 0.05); padding: 20px; border-radius: 15px; border: 1px solid #004080;'>
+                            <h4 style='color: #00a8ff; margin: 0;'>{tipo}</h4>
+                            <p style='font-size: 24px; font-weight: bold; margin: 10px 0;'>Total: {len(df_tipo)}</p>
+                            <small>ETD OK: {df_tipo['ETD_OK_DT'].notna().sum()} | Pendientes: {df_tipo['ETD_OK_DT'].isna().sum()}</small>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # 3. TABLA DETALLADA
+            st.markdown("<p class='chart-title'>Detalle de la Hoja de Reservas</p>", unsafe_allow_html=True)
+            busqueda = st.text_input("🔍 Filtrar en Reservas:", key="search_res_final")
             
             if busqueda:
-                mask_res = df_reserva.astype(str).apply(lambda x: x.str.contains(busqueda, case=False)).any(axis=1)
-                df_res_final = df_reserva[mask_res]
+                df_final = df_reserva[df_reserva.astype(str).apply(lambda x: x.str.contains(busqueda, case=False)).any(axis=1)]
             else:
-                df_res_final = df_reserva
+                df_final = df_reserva
 
-            # Visualización de la tabla
-            st.dataframe(
-                df_res_final, 
-                use_container_width=True,
-                height=550
-            )
-
-            # Pie de tabla
-            st.markdown(f"**Líneas totales en Reservas:** {len(df_reserva)} | **Resultados encontrados:** {len(df_res_final)}")
+            st.dataframe(df_final.drop(columns=['ETD_OK_DT', 'Categoria']), use_container_width=True, height=400)
 
         except Exception as e:
-            st.error(f"Error al conectar con la Hoja de Reservas: {e}")
+            st.error(f"Error en Status Cargas: {e}")
 
 except Exception as e:
     st.error(f"Error: {e}")
