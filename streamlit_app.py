@@ -109,7 +109,7 @@ try:
         df['Es_Instruido'] = df['Fecha de Instruccion'].notna() & (df['Fecha de Instruccion'].astype(str).str.upper() != 'SIN INSTRUCCION')
         p_inst = round(df[df['Es_Instruido'] == True]['M3 Total'].sum() / m3_totales_global * 100) if m3_totales_global > 0 else 0
 
-        # Lógica Monoproveedor (Columna CP / índice 93)
+        # Lógica Monoproveedor
         col_cp = df.columns[93]
         df['Tipo_Carga'] = df[col_cp].apply(lambda x: 'MONOPROVEEDOR' if str(x).upper() == 'SI' else 'CONSOLIDADO')
         
@@ -137,22 +137,21 @@ try:
             
             if f == "estr":
                 st.markdown("<h3 style='color:#00a8ff;'>Análisis Monoproveedor vs Consolidado</h3>", unsafe_allow_html=True)
-                # Resumen con Porcentajes
                 res_tipo = df.groupby('Tipo_Carga').agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'Cant. SO', 'M3 Total': 'M3'})
                 res_tipo['%'] = (res_tipo['M3'] / m3_totales_global * 100).round(0)
-                
-                # Fila Total
                 res_total = pd.DataFrame({'Cant. SO': [res_tipo['Cant. SO'].sum()], 'M3': [res_tipo['M3'].sum()], '%': [100]}, index=['TOTAL'])
                 res_final = pd.concat([res_tipo, res_total])
-                
                 st.table(res_final.style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL' else '' for _ in s], axis=1).format({'M3': '{:,.0f}', 'Cant. SO': '{:,.0f}', '%': '{:.0f}%'}))
 
             elif f == "rank":
                 st.markdown("<h3 style='color:#00a8ff;'>Top 100: Prioridad de Salida</h3>", unsafe_allow_html=True)
                 col_rank = df.columns[1]
-                df_rank = df[(pd.to_numeric(df[col_rank], errors='coerce') >= 1) & (pd.to_numeric(df[col_rank], errors='coerce') <= 100)].sort_values(by=col_rank)
-                df_mostrar = df_rank[['SO', col_rank, 'M3 Total', 'Puerto de Salida']].copy()
-                total_row = pd.DataFrame({'SO': ['TOTAL'], col_rank: [''], 'M3 Total': [df_mostrar['M3 Total'].sum()], 'Puerto de Salida': ['']})
+                col_fecha_prior = df.columns[99] # Columna CV
+                df[col_rank] = pd.to_numeric(df[col_rank], errors='coerce')
+                df_rank = df[(df[col_rank] >= 1) & (df[col_rank] <= 100)].sort_values(by=col_rank)
+                # SE AGREGA FECHA PRIORITARIA NUEVAMENTE
+                df_mostrar = df_rank[['SO', col_rank, col_fecha_prior, 'M3 Total', 'Puerto de Salida']].copy()
+                total_row = pd.DataFrame({'SO': ['TOTAL'], col_rank: [''], col_fecha_prior: [''], 'M3 Total': [df_mostrar['M3 Total'].sum()], 'Puerto de Salida': ['']})
                 df_final = pd.concat([df_mostrar, total_row.set_index(pd.Index(['TOTAL']))])
                 st.dataframe(df_final.style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL' else '' for _ in s], axis=1).format({'M3 Total': '{:,.0f}'}), use_container_width=True)
 
@@ -208,4 +207,4 @@ try:
             st.plotly_chart(fig_a, use_container_width=True)
 
 except Exception as e:
-    st.error(f"Error: {e}")
+    st.error(f"Error: {e}")}")
