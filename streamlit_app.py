@@ -199,35 +199,38 @@ try:
 
             st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
 
-            # --- BLOQUE 4: GRAFICOS ---
-            # ... (Aquí se mantienen los gráficos que ya tenías optimizados)
-            st.markdown("<p class='chart-title' style='font-weight:700;'>Participación por País de Destino</p>", unsafe_allow_html=True)
-            res_p = df.groupby('Pais Destino').agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT. SO', 'M3 Total': 'M3'}).sort_values(by='M3', ascending=False)
-            res_p['%'] = (res_p['M3'] / m3_totales_global * 100).round(0)
-            st.dataframe(res_p.style.format({'M3': '{:,.0f}', '%': '{:.0f}%'}), use_container_width=True)
+           # --- BLOQUE 4: PARTICIPACIÓN POR PAÍS (ESTILO RESERVAS) ---
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<p style='color:#00a8ff; font-weight:700; letter-spacing:1px; margin-bottom:15px;'>PARTICIPACIÓN POR PAÍS DE DESTINO</p>", unsafe_allow_html=True)
             
-            g1, g2, g3 = st.columns([1.2, 1, 1])
-            with g1:
-                st.markdown("<p class='chart-title' style='font-weight:700;'>Salida por Puerto</p>", unsafe_allow_html=True)
-                col_puerto = df.columns[41]
-                p_df = df.groupby(col_puerto).agg({'M3 Total': 'sum'}).reset_index().sort_values(by='M3 Total')
-                fig_p = px.bar(p_df, y=col_puerto, x='M3 Total', orientation='h', text_auto=',.0f', color_discrete_sequence=['#00a8ff'], template='plotly_dark')
-                fig_p.update_traces(textposition='outside', cliponaxis=False)
-                fig_p.update_layout(xaxis_visible=False, yaxis_title=None, height=450, margin=dict(l=20, r=60, t=20, b=20))
-                st.plotly_chart(fig_p, use_container_width=True)
-            with g2:
-                st.markdown("<p class='chart-title' style='font-weight:700;'>Proyección ETD (M3)</p>", unsafe_allow_html=True)
-                etd_p = df.groupby('Mes_ETD_Full').agg({'M3 Total': 'sum'}).reset_index()
-                fig_e = px.bar(etd_p, x='Mes_ETD_Full', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#00ff88'], template='plotly_dark')
-                fig_e.update_layout(yaxis_visible=False, xaxis_title=None, height=450)
-                st.plotly_chart(fig_e, use_container_width=True)
-            with g3:
-                st.markdown("<p class='chart-title' style='font-weight:700;'>Proyección ETA (M3)</p>", unsafe_allow_html=True)
-                eta_p = df.groupby('Mes_ETA_Full', observed=True).agg({'M3 Total': 'sum'}).reset_index()
-                fig_a = px.bar(eta_p, x='Mes_ETA_Full', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#ff4b4b'], template='plotly_dark')
-                fig_a.update_layout(yaxis_visible=False, xaxis_title=None, height=450)
-                st.plotly_chart(fig_a, use_container_width=True)
+            res_p = df.groupby('Pais Destino').agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT_SO', 'M3 Total': 'M3'}).sort_values(by='M3', ascending=False)
+            
+            # Iteramos por cada país para crear las tarjetas
+            for pais, row in res_p.iterrows():
+                m3_pais = int(round(row['M3']))
+                so_pais = int(row['CANT_SO'])
+                pct_m3 = int(round((m3_pais / m3_totales_global * 100))) if m3_totales_global > 0 else 0
+                
+                # Buscamos efectividad ETD para este país (simulando el formato OK de Reservas)
+                df_pais = df[df['Pais Destino'] == pais]
+                # Si tienes la columna de status en esta solapa, la usamos, sino mostramos el peso sobre el total
+                
+                st.markdown(f"""
+                    <div style="background: #040911; padding: 20px; border-radius: 10px; border: 1px solid #1e293b; margin-bottom: 15px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            <p style="color: #00a8ff; font-weight: 700; margin: 0; font-size: 16px;">{pais.upper()}</p>
+                            <div style="text-align: right;">
+                                <p style="color: #00ff88; font-weight: 300; margin: 0; font-size: 18px;">▲ {pct_m3}% <span style="font-size:12px; color:#8899A6; margin-left:5px;">DEL TOTAL</span></p>
+                            </div>
+                        </div>
+                        <p style="font-size: 28px; font-weight: 300; color: #ffffff; margin-top: 10px; margin-bottom: 5px;">Total: {m3_pais:,} M3</p>
+                        <p style="font-size: 12px; color: #94a3b8; font-weight: 300; margin: 0;">
+                            <span style="color: #ffffff;">Cantidad de SO: {so_pais}</span>
+                        </p>
+                    </div>
+                """, unsafe_allow_html=True)
 
+            st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
         except Exception as e:
             st.error(f"Error en Solapa Origen: {e}")
 # --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
