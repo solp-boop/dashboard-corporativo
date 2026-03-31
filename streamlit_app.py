@@ -191,12 +191,13 @@ try:
             df_res['Fecha_Inst_H'] = df_res.iloc[:, 7].astype(str).str.strip()
             df_g = df_res[df_res['Fecha_Inst_H'].apply(lambda x: len(str(x)) > 4)].copy()
 
-            # --- BLOQUE 1: KPIs MASIVOS ---
+            # --- BLOQUE 1: KPIs ULTRA MASIVOS (GERENCIA) ---
             st.markdown("<br>", unsafe_allow_html=True)
             k1, k2, k3 = st.columns(3)
-            with k1: st.markdown(f"<div class='metric-container'><p class='label-massive' style='font-weight:700;'>SO INSTRUIDAS</p><p class='value-massive' style='font-weight:300;'>{int(len(df_inst))}</p></div>", unsafe_allow_html=True)
-            with k2: st.markdown(f"<div class='metric-container'><p class='label-massive' style='font-weight:700;'>VOLUMEN (M3)</p><p class='value-massive' style='font-weight:300;'>{int(df_inst['M3 Total'].sum()):,}</p></div>", unsafe_allow_html=True)
-            with k3: st.markdown(f"<div class='metric-container'><p class='label-massive' style='font-weight:700;'>PROVEEDORES</p><p class='value-massive' style='font-weight:300;'>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
+            # Aumentamos el tamaño de fuente a 140px y etiquetas a 28px para máximo impacto
+            with k1: st.markdown(f"<div class='metric-container'><p style='font-size: 28px; color: #00a8ff; letter-spacing: 5px; font-weight: 700; margin-bottom: 0;'>SO INSTRUIDAS</p><p style='font-size: 140px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 40px rgba(0,168,255,0.6);'>{int(len(df_inst))}</p></div>", unsafe_allow_html=True)
+            with k2: st.markdown(f"<div class='metric-container'><p style='font-size: 28px; color: #00a8ff; letter-spacing: 5px; font-weight: 700; margin-bottom: 0;'>VOLUMEN (M3)</p><p style='font-size: 140px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 40px rgba(0,168,255,0.6);'>{int(df_inst['M3 Total'].sum()):,}</p></div>", unsafe_allow_html=True)
+            with k3: st.markdown(f"<div class='metric-container'><p style='font-size: 28px; color: #00a8ff; letter-spacing: 5px; font-weight: 700; margin-bottom: 0;'>PROVEEDORES</p><p style='font-size: 140px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 40px rgba(0,168,255,0.6);'>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
 
             st.markdown("<br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
 
@@ -249,51 +250,58 @@ try:
 
             st.markdown("<br>", unsafe_allow_html=True)
 
-            # --- BLOQUE 4: BOOKING IN ADVANCE (BOTÓN IDÉNTICO A ORIGEN) ---
+            # --- BLOQUE 4: ANÁLISIS MARÍTIMO (BOTONES UNIFICADOS) ---
             df_mar = df_g[df_g['Transporte'] == "MARITIMO"].copy()
             
-            # Formato idéntico al botón de Origen
-            c_btn, _ = st.columns([1, 2])
-            with c_btn:
-                # Usamos st.button que ya tiene el estilo definido en el CSS principal
-                btn_adv = st.button("ANALISIS BOOKING IN ADVANCE", key="btn_adv_bidcom")
+            # Función de limpieza monetaria para FOB (Columna V = 21)
+            def clean_val(value):
+                if pd.isna(value): return 0
+                s = str(value).replace('.', '').replace(',', '.')
+                return pd.to_numeric(''.join(c for c in s if c.isdigit() or c == '.'), errors='coerce')
 
-            if btn_adv:
-                st.session_state.show_adv = not st.session_state.get('show_adv', False)
+            # Limpieza general de datos para análisis
+            df_mar.iloc[:, 1] = pd.to_numeric(df_mar.iloc[:, 1], errors='coerce').fillna(0) # Contenedores (B)
+            df_mar.iloc[:, 29] = pd.to_numeric(df_mar.iloc[:, 29], errors='coerce').fillna(0) # Consolidación (AD)
+            df_mar.iloc[:, 21] = df_mar.iloc[:, 21].apply(clean_val).fillna(0) # FOB (V)
 
-            if st.session_state.get('show_adv'):
-                # Limpieza de datos FOB y numéricos (Columna V = 21)
-                def clean_currency(value):
-                    if pd.isna(value): return 0
-                    s_val = str(value).replace('.', '').replace(',', '.')
-                    return pd.to_numeric(''.join(c for c in s_val if c.isdigit() or c == '.'), errors='coerce')
+            c_btn1, c_btn2 = st.columns(2)
+            with c_btn1:
+                btn_adv = st.button("ANALISIS BOOKING IN ADVANCE", key="btn_adv_bidcom", use_container_width=True)
+            with c_btn2:
+                btn_mono = st.button("ANALISIS ESTRUCTURA CARGA (MONO/CONS)", key="btn_mono_bidcom", use_container_width=True)
 
-                df_mar.iloc[:, 1] = pd.to_numeric(df_mar.iloc[:, 1], errors='coerce').fillna(0) # Contenedores
-                df_mar.iloc[:, 29] = pd.to_numeric(df_mar.iloc[:, 29], errors='coerce').fillna(0) # Consolidación
-                df_mar.iloc[:, 21] = df_mar.iloc[:, 21].apply(clean_currency).fillna(0) # FOB SIMI TOTAL
+            # Manejo de estados de botones
+            if btn_adv: st.session_state.mode = 'adv'
+            if btn_mono: st.session_state.mode = 'mono'
 
-                mask_adv = df_mar.iloc[:, 8].astype(str).str.strip() == "Booked in Advance"
-                grupos = [("Booked in Advance", df_mar[mask_adv]), ("No Booked in Advance", df_mar[~mask_adv])]
-                total_mar = len(df_mar) if len(df_mar) > 0 else 1
+            selected_mode = st.session_state.get('mode')
 
+            if selected_mode:
+                st.markdown("<br>", unsafe_allow_html=True)
                 col_a, col_b = st.columns(2)
-                for i, (titulo, dff) in enumerate(grupos):
+                
+                if selected_mode == 'adv':
+                    mask = df_mar.iloc[:, 8].astype(str).str.strip() == "Booked in Advance"
+                    labels = [("Booked in Advance", df_mar[mask]), ("No Booked in Advance", df_mar[~mask])]
+                else:
+                    # Columna AI es la número 34 (A=0 ... AI=34)
+                    mask = df_mar.iloc[:, 34].astype(str).str.upper().str.strip() == "SI"
+                    labels = [("Monoproveedor", df_mar[mask]), ("Consolidado", df_mar[~mask])]
+
+                total_m = len(df_mar) if len(df_mar) > 0 else 1
+                for i, (titulo, dff) in enumerate(labels):
                     cant_emb = len(dff)
-                    pct_rel = round((cant_emb / total_mar) * 100)
-                    cant_cont = dff.iloc[:, 1].sum()
-                    prom_cons = round(dff.iloc[:, 29].mean(), 1) if cant_emb > 0 else 0
-                    fob_total = dff.iloc[:, 21].sum()
-                    
+                    pct = round((cant_emb / total_m) * 100)
                     with [col_a, col_b][i]:
                         color_box = "#00a8ff" if i == 0 else "#8899A6"
                         st.markdown(f"""
                             <div style="background: rgba(255,255,255,0.02); padding: 25px; border-radius: 10px; border-left: 5px solid {color_box};">
-                                <p style="font-weight:700; color:{color_box}; margin-bottom:15px; font-size:14px; letter-spacing:1px;">{titulo.upper()} ({pct_rel}%)</p>
+                                <p style="font-weight:700; color:{color_box}; margin-bottom:15px; font-size:14px; letter-spacing:1px;">{titulo.upper()} ({pct}%)</p>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                                     <div><p style="font-size:11px; color:#8899A6; margin:0;">EMBARQUES</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{cant_emb}</p></div>
-                                    <div><p style="font-size:11px; color:#8899A6; margin:0;">CONTENEDORES</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{int(cant_cont)}</p></div>
-                                    <div><p style="font-size:11px; color:#8899A6; margin:0;">PROM. CONSOLIDACIÓN</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{prom_cons}d</p></div>
-                                    <div><p style="font-size:11px; color:#8899A6; margin:0;">FOB TOTAL</p><p style="font-size:22px; font-weight:300; margin:0; color:#ffffff;">USD {fob_total:,.0f}</p></div>
+                                    <div><p style="font-size:11px; color:#8899A6; margin:0;">CONTENEDORES</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{int(dff.iloc[:, 1].sum())}</p></div>
+                                    <div><p style="font-size:11px; color:#8899A6; margin:0;">PROM. CONSOLIDACIÓN</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{round(dff.iloc[:, 29].mean(),1)}d</p></div>
+                                    <div><p style="font-size:11px; color:#8899A6; margin:0;">FOB TOTAL</p><p style="font-size:22px; font-weight:300; margin:0; color:#ffffff;">USD {dff.iloc[:, 21].sum():,f}</p></div>
                                 </div>
                             </div>
                         """, unsafe_allow_html=True)
