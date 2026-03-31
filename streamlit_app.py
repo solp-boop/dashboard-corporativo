@@ -68,13 +68,12 @@ try:
 
     st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><div class='bidcom-subtitle'>Tablero Logistica Internacional</div></div>", unsafe_allow_html=True)
     tabs = st.tabs(["ORIGEN", "CONTROL GESTIÓN RESERVAS", "INDICADORES", "AGENTES", "ANALISTAS", "FLETES", "CIERRE DE MES"])
-
-    # ==========================================
+# ==========================================
     # SOLAPA 1: ORIGEN
     # ==========================================
     with tabs[0]:
         try:
-            # --- CÁLCULOS LOCALES ---
+            # --- 1. CÁLCULOS LOCALES ---
             df['Fecha_Inst_DT'] = pd.to_datetime(df['Fecha de Instruccion'], errors='coerce')
             cond_instruido = df['Fecha_Inst_DT'].notna() & ~(df['Fecha de Instruccion'].astype(str).str.upper().str.contains("SIN INSTRUCCION", na=False))
             cond_critico = (~cond_instruido) & (df['Fecha_Prior_DT'] <= limite_proximo)
@@ -84,11 +83,12 @@ try:
             df_criticos = df[cond_critico].copy()
             df_resto = df[cond_resto].copy()
 
-            p_inst = int(round(df_inst['M3 Total'].sum() / m3_totales_global * 100)) if m3_totales_global > 0 else 0
-            p_crit = int(round(df_criticos['M3 Total'].sum() / m3_totales_global * 100)) if m3_totales_global > 0 else 0
-            p_rest = int(round(df_resto['M3 Total'].sum() / m3_totales_global * 100)) if m3_totales_global > 0 else 0
+            # Porcentajes Redondeados
+            p_inst_val = int(round(df_inst['M3 Total'].sum() / m3_totales_global * 100)) if m3_totales_global > 0 else 0
+            p_crit_val = int(round(df_criticos['M3 Total'].sum() / m3_totales_global * 100)) if m3_totales_global > 0 else 0
+            p_rest_val = int(round(df_resto['M3 Total'].sum() / m3_totales_global * 100)) if m3_totales_global > 0 else 0
 
-            # --- BLOQUE 1: KPIs ULTRA MASIVOS ---
+            # --- 2. BLOQUE KPIs ULTRA MASIVOS ---
             st.markdown("<br>", unsafe_allow_html=True)
             o1, o2, o3 = st.columns(3)
             with o1: st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>CANTIDAD DE SO</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(cant_so_global)}</p></div>", unsafe_allow_html=True)
@@ -97,46 +97,78 @@ try:
 
             st.markdown("<br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
 
-            # --- BLOQUE 2: BOTONES DE FILTRADO CON RESALTADO ---
+            # --- 3. BOTONES DE FILTRADO CON RESALTADO DINÁMICO ---
             b1_col, b2_col, b3_col, b4_col, b5_col = st.columns(5)
             filtro_actual = st.session_state.get('f')
+
             def get_btn_style(target):
-                return "border: 2px solid #00a8ff; background: rgba(0, 168, 255, 0.1);" if filtro_actual == target else "border: 1px solid #1e293b; background: transparent;"
+                if filtro_actual == target:
+                    return "border: 2px solid #00a8ff; background: rgba(0, 168, 255, 0.1);"
+                return "border: 1px solid #1e293b; background: transparent;"
 
             with b1_col:
                 st.markdown(f"<div style='{get_btn_style('inst')} border-radius:5px;'>", unsafe_allow_html=True)
-                if st.button(f"MERCADERIA \n INSTRUIDA {p_inst}%", key="btn_inst_o"): st.session_state.f = 'inst' if filtro_actual != 'inst' else None; st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
-            with b2_col:
-                st.markdown(f"<div style='{get_btn_style('crit')} border-radius:5px;'>", unsafe_allow_html=True)
-                if st.button(f"PROXIMA A \n INSTRUIR {p_crit}%", key="btn_crit_o"): st.session_state.f = 'crit' if filtro_actual != 'crit' else None; st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
-            with b3_col:
-                st.markdown(f"<div style='{get_btn_style('rest')} border-radius:5px;'>", unsafe_allow_html=True)
-                if st.button(f"LISTA EN \n +30 DIAS {p_rest}%", key="btn_rest_o"): st.session_state.f = 'rest' if filtro_actual != 'rest' else None; st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
-            with b4_col:
-                st.markdown(f"<div style='{get_btn_style('rank')} border-radius:5px;'>", unsafe_allow_html=True)
-                if st.button("TOP 100 \n RANKING", key="btn_rank_o"): st.session_state.f = 'rank' if filtro_actual != 'rank' else None; st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
-            with b5_col:
-                st.markdown(f"<div style='{get_btn_style('estr')} border-radius:5px;'>", unsafe_allow_html=True)
-                if st.button("MONOPROV. / \n CONSOLIDADO", key="btn_estr_o"): st.session_state.f = 'estr' if filtro_actual != 'estr' else None; st.rerun()
+                if st.button(f"MERCADERIA \n INSTRUIDA {p_inst_val}%", key="btn_inst_o", use_container_width=True):
+                    st.session_state.f = 'inst' if filtro_actual != 'inst' else None
+                    st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 
-            # --- BLOQUE 3: DISTRIBUCIÓN POR PAÍS ---
+            with b2_col:
+                st.markdown(f"<div style='{get_btn_style('crit')} border-radius:5px;'>", unsafe_allow_html=True)
+                if st.button(f"PROXIMA A \n INSTRUIR {p_crit_val}%", key="btn_crit_o", use_container_width=True):
+                    st.session_state.f = 'crit' if filtro_actual != 'crit' else None
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            with b3_col:
+                st.markdown(f"<div style='{get_btn_style('rest')} border-radius:5px;'>", unsafe_allow_html=True)
+                if st.button(f"LISTA EN \n +30 DIAS {p_rest_val}%", key="btn_rest_o", use_container_width=True):
+                    st.session_state.f = 'rest' if filtro_actual != 'rest' else None
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            with b4_col:
+                st.markdown(f"<div style='{get_btn_style('rank')} border-radius:5px;'>", unsafe_allow_html=True)
+                if st.button("TOP 100 \n RANKING", key="btn_rank_o", use_container_width=True):
+                    st.session_state.f = 'rank' if filtro_actual != 'rank' else None
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            with b5_col:
+                st.markdown(f"<div style='{get_btn_style('estr')} border-radius:5px;'>", unsafe_allow_html=True)
+                if st.button("MONOPROV. / \n CONSOLIDADO", key="btn_estr_o", use_container_width=True):
+                    st.session_state.f = 'estr' if filtro_actual != 'estr' else None
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            # --- 4. DESPLIEGUE DE TABLAS (DISEÑO TARJETA) ---
+            f = st.session_state.get('f')
+            if f:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if f in ["inst", "crit", "rest"]:
+                    if f == "inst": titulo, dff, color = "MERCADERIA INSTRUIDA", df_inst, "#00a8ff"
+                    elif f == "crit": titulo, dff, color = "PROXIMA A INSTRUIR", df_criticos, "#ff4b4b"
+                    elif f == "rest": titulo, dff, color = "LISTA EN +30 DIAS", df_resto, "#8899A6"
+                    
+                    m3_f = int(round(dff['M3 Total'].sum()))
+                    st.markdown(f"""
+                        <div style="background: rgba(255,255,255,0.02); padding: 25px; border-radius: 10px; border-left: 5px solid {color}; margin-bottom: 20px;">
+                            <p style="font-weight:700; color:{color}; margin-bottom:15px; font-size:14px; letter-spacing:1px;">{titulo}</p>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                                <div><p style="font-size:11px; color:#8899A6; margin:0;">CANTIDAD SO</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{len(dff)}</p></div>
+                                <div><p style="font-size:11px; color:#8899A6; margin:0;">VOLUMEN TOTAL</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{m3_f:,} M3</p></div>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    st.dataframe(dff, use_container_width=True)
+
+            # --- 5. DISTRIBUCIÓN POR PAÍS (LÍNEAS BLANCAS) ---
             st.markdown("<br><p style='color:#00a8ff; font-weight:700; letter-spacing:2px; font-size:14px; margin-bottom:20px;'>DISTRIBUCIÓN GEOGRÁFICA DE CARGA</p>", unsafe_allow_html=True)
             df['Pais Destino'] = df['Pais Destino'].fillna('SIN DEFINIR').replace('', 'SIN DEFINIR')
             res_p = df.groupby('Pais Destino').agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT_SO', 'M3 Total': 'M3'}).sort_values(by='M3', ascending=False)
             total_m3_p = res_p['M3'].sum()
 
-            h1, h2, h3, h4 = st.columns([1.5, 1, 1, 0.8])
-            h1.markdown("<p style='color:#8899A6; font-size:12px; font-weight:700;'>PAÍS DE DESTINO</p>", unsafe_allow_html=True)
-            h2.markdown("<p style='color:#8899A6; font-size:12px; font-weight:700; text-align:center;'>VOLUMEN (M3)</p>", unsafe_allow_html=True)
-            h3.markdown("<p style='color:#8899A6; font-size:12px; font-weight:700; text-align:center;'>CANTIDAD SO</p>", unsafe_allow_html=True)
-            h4.markdown("<p style='color:#8899A6; font-size:12px; font-weight:700; text-align:right;'>SHARE %</p>", unsafe_allow_html=True)
             st.markdown("<hr style='margin:0; border: none; border-top: 2px solid #ffffff; opacity:0.8;'>", unsafe_allow_html=True)
-
             for pais, row in res_p.iterrows():
                 m3_v, so_v = int(round(row['M3'])), int(row['CANT_SO'])
                 pct_v = int(round((m3_v / total_m3_p * 100))) if total_m3_p > 0 else 0
@@ -147,8 +179,8 @@ try:
                 c4.markdown(f"<p style='color:#00ff88; font-weight:700; font-size:18px; text-align:right; margin:10px 0;'>{pct_v}%</p>", unsafe_allow_html=True)
                 st.markdown("<hr style='margin:0; border: none; border-top: 1px solid #ffffff; opacity:0.2;'>", unsafe_allow_html=True)
 
-            # --- BLOQUE 4: GRÁFICOS OPTIMIZADOS ---
-            st.markdown("<br><br><p style='color:#00a8ff; font-weight:700; font-size:16px; text-align:center; letter-spacing:1px;'>DISTRIBUCIÓN POR PUERTO DE SALIDA (M3)</p>", unsafe_allow_html=True)
+            # --- 6. GRÁFICOS CENTRADOS ---
+            st.markdown("<br><br><p style='color:#00a8ff; font-weight:700; font-size:16px; text-align:center;'>DISTRIBUCIÓN POR PUERTO DE SALIDA (M3)</p>", unsafe_allow_html=True)
             col_puerto = df.columns[41]
             p_df = df.groupby(col_puerto).agg({'M3 Total': 'sum'}).reset_index().sort_values(by='M3 Total')
             fig_p = px.bar(p_df, y=col_puerto, x='M3 Total', orientation='h', text_auto=',.0f', color_discrete_sequence=['#00a8ff'], template='plotly_dark')
@@ -172,3 +204,7 @@ try:
 
         except Exception as e:
             st.error(f"Error en Solapa Origen: {e}")
+
+    # ==========================================
+    # SOLAPA 2: CONTROL GESTIÓN RESERVAS (ESTA SECCIÓN EMPIEZA AQUÍ)
+    # ==========================================
