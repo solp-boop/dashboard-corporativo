@@ -182,7 +182,7 @@ try:
 # --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
     with tabs[1]:
         try:
-            # 1. Carga y Filtro de Reservas
+            # 1. Carga y Filtro de Reservas (GID 276804813)
             url_reserva = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
             df_reserva = pd.read_csv(url_reserva)
             df_reserva.columns = df_reserva.columns.str.strip()
@@ -202,40 +202,6 @@ try:
                 st.markdown(f"<div class='metric-container'><p class='label-massive' style='font-weight:700;'>PROVEEDORES</p><p class='value-massive' style='font-weight:300;'>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
 
             st.markdown("<br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
-
-            # --- NUEVA SECCIÓN: BOOKING IN ADVANCE (BOTÓN MARÍTIMO) ---
-            # Identificamos solo Marítimos para este botón (Columna F)
-            def es_maritimo(x):
-                x = str(x).upper()
-                return any(m in x for m in ["40 HQ", "40 ST", "20 ST", "40NOR"])
-            
-            df_mar = df_gestion[df_gestion.iloc[:, 5].apply(es_maritimo)].copy()
-            
-            col_btn, _ = st.columns([1, 2])
-            with col_btn:
-                btn_advance = st.button("BOOKING IN ADVANCE - Embarques Marítimos", key="btn_advance", use_container_width=True)
-
-            if btn_advance:
-                # Procesamiento de métricas específicas
-                # Columna I: Booking in Advance | Columna B: Cant Contenedores | Columna AD: Tiempo Consolidación | Columna V: FOB
-                df_advance = df_mar[df_mar.iloc[:, 8].astype(str).str.upper().str.contains("SI", na=False)]
-                
-                cant_emb = len(df_advance)
-                cant_cont = pd.to_numeric(df_advance.iloc[:, 1], errors='coerce').sum()
-                prom_cons = round(pd.to_numeric(df_advance.iloc[:, 29], errors='coerce').mean(), 1)
-                fob_total = pd.to_numeric(df_advance.iloc[:, 21], errors='coerce').sum()
-
-                st.markdown(f"""
-                    <div style="background: rgba(0, 168, 255, 0.05); padding: 30px; border-radius: 15px; border: 1px solid #00a8ff; margin-bottom: 25px;">
-                        <h3 style="color: #00a8ff; font-weight: 700; margin-top: 0;">Detalle: Booking In Advance</h3>
-                        <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 20px;">
-                            <div><p style="font-weight:700; font-size:12px; margin:0; color:#8899A6;">CANT. EMBARQUES</p><p style="font-weight:300; font-size:32px; margin:0; color:#ffffff;">{cant_emb}</p></div>
-                            <div><p style="font-weight:700; font-size:12px; margin:0; color:#8899A6;">CANT. CONTENEDORES</p><p style="font-weight:300; font-size:32px; margin:0; color:#ffffff;">{int(cant_cont)}</p></div>
-                            <div><p style="font-weight:700; font-size:12px; margin:0; color:#8899A6;">PROM. CONSOLIDACIÓN</p><p style="font-weight:300; font-size:32px; margin:0; color:#ffffff;">{prom_cons} Días</p></div>
-                            <div><p style="font-weight:700; font-size:12px; margin:0; color:#8899A6;">FOB SIMI TOTAL</p><p style="font-weight:300; font-size:32px; margin:0; color:#ffffff;">USD {fob_total:,.0f}</p></div>
-                        </div>
-                    </div>
-                """, unsafe_allow_html=True)
 
             # --- BLOQUE 2: PERFORMANCE GLOBAL (CENTRALIZADO) ---
             df_gestion['ETD_Status_K'] = df_gestion.iloc[:, 10].astype(str).str.upper().str.strip()
@@ -292,7 +258,32 @@ try:
                     """, unsafe_allow_html=True)
 
             st.markdown("<br>", unsafe_allow_html=True)
-            st.dataframe(df_gestion.drop(columns=['Transporte', 'ETD_Status_K', 'Fecha_Inst_H']), use_container_width=True, height=400)
+
+            # --- BLOQUE 4: BOOKING IN ADVANCE (BAJO LOS CUADROS DE TRANSPORTE) ---
+            df_mar = df_gestion[df_gestion['Transporte'] == "MARITIMO"].copy()
+            col_btn, _ = st.columns([1.2, 2])
+            with col_btn:
+                btn_advance = st.button("BOOKING IN ADVANCE - Embarques Marítimos", key="btn_advance", use_container_width=True)
+
+            if btn_advance:
+                # Columna I (index 8): Advance | Columna B (index 1): Contenedores | Columna AD (index 29): Tiempo | Columna V (index 21): FOB
+                df_advance = df_mar[df_mar.iloc[:, 8].astype(str).str.upper().str.contains("SI", na=False)]
+                cant_emb = len(df_advance)
+                cant_cont = pd.to_numeric(df_advance.iloc[:, 1], errors='coerce').sum()
+                prom_cons = round(pd.to_numeric(df_advance.iloc[:, 29], errors='coerce').mean(), 1)
+                fob_total = pd.to_numeric(df_advance.iloc[:, 21], errors='coerce').sum()
+
+                st.markdown(f"""
+                    <div style="background: rgba(0, 168, 255, 0.05); padding: 30px; border-radius: 15px; border: 1px solid #00a8ff; margin-top: 10px;">
+                        <h3 style="color: #00a8ff; font-weight: 700; margin-top: 0; font-size: 18px;">Indicadores: Booking In Advance</h3>
+                        <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 20px;">
+                            <div><p style="font-weight:700; font-size:12px; margin:0; color:#8899A6;">CANT. EMBARQUES</p><p style="font-weight:300; font-size:32px; margin:0; color:#ffffff;">{cant_emb}</p></div>
+                            <div><p style="font-weight:700; font-size:12px; margin:0; color:#8899A6;">CANT. CONTENEDORES</p><p style="font-weight:300; font-size:32px; margin:0; color:#ffffff;">{int(cant_cont)}</p></div>
+                            <div><p style="font-weight:700; font-size:12px; margin:0; color:#8899A6;">PROM. CONSOLIDACIÓN</p><p style="font-weight:300; font-size:32px; margin:0; color:#ffffff;">{prom_cons if not pd.isna(prom_cons) else 0} Días</p></div>
+                            <div><p style="font-weight:700; font-size:12px; margin:0; color:#8899A6;">FOB SIMI TOTAL</p><p style="font-weight:300; font-size:32px; margin:0; color:#ffffff;">USD {fob_total:,.0f}</p></div>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
 
         except Exception as e:
             st.error(f"Error en Gestión de Reservas: {e}")
