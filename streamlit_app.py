@@ -95,7 +95,6 @@ try:
         p_critico = round(df_criticos['M3 Total'].sum() / m3_totales_global * 100) if m3_totales_global > 0 else 0
         p_resto = round(df_resto['M3 Total'].sum() / m3_totales_global * 100) if m3_totales_global > 0 else 0
 
-        # Lógica de contracción corregida
         if b1_col.button(f"MERCADERIA INSTRUIDA \n {p_inst}%", key="btn_inst"):
             st.session_state.f = 'inst' if st.session_state.get('f') != 'inst' else None
         if b2_col.button(f"PRÓXIMO A INSTRUIR \n {p_critico}%", key="btn_crit"):
@@ -114,35 +113,42 @@ try:
             if f == "inst":
                 st.markdown("<h3 style='color:#00a8ff;'>Detalle: Mercadería Instruida</h3>", unsafe_allow_html=True)
                 df_mostrar = df_inst[['SO', 'Proveedor', 'M3 Total', 'Fecha de Instruccion']].copy()
-                st.dataframe(df_mostrar.style.format({'M3 Total': '{:,.2f}'}), use_container_width=True)
+                total_row = pd.DataFrame({'SO': [f'TOTAL SO: {len(df_mostrar)}'], 'Proveedor': [f'TOTAL PROV: {df_mostrar["Proveedor"].nunique()}'], 'M3 Total': [df_mostrar['M3 Total'].sum()], 'Fecha de Instruccion': ['']})
+                st.dataframe(pd.concat([df_mostrar, total_row.set_index(pd.Index(['TOTAL']))]).style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL' else '' for _ in s], axis=1).format({'M3 Total': '{:,.0f}'}), use_container_width=True)
             elif f == "crit":
-                st.markdown("<h3 style='color:#ff4b4b;'>⚠️ Detalle: Próximo a Instruir (Vencido o Próximos 30 días)</h3>", unsafe_allow_html=True)
+                st.markdown("<h3 style='color:#ff4b4b;'>⚠️ Detalle: Próximo a Instruir</h3>", unsafe_allow_html=True)
                 df_mostrar = df_criticos[['SO', 'Proveedor', df.columns[99], 'M3 Total']].sort_values(by=df.columns[99])
-                st.dataframe(df_mostrar.style.format({'M3 Total': '{:,.2f}'}), use_container_width=True)
+                total_row = pd.DataFrame({'SO': [f'TOTAL SO: {len(df_mostrar)}'], 'Proveedor': [f'TOTAL PROV: {df_mostrar["Proveedor"].nunique()}'], df.columns[99]: [''], 'M3 Total': [df_mostrar['M3 Total'].sum()]})
+                st.dataframe(pd.concat([df_mostrar, total_row.set_index(pd.Index(['TOTAL']))]).style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL' else '' for _ in s], axis=1).format({'M3 Total': '{:,.0f}'}), use_container_width=True)
             elif f == "rest":
                 st.markdown("<h3 style='color:#00a8ff;'>Detalle: Resto Pendiente</h3>", unsafe_allow_html=True)
                 df_mostrar = df_resto[['SO', 'Proveedor', df.columns[99], 'M3 Total']]
-                st.dataframe(df_mostrar.style.format({'M3 Total': '{:,.2f}'}), use_container_width=True)
+                total_row = pd.DataFrame({'SO': [f'TOTAL SO: {len(df_mostrar)}'], 'Proveedor': [f'TOTAL PROV: {df_mostrar["Proveedor"].nunique()}'], df.columns[99]: [''], 'M3 Total': [df_mostrar['M3 Total'].sum()]})
+                st.dataframe(pd.concat([df_mostrar, total_row.set_index(pd.Index(['TOTAL']))]).style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL' else '' for _ in s], axis=1).format({'M3 Total': '{:,.0f}'}), use_container_width=True)
             elif f == "rank":
                 st.markdown("<h3 style='color:#00a8ff;'>Top 100 Ranking</h3>", unsafe_allow_html=True)
                 col_rank = df.columns[1]
                 df[col_rank] = pd.to_numeric(df[col_rank], errors='coerce').fillna(0).astype(int)
                 df_rank = df[(df[col_rank] >= 1) & (df[col_rank] <= 100)].sort_values(by=col_rank)
-                st.dataframe(df_rank[['SO', col_rank, 'M3 Total']].style.format({'M3 Total': '{:,.2f}'}), use_container_width=True)
+                df_mostrar = df_rank[['SO', col_rank, 'M3 Total']].copy()
+                total_row = pd.DataFrame({'SO': ['TOTAL'], col_rank: [''], 'M3 Total': [df_mostrar['M3 Total'].sum()]})
+                st.dataframe(pd.concat([df_mostrar, total_row.set_index(pd.Index(['TOTAL']))]).style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL' else '' for _ in s], axis=1).format({'M3 Total': '{:,.0f}'}), use_container_width=True)
             elif f == "estr":
                 st.markdown("<h3 style='color:#00a8ff;'>Estructura de Carga</h3>", unsafe_allow_html=True)
                 col_cp = df.columns[93]
                 df['Tipo_Carga'] = df[col_cp].apply(lambda x: 'MONOPROVEEDOR' if str(x).upper() == 'SI' else 'CONSOLIDADO')
                 res_tipo = df.groupby('Tipo_Carga').agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'Cant. SO', 'M3 Total': 'M3'})
-                st.table(res_tipo.style.format({'M3': '{:,.2f}'}))
+                res_total = pd.DataFrame({'Cant. SO': [res_tipo['Cant. SO'].sum()], 'M3': [res_tipo['M3'].sum()]}, index=['TOTAL'])
+                st.table(pd.concat([res_tipo, res_total]).style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL' else '' for _ in s], axis=1).format({'M3': '{:,.0f}'}))
 
         st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
 
-        # --- PARTICIPACIÓN PAÍS (DEVUELTA A SU LUGAR) ---
+        # --- PARTICIPACIÓN PAÍS ---
         st.markdown("<p class='chart-title'>Participación por País de Destino</p>", unsafe_allow_html=True)
         res_p = df.groupby('Pais Destino').agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT. SO', 'M3 Total': 'M3'}).sort_values(by='M3', ascending=False)
-        res_p['%'] = (res_p['M3'] / m3_totales_global * 100).round(1)
-        st.dataframe(res_p.style.format({'M3': '{:,.2f}', '%': '{:.1f}%'}), use_container_width=True)
+        res_p['%'] = (res_p['M3'] / m3_totales_global * 100).round(0)
+        df_total_p = pd.DataFrame({'CANT. SO': [res_p['CANT. SO'].sum()], 'M3': [res_p['M3'].sum()], '%': [100]}, index=['TOTAL GENERAL'])
+        st.dataframe(pd.concat([res_p, df_total_p]).style.apply(lambda s: ['background-color: #003366; font-weight: bold; color: white' if s.name == 'TOTAL GENERAL' else '' for _ in s], axis=1).format({'M3': '{:,.0f}', '%': '{:.0f}%', 'CANT. SO': '{:,.0f}'}), use_container_width=True)
         
         # --- GRÁFICOS ---
         g1, g2, g3 = st.columns([1.2, 1, 1])
@@ -175,9 +181,9 @@ try:
         df_reserva.columns = df_reserva.columns.str.strip()
         st.markdown("<h2 style='text-align: center; color: #ffffff; letter-spacing: 3px;'>MONITOREO DE RESERVAS</h2>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
-        with c1: st.markdown(f"<div class='metric-container'><p class='label-massive'>SO INSTRUIDAS</p><p class='value-massive'>{len(df_inst)}</p></div>", unsafe_allow_html=True)
+        with c1: st.markdown(f"<div class='metric-container'><p class='label-massive'>SO INSTRUIDAS</p><p class='value-massive'>{int(len(df_inst))}</p></div>", unsafe_allow_html=True)
         with c2: st.markdown(f"<div class='metric-container'><p class='label-massive'>VOLUMEN (M3)</p><p class='value-massive'>{int(df_inst['M3 Total'].sum()):,}</p></div>", unsafe_allow_html=True)
-        with c3: st.markdown(f"<div class='metric-container'><p class='label-massive'>PROVEEDORES</p><p class='value-massive'>{df_inst['Proveedor'].nunique()}</p></div>", unsafe_allow_html=True)
+        with c3: st.markdown(f"<div class='metric-container'><p class='label-massive'>PROVEEDORES</p><p class='value-massive'>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
         st.dataframe(df_reserva, use_container_width=True, height=500)
 
 except Exception as e:
