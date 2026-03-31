@@ -423,53 +423,72 @@ try:
 
             st.markdown("<br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
 
-            # --- BLOQUE 2: BOTONES DE FILTRADO CON RESALTADO ---
+       # --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
+    with tabs[1]:
+        try:
+            # 1. Carga de Reservas
+            url_reserva = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
+            df_res = pd.read_csv(url_reserva, engine='python')
+            df_res.columns = df_res.columns.str.strip()
+
+            # Filtrar solo lo instruido (Columna H = índice 7)
+            df_res['Fecha_Inst_H'] = df_res.iloc[:, 7].astype(str).str.strip()
+            df_g = df_res[df_res['Fecha_Inst_H'].apply(lambda x: len(str(x)) > 4)].copy()
+
+            # --- CÁLCULO DE PORCENTAJES PARA BOTONES ---
+            total_gestion = len(df_g) if len(df_g) > 0 else 1
+            
+            # Booking in Advance (Columna I = índice 8)
+            cant_adv = len(df_g[df_g.iloc[:, 8].astype(str).str.strip() == "Booked in Advance"])
+            cant_spot = len(df_g[df_g.iloc[:, 8].astype(str).str.strip() == "No Booked in Advance"])
+            
+            # Avion / Courier (Columna F = índice 5)
+            cant_avion = len(df_g[df_g.iloc[:, 5].astype(str).str.upper().str.contains("AVION|COURIER|COURRIER", na=False)])
+            
+            p_adv = int(round((cant_adv / total_gestion) * 100))
+            p_spot = int(round((cant_spot / total_gestion) * 100))
+            p_avion = int(round((cant_avion / total_gestion) * 100))
+
+            # --- BLOQUE 1: KPIs GRANDES (90px) ---
+            st.markdown("<br>", unsafe_allow_html=True)
+            k1, k2, k3 = st.columns(3)
+            with k1: st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>SO INSTRUIDAS</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(len(df_g))}</p></div>", unsafe_allow_html=True)
+            with k2: 
+                # Asumimos que M3 está en la columna índice 47, ajustalo si es otra
+                m3_res = pd.to_numeric(df_g.iloc[:, 47].astype(str).str.replace(r'[^0-9.]', '', regex=True), errors='coerce').sum()
+                st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>VOLUMEN (M3)</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(round(m3_res)):,}</p></div>", unsafe_allow_html=True)
+            with k3: 
+                prov_res = df_g.iloc[:, 3].nunique()
+                st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>PROVEEDORES</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(prov_res)}</p></div>", unsafe_allow_html=True)
+
+            st.markdown("<br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
+
+            # --- BLOQUE 2: BOTONES DE FILTRADO (Versión Simple) ---
             r1, r2, r3, r4, r5 = st.columns(5)
-            filtro_reserva = st.session_state.get('f_res')
+            
+            if r1.button(f"BOOKING IN \n ADVANCE {p_adv}%", key="btn_adv_r", use_container_width=True):
+                st.session_state.f_res = 'adv' if st.session_state.get('f_res') != 'adv' else None
+            if r2.button(f"BOOKING \n SPOT {p_spot}%", key="btn_spot_r", use_container_width=True):
+                st.session_state.f_res = 'spot' if st.session_state.get('f_res') != 'spot' else None
+            if r3.button(f"AVION / \n COURIER {p_avion}%", key="btn_avi_r", use_container_width=True):
+                st.session_state.f_res = 'avi' if st.session_state.get('f_res') != 'avi' else None
+            if r4.button("TOP 100 \n RANKING", key="btn_rank_res", use_container_width=True):
+                st.session_state.f_res = 'rank_r' if st.session_state.get('f_res') != 'rank_r' else None
+            if r5.button("ANALISIS \n ESTRUCTURA", key="btn_estr_res", use_container_width=True):
+                st.session_state.f_res = 'estr_r' if st.session_state.get('f_res') != 'estr_r' else None
 
-            def get_res_btn_style(target):
-                if filtro_reserva == target:
-                    return "border: 2px solid #00a8ff; background: rgba(0, 168, 255, 0.1);"
-                return "border: 1px solid #1e293b; background: transparent;"
-
-            with r1:
-                st.markdown(f"<div style='{get_res_btn_style('adv')} border-radius:5px;'>", unsafe_allow_html=True)
-                if st.button(f"BOOKING IN \n ADVANCE {p_adv}%", key="btn_adv_r", use_container_width=True):
-                    st.session_state.f_res = 'adv' if filtro_reserva != 'adv' else None
-                    st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
-
-            with r2:
-                st.markdown(f"<div style='{get_res_btn_style('spot')} border-radius:5px;'>", unsafe_allow_html=True)
-                if st.button(f"BOOKING \n SPOT {p_spot}%", key="btn_spot_r", use_container_width=True):
-                    st.session_state.f_res = 'spot' if filtro_reserva != 'spot' else None
-                    st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
-
-            with r3:
-                st.markdown(f"<div style='{get_res_btn_style('avi')} border-radius:5px;'>", unsafe_allow_html=True)
-                if st.button(f"AVION / \n COURIER {p_avion}%", key="btn_avi_r", use_container_width=True):
-                    st.session_state.f_res = 'avi' if filtro_reserva != 'avi' else None
-                    st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
-
-            with r4:
-                st.markdown(f"<div style='{get_res_btn_style('rank_r')} border-radius:5px;'>", unsafe_allow_html=True)
-                if st.button("TOP 100 \n RANKING", key="btn_rank_res", use_container_width=True):
-                    st.session_state.f_res = 'rank_r' if filtro_reserva != 'rank_r' else None
-                    st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
-
-            with r5:
-                st.markdown(f"<div style='{get_res_btn_style('estr_r')} border-radius:5px;'>", unsafe_allow_html=True)
-                if st.button("ANALISIS \n ESTRUCTURA", key="btn_estr_res", use_container_width=True):
-                    st.session_state.f_res = 'estr_r' if filtro_reserva != 'estr_r' else None
-                    st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
+            # --- BLOQUE 3: DESPLIEGUE DE INFORMACIÓN ---
+            f_res = st.session_state.get('f_res')
+            if f_res:
+                st.markdown("<br>", unsafe_allow_html=True)
+                # Aquí irían tus tablas de detalle para Reservas (df_g filtrado)
+                if f_res == 'adv':
+                    df_det = df_g[df_g.iloc[:, 8].astype(str).str.strip() == "Booked in Advance"]
+                    st.dataframe(df_det, use_container_width=True)
+                # ... resto de los elifs ...
 
         except Exception as e:
             st.error(f"Error en Gestión de Reservas: {e}")
-
             # --- BLOQUE 3: MARITIMO VS AEREO ---
             def clasificar_transporte(x):
                 x = str(x).upper()
