@@ -30,7 +30,7 @@ st.markdown("""
 
     .stButton>button {
         border-radius: 15px !important; color: white !important;
-        width: 100%; height: 120px; font-weight: 800 !important; font-size: 20px !important;
+        width: 100%; height: 120px; font-weight: 800 !important; font-size: 18px !important;
         background: rgba(255, 255, 255, 0.03) !important; border: 1px solid rgba(255, 255, 255, 0.1) !important;
     }
     .stButton>button:hover { background-color: #003366 !important; border-color: #00a8ff !important; }
@@ -80,8 +80,8 @@ try:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # --- BLOQUE 2: BOTONES ---
-        _, b1_col, b2_col, _ = st.columns([0.5, 2, 2, 0.5])
+        # --- BLOQUE 2: BOTONES (DISTRIBUIDOS EN 3) ---
+        b1_col, b2_col, b3_col = st.columns(3)
         df['Es_Instruido'] = df['Fecha de Instruccion'].notna() & (df['Fecha de Instruccion'].astype(str).str.upper() != 'SIN INSTRUCCION')
         instruidos_m3 = df[df['Es_Instruido'] == True]['M3 Total'].sum()
         perc_instruido = (instruidos_m3 / m3_totales * 100) if m3_totales > 0 else 0
@@ -93,13 +93,25 @@ try:
         with b2_col:
             if st.button(f"PENDIENTE INSTRUCCIÓN {int(perc_pendiente)}%"):
                 st.session_state.filtro = None if st.session_state.get('filtro') == 'pendiente' else 'pendiente'
+        with b3_col:
+            if st.button("🔥 PRODUCTOS TOP RANKING (1-100)"):
+                st.session_state.filtro = None if st.session_state.get('filtro') == 'ranking' else 'ranking'
 
         if st.session_state.get('filtro'):
             st.markdown("---")
             if st.session_state.filtro == "instruido":
                 st.dataframe(df[df['Es_Instruido'] == True][['SO', 'Pais Destino', 'M3 Total', 'Fecha de Instruccion']], use_container_width=True)
-            else:
+            elif st.session_state.filtro == "pendiente":
                 st.dataframe(df[df['Es_Instruido'] == False][['SO', 'Pais Destino', 'M3 Total', 'Status Pago']], use_container_width=True)
+            elif st.session_state.filtro == "ranking":
+                # Lógica de Ranking: Columna B (índice 1), filtrar 1 a 100
+                col_ranking = df.columns[1]
+                df[col_ranking] = pd.to_numeric(df[col_ranking], errors='coerce')
+                # Filtramos y ordenamos
+                df_ranking = df[(df[col_ranking] >= 1) & (df[col_ranking] <= 100)].sort_values(by=col_ranking)
+                # Seleccionamos columnas: SO (A), Ranking (B), Fecha Prioritaria (CV), M3 Total, Monoproveedor (CP)
+                columnas_ranking = ['SO', col_ranking, df.columns[99], 'M3 Total', df.columns[93]]
+                st.dataframe(df_ranking[columnas_ranking], use_container_width=True)
 
         st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
 
@@ -114,21 +126,16 @@ try:
 
         st.markdown("<br><br>", unsafe_allow_html=True)
 
-        # --- BLOQUE 4: GRÁFICOS (Ajuste de Altura y Etiquetas) ---
-        g1, g2, g3 = st.columns([1.2, 1, 1]) # Damos un poco más de ancho a Puertos
+        # --- BLOQUE 4: GRÁFICOS ---
+        g1, g2, g3 = st.columns([1.2, 1, 1])
 
         with g1:
             st.markdown("<p class='chart-title'>Distribución por Puerto</p>", unsafe_allow_html=True)
             col_puerto = 'Puerto de Salida' if 'Puerto de Salida' in df.columns else df.columns[41]
             df[col_puerto] = df[col_puerto].fillna('SIN DEFINIR')
             p_df = df.groupby(col_puerto).agg({'M3 Total': 'sum'}).reset_index().sort_values(by='M3 Total')
-            
-            fig_p = px.bar(p_df, y=col_puerto, x='M3 Total', orientation='h', 
-                           text_auto=',.0f', # Muestra números
-                           color_discrete_sequence=['#00a8ff'], template='plotly_dark')
-            
-            fig_p.update_layout(xaxis_title=None, yaxis_title=None, paper_bgcolor='rgba(0,0,0,0)', 
-                                plot_bgcolor='rgba(0,0,0,0)', height=500) # ALTURA AUMENTADA
+            fig_p = px.bar(p_df, y=col_puerto, x='M3 Total', orientation='h', text_auto=',.0f', color_discrete_sequence=['#00a8ff'], template='plotly_dark')
+            fig_p.update_layout(xaxis_title=None, yaxis_title=None, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=500)
             fig_p.update_traces(textposition='outside', textfont_size=14)
             st.plotly_chart(fig_p, use_container_width=True)
 
