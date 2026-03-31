@@ -191,7 +191,7 @@ try:
             df_res['Fecha_Inst_H'] = df_res.iloc[:, 7].astype(str).str.strip()
             df_g = df_res[df_res['Fecha_Inst_H'].apply(lambda x: len(str(x)) > 4)].copy()
 
-            # --- BLOQUE 1: KPIs MASIVOS (Consistentes con Origen) ---
+            # --- BLOQUE 1: KPIs MASIVOS ---
             st.markdown("<br>", unsafe_allow_html=True)
             k1, k2, k3 = st.columns(3)
             with k1: st.markdown(f"<div class='metric-container'><p class='label-massive' style='font-weight:700;'>SO INSTRUIDAS</p><p class='value-massive' style='font-weight:300;'>{int(len(df_inst))}</p></div>", unsafe_allow_html=True)
@@ -200,7 +200,7 @@ try:
 
             st.markdown("<br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
 
-            # --- BLOQUE 2: PERFORMANCE GLOBAL (Centralizado) ---
+            # --- BLOQUE 2: PERFORMANCE GLOBAL ---
             df_g['ETD_Status_K'] = df_g.iloc[:, 10].astype(str).str.upper().str.strip()
             confirmados_glob = len(df_g[df_g['ETD_Status_K'] == "OK"])
             pendientes_glob = len(df_g) - confirmados_glob
@@ -249,23 +249,21 @@ try:
 
             st.markdown("<br>", unsafe_allow_html=True)
 
-            # --- BLOQUE 4: BOOKING IN ADVANCE (BOTÓN CONSISTENTE) ---
+            # --- BLOQUE 4: BOOKING IN ADVANCE (LÓGICA ACTUALIZADA) ---
             df_mar = df_g[df_g['Transporte'] == "MARITIMO"].copy()
-            
-            # Botón con el mismo formato que la solapa Origen
             c_btn, _ = st.columns([1.5, 2])
             with c_btn:
                 btn_adv = st.button("BOOKING IN ADVANCE - Análisis Marítimo", key="btn_adv_mar", use_container_width=True)
 
             if btn_adv or st.session_state.get('show_adv'):
-                st.session_state.show_adv = True # Para que se mantenga abierto al interactuar
+                st.session_state.show_adv = True 
                 
-                # Limpieza de datos numéricos para Columnas B(1), AD(29), V(21)
                 for col_idx in [1, 29, 21]:
                     df_mar.iloc[:, col_idx] = pd.to_numeric(df_mar.iloc[:, col_idx].astype(str).str.replace(r'[^0-9.]', '', regex=True), errors='coerce').fillna(0)
 
-                mask_adv = df_mar.iloc[:, 8].astype(str).str.upper().str.strip() == "SI"
-                grupos = [("BOOKED IN ADVANCE", df_mar[mask_adv]), ("NO BOOKED / SPOT", df_mar[~mask_adv])]
+                # FILTRO POR TEXTO EXACTO (Columna I - Índice 8)
+                mask_adv = df_mar.iloc[:, 8].astype(str).str.strip() == "Booked in Advance"
+                grupos = [("Booked in Advance", df_mar[mask_adv]), ("No Booked in Advance", df_mar[~mask_adv])]
                 total_mar = len(df_mar) if len(df_mar) > 0 else 1
 
                 st.markdown("<br>", unsafe_allow_html=True)
@@ -281,7 +279,7 @@ try:
                         color_box = "#00a8ff" if i == 0 else "#8899A6"
                         st.markdown(f"""
                             <div style="background: rgba(255,255,255,0.02); padding: 25px; border-radius: 10px; border-left: 5px solid {color_box};">
-                                <p style="font-weight:700; color:{color_box}; margin-bottom:15px; font-size:14px; letter-spacing:1px;">{titulo} ({pct_rel}%)</p>
+                                <p style="font-weight:700; color:{color_box}; margin-bottom:15px; font-size:14px; letter-spacing:1px;">{titulo.upper()} ({pct_rel}%)</p>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                                     <div><p style="font-size:11px; color:#8899A6; margin:0;">EMBARQUES</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{cant_emb}</p></div>
                                     <div><p style="font-size:11px; color:#8899A6; margin:0;">CONTENEDORES</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{int(cant_cont)}</p></div>
