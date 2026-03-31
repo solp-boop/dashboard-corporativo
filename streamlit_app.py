@@ -179,20 +179,21 @@ try:
             fig_a.update_layout(yaxis_visible=False, xaxis_title=None, height=450)
             st.plotly_chart(fig_a, use_container_width=True)
 
- # --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
+# --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
     with tabs[1]:
         try:
-            # 1. Carga y Filtro
+            # 1. Carga y Filtro de Reservas
             url_reserva = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
             df_reserva = pd.read_csv(url_reserva)
             df_reserva.columns = df_reserva.columns.str.strip()
 
+            # Filtrar solo lo que tiene instrucción (Columna H tiene fecha)
             df_reserva['Fecha_Inst_H'] = df_reserva.iloc[:, 7].astype(str).str.strip()
             df_gestion = df_reserva[df_reserva['Fecha_Inst_H'].apply(lambda x: len(str(x)) > 4)].copy()
 
             st.markdown("<h1 style='text-align: center; color: #ffffff; font-weight: 900;'>CONTROL DE GESTIÓN DE RESERVAS</h1>", unsafe_allow_html=True)
             
-            # --- KPIs SUPERIORES (Blindados) ---
+            # --- KPIs SUPERIORES (Se mantienen igual) ---
             k1, k2, k3 = st.columns(3)
             with k1: st.markdown(f"<div class='metric-container'><p class='label-massive'>SO INSTRUIDAS</p><p class='value-massive'>{int(len(df_inst))}</p></div>", unsafe_allow_html=True)
             with k2: st.markdown(f"<div class='metric-container'><p class='label-massive'>VOLUMEN (M3)</p><p class='value-massive'>{int(df_inst['M3 Total'].sum()):,}</p></div>", unsafe_allow_html=True)
@@ -200,7 +201,7 @@ try:
 
             st.markdown("<br><p style='text-align:center; color:#00a8ff; font-weight:800; letter-spacing:2px; font-size:14px;'>DESGLOSE POR TIPO DE TRANSPORTE</p>", unsafe_allow_html=True)
 
-            # --- LÓGICA DE CLASIFICACIÓN ---
+            # --- LÓGICA DE CLASIFICACIÓN Y SEMÁFORO ---
             def clasificar_transporte(x):
                 x = str(x).upper()
                 if any(m in x for m in ["40 HQ", "40 ST", "20 ST", "40NOR"]): return "MARITIMO"
@@ -210,7 +211,6 @@ try:
             df_gestion['Transporte'] = df_gestion.iloc[:, 5].apply(clasificar_transporte) # Columna F
             df_gestion['ETD_Status_K'] = df_gestion.iloc[:, 10].astype(str).str.upper().str.strip() # Columna K
 
-            # --- SECCIÓN TIPO DE ENVÍO (DISEÑO SOLICITADO) ---
             t1, t2 = st.columns(2)
             
             for i, tipo in enumerate(["MARITIMO", "AVION / COURIER"]):
@@ -219,35 +219,49 @@ try:
                 ok_t = len(df_tipo[df_tipo['ETD_Status_K'] == "OK"])
                 pend_t = total_t - ok_t
                 
+                # Cálculo de porcentaje de efectividad
+                pct_ok = round((ok_t / total_t * 100)) if total_t > 0 else 0
+                
+                # Lógica de Color y Flecha
+                if ok_t >= pend_t and total_t > 0:
+                    color_status = "#00ff88" # Verde
+                    flecha = "▲"
+                else:
+                    color_status = "#ff4b4b" # Rojo
+                    flecha = "▼"
+                
                 with [t1, t2][i]:
                     st.markdown(f"""
-                        <div style="background: #040911; padding: 20px; border-radius: 10px; border: 1px solid #1e293b; min-height: 120px;">
-                            <p style="color: #00a8ff; font-weight: 700; margin-bottom: 15px; font-size: 18px; letter-spacing: 0.5px;">{tipo}</p>
-                            <p style="font-size: 24px; font-weight: 800; color: #ffffff; margin-bottom: 5px;">Total: {total_t}</p>
-                            <p style="font-size: 11px; color: #94a3b8; font-weight: 500;">
-                                ETD OK: {ok_t} | Pendientes: {pend_t}
+                        <div style="background: #040911; padding: 20px; border-radius: 10px; border: 1px solid #1e293b; min-height: 140px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <p style="color: #00a8ff; font-weight: 700; margin: 0; font-size: 18px;">{tipo}</p>
+                                <p style="color: {color_status}; font-weight: 800; margin: 0; font-size: 20px;">{flecha} {pct_ok}%</p>
+                            </div>
+                            <p style="font-size: 28px; font-weight: 900; color: #ffffff; margin-top: 15px; margin-bottom: 5px;">Total: {total_t}</p>
+                            <p style="font-size: 12px; color: #94a3b8; font-weight: 500; margin: 0;">
+                                <span style="color: #00ff88;">Confirmados: {ok_t}</span> | 
+                                <span style="color: #ff4b4b;">Pendientes: {pend_t}</span>
                             </p>
                         </div>
                     """, unsafe_allow_html=True)
 
             st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
 
-            # --- PERFORMANCE GLOBAL (Métricas de abajo) ---
-            confirmados = len(df_gestion[df_gestion['ETD_Status_K'] == "OK"])
-            pendientes = len(df_gestion) - confirmados
-            p_ok = round((confirmados / len(df_gestion) * 100)) if len(df_gestion) > 0 else 0
+            # --- PERFORMANCE GLOBAL (Resumen inferior) ---
+            confirmados_glob = len(df_gestion[df_gestion['ETD_Status_K'] == "OK"])
+            pendientes_glob = len(df_gestion) - confirmados_glob
+            p_ok_glob = round((confirmados_glob / len(df_gestion) * 100)) if len(df_gestion) > 0 else 0
             
             m1, m2, m3, m4 = st.columns(4)
-            m1.metric("ETD OK (TOTAL)", f"{confirmados} Emb.")
-            m2.metric("SIN ETD OK (TOTAL)", f"{pendientes} Emb.")
-            m3.metric("% CONFIRMADO", f"{p_ok}%")
-            m4.metric("% PENDIENTE", f"{100-p_ok}%")
+            m1.metric("ETD OK (TOTAL)", f"{confirmados_glob} Emb.")
+            m2.metric("PENDIENTES (TOTAL)", f"{pendientes_glob} Emb.")
+            m3.metric("% EFECTIVIDAD", f"{p_ok_glob}%")
+            m4.metric("% PENDIENTE", f"{100 - p_ok_glob}%")
 
             st.markdown("<br>", unsafe_allow_html=True)
             st.dataframe(df_gestion.drop(columns=['Transporte', 'ETD_Status_K', 'Fecha_Inst_H']), use_container_width=True, height=400)
 
         except Exception as e:
-            st.error(f"Error en Gestión: {e}")
-
+            st.error(f"Error en Gestión de Reservas: {e}")
 except Exception as e:
     st.error(f"Error crítico: {e}")
