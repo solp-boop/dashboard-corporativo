@@ -199,4 +199,4 @@ try:
             st.plotly_chart(fig_a, use_container_width=True)
 
 except Exception as e:
-    st.error(f"Error: {e}")}")
+    st.error(f"Error: {e}")
