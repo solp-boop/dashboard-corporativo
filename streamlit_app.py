@@ -203,17 +203,49 @@ try:
 
             st.markdown("<br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
 
-            # --- BLOQUE 2: PERFORMANCE GLOBAL (CENTRALIZADO Y MÁS PEQUEÑO QUE EL BLOQUE 1) ---
-            df_gestion['ETD_Status_K'] = df_gestion.iloc[:, 10].astype(str).str.upper().str.strip() # Columna K
+            # --- NUEVA SECCIÓN: BOOKING IN ADVANCE (BOTÓN MARÍTIMO) ---
+            # Identificamos solo Marítimos para este botón (Columna F)
+            def es_maritimo(x):
+                x = str(x).upper()
+                return any(m in x for m in ["40 HQ", "40 ST", "20 ST", "40NOR"])
+            
+            df_mar = df_gestion[df_gestion.iloc[:, 5].apply(es_maritimo)].copy()
+            
+            col_btn, _ = st.columns([1, 2])
+            with col_btn:
+                btn_advance = st.button("BOOKING IN ADVANCE - Embarques Marítimos", key="btn_advance", use_container_width=True)
+
+            if btn_advance:
+                # Procesamiento de métricas específicas
+                # Columna I: Booking in Advance | Columna B: Cant Contenedores | Columna AD: Tiempo Consolidación | Columna V: FOB
+                df_advance = df_mar[df_mar.iloc[:, 8].astype(str).str.upper().str.contains("SI", na=False)]
+                
+                cant_emb = len(df_advance)
+                cant_cont = pd.to_numeric(df_advance.iloc[:, 1], errors='coerce').sum()
+                prom_cons = round(pd.to_numeric(df_advance.iloc[:, 29], errors='coerce').mean(), 1)
+                fob_total = pd.to_numeric(df_advance.iloc[:, 21], errors='coerce').sum()
+
+                st.markdown(f"""
+                    <div style="background: rgba(0, 168, 255, 0.05); padding: 30px; border-radius: 15px; border: 1px solid #00a8ff; margin-bottom: 25px;">
+                        <h3 style="color: #00a8ff; font-weight: 700; margin-top: 0;">Detalle: Booking In Advance</h3>
+                        <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 20px;">
+                            <div><p style="font-weight:700; font-size:12px; margin:0; color:#8899A6;">CANT. EMBARQUES</p><p style="font-weight:300; font-size:32px; margin:0; color:#ffffff;">{cant_emb}</p></div>
+                            <div><p style="font-weight:700; font-size:12px; margin:0; color:#8899A6;">CANT. CONTENEDORES</p><p style="font-weight:300; font-size:32px; margin:0; color:#ffffff;">{int(cant_cont)}</p></div>
+                            <div><p style="font-weight:700; font-size:12px; margin:0; color:#8899A6;">PROM. CONSOLIDACIÓN</p><p style="font-weight:300; font-size:32px; margin:0; color:#ffffff;">{prom_cons} Días</p></div>
+                            <div><p style="font-weight:700; font-size:12px; margin:0; color:#8899A6;">FOB SIMI TOTAL</p><p style="font-weight:300; font-size:32px; margin:0; color:#ffffff;">USD {fob_total:,.0f}</p></div>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+            # --- BLOQUE 2: PERFORMANCE GLOBAL (CENTRALIZADO) ---
+            df_gestion['ETD_Status_K'] = df_gestion.iloc[:, 10].astype(str).str.upper().str.strip()
             confirmados_glob = len(df_gestion[df_gestion['ETD_Status_K'] == "OK"])
             pendientes_glob = len(df_gestion) - confirmados_glob
             p_ok_glob = round((confirmados_glob / len(df_gestion) * 100)) if len(df_gestion) > 0 else 0
             
-            # Usamos columnas con espacio a los costados para centralizar
             _, c_mid, _ = st.columns([0.1, 1, 0.1])
             with c_mid:
                 m1, m2, m3, m4 = st.columns(4)
-                # Títulos en negrita (700), Valores en Light (300)
                 m1.markdown(f"<div style='text-align:center;'><p style='font-weight:700; font-size:14px; margin:0;'>ETD OK (TOTAL)</p><p style='font-weight:300; font-size:32px; margin:0;'>{confirmados_glob} Emb.</p></div>", unsafe_allow_html=True)
                 m2.markdown(f"<div style='text-align:center;'><p style='font-weight:700; font-size:14px; margin:0;'>PENDIENTES (TOTAL)</p><p style='font-weight:300; font-size:32px; margin:0;'>{pendientes_glob} Emb.</p></div>", unsafe_allow_html=True)
                 m3.markdown(f"<div style='text-align:center;'><p style='font-weight:700; font-size:14px; margin:0;'>% EFECTIVIDAD</p><p style='font-weight:300; font-size:32px; margin:0;'>{p_ok_glob}%</p></div>", unsafe_allow_html=True)
