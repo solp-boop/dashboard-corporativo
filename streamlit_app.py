@@ -182,18 +182,31 @@ try:
 # --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
     with tabs[1]:
         try:
-            # 1. Carga y Filtro de Reservas
+            # 1. Carga y Filtro de Reservas (GID 276804813)
             url_reserva = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
             df_reserva = pd.read_csv(url_reserva)
             df_reserva.columns = df_reserva.columns.str.strip()
 
-            # Filtrar solo lo que tiene instrucción (Columna H)
+            # Filtramos solo lo instruido (Columna H)
             df_reserva['Fecha_Inst_H'] = df_reserva.iloc[:, 7].astype(str).str.strip()
             df_gestion = df_reserva[df_reserva['Fecha_Inst_H'].apply(lambda x: len(str(x)) > 4)].copy()
 
-            st.markdown("<h1 style='text-align: center; color: #ffffff; font-weight: 300;'>CONTROL DE GESTIÓN DE RESERVAS</h1>", unsafe_allow_html=True)
+            # --- BLOQUE DE PERFORMANCE GLOBAL (ARRIBA DE TODO Y CENTRADO) ---
+            df_gestion['ETD_Status_K'] = df_gestion.iloc[:, 10].astype(str).str.upper().str.strip() # Columna K
+            confirmados_glob = len(df_gestion[df_gestion['ETD_Status_K'] == "OK"])
+            pendientes_glob = len(df_gestion) - confirmados_glob
+            p_ok_glob = round((confirmados_glob / len(df_gestion) * 100)) if len(df_gestion) > 0 else 0
             
-            # --- KPIs SUPERIORES ---
+            st.markdown("<br>", unsafe_allow_html=True)
+            m1, m2, m3, m4 = st.columns(4)
+            with m1: st.metric("ETD OK (TOTAL)", f"{confirmados_glob} Emb.")
+            with m2: st.metric("PENDIENTES (TOTAL)", f"{pendientes_glob} Emb.")
+            with m3: st.metric("% EFECTIVIDAD", f"{p_ok_glob}%")
+            with m4: st.metric("% PENDIENTE", f"{100 - p_ok_glob}%")
+
+            st.markdown("<br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
+
+            # --- KPIs DE VOLUMEN E INSTRUIDOS ---
             k1, k2, k3 = st.columns(3)
             with k1: st.markdown(f"<div class='metric-container'><p class='label-massive' style='font-weight:400;'>SO INSTRUIDAS</p><p class='value-massive' style='font-weight:300;'>{int(len(df_inst))}</p></div>", unsafe_allow_html=True)
             with k2: st.markdown(f"<div class='metric-container'><p class='label-massive' style='font-weight:400;'>VOLUMEN (M3)</p><p class='value-massive' style='font-weight:300;'>{int(df_inst['M3 Total'].sum()):,}</p></div>", unsafe_allow_html=True)
@@ -201,7 +214,7 @@ try:
 
             st.markdown("<br><p style='text-align:center; color:#00a8ff; font-weight:300; letter-spacing:2px; font-size:14px;'>DESGLOSE POR TIPO DE TRANSPORTE</p>", unsafe_allow_html=True)
 
-            # --- LÓGICA DE CLASIFICACIÓN ---
+            # --- LÓGICA DE CLASIFICACIÓN DE TRANSPORTE ---
             def clasificar_transporte(x):
                 x = str(x).upper()
                 if any(m in x for m in ["40 HQ", "40 ST", "20 ST", "40NOR"]): return "MARITIMO"
@@ -209,7 +222,6 @@ try:
                 return "OTROS"
 
             df_gestion['Transporte'] = df_gestion.iloc[:, 5].apply(clasificar_transporte) # Columna F
-            df_gestion['ETD_Status_K'] = df_gestion.iloc[:, 10].astype(str).str.upper().str.strip() # Columna K
 
             t1, t2 = st.columns(2)
             
@@ -219,11 +231,9 @@ try:
                 ok_t = len(df_tipo[df_tipo['ETD_Status_K'] == "OK"])
                 pend_t = total_t - ok_t
                 
-                # Cálculo de porcentajes
                 pct_ok = round((ok_t / total_t * 100)) if total_t > 0 else 0
                 pct_pend = 100 - pct_ok if total_t > 0 else 0
                 
-                # Color y Flecha dinámicos
                 color_status = "#00ff88" if ok_t >= pend_t and total_t > 0 else "#ff4b4b"
                 flecha = "▲" if ok_t >= pend_t else "▼"
                 
@@ -244,19 +254,6 @@ try:
                             </p>
                         </div>
                     """, unsafe_allow_html=True)
-
-            st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
-
-            # --- PERFORMANCE GLOBAL ---
-            confirmados_glob = len(df_gestion[df_gestion['ETD_Status_K'] == "OK"])
-            pendientes_glob = len(df_gestion) - confirmados_glob
-            p_ok_glob = round((confirmados_glob / len(df_gestion) * 100)) if len(df_gestion) > 0 else 0
-            
-            m1, m2, m3, m4 = st.columns(4)
-            m1.metric("ETD OK (TOTAL)", f"{confirmados_glob} Emb.")
-            m2.metric("PENDIENTES (TOTAL)", f"{pendientes_glob} Emb.")
-            m3.metric("% EFECTIVIDAD", f"{p_ok_glob}%")
-            m4.metric("% PENDIENTE", f"{100 - p_ok_glob}%")
 
             st.markdown("<br>", unsafe_allow_html=True)
             st.dataframe(df_gestion.drop(columns=['Transporte', 'ETD_Status_K', 'Fecha_Inst_H']), use_container_width=True, height=400)
