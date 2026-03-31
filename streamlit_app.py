@@ -286,30 +286,66 @@ try:
             st.markdown("<hr style='margin:0; border: none; border-top: 2px solid #ffffff; opacity:0.8;'>", unsafe_allow_html=True)
             st.markdown("<br><br>", unsafe_allow_html=True)
 
-            # --- BLOQUE 5: GRÁFICOS DE PROYECCIÓN Y SALIDA ---
-            g1, g2, g3 = st.columns([1.2, 1, 1])
+      # --- BLOQUE 5: GRÁFICOS DE PROYECCIÓN Y SALIDA (FORMATO MAXIMIZADO Y CENTRADO) ---
+            st.markdown("<br><br>", unsafe_allow_html=True)
             
-            with g1:
-                st.markdown("<p style='color:#00a8ff; font-weight:700; margin-bottom:10px;'>SALIDA POR PUERTO (M3)</p>", unsafe_allow_html=True)
-                col_puerto = df.columns[41]
-                p_df = df.groupby(col_puerto).agg({'M3 Total': 'sum'}).reset_index().sort_values(by='M3 Total')
-                fig_p = px.bar(p_df, y=col_puerto, x='M3 Total', orientation='h', text_auto=',.0f', color_discrete_sequence=['#00a8ff'], template='plotly_dark')
-                fig_p.update_traces(textposition='outside', cliponaxis=False)
-                fig_p.update_layout(xaxis_visible=False, yaxis_title=None, height=400, margin=dict(l=20, r=60, t=10, b=10))
-                st.plotly_chart(fig_p, use_container_width=True)
+            # 1. Gráfico de Puertos (Ocupa todo el ancho arriba)
+            st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:16px; text-align:center; letter-spacing:1px; margin-bottom:15px;'>DISTRIBUCIÓN POR PUERTO DE SALIDA (M3)</p>", unsafe_allow_html=True)
+            col_puerto = df.columns[41]
+            p_df = df.groupby(col_puerto).agg({'M3 Total': 'sum'}).reset_index().sort_values(by='M3 Total')
             
-            with g2:
-                st.markdown("<p style='color:#00ff88; font-weight:700; margin-bottom:10px;'>PROYECCIÓN ETD (MENSUAL)</p>", unsafe_allow_html=True)
+            fig_p = px.bar(p_df, y=col_puerto, x='M3 Total', orientation='h', 
+                           text_auto=',.0f', color_discrete_sequence=['#00a8ff'], template='plotly_dark')
+            fig_p.update_traces(textposition='outside', cliponaxis=False, textfont_size=14, textfont_color="white")
+            fig_p.update_layout(
+                xaxis_visible=False, 
+                yaxis_title=None, 
+                height=500, 
+                margin=dict(l=150, r=100, t=20, b=20),
+                font=dict(size=13),
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)'
+            )
+            st.plotly_chart(fig_p, use_container_width=True)
+
+            st.markdown("<br><br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
+
+            # 2. Proyecciones en 2 Columnas con SEPARADOR central
+            # El [1, 0.2, 1] crea una columna del 20% de ancho vacía en el medio para separar
+            ga, g_sep, gb = st.columns([1, 0.2, 1])
+            
+            with ga:
+                st.markdown("<p style='color:#00ff88; font-weight:700; font-size:15px; text-align:center; margin-bottom:15px;'>PROYECCIÓN MENSUAL ETD</p>", unsafe_allow_html=True)
                 etd_p = df.groupby('Mes_ETD_Full').agg({'M3 Total': 'sum'}).reset_index()
-                fig_e = px.bar(etd_p, x='Mes_ETD_Full', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#00ff88'], template='plotly_dark')
-                fig_e.update_layout(yaxis_visible=False, xaxis_title=None, height=400, margin=dict(l=10, r=10, t=10, b=10))
+                fig_e = px.bar(etd_p, x='Mes_ETD_Full', y='M3 Total', text_auto=',.0f', 
+                               color_discrete_sequence=['#00ff88'], template='plotly_dark')
+                fig_e.update_traces(textfont_size=14, textposition='outside', textfont_color="white")
+                fig_e.update_layout(
+                    yaxis_visible=False, 
+                    xaxis_title=None, 
+                    height=450, 
+                    margin=dict(l=20, r=20, t=40, b=20),
+                    font=dict(size=12),
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)'
+                )
                 st.plotly_chart(fig_e, use_container_width=True)
             
-            with g3:
-                st.markdown("<p style='color:#ff4b4b; font-weight:700; margin-bottom:10px;'>PROYECCIÓN ETA (MENSUAL)</p>", unsafe_allow_html=True)
+            with gb:
+                st.markdown("<p style='color:#ff4b4b; font-weight:700; font-size:15px; text-align:center; margin-bottom:15px;'>PROYECCIÓN MENSUAL ETA</p>", unsafe_allow_html=True)
                 eta_p = df.groupby('Mes_ETA_Full', observed=True).agg({'M3 Total': 'sum'}).reset_index()
-                fig_a = px.bar(eta_p, x='Mes_ETA_Full', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#ff4b4b'], template='plotly_dark')
-                fig_a.update_layout(yaxis_visible=False, xaxis_title=None, height=400, margin=dict(l=10, r=10, t=10, b=10))
+                fig_a = px.bar(eta_p, x='Mes_ETA_Full', y='M3 Total', text_auto=',.0f', 
+                               color_discrete_sequence=['#ff4b4b'], template='plotly_dark')
+                fig_a.update_traces(textfont_size=14, textposition='outside', textfont_color="white")
+                fig_a.update_layout(
+                    yaxis_visible=False, 
+                    xaxis_title=None, 
+                    height=450, 
+                    margin=dict(l=20, r=20, t=40, b=20),
+                    font=dict(size=12),
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)'
+                )
                 st.plotly_chart(fig_a, use_container_width=True)
 
         except Exception as e:
