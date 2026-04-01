@@ -505,87 +505,97 @@ try:
             df_h = pd.read_csv(url_hist, engine='python')
             df_h.columns = df_h.columns.str.strip()
 
-            # 2. FILTRADO CRÍTICO
-            # Convertimos ETD (Columna L - Indice 11) a datetime
+            # Diccionario para nombres de meses
+            nombres_meses = {
+                1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril", 5: "Mayo", 6: "Junio",
+                7: "Julio", 8: "Agosto", 9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
+            }
+
+            # 2. PROCESAMIENTO Y FILTRADO
+            # ETD: Columna L (Indice 11)
             df_h['ETD_DT'] = pd.to_datetime(df_h.iloc[:, 11], errors='coerce')
             
-            # Filtro 2026 y solo Marítimos (Basado en tu lógica de clasificación)
-            df_2026 = df_h[(df_h['ETD_DT'].dt.year == 2026)].copy()
-            
-            # Identificamos Marítimos por el nombre del contenedor/tipo (Columna F - Indice 5)
+            # Filtro Año 2026 y Solo Marítimos (Columna F - Indice 5)
             def es_maritimo(x):
                 x = str(x).upper()
                 return any(m in x for m in ["40 HQ", "40 ST", "20 ST", "40NOR", "MARITIMO"])
             
-            df_mar_2026 = df_2026[df_2026.iloc[:, 5].apply(es_maritimo)].copy()
+            df_ind = df_h[(df_h['ETD_DT'].dt.year == 2026) & (df_h.iloc[:, 5].apply(es_maritimo))].copy()
 
-            # 3. PROCESAMIENTO DE COLUMNAS (PROMEDIOS)
-            # Prom Comex: Indice 29 | Prom Agente: Indice 30 | Prom Total: Indice 31
-            # Tipo Carga (Mono/Consol): Indice 34
-            df_mar_2026['Mes'] = df_mar_2026['ETD_DT'].dt.month
-            df_mar_2026['Puerto'] = df_mar_2026.iloc[:, 13] # Columna N - Puerto de Salida
+            # Mapeo de columnas según tu pedido:
+            # Puerto: Col B (1) | SO: Col A (0) | Comex: AE (30) | Agente: AF (31) | Total: AG (32) | Mono: Y (24)
+            df_ind['Mes_Num'] = df_ind['ETD_DT'].dt.month
+            df_ind['Mes_Nombre'] = df_ind['Mes_Num'].map(nombres_meses)
+            df_ind['Puerto_Nombre'] = df_ind.iloc[:, 1]
             
-            # Limpieza de valores numéricos para promedios
-            for col_idx in [29, 30, 31]:
-                df_mar_2026.iloc[:, col_idx] = pd.to_numeric(df_mar_2026.iloc[:, col_idx], errors='coerce').fillna(0)
+            # Convertimos a numérico las columnas de tiempo
+            for i in [30, 31, 32]:
+                df_ind.iloc[:, i] = pd.to_numeric(df_ind.iloc[:, i].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
 
-            st.markdown("<br><p style='color:#00a8ff; font-weight:700; letter-spacing:2px; font-size:18px; text-align:center;'>PERFORMANCE DE CONSOLIDACIÓN 2026 (MARÍTIMO)</p>", unsafe_allow_html=True)
+            st.markdown("<br><p style='color:#00a8ff; font-weight:700; letter-spacing:2px; font-size:18px; text-align:center;'>INDICADORES DE CONSOLIDACIÓN - CICLO 2026</p>", unsafe_allow_html=True)
+
+            # 3. LÓGICA DE TABLA POR MES (RESUMEN)
+            res_mes = df_ind.groupby(['Mes_Num', 'Mes_Nombre']).agg({
+                df_ind.columns[0]: 'count',   # Cant. Emb (Col A)
+                df_ind.columns[30]: 'mean',    # Prom Comex (Col AE)
+                df_ind.columns[31]: 'mean',    # Prom Agente (Col AF)
+                df_ind.columns[32]: 'mean'     # Prom Total (Col AG)
+            }).reset_index().sort_values('Mes_Num')
+
+            # Encabezado de la Tabla Principal
             st.markdown("<br>", unsafe_allow_html=True)
-
-            # 4. TABLA RESUMEN POR MES (La que se ve abajo en tu imagen)
-            res_mes = df_mar_2026.groupby('Mes').agg({
-                'ETD_DT': 'count',
-                df_mar_2026.columns[29]: 'mean',
-                df_mar_2026.columns[30]: 'mean',
-                df_mar_2026.columns[31]: 'mean'
-            }).reset_index()
-
-            # Cálculo de % Mono/Consol
-            def calc_pct(m):
-                temp = df_mar_2026[df_mar_2026['Mes'] == m]
-                total = len(temp) if len(temp) > 0 else 1
-                mono = len(temp[temp.iloc[:, 34].astype(str).str.contains("Monoproveedor", case=False)])
-                return round((mono/total)*100), round(((total-mono)/total)*100)
-
-            # Encabezado Estilo Bidcom
-            h1, h2, h3, h4, h5, h6, h7 = st.columns([0.6, 1, 1, 1, 1, 1, 1.2])
-            cols_txt = ["MES", "CANT. EMB", "PROM. COMEX", "PROM. AGENTE", "PROM. TOTAL", "% MONO", "% CONSOL"]
+            h1, h2, h3, h4, h5, h6, h7 = st.columns([1, 0.8, 1, 1, 1, 1, 1])
+            headers = ["MES", "CANT. EMB", "PROM. COMEX", "PROM. AGENTE", "PROM. TOTAL", "% MONO", "% CONSOL"]
             for i, col in enumerate([h1, h2, h3, h4, h5, h6, h7]):
-                col.markdown(f"<p style='color:#8899A6; font-size:11px; font-weight:700; text-align:center;'>{cols_txt[i]}</p>", unsafe_allow_html=True)
+                col.markdown(f"<p style='color:#8899A6; font-size:11px; font-weight:700; text-align:center;'>{headers[i]}</p>", unsafe_allow_html=True)
             st.markdown("<hr style='margin:0; border-top: 2px solid #ffffff;'>", unsafe_allow_html=True)
 
-            for index, row in res_mes.iterrows():
-                p_mono, p_consol = calc_pct(row['Mes'])
-                
-                # Crear el Expander para ver puertos
-                with st.expander(f"MES {int(row['Mes'])} - Ver detalle por Puertos"):
-                    # Agrupación por Puerto dentro del mes
-                    df_puerto = df_mar_2026[df_mar_2026['Mes'] == row['Mes']].groupby('Puerto').agg({
-                        'ETD_DT': 'count',
-                        df_mar_2026.columns[29]: 'mean',
-                        df_mar_2026.columns[30]: 'mean',
-                        df_mar_2026.columns[31]: 'mean'
-                    }).reset_index()
-                    
-                    st.dataframe(df_puerto.style.format({
-                        df_mar_2026.columns[29]: "{:.2f}",
-                        df_mar_2026.columns[30]: "{:.2f}",
-                        df_mar_2026.columns[31]: "{:.2f}"
-                    }), use_container_width=True)
+            for _, row in res_mes.iterrows():
+                # Cálculo de Mono vs Consol para el mes
+                df_mes_actual = df_ind[df_ind['Mes_Num'] == row['Mes_Num']]
+                total_m = len(df_mes_actual) if len(df_mes_actual) > 0 else 1
+                # Columna Y (24) para Monoproveedor
+                cant_mono = len(df_mes_actual[df_mes_actual.iloc[:, 24].astype(str).str.upper().str.contains("SI|MONOPROVEEDOR", na=False)])
+                p_mono = (cant_mono / total_m) * 100
+                p_consol = 100 - p_mono
 
-                # Fila de Totales del Mes (La que queda visible)
-                r1, r2, r3, r4, r5, r6, r7 = st.columns([0.6, 1, 1, 1, 1, 1, 1.2])
-                r1.markdown(f"<p style='text-align:center; font-weight:700;'>{int(row['Mes'])}</p>", unsafe_allow_html=True)
-                r2.markdown(f"<p style='text-align:center;'>{int(row['ETD_DT'])}</p>", unsafe_allow_html=True)
-                r3.markdown(f"<p style='text-align:center; color:#00ff88;'>{row.iloc[2]:.2f} d</p>", unsafe_allow_html=True)
-                r4.markdown(f"<p style='text-align:center; color:#00ff88;'>{row.iloc[3]:.2f} d</p>", unsafe_allow_html=True)
-                r5.markdown(f"<p style='text-align:center; color:#00a8ff; font-weight:700;'>{row.iloc[4]:.2f} d</p>", unsafe_allow_html=True)
-                r6.markdown(f"<p style='text-align:center;'>{p_mono}%</p>", unsafe_allow_html=True)
-                r7.markdown(f"<p style='text-align:center;'>{p_consol}%</p>", unsafe_allow_html=True)
+                # Fila de datos del mes con Expander
+                with st.expander(f"{row['Mes_Nombre'].upper()} - Detalle por Puerto"):
+                    # Detalle por Puerto dentro del expander
+                    df_p_mes = df_mes_actual.groupby('Puerto_Nombre').agg({
+                        df_ind.columns[0]: 'count',
+                        df_ind.columns[30]: 'mean',
+                        df_ind.columns[31]: 'mean',
+                        df_ind.columns[32]: 'mean'
+                    }).reset_index()
+                    st.dataframe(df_p_mes.style.format("{:.2f}", subset=[df_ind.columns[30], df_ind.columns[31], df_ind.columns[32]]), use_container_width=True)
+
+                r1, r2, r3, r4, r5, r6, r7 = st.columns([1, 0.8, 1, 1, 1, 1, 1])
+                r1.markdown(f"<p style='text-align:center; font-weight:700;'>{row['Mes_Nombre']}</p>", unsafe_allow_html=True)
+                r2.markdown(f"<p style='text-align:center;'>{int(row.iloc[2])}</p>", unsafe_allow_html=True)
+                r3.markdown(f"<p style='text-align:center;'>{row.iloc[3]:.2f}</p>", unsafe_allow_html=True)
+                r4.markdown(f"<p style='text-align:center;'>{row.iloc[4]:.2f}</p>", unsafe_allow_html=True)
+                r5.markdown(f"<p style='text-align:center; color:#00a8ff; font-weight:700;'>{row.iloc[5]:.2f}</p>", unsafe_allow_html=True)
+                r6.markdown(f"<p style='text-align:center;'>{p_mono:.1f}%</p>", unsafe_allow_html=True)
+                r7.markdown(f"<p style='text-align:center;'>{p_consol:.1f}%</p>", unsafe_allow_html=True)
                 st.markdown("<hr style='margin:0; opacity:0.1;'>", unsafe_allow_html=True)
+
+            # --- FILA DE TOTALES GENERALES ---
+            st.markdown("<br>", unsafe_allow_html=True)
+            t_total = len(df_ind) if len(df_ind) > 0 else 1
+            t_mono = len(df_ind[df_ind.iloc[:, 24].astype(str).str.upper().str.contains("SI|MONOPROVEEDOR", na=False)])
+            
+            f1, f2, f3, f4, f5, f6, f7 = st.columns([1, 0.8, 1, 1, 1, 1, 1])
+            f1.markdown("<p style='font-weight:900;'>TOTAL GENERAL</p>", unsafe_allow_html=True)
+            f2.markdown(f"<p style='text-align:center; font-weight:900;'>{len(df_ind)}</p>", unsafe_allow_html=True)
+            f3.markdown(f"<p style='text-align:center; font-weight:900;'>{df_ind.iloc[:, 30].mean():.2f}</p>", unsafe_allow_html=True)
+            f4.markdown(f"<p style='text-align:center; font-weight:900;'>{df_ind.iloc[:, 31].mean():.2f}</p>", unsafe_allow_html=True)
+            f5.markdown(f"<p style='text-align:center; color:#00a8ff; font-weight:900;'>{df_ind.iloc[:, 32].mean():.2f}</p>", unsafe_allow_html=True)
+            f6.markdown(f"<p style='text-align:center; font-weight:900;'>{(t_mono/t_total)*100:.1f}%</p>", unsafe_allow_html=True)
+            f7.markdown(f"<p style='text-align:center; font-weight:900;'>{100 - (t_mono/t_total)*100:.1f}%</p>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin:0; border-top: 2px solid #ffffff;'>", unsafe_allow_html=True)
 
         except Exception as e:
             st.error(f"Error en Indicadores: {e}")
-
 except Exception as e:
     st.error(f"Error crítico: {e}")
