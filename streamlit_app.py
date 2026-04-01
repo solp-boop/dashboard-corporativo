@@ -675,47 +675,5 @@ try:
             df_final = pd.concat([df_viz, t_mes], ignore_index=True)
             st.dataframe(df_final.style.format(precision=0), use_container_width=True, hide_index=True)
 
-        # 2. TABLA PRINCIPAL MONOPROVEEDOR
-        h1, h2, h3, h4, h5, h6 = st.columns([1, 1, 1, 1, 1.5, 0.5])
-        headers_m = ["MES", "EMBARQUES", "SLA META", "PROM. MES", "ESTADO SLA", "INFO"]
-        for i, col in enumerate([h1, h2, h3, h4, h5, h6]):
-            col.markdown(f"<p style='color:#8899A6; font-size:10px; font-weight:700; text-align:center;'>{headers_m[i]}</p>", unsafe_allow_html=True)
-        st.markdown("<hr style='margin:0; border-top: 2px solid #00ff88;'>", unsafe_allow_html=True)
-
-        res_mono = df_mono.groupby('Mes_Num').agg({
-            df_mono.columns[0]: 'count',
-            df_mono.columns[32]: 'mean'
-        }).reset_index().sort_values('Mes_Num')
-
-        for _, row in res_mono.iterrows():
-            m_idx = int(row['Mes_Num'])
-            df_modal_m = df_mono[df_mono['Mes_Num'] == m_idx]
-            
-            # Lógica de SLA Dinámico
-            meta_actual = 15 if m_idx <= 2 else 7
-            promedio_mes = row.iloc[2]
-            cumple = promedio_mes <= meta_actual
-            
-            color_status = "#00ff88" if cumple else "#ff4b4b"
-            txt_status = "DENTRO DE META" if cumple else "FUERA DE META"
-
-            r1, r2, r3, r4, r5, r6 = st.columns([1, 1, 1, 1, 1.5, 0.5])
-            r1.markdown(f"<p style='text-align:center; font-weight:700; margin-top:12px;'>{nombres_meses.get(m_idx, 'S/M')}</p>", unsafe_allow_html=True)
-            r2.markdown(f"<p style='text-align:center; margin-top:12px;'>{int(row.iloc[1])}</p>", unsafe_allow_html=True)
-            r3.markdown(f"<p style='text-align:center; margin-top:12px; color:#8899A6;'>{meta_actual} días</p>", unsafe_allow_html=True)
-            
-            # Tiempo Promedio Resaltado
-            r4.markdown(f"<p class='kpi-highlight' style='text-align:center; color:{color_status}; margin-top:5px;'>{int(round(promedio_mes))}d</p>", unsafe_allow_html=True)
-            
-            # Badge de Estado
-            r5.markdown(f"<p style='text-align:center; background:{color_status}22; color:{color_status}; border-radius:5px; margin-top:10px; font-size:10px; font-weight:bold; padding:2px;'>{txt_status}</p>", unsafe_allow_html=True)
-            
-            with r6:
-                if st.button("VER", key=f"btn_mono_{m_idx}", use_container_width=True):
-                    mostrar_detalle_mono(df_modal_m, nombres_meses[m_idx], meta_actual)
-            st.markdown("<hr style='margin:0; opacity:0.1;'>", unsafe_allow_html=True)
-
-    except Exception as e:
-        st.error(f"Error en Indicadores Monoproveedor: {e}")
 except Exception as e:
     st.error(f"Error crítico: {e}")
