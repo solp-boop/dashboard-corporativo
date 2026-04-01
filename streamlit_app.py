@@ -630,5 +630,92 @@ try:
 
         except Exception as e:
             st.error(f"Error en Indicadores: {e}")
+    # ==========================================
+    # SECCIÓN: INDICADORES MONOPROVEEDOR (SLA DINÁMICO)
+    # ==========================================
+    st.markdown("<br><br><p style='color:#00ff88; font-weight:700; letter-spacing:4px; font-size:22px; text-align:center;'>INDICADORES MONOPROVEEDOR 2026</p>", unsafe_allow_html=True)
+    st.caption("SLA Ene-Feb: 15 días | SLA Mar en adelante: 7 días")
+
+    try:
+        # 1. FILTRADO EXCLUSIVO MONOPROVEEDOR
+        # Filtramos donde la Columna Y (índice 24) diga "SI" o "MONOPROVEEDOR"
+        df_mono = df_ind[df_ind.iloc[:, 24].astype(str).str.upper().str.contains("SI|MONOPROVEEDOR", na=False)].copy()
+
+        # --- FUNCIÓN MODAL MONOPROVEEDOR ---
+        @st.dialog("DETALLE MONOPROVEEDOR POR PUERTO", width="large")
+        def mostrar_detalle_mono(df_mes_actual, nombre_mes, meta_sla):
+            st.subheader(f"Performance Monoproveedor: {nombre_mes} 2026")
+            st.info(f"Meta SLA para este periodo: <= {meta_sla} días")
+            
+            puerto_col = df_ind.columns[4] # Columna E
+            tiempo_col = df_ind.columns[32] # Columna AG
+
+            df_p = df_mes_actual.groupby(puerto_col).agg(
+                Total_Emb=(df_ind.columns[0], 'count'),
+                Prom_Consol=(tiempo_col, 'mean'),
+                Dentro_SLA_Count=(tiempo_col, lambda x: (x <= meta_sla).sum()),
+                Fuera_SLA_Count=(tiempo_col, lambda x: (x > meta_sla).sum())
+            ).reset_index()
+
+            df_p['Dentro SLA %'] = (df_p['Dentro_SLA_Count'] / df_p['Total_Emb'] * 100)
+            df_p['Fuera SLA %'] = (df_p['Fuera_SLA_Count'] / df_p['Total_Emb'] * 100)
+            
+            df_viz = df_p[[puerto_col, "Total_Emb", "Prom_Consol", "Dentro SLA %", "Fuera SLA %"]]
+            df_viz.columns = ["Puerto / Aeropuerto", "Total Emb.", "Prom. Consolidación", "Dentro SLA %", "Fuera SLA %"]
+
+            t_emb_total = df_viz["Total Emb."].sum()
+            t_mes = pd.DataFrame({
+                "Puerto / Aeropuerto": ["TOTAL MENSUAL"],
+                "Total Emb.": [t_emb_total],
+                "Prom. Consolidación": [df_mes_actual[tiempo_col].mean()],
+                "Dentro SLA %": [(df_p['Dentro_SLA_Count'].sum() / t_emb_total * 100) if t_emb_total > 0 else 0],
+                "Fuera SLA %": [(df_p['Fuera_SLA_Count'].sum() / t_emb_total * 100) if t_emb_total > 0 else 0]
+            })
+
+            df_final = pd.concat([df_viz, t_mes], ignore_index=True)
+            st.dataframe(df_final.style.format(precision=0), use_container_width=True, hide_index=True)
+
+        # 2. TABLA PRINCIPAL MONOPROVEEDOR
+        h1, h2, h3, h4, h5, h6 = st.columns([1, 1, 1, 1, 1.5, 0.5])
+        headers_m = ["MES", "EMBARQUES", "SLA META", "PROM. MES", "ESTADO SLA", "INFO"]
+        for i, col in enumerate([h1, h2, h3, h4, h5, h6]):
+            col.markdown(f"<p style='color:#8899A6; font-size:10px; font-weight:700; text-align:center;'>{headers_m[i]}</p>", unsafe_allow_html=True)
+        st.markdown("<hr style='margin:0; border-top: 2px solid #00ff88;'>", unsafe_allow_html=True)
+
+        res_mono = df_mono.groupby('Mes_Num').agg({
+            df_mono.columns[0]: 'count',
+            df_mono.columns[32]: 'mean'
+        }).reset_index().sort_values('Mes_Num')
+
+        for _, row in res_mono.iterrows():
+            m_idx = int(row['Mes_Num'])
+            df_modal_m = df_mono[df_mono['Mes_Num'] == m_idx]
+            
+            # Lógica de SLA Dinámico
+            meta_actual = 15 if m_idx <= 2 else 7
+            promedio_mes = row.iloc[2]
+            cumple = promedio_mes <= meta_actual
+            
+            color_status = "#00ff88" if cumple else "#ff4b4b"
+            txt_status = "DENTRO DE META" if cumple else "FUERA DE META"
+
+            r1, r2, r3, r4, r5, r6 = st.columns([1, 1, 1, 1, 1.5, 0.5])
+            r1.markdown(f"<p style='text-align:center; font-weight:700; margin-top:12px;'>{nombres_meses.get(m_idx, 'S/M')}</p>", unsafe_allow_html=True)
+            r2.markdown(f"<p style='text-align:center; margin-top:12px;'>{int(row.iloc[1])}</p>", unsafe_allow_html=True)
+            r3.markdown(f"<p style='text-align:center; margin-top:12px; color:#8899A6;'>{meta_actual} días</p>", unsafe_allow_html=True)
+            
+            # Tiempo Promedio Resaltado
+            r4.markdown(f"<p class='kpi-highlight' style='text-align:center; color:{color_status}; margin-top:5px;'>{int(round(promedio_mes))}d</p>", unsafe_allow_html=True)
+            
+            # Badge de Estado
+            r5.markdown(f"<p style='text-align:center; background:{color_status}22; color:{color_status}; border-radius:5px; margin-top:10px; font-size:10px; font-weight:bold; padding:2px;'>{txt_status}</p>", unsafe_allow_html=True)
+            
+            with r6:
+                if st.button("VER", key=f"btn_mono_{m_idx}", use_container_width=True):
+                    mostrar_detalle_mono(df_modal_m, nombres_meses[m_idx], meta_actual)
+            st.markdown("<hr style='margin:0; opacity:0.1;'>", unsafe_allow_html=True)
+
+    except Exception as e:
+        st.error(f"Error en Indicadores Monoproveedor: {e}")
 except Exception as e:
     st.error(f"Error crítico: {e}")
