@@ -630,50 +630,6 @@ try:
 
         except Exception as e:
             st.error(f"Error en Indicadores: {e}")
-    # ==========================================
-    # SECCIÓN: INDICADORES MONOPROVEEDOR (SLA DINÁMICO)
-    # ==========================================
-    st.markdown("<br><br><p style='color:#00ff88; font-weight:700; letter-spacing:4px; font-size:22px; text-align:center;'>INDICADORES MONOPROVEEDOR 2026</p>", unsafe_allow_html=True)
-    st.caption("SLA Ene-Feb: 15 días | SLA Mar en adelante: 7 días")
-
-    try:
-        # 1. FILTRADO EXCLUSIVO MONOPROVEEDOR
-        # Filtramos donde la Columna Y (índice 24) diga "SI" o "MONOPROVEEDOR"
-        df_mono = df_ind[df_ind.iloc[:, 24].astype(str).str.upper().str.contains("SI|MONOPROVEEDOR", na=False)].copy()
-
-        # --- FUNCIÓN MODAL MONOPROVEEDOR ---
-        @st.dialog("DETALLE MONOPROVEEDOR POR PUERTO", width="large")
-        def mostrar_detalle_mono(df_mes_actual, nombre_mes, meta_sla):
-            st.subheader(f"Performance Monoproveedor: {nombre_mes} 2026")
-            st.info(f"Meta SLA para este periodo: <= {meta_sla} días")
-            
-            puerto_col = df_ind.columns[4] # Columna E
-            tiempo_col = df_ind.columns[32] # Columna AG
-
-            df_p = df_mes_actual.groupby(puerto_col).agg(
-                Total_Emb=(df_ind.columns[0], 'count'),
-                Prom_Consol=(tiempo_col, 'mean'),
-                Dentro_SLA_Count=(tiempo_col, lambda x: (x <= meta_sla).sum()),
-                Fuera_SLA_Count=(tiempo_col, lambda x: (x > meta_sla).sum())
-            ).reset_index()
-
-            df_p['Dentro SLA %'] = (df_p['Dentro_SLA_Count'] / df_p['Total_Emb'] * 100)
-            df_p['Fuera SLA %'] = (df_p['Fuera_SLA_Count'] / df_p['Total_Emb'] * 100)
-            
-            df_viz = df_p[[puerto_col, "Total_Emb", "Prom_Consol", "Dentro SLA %", "Fuera SLA %"]]
-            df_viz.columns = ["Puerto / Aeropuerto", "Total Emb.", "Prom. Consolidación", "Dentro SLA %", "Fuera SLA %"]
-
-            t_emb_total = df_viz["Total Emb."].sum()
-            t_mes = pd.DataFrame({
-                "Puerto / Aeropuerto": ["TOTAL MENSUAL"],
-                "Total Emb.": [t_emb_total],
-                "Prom. Consolidación": [df_mes_actual[tiempo_col].mean()],
-                "Dentro SLA %": [(df_p['Dentro_SLA_Count'].sum() / t_emb_total * 100) if t_emb_total > 0 else 0],
-                "Fuera SLA %": [(df_p['Fuera_SLA_Count'].sum() / t_emb_total * 100) if t_emb_total > 0 else 0]
-            })
-
-            df_final = pd.concat([df_viz, t_mes], ignore_index=True)
-            st.dataframe(df_final.style.format(precision=0), use_container_width=True, hide_index=True)
 
 except Exception as e:
     st.error(f"Error crítico: {e}")
