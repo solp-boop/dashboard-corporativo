@@ -496,11 +496,11 @@ try:
             st.error(f"Error en Gestión de Reservas: {e}")
 
 # ==========================================
-    # SOLAPA 3: INDICADORES (CONSOLIDACIÓN 2026)
+    # SOLAPA 3: INDICADORES (RESUMEN EJECUTIVO)
     # ==========================================
     with tabs[2]:
         try:
-            # 1. CARGA DE DATOS ESPECÍFICA (Reservas Historicas GID 32771816)
+            # 1. CARGA DE DATOS (Reservas Historicas)
             url_hist = f"{base_url}/export?format=csv&gid=32771816&nocache={time.time()}"
             df_h = pd.read_csv(url_hist, engine='python')
             df_h.columns = df_h.columns.str.strip()
@@ -510,38 +510,31 @@ try:
                 7: "Julio", 8: "Agosto", 9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
             }
 
-            # 2. FILTRADO Y LIMPIEZA
-            # ETD: Columna L (Indice 11)
+            # 2. FILTRADO 2026 Y MARÍTIMO
             df_h['ETD_DT'] = pd.to_datetime(df_h.iloc[:, 11], errors='coerce')
-            
-            # Filtro: Año 2026 + Solo Marítimos (Columna F - Indice 5)
             def es_maritimo(x):
                 x = str(x).upper()
                 return any(m in x for m in ["40 HQ", "40 ST", "20 ST", "40NOR", "MARITIMO"])
             
             df_ind = df_h[(df_h['ETD_DT'].dt.year == 2026) & (df_h.iloc[:, 5].apply(es_maritimo))].copy()
 
-            # Mapeo de Columnas: Puerto (B=1), SO (A=0), Comex (AE=30), Agente (AF=31), Total (AG=32), Mono (Y=24)
+            # Mapeo de columnas: SO(0), Puerto(1), Mono(24), Comex(30), Agente(31), Total(32)
             df_ind['Mes_Num'] = df_ind['ETD_DT'].dt.month
-            df_ind['Mes_Nombre'] = df_ind['Mes_Num'].map(nombres_meses)
-            df_ind['Puerto_Display'] = df_ind.iloc[:, 1].fillna("SIN ESPECIFICAR")
-            
-            # Conversión numérica con redondeo para promedios
             for i in [30, 31, 32]:
                 df_ind.iloc[:, i] = pd.to_numeric(df_ind.iloc[:, i].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
 
-            st.markdown("<br><p style='color:#00a8ff; font-weight:700; letter-spacing:2px; font-size:20px; text-align:center;'>PERFORMANCE LOGÍSTICA: CONSOLIDACIÓN 2026</p>", unsafe_allow_html=True)
+            st.markdown("<br><p style='color:#00a8ff; font-weight:700; letter-spacing:2px; font-size:20px; text-align:center;'>INDICADORES DE CONSOLIDACIÓN 2026</p>", unsafe_allow_html=True)
             st.markdown("<br>", unsafe_allow_html=True)
 
-            # 3. CABECERA DE LA TABLA (Mismo estilo que Origen)
-            h1, h2, h3, h4, h5, h6, h7 = st.columns([1.2, 0.8, 1, 1, 1, 0.9, 0.9])
-            headers = ["MES / DETALLE", "CANT. EMB", "PROM. COMEX", "PROM. AGENTE", "PROM. TOTAL", "% MONO", "% CONSOL"]
+            # 3. ENCABEZADO DE TABLA
+            h1, h2, h3, h4, h5, h6, h7 = st.columns([1, 0.8, 1, 1, 1, 0.8, 0.8])
+            headers = ["MES", "CANT. EMB", "PROM. COMEX", "PROM. AGENTE", "PROM. TOTAL", "% MONO", "% CONSOL"]
             for i, col in enumerate([h1, h2, h3, h4, h5, h6, h7]):
                 col.markdown(f"<p style='color:#8899A6; font-size:11px; font-weight:700; text-align:center;'>{headers[i]}</p>", unsafe_allow_html=True)
             st.markdown("<hr style='margin:0; border-top: 2px solid #ffffff; opacity:0.8;'>", unsafe_allow_html=True)
 
-            # 4. LÓGICA DE FILAS POR MES CON EXPANDER
-            res_mes = df_ind.groupby(['Mes_Num', 'Mes_Nombre']).agg({
+            # 4. FILAS DE RESUMEN POR MES
+            res_mes = df_ind.groupby('Mes_Num').agg({
                 df_ind.columns[0]: 'count',
                 df_ind.columns[30]: 'mean',
                 df_ind.columns[31]: 'mean',
@@ -549,51 +542,52 @@ try:
             }).reset_index().sort_values('Mes_Num')
 
             for _, row in res_mes.iterrows():
-                # Porcentajes Monoproveedor (Col Y = 24)
-                df_mes_actual = df_ind[df_ind['Mes_Num'] == row['Mes_Num']]
+                m_num = int(row['Mes_Num'])
+                df_mes_actual = df_ind[df_ind['Mes_Num'] == m_num]
+                
+                # Cálculo % Mono/Consol
                 total_m = len(df_mes_actual) if len(df_mes_actual) > 0 else 1
                 cant_mono = len(df_mes_actual[df_mes_actual.iloc[:, 24].astype(str).str.upper().str.contains("SI|MONOPROVEEDOR", na=False)])
                 p_mono = int(round((cant_mono / total_m) * 100))
                 p_consol = 100 - p_mono
 
-                # Fila con Expander a la izquierda
-                with st.expander(f"⮞ {row['Mes_Nombre'].upper()}"):
-                    # Datos del Mes Redondeados
-                    r1, r2, r3, r4, r5, r6, r7 = st.columns([1.2, 0.8, 1, 1, 1, 0.9, 0.9])
-                    r2.markdown(f"<p style='text-align:center; font-weight:700; font-size:18px;'>{int(row.iloc[2])}</p>", unsafe_allow_html=True)
-                    r3.markdown(f"<p style='text-align:center; font-size:18px;'>{int(round(row.iloc[3]))}d</p>", unsafe_allow_html=True)
-                    r4.markdown(f"<p style='text-align:center; font-size:18px;'>{int(round(row.iloc[4]))}d</p>", unsafe_allow_html=True)
-                    r5.markdown(f"<p style='text-align:center; color:#00a8ff; font-weight:700; font-size:20px;'>{int(round(row.iloc[5]))}d</p>", unsafe_allow_html=True)
-                    r6.markdown(f"<p style='text-align:center; font-size:16px;'>{p_mono}%</p>", unsafe_allow_html=True)
-                    r7.markdown(f"<p style='text-align:center; font-size:16px;'>{p_consol}%</p>", unsafe_allow_html=True)
-                    
-                    # Detalle por Puerto dentro del expander
-                    st.markdown("<br><p style='font-size:12px; color:#00a8ff; font-weight:700; margin-left:10px;'>DESGLOSE POR PUERTO / AEROPUERTO</p>", unsafe_allow_html=True)
-                    df_p_mes = df_mes_actual.groupby('Puerto_Display').agg({
+                # --- FILA VISIBLE (RESUMEN) ---
+                st.markdown("<div style='padding: 10px 0;'>", unsafe_allow_html=True)
+                r1, r2, r3, r4, r5, r6, r7 = st.columns([1, 0.8, 1, 1, 1, 0.8, 0.8])
+                r1.markdown(f"<p style='text-align:center; font-weight:700; color:#ffffff; font-size:16px;'>{nombres_meses[m_num]}</p>", unsafe_allow_html=True)
+                r2.markdown(f"<p style='text-align:center; font-size:16px;'>{int(row.iloc[1])}</p>", unsafe_allow_html=True)
+                r3.markdown(f"<p style='text-align:center; font-size:16px;'>{int(round(row.iloc[2]))}d</p>", unsafe_allow_html=True)
+                r4.markdown(f"<p style='text-align:center; font-size:16px;'>{int(round(row.iloc[3]))}d</p>", unsafe_allow_html=True)
+                r5.markdown(f"<p style='text-align:center; color:#00a8ff; font-weight:700; font-size:18px;'>{int(round(row.iloc[4]))}d</p>", unsafe_allow_html=True)
+                r6.markdown(f"<p style='text-align:center; font-size:15px;'>{p_mono}%</p>", unsafe_allow_html=True)
+                r7.markdown(f"<p style='text-align:center; font-size:15px;'>{p_consol}%</p>", unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+
+                # --- DESPLEGABLE DE DETALLE (SUB-FILA) ---
+                with st.expander(f"Ver detalle puertos de {nombres_meses[m_num]}"):
+                    df_p_mes = df_mes_actual.groupby(df_ind.columns[1]).agg({
                         df_ind.columns[0]: 'count',
                         df_ind.columns[30]: 'mean',
                         df_ind.columns[31]: 'mean',
                         df_ind.columns[32]: 'mean'
                     }).reset_index()
                     df_p_mes.columns = ["Puerto / Aeropuerto", "Cant. Emb", "Prom. Comex", "Prom. Agente", "Prom. Total"]
-                    
-                    # Tabla de puertos redondeada
                     st.dataframe(df_p_mes.style.format(precision=0), use_container_width=True)
                 
                 st.markdown("<hr style='margin:0; opacity:0.1;'>", unsafe_allow_html=True)
 
-            # 5. FILA DE TOTALES GENERALES 2026
+            # 5. TOTALES GENERALES
             st.markdown("<br>", unsafe_allow_html=True)
             total_2026 = len(df_ind) if len(df_ind) > 0 else 1
             mono_2026 = len(df_ind[df_ind.iloc[:, 24].astype(str).str.upper().str.contains("SI|MONOPROVEEDOR", na=False)])
             p_mono_2026 = int(round((mono_2026 / total_2026) * 100))
 
-            f1, f2, f3, f4, f5, f6, f7 = st.columns([1.2, 0.8, 1, 1, 1, 0.9, 0.9])
-            f1.markdown("<p style='font-weight:900; color:#ffffff; font-size:16px;'>TOTAL GENERAL 2026</p>", unsafe_allow_html=True)
+            f1, f2, f3, f4, f5, f6, f7 = st.columns([1, 0.8, 1, 1, 1, 0.8, 0.8])
+            f1.markdown("<p style='font-weight:900; color:#ffffff; font-size:17px;'>TOTAL 2026</p>", unsafe_allow_html=True)
             f2.markdown(f"<p style='text-align:center; font-weight:900; font-size:22px;'>{len(df_ind)}</p>", unsafe_allow_html=True)
             f3.markdown(f"<p style='text-align:center; font-weight:900; font-size:22px;'>{int(round(df_ind.iloc[:, 30].mean()))}d</p>", unsafe_allow_html=True)
             f4.markdown(f"<p style='text-align:center; font-weight:900; font-size:22px;'>{int(round(df_ind.iloc[:, 31].mean()))}d</p>", unsafe_allow_html=True)
-            f5.markdown(f"<p style='text-align:center; color:#00a8ff; font-weight:900; font-size:24px;'>{int(round(df_ind.iloc[:, 32].mean()))}d</p>", unsafe_allow_html=True)
+            f5.markdown(f"<p style='text-align:center; color:#00a8ff; font-weight:900; font-size:25px;'>{int(round(df_ind.iloc[:, 32].mean()))}d</p>", unsafe_allow_html=True)
             f6.markdown(f"<p style='text-align:center; font-weight:900; font-size:20px;'>{p_mono_2026}%</p>", unsafe_allow_html=True)
             f7.markdown(f"<p style='text-align:center; font-weight:900; font-size:20px;'>{100 - p_mono_2026}%</p>", unsafe_allow_html=True)
             st.markdown("<hr style='margin:0; border-top: 2px solid #ffffff;'>", unsafe_allow_html=True)
