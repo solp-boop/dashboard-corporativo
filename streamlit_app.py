@@ -495,130 +495,169 @@ try:
         except Exception as e:
             st.error(f"Error en Gestión de Reservas: {e}")
 # ==========================================
-    # SOLAPA 3: INDICADORES (CON TOTALES ANUALES)
+    # SOLAPA 3: INDICADORES (ESTRUCTURA TRIPLE)
     # ==========================================
     with tabs[2]:
+        # --- 1. CSS PARA BOTONES MICRO Y ESTILOS DE SLA ---
         st.markdown("""
             <style>
             div[data-testid="stColumn"] button {
-                height: 22px !important; width: 45px !important; padding: 0px !important;
-                font-size: 9px !important; margin-top: 10px !important; border-radius: 4px !important;
-                background: rgba(255, 255, 255, 0.05) !important; border: 1px solid rgba(255, 255, 255, 0.2) !important;
+                height: 22px !important;
+                min-height: 22px !important;
+                width: 45px !important;
+                padding: 0px !important;
+                font-size: 9px !important;
+                line-height: 22px !important;
+                margin-top: 10px !important;
+                border-radius: 4px !important;
+                background: rgba(255, 255, 255, 0.05) !important;
+                border: 1px solid rgba(255, 255, 255, 0.2) !important;
             }
-            .kpi-highlight { font-size: 22px !important; font-weight: 900 !important; margin: 0; }
-            .sla-badge { text-align: center; border-radius: 5px; margin-top: 10px; font-size: 10px; font-weight: bold; padding: 2px; }
-            .total-row { background-color: rgba(255, 255, 255, 0.1); font-weight: bold; padding: 10px; border-radius: 5px; margin-top: 5px; }
+            .kpi-highlight {
+                font-size: 22px !important;
+                font-weight: 900 !important;
+                margin: 0;
+            }
+            .sla-badge {
+                text-align: center;
+                border-radius: 5px;
+                margin-top: 10px;
+                font-size: 10px;
+                font-weight: bold;
+                padding: 2px;
+            }
             </style>
         """, unsafe_allow_html=True)
 
         try:
-            # --- 1. CARGA Y FILTRADO ---
+            # --- 2. PREPARACIÓN DE DATOS ---
             url_hist = f"{base_url}/export?format=csv&gid=32771816&nocache={time.time()}"
             df_h = pd.read_csv(url_hist, engine='python')
             df_h.columns = df_h.columns.str.strip()
+
             nombres_meses = {1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril", 5: "Mayo", 6: "Junio",
                             7: "Julio", 8: "Agosto", 9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"}
-            
+
             df_h['ETD_DT'] = pd.to_datetime(df_h.iloc[:, 11], dayfirst=True, errors='coerce')
+            
+            # Limpieza AE(30), AF(31), AG(32)
             for i in [30, 31, 32]:
                 df_h.iloc[:, i] = pd.to_numeric(df_h.iloc[:, i].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
 
+            # Filtro base: 2026 Marítimo
             def es_maritimo(x):
-                return any(m in str(x).upper() for m in ["40 HQ", "40 ST", "20 ST", "40NOR", "MARITIMO"])
+                x = str(x).upper()
+                return any(m in x for m in ["40 HQ", "40 ST", "20 ST", "40NOR", "MARITIMO"])
             
             df_ind = df_h[(df_h['ETD_DT'].dt.year == 2026) & (df_h.iloc[:, 5].apply(es_maritimo))].copy()
             df_ind['Mes_Num'] = df_ind['ETD_DT'].dt.month
 
-            # --- 2. MODAL COMÚN ---
-            @st.dialog("DETALLE POR PUERTO", width="large")
-            def mostrar_detalle(df_f, nombre_mes, meta_val):
-                st.subheader(f"Análisis: {nombre_mes} 2026")
-                puerto_col = df_ind.columns[4]
-                tiempo_col = df_ind.columns[32]
-                df_p = df_f.groupby(puerto_col).agg(Cant=(df_ind.columns[0],'count'), Prom=(tiempo_col,'mean'), 
-                                                  OK=(tiempo_col, lambda x: (x<=meta_val).sum())).reset_index()
-                df_p['SLA %'] = (df_p['OK'] / df_p['Cant'] * 100)
-                st.dataframe(df_p[[puerto_col, 'Cant', 'Prom', 'SLA %']].style.format(precision=0), use_container_width=True, hide_index=True)
+            # --- 3. FUNCIÓN DIALOG (MODAL COMÚN) ---
+            @st.dialog("ANÁLISIS DE SLA POR PUERTO", width="large")
+            def mostrar_detalle(df_mes_f, nombre_mes, meta_val):
+                st.subheader(f"Desempeño: {nombre_mes} 2026")
+                st.info(f"Meta SLA aplicada: <= {meta_val} días")
+                
+                puerto_col = df_ind.columns[4] # Columna E (Puerto / Aeropuerto)
+                tiempo_col = df_ind.columns[32] # Columna AG (Tiempo Total)
 
-            # --- 3. SECCIÓN GENERAL ---
-            st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:20px; text-align:center;'>CONSOLIDACIÓN GENERAL 2026</p>", unsafe_allow_html=True)
-            h_cols = st.columns([1, 0.8, 1, 1, 1.3, 0.8, 0.8, 0.4])
-            titles = ["MES", "EMBARQUES", "T. COMEX", "T. AGENTE", "TOTAL PROM", "% MONO", "% CONSOL", "INFO"]
-            for i, c in enumerate(h_cols): c.markdown(f"<p style='color:#8899A6; font-size:10px; font-weight:700; text-align:center;'>{titles[i]}</p>", unsafe_allow_html=True)
+                df_p = df_mes_f.groupby(puerto_col).agg(
+                    Total_Emb=(df_ind.columns[0], 'count'),
+                    Prom_Consol=(tiempo_col, 'mean'),
+                    Dentro_SLA=(tiempo_col, lambda x: (x <= meta_val).sum()),
+                    Fuera_SLA=(tiempo_col, lambda x: (x > meta_val).sum())
+                ).reset_index()
+
+                df_p['Dentro SLA %'] = (df_p['Dentro_SLA'] / df_p['Total_Emb'] * 100)
+                df_p['Fuera SLA %'] = (df_p['Fuera_SLA'] / df_p['Total_Emb'] * 100)
+                
+                t_e = df_p["Total_Emb"].sum()
+                t_row = pd.DataFrame({
+                    puerto_col: ["TOTAL MENSUAL"], "Total_Emb": [t_e],
+                    "Prom_Consol": [df_mes_f[tiempo_col].mean()],
+                    "Dentro SLA %": [(df_p['Dentro_SLA'].sum()/t_e*100) if t_e>0 else 0],
+                    "Fuera SLA %": [(df_p['Fuera_SLA'].sum()/t_e*100) if t_e>0 else 0]
+                })
+
+                df_f = pd.concat([df_p[[puerto_col, "Total_Emb", "Prom_Consol", "Dentro SLA %", "Fuera SLA %"]], t_row], ignore_index=True)
+                st.dataframe(df_f.style.format(precision=0).set_properties(subset=pd.IndexSlice[df_f.index[-1], :], **{'background-color': '#001f3f'}), use_container_width=True, hide_index=True)
+
+            # --- 4. SECCIÓN 1: CONSOLIDACIÓN GENERAL (AZUL) ---
+            st.markdown("<br><p style='color:#00a8ff; font-weight:700; letter-spacing:4px; font-size:22px; text-align:center;'>INDICADORES DE CONSOLIDACIÓN 2026</p>", unsafe_allow_html=True)
+            h1, h2, h3, h4, h5, h6, h7, h8 = st.columns([1, 0.8, 1, 1, 1.3, 0.8, 0.8, 0.4])
+            headers = ["MES", "EMBARQUES", "T. COMEX", "T. AGENTE", "TIEMPO TOTAL", "% MONO", "% CONSOL", "INFO"]
+            for i, col in enumerate([h1, h2, h3, h4, h5, h6, h7, h8]):
+                col.markdown(f"<p style='color:#8899A6; font-size:10px; font-weight:700; text-align:center;'>{headers[i]}</p>", unsafe_allow_html=True)
             st.markdown("<hr style='margin:0; border-top: 2px solid #00a8ff;'>", unsafe_allow_html=True)
 
-            res_gen = df_ind.groupby('Mes_Num').agg({df_ind.columns[0]:'count', df_ind.columns[30]:'mean', df_ind.columns[31]:'mean', df_ind.columns[32]:'mean'}).reset_index()
-            for _, r in res_gen.iterrows():
-                m_idx = int(r['Mes_Num'])
+            res_mes = df_ind.groupby('Mes_Num').agg({df_ind.columns[0]:'count', df_ind.columns[30]:'mean', df_ind.columns[31]:'mean', df_ind.columns[32]:'mean'}).reset_index()
+            for _, row in res_mes.iterrows():
+                m_idx = int(row['Mes_Num'])
                 df_m = df_ind[df_ind['Mes_Num'] == m_idx]
-                p_mono = int(round((len(df_m[df_m.iloc[:, 24].astype(str).str.upper().str.contains("SI|MONO", na=False)])/len(df_m))*100)) if len(df_m)>0 else 0
-                cols = st.columns([1, 0.8, 1, 1, 1.3, 0.8, 0.8, 0.4])
-                cols[0].markdown(f"<p style='text-align:center; font-weight:700; margin-top:10px;'>{nombres_meses.get(m_idx)}</p>", unsafe_allow_html=True)
-                cols[1].markdown(f"<p style='text-align:center; margin-top:10px;'>{int(r.iloc[1])}</p>", unsafe_allow_html=True)
-                cols[4].markdown(f"<p class='kpi-highlight' style='text-align:center; color:#00a8ff;'>{int(round(r.iloc[4]))}d</p>", unsafe_allow_html=True)
-                with cols[7]: 
-                    if st.button("VER", key=f"g_{m_idx}"): mostrar_detalle(df_m, nombres_meses.get(m_idx), 25)
+                p_mono = int(round((len(df_m[df_m.iloc[:, 24].astype(str).str.upper().str.contains("SI|MONOPROVEEDOR", na=False)])/len(df_m))*100)) if len(df_m)>0 else 0
+                r1, r2, r3, r4, r5, r6, r7, r8 = st.columns([1, 0.8, 1, 1, 1.3, 0.8, 0.8, 0.4])
+                r1.markdown(f"<p style='text-align:center; font-weight:700; margin-top:12px;'>{nombres_meses.get(m_idx)}</p>", unsafe_allow_html=True)
+                r2.markdown(f"<p style='text-align:center; margin-top:12px;'>{int(row.iloc[1])}</p>", unsafe_allow_html=True)
+                r3.markdown(f"<p style='text-align:center; margin-top:12px; color:#8899A6;'>{int(round(row.iloc[2]))}d</p>", unsafe_allow_html=True)
+                r4.markdown(f"<p style='text-align:center; margin-top:12px; color:#8899A6;'>{int(round(row.iloc[3]))}d</p>", unsafe_allow_html=True)
+                r5.markdown(f"<p class='kpi-highlight' style='text-align:center; color:#00a8ff; margin-top:5px;'>{int(round(row.iloc[4]))}d</p>", unsafe_allow_html=True)
+                r6.markdown(f"<p style='text-align:center; margin-top:12px;'>{p_mono}%</p>", unsafe_allow_html=True)
+                r7.markdown(f"<p style='text-align:center; margin-top:12px;'>{100-p_mono}%</p>", unsafe_allow_html=True)
+                with r8:
+                    if st.button("VER", key=f"gen_{m_idx}"): mostrar_detalle(df_m, nombres_meses[m_idx], 25)
                 st.markdown("<hr style='margin:0; opacity:0.1;'>", unsafe_allow_html=True)
-            
-            # FILA TOTAL GENERAL
-            t1, t2, t3, t4, t5, t6, t7, t8 = st.columns([1, 0.8, 1, 1, 1.3, 0.8, 0.8, 0.4])
-            t1.markdown("<p style='font-weight:900; color:#00a8ff;'>TOTAL AÑO</p>", unsafe_allow_html=True)
-            t2.markdown(f"<p style='text-align:center; font-weight:900;'>{len(df_ind)}</p>", unsafe_allow_html=True)
-            t5.markdown(f"<p style='text-align:center; font-weight:900; color:#00a8ff;'>{int(round(df_ind.iloc[:,32].mean()))}d (Prom)</p>", unsafe_allow_html=True)
 
-            # --- 4. SECCIÓN MONOPROVEEDOR ---
-            st.markdown("<br><p style='color:#00ff88; font-weight:700; font-size:20px; text-align:center;'>MONOPROVEEDOR 2026</p>", unsafe_allow_html=True)
-            df_mono = df_ind[df_ind.iloc[:, 24].astype(str).str.upper().str.contains("SI|MONO", na=False)].copy()
-            m_cols = st.columns([1, 1, 1, 1, 1.5, 0.4])
-            for i, c in enumerate(m_cols): c.markdown(f"<p style='color:#8899A6; font-size:10px; font-weight:700; text-align:center;'>{['MES','EMBARQUES','META','PROM','ESTADO','INFO'][i]}</p>", unsafe_allow_html=True)
+            # --- 5. SECCIÓN 2: MONOPROVEEDOR (VERDE - SLA DINÁMICO) ---
+            st.markdown("<br><br><p style='color:#00ff88; font-weight:700; letter-spacing:4px; font-size:22px; text-align:center;'>INDICADORES MONOPROVEEDOR 2026</p>", unsafe_allow_html=True)
+            df_mono = df_ind[df_ind.iloc[:, 24].astype(str).str.upper().str.contains("SI|MONOPROVEEDOR", na=False)].copy()
+            m1, m2, m3, m4, m5, m6 = st.columns([1, 1, 1, 1, 1.5, 0.4])
+            for i, col in enumerate([m1, m2, m3, m4, m5, m6]):
+                col.markdown(f"<p style='color:#8899A6; font-size:10px; font-weight:700; text-align:center;'>{['MES', 'EMBARQUES', 'META SLA', 'PROM. MES', 'ESTADO SLA', 'INFO'][i]}</p>", unsafe_allow_html=True)
             st.markdown("<hr style='margin:0; border-top: 2px solid #00ff88;'>", unsafe_allow_html=True)
 
             res_mono = df_mono.groupby('Mes_Num').agg({df_mono.columns[0]:'count', df_mono.columns[32]:'mean'}).reset_index()
-            for _, r in res_mono.iterrows():
-                m_idx = int(r['Mes_Num'])
-                meta = 15 if m_idx <= 2 else 7
-                cumple = r.iloc[2] <= meta
+            for _, row in res_mono.iterrows():
+                m_idx = int(row['Mes_Num'])
+                df_m_mono = df_mono[df_mono['Mes_Num'] == m_idx]
+                meta_act = 15 if m_idx <= 2 else 7
+                cumple = row.iloc[2] <= meta_act
                 c_st = "#00ff88" if cumple else "#ff4b4b"
-                cols = st.columns([1, 1, 1, 1, 1.5, 0.4])
-                cols[0].markdown(f"<p style='text-align:center; font-weight:700; margin-top:10px;'>{nombres_meses.get(m_idx)}</p>", unsafe_allow_html=True)
-                cols[1].markdown(f"<p style='text-align:center; margin-top:10px;'>{int(r.iloc[1])}</p>", unsafe_allow_html=True)
-                cols[3].markdown(f"<p class='kpi-highlight' style='text-align:center; color:{c_st};'>{int(round(r.iloc[2]))}d</p>", unsafe_allow_html=True)
-                cols[4].markdown(f"<div class='sla-badge' style='background:{c_st}22; color:{c_st}; border:1px solid {c_st}44;'>{'OK' if cumple else 'FAIL'}</div>", unsafe_allow_html=True)
-                with cols[5]:
-                    if st.button("VER", key=f"m_{m_idx}"): mostrar_detalle(df_mono[df_mono['Mes_Num']==m_idx], nombres_meses.get(m_idx), meta)
+                r1, r2, r3, r4, r5, r6 = st.columns([1, 1, 1, 1, 1.5, 0.4])
+                r1.markdown(f"<p style='text-align:center; font-weight:700; margin-top:12px;'>{nombres_meses.get(m_idx)}</p>", unsafe_allow_html=True)
+                r2.markdown(f"<p style='text-align:center; margin-top:12px;'>{int(row.iloc[1])}</p>", unsafe_allow_html=True)
+                r3.markdown(f"<p style='text-align:center; margin-top:12px; color:#8899A6;'>{meta_act}d</p>", unsafe_allow_html=True)
+                r4.markdown(f"<p class='kpi-highlight' style='text-align:center; color:{c_st}; margin-top:5px;'>{int(round(row.iloc[2]))}d</p>", unsafe_allow_html=True)
+                r5.markdown(f"<div class='sla-badge' style='background:{c_st}22; color:{c_st}; border:1px solid {c_st}44;'>{'DENTRO DE META' if cumple else 'FUERA DE META'}</div>", unsafe_allow_html=True)
+                with r6:
+                    if st.button("VER", key=f"mon_{m_idx}"): mostrar_detalle(df_m_mono, nombres_meses[m_idx], meta_act)
                 st.markdown("<hr style='margin:0; opacity:0.1;'>", unsafe_allow_html=True)
-            
-            # FILA TOTAL MONO
-            mt1, mt2, mt3, mt4, mt5, mt6 = st.columns([1, 1, 1, 1, 1.5, 0.4])
-            mt1.markdown("<p style='font-weight:900; color:#00ff88;'>TOTAL MONO</p>", unsafe_allow_html=True)
-            mt2.markdown(f"<p style='text-align:center; font-weight:900;'>{len(df_mono)}</p>", unsafe_allow_html=True)
 
-            # --- 5. SECCIÓN CONSOLIDADOS ---
-            st.markdown("<br><p style='color:#ffaa00; font-weight:700; font-size:20px; text-align:center;'>CONSOLIDADOS 2026</p>", unsafe_allow_html=True)
-            df_cons = df_ind[~df_ind.iloc[:, 24].astype(str).str.upper().str.contains("SI|MONO", na=False)].copy()
-            c_cols = st.columns([1, 1, 1, 1, 1.5, 0.4])
-            for i, c in enumerate(c_cols): c.markdown(f"<p style='color:#8899A6; font-size:10px; font-weight:700; text-align:center;'>{['MES','EMBARQUES','META','PROM','ESTADO','INFO'][i]}</p>", unsafe_allow_html=True)
+            # --- 6. SECCIÓN 3: CONSOLIDADOS (NARANJA - SLA 25d) ---
+            st.markdown("<br><br><p style='color:#ffaa00; font-weight:700; letter-spacing:4px; font-size:22px; text-align:center;'>INDICADORES CONSOLIDADOS 2026</p>", unsafe_allow_html=True)
+            df_cons = df_ind[~df_ind.iloc[:, 24].astype(str).str.upper().str.contains("SI|MONOPROVEEDOR", na=False)].copy()
+            c1, c2, c3, c4, c5, c6 = st.columns([1, 1, 1, 1, 1.5, 0.4])
+            for i, col in enumerate([c1, c2, c3, c4, c5, c6]):
+                col.markdown(f"<p style='color:#8899A6; font-size:10px; font-weight:700; text-align:center;'>{['MES', 'EMBARQUES', 'META SLA', 'PROM. MES', 'ESTADO SLA', 'INFO'][i]}</p>", unsafe_allow_html=True)
             st.markdown("<hr style='margin:0; border-top: 2px solid #ffaa00;'>", unsafe_allow_html=True)
 
             res_cons = df_cons.groupby('Mes_Num').agg({df_cons.columns[0]:'count', df_cons.columns[32]:'mean'}).reset_index()
-            for _, r in res_cons.iterrows():
-                m_idx = int(r['Mes_Num'])
-                cumple = r.iloc[2] <= 25
-                c_st = "#00ff88" if cumple else "#ff4b4b"
-                cols = st.columns([1, 1, 1, 1, 1.5, 0.4])
-                cols[0].markdown(f"<p style='text-align:center; font-weight:700; margin-top:10px;'>{nombres_meses.get(m_idx)}</p>", unsafe_allow_html=True)
-                cols[1].markdown(f"<p style='text-align:center; margin-top:10px;'>{int(r.iloc[1])}</p>", unsafe_allow_html=True)
-                cols[3].markdown(f"<p class='kpi-highlight' style='text-align:center; color:#ffaa00;'>{int(round(r.iloc[2]))}d</p>", unsafe_allow_html=True)
-                cols[4].markdown(f"<div class='sla-badge' style='background:{c_st}22; color:{c_st}; border:1px solid {c_st}44;'>{'OK' if cumple else 'FAIL'}</div>", unsafe_allow_html=True)
-                with cols[5]:
-                    if st.button("VER", key=f"c_{m_idx}"): mostrar_detalle(df_cons[df_cons['Mes_Num']==m_idx], nombres_meses.get(m_idx), 25)
+            for _, row in res_cons.iterrows():
+                m_idx = int(row['Mes_Num'])
+                df_m_cons = df_cons[df_cons['Mes_Num'] == m_idx]
+                meta_cons = 25
+                cumple_c = row.iloc[2] <= meta_cons
+                c_st_c = "#00ff88" if cumple_c else "#ff4b4b"
+                r1, r2, r3, r4, r5, r6 = st.columns([1, 1, 1, 1, 1.5, 0.4])
+                r1.markdown(f"<p style='text-align:center; font-weight:700; margin-top:12px;'>{nombres_meses.get(m_idx)}</p>", unsafe_allow_html=True)
+                r2.markdown(f"<p style='text-align:center; margin-top:12px;'>{int(row.iloc[1])}</p>", unsafe_allow_html=True)
+                r3.markdown(f"<p style='text-align:center; margin-top:12px; color:#8899A6;'>{meta_cons}d</p>", unsafe_allow_html=True)
+                r4.markdown(f"<p class='kpi-highlight' style='text-align:center; color:#ffaa00; margin-top:5px;'>{int(round(row.iloc[2]))}d</p>", unsafe_allow_html=True)
+                r5.markdown(f"<div class='sla-badge' style='background:{c_st_c}22; color:{c_st_c}; border:1px solid {c_st_c}44;'>{'DENTRO DE META' if cumple_c else 'FUERA DE META'}</div>", unsafe_allow_html=True)
+                with r6:
+                    if st.button("VER", key=f"con_{m_idx}"): mostrar_detalle(df_m_cons, nombres_meses[m_idx], meta_cons)
                 st.markdown("<hr style='margin:0; opacity:0.1;'>", unsafe_allow_html=True)
-            
-            # FILA TOTAL CONSOL
-            ct1, ct2, ct3, ct4, ct5, ct6 = st.columns([1, 1, 1, 1, 1.5, 0.4])
-            ct1.markdown("<p style='font-weight:900; color:#ffaa00;'>TOTAL CONSOL</p>", unsafe_allow_html=True)
-            ct2.markdown(f"<p style='text-align:center; font-weight:900;'>{len(df_cons)}</p>", unsafe_allow_html=True)
 
-        except Exception as e: st.error(f"Error: {e}")
+        except Exception as e:
+            st.error(f"Error en Indicadores: {e}")
 except Exception as e:
     st.error(f"Error crítico: {e}")
