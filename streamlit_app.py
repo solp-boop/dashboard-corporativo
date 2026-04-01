@@ -496,7 +496,7 @@ try:
             st.error(f"Error en Gestión de Reservas: {e}")
 
 # ==========================================
-    # SOLAPA 3: INDICADORES (RESUMEN EJECUTIVO)
+    # SOLAPA 3: INDICADORES (CON COLUMNA POPOVER)
     # ==========================================
     with tabs[2]:
         try:
@@ -526,14 +526,14 @@ try:
             st.markdown("<br><p style='color:#00a8ff; font-weight:700; letter-spacing:2px; font-size:20px; text-align:center;'>INDICADORES DE CONSOLIDACIÓN 2026</p>", unsafe_allow_html=True)
             st.markdown("<br>", unsafe_allow_html=True)
 
-            # 3. ENCABEZADO DE TABLA
-            h1, h2, h3, h4, h5, h6, h7 = st.columns([1, 0.8, 1, 1, 1, 0.8, 0.8])
-            headers = ["MES", "CANT. EMB", "PROM. COMEX", "PROM. AGENTE", "PROM. TOTAL", "% MONO", "% CONSOL"]
-            for i, col in enumerate([h1, h2, h3, h4, h5, h6, h7]):
+            # 3. ENCABEZADO DE TABLA (Agregamos columna DETALLE)
+            h1, h2, h3, h4, h5, h6, h7, h8 = st.columns([1, 0.8, 1, 1, 1, 0.8, 0.8, 0.8])
+            headers = ["MES", "CANT. EMB", "PROM. COMEX", "PROM. AGENTE", "PROM. TOTAL", "% MONO", "% CONSOL", "DETALLE"]
+            for i, col in enumerate([h1, h2, h3, h4, h5, h6, h7, h8]):
                 col.markdown(f"<p style='color:#8899A6; font-size:11px; font-weight:700; text-align:center;'>{headers[i]}</p>", unsafe_allow_html=True)
             st.markdown("<hr style='margin:0; border-top: 2px solid #ffffff; opacity:0.8;'>", unsafe_allow_html=True)
 
-            # 4. FILAS DE RESUMEN POR MES
+            # 4. FILAS POR MES
             res_mes = df_ind.groupby('Mes_Num').agg({
                 df_ind.columns[0]: 'count',
                 df_ind.columns[30]: 'mean',
@@ -551,29 +551,30 @@ try:
                 p_mono = int(round((cant_mono / total_m) * 100))
                 p_consol = 100 - p_mono
 
-                # --- FILA VISIBLE (RESUMEN) ---
-                st.markdown("<div style='padding: 10px 0;'>", unsafe_allow_html=True)
-                r1, r2, r3, r4, r5, r6, r7 = st.columns([1, 0.8, 1, 1, 1, 0.8, 0.8])
-                r1.markdown(f"<p style='text-align:center; font-weight:700; color:#ffffff; font-size:16px;'>{nombres_meses[m_num]}</p>", unsafe_allow_html=True)
-                r2.markdown(f"<p style='text-align:center; font-size:16px;'>{int(row.iloc[1])}</p>", unsafe_allow_html=True)
-                r3.markdown(f"<p style='text-align:center; font-size:16px;'>{int(round(row.iloc[2]))}d</p>", unsafe_allow_html=True)
-                r4.markdown(f"<p style='text-align:center; font-size:16px;'>{int(round(row.iloc[3]))}d</p>", unsafe_allow_html=True)
-                r5.markdown(f"<p style='text-align:center; color:#00a8ff; font-weight:700; font-size:18px;'>{int(round(row.iloc[4]))}d</p>", unsafe_allow_html=True)
-                r6.markdown(f"<p style='text-align:center; font-size:15px;'>{p_mono}%</p>", unsafe_allow_html=True)
-                r7.markdown(f"<p style='text-align:center; font-size:15px;'>{p_consol}%</p>", unsafe_allow_html=True)
-                st.markdown("</div>", unsafe_allow_html=True)
-
-                # --- DESPLEGABLE DE DETALLE (SUB-FILA) ---
-                with st.expander(f"Ver detalle puertos de {nombres_meses[m_num]}"):
-                    df_p_mes = df_mes_actual.groupby(df_ind.columns[1]).agg({
-                        df_ind.columns[0]: 'count',
-                        df_ind.columns[30]: 'mean',
-                        df_ind.columns[31]: 'mean',
-                        df_ind.columns[32]: 'mean'
-                    }).reset_index()
-                    df_p_mes.columns = ["Puerto / Aeropuerto", "Cant. Emb", "Prom. Comex", "Prom. Agente", "Prom. Total"]
-                    st.dataframe(df_p_mes.style.format(precision=0), use_container_width=True)
+                # --- FILA DE DATOS ---
+                r1, r2, r3, r4, r5, r6, r7, r8 = st.columns([1, 0.8, 1, 1, 1, 0.8, 0.8, 0.8])
                 
+                r1.markdown(f"<p style='text-align:center; font-weight:700; color:#ffffff; margin-top:10px;'>{nombres_meses[m_num]}</p>", unsafe_allow_html=True)
+                r2.markdown(f"<p style='text-align:center; margin-top:10px;'>{int(row.iloc[1])}</p>", unsafe_allow_html=True)
+                r3.markdown(f"<p style='text-align:center; margin-top:10px;'>{int(round(row.iloc[2]))}d</p>", unsafe_allow_html=True)
+                r4.markdown(f"<p style='text-align:center; margin-top:10px;'>{int(round(row.iloc[3]))}d</p>", unsafe_allow_html=True)
+                r5.markdown(f"<p style='text-align:center; color:#00a8ff; font-weight:700; font-size:18px; margin-top:5px;'>{int(round(row.iloc[4]))}d</p>", unsafe_allow_html=True)
+                r6.markdown(f"<p style='text-align:center; margin-top:10px;'>{p_mono}%</p>", unsafe_allow_html=True)
+                r7.markdown(f"<p style='text-align:center; margin-top:10px;'>{p_consol}%</p>", unsafe_allow_html=True)
+                
+                # Columna de Detalle con Popover (Ventana Flotante)
+                with r8:
+                    with st.popover("PUERTOS", use_container_width=True):
+                        st.markdown(f"### Detalle {nombres_meses[m_num]}")
+                        df_p_mes = df_mes_actual.groupby(df_ind.columns[1]).agg({
+                            df_ind.columns[0]: 'count',
+                            df_ind.columns[30]: 'mean',
+                            df_ind.columns[31]: 'mean',
+                            df_ind.columns[32]: 'mean'
+                        }).reset_index()
+                        df_p_mes.columns = ["Puerto / Aeropuerto", "Cant. Emb", "Prom. Comex", "Prom. Agente", "Prom. Total"]
+                        st.dataframe(df_p_mes.style.format(precision=0), use_container_width=True, hide_index=True)
+
                 st.markdown("<hr style='margin:0; opacity:0.1;'>", unsafe_allow_html=True)
 
             # 5. TOTALES GENERALES
@@ -582,14 +583,15 @@ try:
             mono_2026 = len(df_ind[df_ind.iloc[:, 24].astype(str).str.upper().str.contains("SI|MONOPROVEEDOR", na=False)])
             p_mono_2026 = int(round((mono_2026 / total_2026) * 100))
 
-            f1, f2, f3, f4, f5, f6, f7 = st.columns([1, 0.8, 1, 1, 1, 0.8, 0.8])
-            f1.markdown("<p style='font-weight:900; color:#ffffff; font-size:17px;'>TOTAL 2026</p>", unsafe_allow_html=True)
-            f2.markdown(f"<p style='text-align:center; font-weight:900; font-size:22px;'>{len(df_ind)}</p>", unsafe_allow_html=True)
-            f3.markdown(f"<p style='text-align:center; font-weight:900; font-size:22px;'>{int(round(df_ind.iloc[:, 30].mean()))}d</p>", unsafe_allow_html=True)
-            f4.markdown(f"<p style='text-align:center; font-weight:900; font-size:22px;'>{int(round(df_ind.iloc[:, 31].mean()))}d</p>", unsafe_allow_html=True)
-            f5.markdown(f"<p style='text-align:center; color:#00a8ff; font-weight:900; font-size:25px;'>{int(round(df_ind.iloc[:, 32].mean()))}d</p>", unsafe_allow_html=True)
-            f6.markdown(f"<p style='text-align:center; font-weight:900; font-size:20px;'>{p_mono_2026}%</p>", unsafe_allow_html=True)
-            f7.markdown(f"<p style='text-align:center; font-weight:900; font-size:20px;'>{100 - p_mono_2026}%</p>", unsafe_allow_html=True)
+            f1, f2, f3, f4, f5, f6, f7, f8 = st.columns([1, 0.8, 1, 1, 1, 0.8, 0.8, 0.8])
+            f1.markdown("<p style='font-weight:900; color:#ffffff;'>TOTAL 2026</p>", unsafe_allow_html=True)
+            f2.markdown(f"<p style='text-align:center; font-weight:900;'>{len(df_ind)}</p>", unsafe_allow_html=True)
+            f3.markdown(f"<p style='text-align:center; font-weight:900;'>{int(round(df_ind.iloc[:, 30].mean()))}d</p>", unsafe_allow_html=True)
+            f4.markdown(f"<p style='text-align:center; font-weight:900;'>{int(round(df_ind.iloc[:, 31].mean()))}d</p>", unsafe_allow_html=True)
+            f5.markdown(f"<p style='text-align:center; color:#00a8ff; font-weight:900; font-size:22px;'>{int(round(df_ind.iloc[:, 32].mean()))}d</p>", unsafe_allow_html=True)
+            f6.markdown(f"<p style='text-align:center; font-weight:900;'>{p_mono_2026}%</p>", unsafe_allow_html=True)
+            f7.markdown(f"<p style='text-align:center; font-weight:900;'>{100 - p_mono_2026}%</p>", unsafe_allow_html=True)
+            f8.markdown("<p style='text-align:center; font-weight:900;'>---</p>", unsafe_allow_html=True)
             st.markdown("<hr style='margin:0; border-top: 2px solid #ffffff;'>", unsafe_allow_html=True)
 
         except Exception as e:
