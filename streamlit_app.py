@@ -496,7 +496,7 @@ try:
             st.error(f"Error en Gestión de Reservas: {e}")
 
 # ==========================================
-    # SOLAPA 3: INDICADORES (CON CONTROL DE SLA)
+    # SOLAPA 3: INDICADORES (CORRECCIÓN SLA & PUERTOS)
     # ==========================================
     with tabs[2]:
         st.markdown("""
@@ -513,13 +513,11 @@ try:
                 color: #00a8ff !important;
                 margin: 0;
             }
-            .sla-ok { color: #00ff88; font-weight: bold; }
-            .sla-fail { color: #ff4b4b; font-weight: bold; }
             </style>
         """, unsafe_allow_html=True)
 
         try:
-            # 1. CARGA Y LIMPIEZA
+            # 1. CARGA (Mantenemos la carga que ya tenías)
             url_hist = f"{base_url}/export?format=csv&gid=32771816&nocache={time.time()}"
             df_h = pd.read_csv(url_hist, engine='python')
             df_h.columns = df_h.columns.str.strip()
@@ -529,114 +527,112 @@ try:
                 7: "Julio", 8: "Agosto", 9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
             }
 
-            df_h['ETD_DT'] = pd.to_datetime(df_h.iloc[:, 11], errors='coerce')
+            # 2. PROCESAMIENTO
+            df_h['ETD_DT'] = pd.to_datetime(df_h.iloc[:, 11], errors='coerce') # Columna L
+            
+            # Filtro 2026 Marítimo (Col F = índice 5)
             def es_maritimo(x):
                 x = str(x).upper()
                 return any(m in x for m in ["40 HQ", "40 ST", "20 ST", "40NOR", "MARITIMO"])
             
             df_ind = df_h[(df_h['ETD_DT'].dt.year == 2026) & (df_h.iloc[:, 5].apply(es_maritimo))].copy()
 
+            # Columnas numéricas (AE=30, AF=31, AG=32)
             for i in [30, 31, 32]:
                 df_ind.iloc[:, i] = pd.to_numeric(df_ind.iloc[:, i].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
 
-            # --- FUNCIÓN MODAL: ANÁLISIS DE SLA POR PUERTO ---
+            # --- FUNCIÓN MODAL ACTUALIZADA ---
             @st.dialog("ANÁLISIS DE SLA POR PUERTO", width="large")
-            def mostrar_detalle(df_mes, nombre_mes):
+            def mostrar_detalle(df_mes_actual, nombre_mes):
                 st.subheader(f"Cumplimiento SLA (Meta < 25 días): {nombre_mes} 2026")
                 
-                # Nombre del puerto es Columna B (indice 1), Tiempo Total es AG (indice 32)
-                puerto_col = df_ind.columns[1]
-                tiempo_col = df_ind.columns[32]
+                # Mapeo solicitado: Puerto Col E (índice 4), Tiempo Total AG (índice 32)
+                puerto_col_name = df_ind.columns[4] 
+                tiempo_col_name = df_ind.columns[32]
 
-                # Agrupación y Cálculos de SLA
-                df_p = df_mes.groupby(puerto_col).agg(
-                    Cant_Emb=(df_ind.columns[0], 'count'),
-                    Prom_Total=(tiempo_col, 'mean'),
-                    Dentro_SLA=(tiempo_col, lambda x: (x <= 25).sum()),
-                    Fuera_SLA=(tiempo_col, lambda x: (x > 25).sum())
+                df_p = df_mes_actual.groupby(puerto_col_name).agg(
+                    Total_Emb=(df_ind.columns[0], 'count'),
+                    Prom_Consol=(tiempo_col_name, 'mean'),
+                    Dentro_SLA_Count=(tiempo_col_name, lambda x: (x <= 25).sum()),
+                    Fuera_SLA_Count=(tiempo_col_name, lambda x: (x > 25).sum())
                 ).reset_index()
 
-                df_p['% Cumplimiento'] = (df_p['Dentro_SLA'] / df_p['Cant_Emb'] * 100).round(0)
-                df_p.columns = ["Puerto / Aeropuerto", "Total Emb.", "Días Prom.", "Dentro SLA", "Fuera SLA", "% Éxito"]
+                # Convertimos a porcentajes para la visualización
+                df_p['Dentro SLA (%)'] = (df_p['Dentro_SLA_Count'] / df_p['Total_Emb'] * 100).round(0)
+                df_p['Fuera SLA (%)'] = (df_p['Fuera_SLA_Count'] / df_p['Total_Emb'] * 100).round(0)
+                
+                # Formateamos tabla final
+                df_viz = df_p[[puerto_col_name, "Total_Emb", "Prom_Consol", "Dentro SLA (%)", "Fuera SLA (%)"]]
+                df_viz.columns = ["Puerto / Aeropuerto", "Total Emb.", "Prom. Consolidación", "Dentro SLA %", "Fuera SLA %"]
 
-                # Fila de Totales del Mes
-                total_mes = pd.DataFrame({
+                # Fila de Totales
+                total_e = df_viz["Total Emb."].sum()
+                t_mes = pd.DataFrame({
                     "Puerto / Aeropuerto": ["TOTAL MENSUAL"],
-                    "Total Emb.": [df_p["Total Emb."].sum()],
-                    "Días Prom.": [df_p["Días Prom."].mean()],
-                    "Dentro SLA": [df_p["Dentro SLA"].sum()],
-                    "Fuera SLA": [df_p["Fuera SLA"].sum()],
-                    "% Éxito": [(df_p["Dentro SLA"].sum() / df_p["Total Emb."].sum() * 100)]
+                    "Total Emb.": [total_e],
+                    "Prom. Consolidación": [df_viz["Prom. Consolidación"].mean()],
+                    "Dentro SLA %": [(df_p['Dentro_SLA_Count'].sum() / total_e * 100)],
+                    "Fuera SLA %": [(df_p['Fuera_SLA_Count'].sum() / total_e * 100)]
                 })
 
-                df_final = pd.concat([df_p, total_mes], ignore_index=True)
-
-                # Estilado de la tabla
-                def color_sla(val):
-                    if isinstance(val, str) and val == "TOTAL MENSUAL": return 'font-weight: bold'
-                    return ''
+                df_final = pd.concat([df_viz, t_mes], ignore_index=True)
 
                 st.dataframe(
                     df_final.style.format(precision=0)
-                    .applymap(lambda x: 'color: #00ff88' if isinstance(x, (int, float)) and x >= 80 and x <= 100 else '', subset=['% Éxito'])
-                    .applymap(lambda x: 'color: #ff4b4b' if isinstance(x, (int, float)) and x < 50 else '', subset=['% Éxito'])
-                    .set_properties(subset=pd.IndexSlice[df_final.index[-1], :], **{'background-color': '#1e293b', 'font-weight': 'bold'}),
+                    .set_properties(subset=pd.IndexSlice[df_final.index[-1], :], **{'background-color': '#1e293b', 'font-weight': 'bold'})
+                    .applymap(lambda x: 'color: #00ff88' if isinstance(x, (int, float)) and x >= 80 else '', subset=['Dentro SLA %'])
+                    .applymap(lambda x: 'color: #ff4b4b' if isinstance(x, (int, float)) and x > 50 else '', subset=['Fuera SLA %']),
                     use_container_width=True,
                     hide_index=True
                 )
-                st.caption("Nota: El SLA se considera cumplido cuando el Tiempo Total es menor o igual a 25 días.")
 
+            # 3. TABLA PRINCIPAL
             st.markdown("<br><p style='color:#00a8ff; font-weight:700; letter-spacing:4px; font-size:22px; text-align:center;'>INDICADORES DE CONSOLIDACIÓN 2026</p>", unsafe_allow_html=True)
             
-            # 3. CABECERA PRINCIPAL
             h1, h2, h3, h4, h5, h6, h7, h8 = st.columns([1, 0.8, 1, 1, 1.3, 0.8, 0.8, 0.6])
             headers = ["MES", "EMBARQUES", "T. COMEX", "T. AGENTE", "TIEMPO TOTAL", "% MONO", "% CONSOL", "INFO"]
             for i, col in enumerate([h1, h2, h3, h4, h5, h6, h7, h8]):
                 col.markdown(f"<p style='color:#8899A6; font-size:11px; font-weight:700; text-align:center;'>{headers[i]}</p>", unsafe_allow_html=True)
             st.markdown("<hr style='margin:0; border-top: 2px solid #ffffff;'>", unsafe_allow_html=True)
 
-            # 4. FILAS POR MES
-            res_mes = df_ind.groupby(df_ind['ETD_DT'].dt.month).agg({
+            # Agrupación por Mes (Aseguramos orden cronológico)
+            df_ind['Mes_Num'] = df_ind['ETD_DT'].dt.month
+            res_mes = df_ind.groupby('Mes_Num').agg({
                 df_ind.columns[0]: 'count',
                 df_ind.columns[30]: 'mean',
                 df_ind.columns[31]: 'mean',
                 df_ind.columns[32]: 'mean'
-            }).reset_index()
+            }).reset_index().sort_values('Mes_Num')
 
             for _, row in res_mes.iterrows():
-                m_num = int(row.iloc[0])
-                df_m = df_ind[df_ind['ETD_DT'].dt.month == m_num]
+                m_idx = int(row['Mes_Num'])
+                # Filtro específico para el Modal: Año 2026 AND Mes exacto
+                df_modal = df_ind[df_ind['Mes_Num'] == m_idx]
                 
-                cant_m = len(df_m)
-                c_mono = len(df_m[df_m.iloc[:, 24].astype(str).str.upper().str.contains("SI|MONOPROVEEDOR", na=False)])
+                cant_m = len(df_modal)
+                c_mono = len(df_modal[df_modal.iloc[:, 24].astype(str).str.upper().str.contains("SI|MONOPROVEEDOR", na=False)])
                 p_mono = int(round((c_mono/cant_m)*100)) if cant_m > 0 else 0
 
                 r1, r2, r3, r4, r5, r6, r7, r8 = st.columns([1, 0.8, 1, 1, 1.3, 0.8, 0.8, 0.6])
-                r1.markdown(f"<p style='text-align:center; font-weight:700; margin-top:12px;'>{nombres_meses[m_num]}</p>", unsafe_allow_html=True)
+                r1.markdown(f"<p style='text-align:center; font-weight:700; margin-top:12px;'>{nombres_meses[m_idx]}</p>", unsafe_allow_html=True)
                 r2.markdown(f"<p style='text-align:center; margin-top:12px;'>{int(row.iloc[1])}</p>", unsafe_allow_html=True)
                 r3.markdown(f"<p style='text-align:center; margin-top:12px; color:#8899A6;'>{int(round(row.iloc[2]))}d</p>", unsafe_allow_html=True)
                 r4.markdown(f"<p style='text-align:center; margin-top:12px; color:#8899A6;'>{int(round(row.iloc[3]))}d</p>", unsafe_allow_html=True)
-                
-                # KPI RESALTADO (Tiempo Total)
                 r5.markdown(f"<p class='kpi-highlight' style='text-align:center; margin-top:5px;'>{int(round(row.iloc[4]))}d</p>", unsafe_allow_html=True)
-                
                 r6.markdown(f"<p style='text-align:center; margin-top:12px;'>{p_mono}%</p>", unsafe_allow_html=True)
                 r7.markdown(f"<p style='text-align:center; margin-top:12px;'>{100-p_mono}%</p>", unsafe_allow_html=True)
                 
                 with r8:
-                    if st.button("VER", key=f"btn_sla_{m_num}", use_container_width=True):
-                        mostrar_detalle(df_m, nombres_meses[m_num])
+                    if st.button("VER", key=f"btn_sla_v2_{m_idx}", use_container_width=True):
+                        mostrar_detalle(df_modal, nombres_meses[m_idx])
                 st.markdown("<hr style='margin:0; opacity:0.1;'>", unsafe_allow_html=True)
 
-            # 5. TOTAL GENERAL 2026
+            # 4. TOTAL ANUAL
             st.markdown("<br>", unsafe_allow_html=True)
             f1, f2, f3, f4, f5, f6, f7, f8 = st.columns([1, 0.8, 1, 1, 1.3, 0.8, 0.8, 0.6])
             f1.markdown("<p style='font-weight:900;'>TOTAL 2026</p>", unsafe_allow_html=True)
-            f2.markdown(f"<p style='text-align:center; font-weight:900;'>{len(df_ind)}</p>", unsafe_allow_html=True)
-            
-            # KPI TOTAL ANUAL
+            f2.markdown(f"<p style='text-align:center; font-weight:700;'>{len(df_ind)}</p>", unsafe_allow_html=True)
             f5.markdown(f"<p class='kpi-highlight' style='text-align:center; font-size:28px; border:1px solid rgba(0,168,255,0.2); border-radius:8px; background:rgba(0,168,255,0.05);'>{int(round(df_ind.iloc[:, 32].mean()))}d</p>", unsafe_allow_html=True)
-            
             st.markdown("<hr style='margin:0; border-top: 2px solid #ffffff;'>", unsafe_allow_html=True)
 
         except Exception as e:
