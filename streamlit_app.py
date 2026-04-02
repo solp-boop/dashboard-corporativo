@@ -644,95 +644,96 @@ except Exception as e:
     # ==========================================
     with tabs[3]:
         try:
-            # 1. CARGA DE DATOS (Asegurando que usamos la hoja de Reservas)
-            url_reserva = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
+            # 1. CARGA FORZADA DE CSV (Hoja Reservas)
+            # Cambiamos a la URL de exportación directa
+            sheet_id = "1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI"
+            gid = "276804813"
+            url_directa = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}&nocache={time.time()}"
             
-            @st.cache_data(ttl=60)
-            def load_agents_reserva(url):
-                return pd.read_csv(url, engine='python', on_bad_lines='skip')
-
-            df_ag_raw = load_agents_reserva(url_reserva)
-            df_ag_raw.columns = df_ag_raw.columns.str.strip()
+            df_raw = pd.read_csv(url_directa, engine='python', on_bad_lines='skip')
+            
+            # Limpieza de nombres de columnas (quitar espacios locos)
+            df_raw.columns = [str(c).strip() for c in df_raw.columns]
+            
+            # 2. IDENTIFICACIÓN DE COLUMNAS POR LETRA (MAPEADO ESTRICTO)
+            # Col H (Instrucción) = 7 | Col F (Transporte) = 5 | Col G (FFWW) = 6 
+            # Col Y (M3) = 24 | Col K (Status) = 10 | Col L (ETD) = 11
+            
+            df_res_ag = df_raw.copy()
             hoy = pd.to_datetime("2026-04-02")
 
-            # 2. FILTRADO INICIAL: Todo lo que tenga Fecha de Instrucción (Col H - Índice 7)
-            df_ag_raw['F_Inst'] = pd.to_datetime(df_ag_raw.iloc[:, 7], dayfirst=True, errors='coerce')
-            df_a = df_ag_raw[df_ag_raw['F_Inst'].notna()].copy()
+            # Filtro: Solo lo que tiene "Fecha de Instrucción" (Columna H - Índice 7)
+            # Convertimos a string y vemos si tiene contenido real
+            df_res_ag['F_Inst_Str'] = df_res_ag.iloc[:, 7].astype(str).str.strip()
+            df_a = df_res_ag[df_res_ag['F_Inst_Str'].apply(lambda x: len(x) > 4 and x.lower() != 'nan')].copy()
 
-            # Clasificación de Transporte (Col F - Índice 5)
-            def clasificar_ag(x):
-                x = str(x).upper()
-                if any(m in x for m in ["40 HQ", "40 ST", "20 ST", "40NOR", "MARITIMO"]): return "MARITIMO"
-                if any(a in x for a in ["AVION", "COURIER", "COURRIER"]): return "AVION / COURIER"
-                return "OTROS"
-            
-            df_a['Tipo_Transporte'] = df_a.iloc[:, 5].apply(clasificar_ag)
-            
-            # Selector de tipo de transporte para análisis
-            st.markdown("<br>", unsafe_allow_html=True)
-            tipo_sel = st.radio("Filtrar Análisis por:", ["MARITIMO", "AVION / COURIER"], horizontal=True)
-            df_filtrado = df_a[df_a['Tipo_Transporte'] == tipo_sel].copy()
-
-            # 3. CÁLCULOS DE TIEMPOS
-            # Fecha ETD (Col L - Índice 11) para calcular gestión
-            df_filtrado['F_ETD'] = pd.to_datetime(df_filtrado.iloc[:, 11], dayfirst=True, errors='coerce')
-            # Status OK (Col K - Índice 10)
-            df_filtrado['Status_K'] = df_filtrado.iloc[:, 10].astype(str).str.upper().str.strip()
-
-            # Gestión: Diferencia entre Inst y ETD solo para los OK
-            df_filtrado['Dias_Gestion'] = (df_filtrado['F_ETD'] - df_filtrado['F_Inst']).dt.days
-            # Espera: Diferencia entre Inst y Hoy para los que NO son OK
-            df_filtrado['Dias_Espera'] = (hoy - df_filtrado['F_Inst']).dt.days
-
-            # 4. AGRUPACIÓN POR FORWARDER (Col G - Índice 6)
-            col_ffww = df_filtrado.columns[6]
-            col_m3 = df_filtrado.columns[24]
-
-            res_ag = df_filtrado.groupby(col_ffww).agg(
-                Cant_SO=(df_filtrado.columns[0], 'count'),
-                M3_Total=(col_m3, lambda x: pd.to_numeric(x.astype(str).str.replace(',', '.'), errors='coerce').sum()),
-                Confirmados=('Status_K', lambda x: (x == "OK").sum()),
-                Prom_Gestion=('Dias_Gestion', 'mean'),
-                Prom_Espera=('Dias_Espera', lambda x: x[df_filtrado.loc[x.index, 'Status_K'] != "OK"].mean())
-            ).reset_index()
-
-            res_ag['%_OK'] = (res_ag['Confirmados'] / res_ag['Cant_SO'] * 100).fillna(0)
-            res_ag = res_ag.sort_values('Cant_SO', ascending=False)
-
-            # 5. RENDERIZADO DE TABLA DE PERFORMANCE
-            st.markdown(f"<p style='color:#00a8ff; font-weight:700; font-size:18px;'>RESUMEN PERFORMANCE: {tipo_sel}</p>", unsafe_allow_html=True)
-            
-            # Encabezados
-            h1, h2, h3, h4, h5, h6 = st.columns([1.5, 0.8, 1, 1, 1, 1])
-            headers = ["FORWARDER", "SO", "M3", "GESTIÓN", "ESPERA", "% ETD OK"]
-            for i, col in enumerate([h1, h2, h3, h4, h5, h6]):
-                col.markdown(f"<p style='color:#8899A6; font-size:10px; font-weight:700; text-align:center;'>{headers[i]}</p>", unsafe_allow_html=True)
-            st.markdown("<hr style='margin:0; border-top: 2px solid #00a8ff;'>", unsafe_allow_html=True)
-
-            for _, row in res_ag.iterrows():
-                r1, r2, r3, r4, r5, r6 = st.columns([1.5, 0.8, 1, 1, 1, 1])
+            if df_a.empty:
+                st.warning("No se detectaron filas con 'Fecha de Instrucción' en la Columna H.")
+                # Debug para el usuario
+                if st.checkbox("Ver columnas detectadas"):
+                    st.write(df_raw.head(2))
+            else:
+                # 3. PROCESAMIENTO DE DATOS
+                # Transporte (Col F - Ind 5)
+                def clasificar_ag(x):
+                    x = str(x).upper()
+                    if any(m in x for m in ["40", "20", "MARITIMO", "FCL", "LCL"]): return "MARITIMO"
+                    if any(a in x for a in ["AVION", "COURIER", "AEREO"]): return "AVION / COURIER"
+                    return "OTROS"
                 
-                color_pct = "#00ff88" if row['%_OK'] >= 80 else "#ffaa00" if row['%_OK'] >= 50 else "#ff4b4b"
+                df_a['Tipo_T'] = df_a.iloc[:, 5].apply(clasificar_ag)
                 
-                r1.markdown(f"<p style='font-weight:700; margin-top:10px;'>{row[col_ffww]}</p>", unsafe_allow_html=True)
-                r2.markdown(f"<p style='text-align:center; margin-top:10px;'>{int(row['Cant_SO'])}</p>", unsafe_allow_html=True)
-                r3.markdown(f"<p style='text-align:center; margin-top:10px;'>{row['M3_Total']:.1f}</p>", unsafe_allow_html=True)
-                
-                # Promedios
-                g_val = f"{int(round(row['Prom_Gestion']))}d" if not pd.isna(row['Prom_Gestion']) else "---"
-                e_val = f"{int(round(row['Prom_Espera']))}d" if not pd.isna(row['Prom_Espera']) else "0d"
-                
-                r4.markdown(f"<p style='text-align:center; margin-top:10px; color:#00ff88;'>{g_val}</p>", unsafe_allow_html=True)
-                r5.markdown(f"<p style='text-align:center; margin-top:10px; color:#ff4b4b;'>{e_val}</p>", unsafe_allow_html=True)
-                
-                # Progress Bar / Badge para % OK
-                r6.markdown(f"""
-                    <div style="background: {color_pct}22; color: {color_pct}; border: 1px solid {color_pct}44; 
-                    text-align:center; border-radius:5px; padding:3px; font-weight:700; font-size:14px; margin-top:5px;">
-                        {int(row['%_OK'])}%
-                    </div>
-                """, unsafe_allow_html=True)
-                st.markdown("<hr style='margin:0; opacity:0.05;'>", unsafe_allow_html=True)
+                # Selector
+                tipo_sel = st.segmented_control("Seleccionar Transporte", ["MARITIMO", "AVION / COURIER"], default="MARITIMO")
+                df_f = df_a[df_a['Tipo_T'] == tipo_sel].copy()
 
+                # Fechas para cálculos
+                df_f['DT_Inst'] = pd.to_datetime(df_f.iloc[:, 7], dayfirst=True, errors='coerce')
+                df_f['DT_ETD'] = pd.to_datetime(df_f.iloc[:, 11], dayfirst=True, errors='coerce')
+                df_f['Status_K'] = df_f.iloc[:, 10].astype(str).str.upper().str.strip()
+
+                # Tiempos
+                df_f['Dias_Gestion'] = (df_f['DT_ETD'] - df_f['DT_Inst']).dt.days
+                df_f['Dias_Espera'] = (hoy - df_f['DT_Inst']).dt.days
+
+                # 4. AGRUPACIÓN POR FORWARDER (Col G - Ind 6)
+                ffww_col_name = df_f.columns[6]
+                m3_col_index = 24
+                
+                res_ag = df_f.groupby(ffww_col_name).agg(
+                    SO=(df_f.columns[0], 'count'),
+                    M3=(df_f.columns[m3_col_index], lambda x: pd.to_numeric(x.astype(str).str.replace(',', '.'), errors='coerce').sum()),
+                    OK=('Status_K', lambda x: (x == "OK").sum()),
+                    Gestion=('Dias_Gestion', 'mean'),
+                    Espera=('Dias_Espera', lambda x: x[df_f.loc[x.index, 'Status_K'] != "OK"].mean())
+                ).reset_index()
+
+                res_ag['%_OK'] = (res_ag['OK'] / res_ag['SO'] * 100).fillna(0)
+                res_ag = res_ag.sort_values('SO', ascending=False)
+
+                # 5. TABLA VISUAL
+                st.markdown(f"### Performance de Agentes: {tipo_sel}")
+                
+                # Formato de tabla profesional
+                st.dataframe(
+                    res_ag.style.format({
+                        "M3": "{:.1f}",
+                        "Gestion": "{:.0f}d",
+                        "Espera": "{:.0f}d",
+                        "%_OK": "{:.0f}%"
+                    }),
+                    column_config={
+                        ffww_col_name: "Forwarder",
+                        "SO": "Cant. SO",
+                        "Gestion": "Prom. Gestión",
+                        "Espera": "Prom. Espera",
+                        "%_OK": st.column_config.ProgressColumn("% ETD OK", min_value=0, max_value=100)
+                    },
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+        except Exception as e:
+            st.error(f"Error al conectar con la hoja de Reservas: {e}")
         except Exception as e:
             st.error(f"Error en Solapa Agentes (Reservas): {e}")
