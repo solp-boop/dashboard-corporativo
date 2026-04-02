@@ -696,3 +696,86 @@ try:
             st.error(f"Error en Indicadores: {e}")
 except Exception as e:
     st.error(f"Error crítico: {e}")
+
+# ==========================================
+    # SOLAPA 4: AGENTES (INDIVIDAL / INDEPENDIENTE)
+    # ==========================================
+    with tabs[3]:
+        try:
+            # 1. CARGA INDEPENDIENTE DE LA HOJA RESERVAS
+            sheet_id = "1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI"
+            gid_res = "276804813"
+            url_ag = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid_res}&nocache={time.time()}"
+            
+            # Leemos la data fresca solo para esta solapa
+            df_ag_raw = pd.read_csv(url_ag, engine='python')
+            df_ag_raw.columns = [str(c).strip() for c in df_ag_raw.columns]
+            
+            # 2. DETECCIÓN AUTOMÁTICA DE COLUMNAS (Para que no falle por nombres)
+            def buscar(keywords):
+                for k in keywords:
+                    for c in df_ag_raw.columns:
+                        if k.upper() in c.upper(): return c
+                return None
+
+            c_inst = buscar(["Instrucción", "Instruccion", "Fecha de Inst"])
+            c_ffww = buscar(["Forwarder", "Agente"])
+            c_trans = buscar(["Transporte", "Tipo"])
+            c_m3 = buscar(["M3 Total", "M3"])
+            c_status = buscar(["ETD OK FFWW", "Status"])
+            c_etd = buscar(["ETD", "Fecha Salida"])
+
+            if not c_inst or not c_ffww:
+                st.warning("No se pudieron localizar las columnas críticas en la hoja Reservas.")
+            else:
+                # 3. FILTRADO: Solo lo instruido hoy
+                df_ag_raw['DT_Inst'] = pd.to_datetime(df_ag_raw[c_inst], dayfirst=True, errors='coerce')
+                df_a = df_ag_raw[df_ag_raw['DT_Inst'].notna()].copy()
+
+                if df_a.empty:
+                    st.info("No hay datos con Fecha de Instrucción en esta solapa.")
+                else:
+                    st.markdown("<p style='color:#00a8ff; font-weight:700; letter-spacing:2px; font-size:22px; text-align:center;'>PERFORMANCE AGENTES - GESTIÓN ACTUAL</p>", unsafe_allow_html=True)
+                    
+                    # Clasificación y Selector
+                    df_a['Tipo_T'] = df_a[c_trans].apply(lambda x: "MARITIMO" if any(m in str(x).upper() for m in ["40", "20", "MARITIMO"]) else "AVION / COURIER")
+                    tipo_sel = st.radio("Transporte:", ["MARITIMO", "AVION / COURIER"], horizontal=True, key="ag_radio")
+                    
+                    df_f = df_a[df_a['Tipo_T'] == tipo_sel].copy()
+
+                    # Cálculos de Tiempo
+                    hoy_ref = pd.to_datetime("2026-04-02")
+                    df_f['DT_ETD'] = pd.to_datetime(df_f[c_etd], dayfirst=True, errors='coerce')
+                    df_f['Status_K'] = df_f[c_status].astype(str).str.upper().str.strip()
+
+                    df_f['Dias_Gestion'] = (df_f['DT_ETD'] - df_f['DT_Inst']).dt.days
+                    df_f['Dias_Espera'] = (hoy_ref - df_f['DT_Inst']).dt.days
+
+                    # Agrupación
+                    res_ag = df_f.groupby(c_ffww).agg(
+                        Cant_SO=(df_f.columns[0], 'count'),
+                        M3=(c_m3, lambda x: pd.to_numeric(x.astype(str).str.replace(',', '.'), errors='coerce').sum()),
+                        Confirmados=('Status_K', lambda x: (x == "OK").sum()),
+                        Gestion=('Dias_Gestion', 'mean'),
+                        Espera=('Dias_Espera', lambda x: x[df_f.loc[x.index, 'Status_K'] != "OK"].mean())
+                    ).reset_index()
+
+                    res_ag['%_OK'] = (res_ag['Confirmados'] / res_ag['Cant_SO'] * 100).fillna(0)
+                    res_ag = res_ag.sort_values('Cant_SO', ascending=False)
+
+                    # Tabla Final
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.dataframe(
+                        res_ag,
+                        column_config={
+                            c_ffww: "Forwarder",
+                            "Cant_SO": "SO",
+                            "M3": st.column_config.NumberColumn("M3 Total", format="%.1f"),
+                            "Gestion": st.column_config.NumberColumn("Gestión (Prom)", format="%d d"),
+                            "Espera": st.column_config.NumberColumn("Espera (Prom)", format="%d d"),
+                            "%_OK": st.column_config.ProgressColumn("Efectividad %", min_value=0, max_value=100, format="%d%%")
+                        },
+                        use_container_width=True, hide_index=True
+                    )
+        except Exception as e:
+            st.error(f"Error específico en solapa Agentes: {e}")
