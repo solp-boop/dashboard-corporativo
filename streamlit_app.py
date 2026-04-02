@@ -350,25 +350,25 @@ try:
 
         except Exception as e:
             st.error(f"Error en Solapa Origen: {e}")
-
-# --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
+# ==========================================
+    # --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
+    # ==========================================
     with tabs[1]:
         try:
             # 1. CARGA DE DATOS CON GESTIÓN DE ERRORES (REINTENTOS)
             url_reserva = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
             
-            @st.cache_data(ttl=60)  # Caché de 1 minuto para evitar IncompleteRead constantes
+            @st.cache_data(ttl=60)
             def load_reserva_data(url):
-                # Intentamos cargar con un motor de lectura más robusto
                 return pd.read_csv(url, engine='python', on_bad_lines='skip')
 
             try:
                 df_res = load_reserva_data(url_reserva)
             except Exception:
-                # Si falla el caché o la red, forzamos una lectura limpia
                 df_res = pd.read_csv(url_reserva)
             
             df_res.columns = df_res.columns.str.strip()
+            hoy = pd.to_datetime("2026-04-02") # Fecha de referencia del sistema
 
             # Filtrar solo lo instruido (Columna H = índice 7)
             df_res['Fecha_Inst_H'] = df_res.iloc[:, 7].astype(str).str.strip()
@@ -377,9 +377,10 @@ try:
             # --- BLOQUE 1: KPIs GRANDES ---
             st.markdown("<br>", unsafe_allow_html=True)
             k1, k2, k3 = st.columns(3)
-            with k1: st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>SO INSTRUIDAS</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(len(df_inst))}</p></div>", unsafe_allow_html=True)
-            with k2: st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>VOLUMEN (M3)</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(round(df_inst['M3 Total'].sum())):,}</p></div>", unsafe_allow_html=True)
-            with k3: st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>PROVEEDORES</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
+            # Nota: Asegúrate que df_inst esté definido o usa df_g si es el filtrado general
+            with k1: st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>SO INSTRUIDAS</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(len(df_g))}</p></div>", unsafe_allow_html=True)
+            with k2: st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>VOLUMEN (M3)</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(round(pd.to_numeric(df_g.iloc[:, 14], errors='coerce').sum())):,}</p></div>", unsafe_allow_html=True)
+            with k3: st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>PROVEEDORES</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(df_g.iloc[:, 3].nunique())}</p></div>", unsafe_allow_html=True)
 
             st.markdown("<br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
 
@@ -389,7 +390,7 @@ try:
             pendientes_glob = len(df_g) - confirmados_glob
             p_ok_glob = round((confirmados_glob / len(df_g) * 100)) if len(df_g) > 0 else 0
             
-            _, c_mid, _ = st.columns([0.1, 1, 0.1])
+            _, c_mid, _ = st.columns([0.05, 1, 0.05])
             with c_mid:
                 m1, m2, m3, m4 = st.columns(4)
                 m1.markdown(f"<div style='text-align:center;'><p style='font-weight:700; font-size:14px; margin:0;'>ETD OK (TOTAL)</p><p style='font-weight:300; font-size:32px; margin:0;'>{confirmados_glob} Emb.</p></div>", unsafe_allow_html=True)
@@ -397,7 +398,36 @@ try:
                 m3.markdown(f"<div style='text-align:center;'><p style='font-weight:700; font-size:14px; margin:0;'>% EFECTIVIDAD</p><p style='font-weight:300; font-size:32px; margin:0;'>{int(p_ok_glob)}%</p></div>", unsafe_allow_html=True)
                 m4.markdown(f"<div style='text-align:center;'><p style='font-weight:700; font-size:14px; margin:0;'>% PENDIENTE</p><p style='font-weight:300; font-size:32px; margin:0;'>{int(100 - p_ok_glob)}%</p></div>", unsafe_allow_html=True)
 
-            st.markdown("<br><p style='text-align:center; color:#00a8ff; font-weight:700; letter-spacing:2px; font-size:12px;'>DESGLOSE POR TIPO DE TRANSPORTE</p>", unsafe_allow_html=True)
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # --- NUEVO BLOQUE: PROM. GESTIÓN Y PROM. ESPERA ---
+            # Procesamiento de fechas (J=9 para Instrucción, L=11 para ETD)
+            df_g['F_Inst'] = pd.to_datetime(df_g.iloc[:, 9], dayfirst=True, errors='coerce')
+            df_g['F_ETD'] = pd.to_datetime(df_g.iloc[:, 11], dayfirst=True, errors='coerce')
+
+            # Prom. Gestión (Confirmados): ETD - Instrucción
+            df_conf = df_g[df_g['ETD_Status_K'] == "OK"].copy()
+            df_conf['diff_g'] = (df_conf['F_ETD'] - df_conf['F_Inst']).dt.days
+            p_gestion = df_conf['diff_g'].mean() if not df_conf['diff_g'].dropna().empty else 0
+
+            # Prom. Espera (Pendientes): Hoy - Instrucción
+            df_pend = df_g[df_g['ETD_Status_K'] != "OK"].copy()
+            df_pend['diff_e'] = (hoy - df_pend['F_Inst']).dt.days
+            p_espera = df_pend['diff_e'].mean() if not df_pend['diff_e'].dropna().empty else 0
+
+            st_c1, st_c2 = st.columns(2)
+            with st_c1:
+                st.markdown(f"""<div style="background: rgba(0, 168, 255, 0.05); padding: 20px; border-radius: 10px; border: 1px solid rgba(0, 168, 255, 0.2); text-align: center;">
+                    <p style="color: #8899A6; font-weight: 700; margin: 0; font-size: 13px; letter-spacing: 1px;">PROM. GESTIÓN (INST-ETD)</p>
+                    <p style="color: #00a8ff; font-weight: 300; margin: 0; font-size: 42px;">{int(round(p_gestion))} <span style="font-size:18px;">días</span></p>
+                </div>""", unsafe_allow_html=True)
+            with st_c2:
+                st.markdown(f"""<div style="background: rgba(255, 75, 75, 0.05); padding: 20px; border-radius: 10px; border: 1px solid rgba(255, 75, 75, 0.2); text-align: center;">
+                    <p style="color: #8899A6; font-weight: 700; margin: 0; font-size: 13px; letter-spacing: 1px;">PROM. ESPERA (PEND)</p>
+                    <p style="color: #ff4b4b; font-weight: 300; margin: 0; font-size: 42px;">{int(round(p_espera))} <span style="font-size:18px;">días</span></p>
+                </div>""", unsafe_allow_html=True)
+
+            st.markdown("<br><hr style='opacity:0.05;'><p style='text-align:center; color:#8899A6; font-weight:700; letter-spacing:2px; font-size:12px;'>DESGLOSE POR TIPO DE TRANSPORTE</p>", unsafe_allow_html=True)
 
             # --- BLOQUE 3: MARITIMO VS AEREO ---
             def clasificar_transporte(x):
