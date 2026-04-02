@@ -639,3 +639,85 @@ try:
             st.error(f"Error en Indicadores: {e}")
 except Exception as e:
     st.error(f"Error crítico: {e}")
+# ==========================================
+    # SOLAPA 4: PERFORMANCE DE AGENTES
+    # ==========================================
+    with tabs[3]:
+        try:
+            # 1. CARGA Y FILTRADO (2026 Marítimo)
+            # Reutilizamos df_ind que ya tiene el filtro de año y transporte marítimo
+            
+            st.markdown("<br><p style='color:#ffffff; font-weight:700; letter-spacing:3px; font-size:22px; text-align:center;'>PERFORMANCE POR AGENTE DE CARGA</p>", unsafe_allow_html=True)
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # 2. AGRUPACIÓN MAESTRA POR AGENTE
+            # Agente: Columna AF (Indice 31)
+            # M3: Columna B (Indice 1) - Ajustar si M3 está en otra columna en Histórico
+            # Tiempos: AE(30), AF(31), AG(32)
+            
+            agente_col = df_ind.columns[31]
+            tiempo_total_col = df_ind.columns[32]
+
+            df_agentes = df_ind.groupby(agente_col).agg(
+                Cant_Emb=(df_ind.columns[0], 'count'),
+                Prom_Comex=(df_ind.columns[30], 'mean'),
+                Prom_Agente=(df_ind.columns[31], 'mean'),
+                Prom_Total=(tiempo_col_name, 'mean'),
+                SLA_Cumplido=(tiempo_col_name, lambda x: (x <= 25).sum())
+            ).reset_index()
+
+            # Cálculo de % de Eficiencia SLA
+            df_agentes['% SLA'] = (df_agentes['SLA_Cumplido'] / df_agentes['Cant_Emb'] * 100).round(0)
+            df_agentes = df_agentes.sort_values('Cant_Emb', ascending=False)
+
+            # 3. DASHBOARD VISUAL DE AGENTES
+            # Ranking Top 3 Agentes (Cartas)
+            top_cols = st.columns(3)
+            for i, row in df_agentes.head(3).iterrows():
+                with top_cols[i]:
+                    color_rank = ["#00a8ff", "#00ff88", "#ffaa00"][i]
+                    st.markdown(f"""
+                        <div style="background: rgba(255,255,255,0.03); padding: 20px; border-radius: 15px; border-top: 4px solid {color_rank}; text-align: center;">
+                            <p style="color: #8899A6; font-size: 12px; margin:0;">TOP {i+1} AGENTE</p>
+                            <p style="color: {color_rank}; font-size: 20px; font-weight: 800; margin:5px 0;">{row[agente_col]}</p>
+                            <p style="font-size: 32px; font-weight: 900; margin:0;">{int(row['Cant_Emb'])} <span style="font-size:14px; color:#8899A6;">Emb.</span></p>
+                            <p style="color: {color_rank}; font-size: 14px; font-weight: 700;">SLA: {int(row['% SLA'])}% OK</p>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+            st.markdown("<br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
+
+            # 4. TABLA COMPARATIVA DETALLADA
+            st.markdown("<p style='color:#8899A6; font-weight:700; font-size:14px;'>COMPARATIVA DE TIEMPOS Y CUMPLIMIENTO</p>", unsafe_allow_html=True)
+            
+            # Encabezados de Tabla
+            t1, t2, t3, t4, t5, t6 = st.columns([1.5, 1, 1, 1, 1, 0.8])
+            h_labels = ["AGENTE", "EMBARQUES", "PROM. COMEX", "PROM. AGENTE", "TIEMPO TOTAL", "SCORE SLA"]
+            for i, col in enumerate([t1, t2, t3, t4, t5, t6]):
+                col.markdown(f"<p style='color:#8899A6; font-size:10px; font-weight:700; text-align:center;'>{h_labels[i]}</p>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin:0; border-top: 2px solid #ffffff;'>", unsafe_allow_html=True)
+
+            for _, row in df_agentes.iterrows():
+                r1, r2, r3, r4, r5, r6 = st.columns([1.5, 1, 1, 1, 1, 0.8])
+                
+                # Lógica de color por performance
+                score_color = "#00ff88" if row['% SLA'] >= 80 else "#ffaa00" if row['% SLA'] >= 60 else "#ff4b4b"
+                
+                r1.markdown(f"<p style='font-weight:700; margin-top:10px;'>{row[agente_col]}</p>", unsafe_allow_html=True)
+                r2.markdown(f"<p style='text-align:center; margin-top:10px;'>{int(row['Cant_Emb'])}</p>", unsafe_allow_html=True)
+                r3.markdown(f"<p style='text-align:center; margin-top:10px; color:#8899A6;'>{int(round(row['Prom_Comex']))}d</p>", unsafe_allow_html=True)
+                r4.markdown(f"<p style='text-align:center; margin-top:10px; color:#8899A6;'>{int(round(row['Prom_Agente']))}d</p>", unsafe_allow_html=True)
+                r5.markdown(f"<p style='text-align:center; font-weight:900; color:#00a8ff; font-size:18px;'>{int(round(row['Prom_Total']))}d</p>", unsafe_allow_html=True)
+                
+                # Badge de Score
+                r6.markdown(f"""
+                    <div style="background: {score_color}22; color: {score_color}; border: 1px solid {score_color}44; 
+                    text-align:center; border-radius:5px; padding:2px; font-weight:700; font-size:12px; margin-top:10px;">
+                        {int(row['% SLA'])}%
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                st.markdown("<hr style='margin:0; opacity:0.05;'>", unsafe_allow_html=True)
+
+        except Exception as e:
+            st.error(f"Error en Solapa Agentes: {e}")
