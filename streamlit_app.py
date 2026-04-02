@@ -698,84 +698,75 @@ except Exception as e:
     st.error(f"Error crítico: {e}")
 
 # ==========================================
-    # SOLAPA 4: AGENTES (INDIVIDAL / INDEPENDIENTE)
-    # ==========================================
+# SOLAPA 4: PERFORMANCE AGENTES (UNITARIO)
+# ==========================================
     with tabs[3]:
+        st.markdown("<h3 style='text-align:center; color:#00a8ff;'>MONITOR DE GESTIÓN POR AGENTE</h3>", unsafe_allow_html=True)
         try:
-            # 1. CARGA INDEPENDIENTE DE LA HOJA RESERVAS
-            sheet_id = "1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI"
-            gid_res = "276804813"
-            url_ag = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid_res}&nocache={time.time()}"
-            
-            # Leemos la data fresca solo para esta solapa
-            df_ag_raw = pd.read_csv(url_ag, engine='python')
+            # 1. CARGA INDEPENDIENTE
+            u_ag = "https://docs.google.com/spreadsheets/d/1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI/export?format=csv&gid=276804813"
+            df_ag_raw = pd.read_csv(u_ag, engine='python')
             df_ag_raw.columns = [str(c).strip() for c in df_ag_raw.columns]
+
+            # 2. DEFINICIÓN DE COLUMNAS SEGÚN TU EXCEL
+            # Col H (7) = Instrucción | Col F (5) = Transporte | Col G (6) = Forwarder 
+            # Col Y (24) = M3 | Col K (10) = Status | Col L (11) = ETD
             
-            # 2. DETECCIÓN AUTOMÁTICA DE COLUMNAS (Para que no falle por nombres)
-            def buscar(keywords):
-                for k in keywords:
-                    for c in df_ag_raw.columns:
-                        if k.upper() in c.upper(): return c
-                return None
+            # Filtro: Solo lo que tiene fecha en Columna H (Instrucción)
+            df_ag_raw['DT_Inst'] = pd.to_datetime(df_ag_raw.iloc[:, 7], dayfirst=True, errors='coerce')
+            df_a = df_ag_raw[df_ag_raw['DT_Inst'].notna()].copy()
 
-            c_inst = buscar(["Instrucción", "Instruccion", "Fecha de Inst"])
-            c_ffww = buscar(["Forwarder", "Agente"])
-            c_trans = buscar(["Transporte", "Tipo"])
-            c_m3 = buscar(["M3 Total", "M3"])
-            c_status = buscar(["ETD OK FFWW", "Status"])
-            c_etd = buscar(["ETD", "Fecha Salida"])
-
-            if not c_inst or not c_ffww:
-                st.warning("No se pudieron localizar las columnas críticas en la hoja Reservas.")
+            if df_a.empty:
+                st.warning("No se encontraron fechas de instrucción en la columna H de la hoja Reservas.")
             else:
-                # 3. FILTRADO: Solo lo instruido hoy
-                df_ag_raw['DT_Inst'] = pd.to_datetime(df_ag_raw[c_inst], dayfirst=True, errors='coerce')
-                df_a = df_ag_raw[df_ag_raw['DT_Inst'].notna()].copy()
+                # 3. FILTRO TRANSPORTE
+                df_a['Tipo_T'] = df_a.iloc[:, 5].apply(lambda x: "MARITIMO" if any(m in str(x).upper() for m in ["40", "20", "MARITIMO"]) else "AVION / COURIER")
+                t_sel = st.radio("Filtrar por medio:", ["MARITIMO", "AVION / COURIER"], horizontal=True, key="ag_radio_fixed")
+                
+                df_f = df_a[df_a['Tipo_T'] == t_sel].copy()
 
-                if df_a.empty:
-                    st.info("No hay datos con Fecha de Instrucción en esta solapa.")
-                else:
-                    st.markdown("<p style='color:#00a8ff; font-weight:700; letter-spacing:2px; font-size:22px; text-align:center;'>PERFORMANCE AGENTES - GESTIÓN ACTUAL</p>", unsafe_allow_html=True)
-                    
-                    # Clasificación y Selector
-                    df_a['Tipo_T'] = df_a[c_trans].apply(lambda x: "MARITIMO" if any(m in str(x).upper() for m in ["40", "20", "MARITIMO"]) else "AVION / COURIER")
-                    tipo_sel = st.radio("Transporte:", ["MARITIMO", "AVION / COURIER"], horizontal=True, key="ag_radio")
-                    
-                    df_f = df_a[df_a['Tipo_T'] == tipo_sel].copy()
+                # 4. CÁLCULOS
+                hoy_f = pd.Timestamp("2026-04-02")
+                df_f['DT_ETD'] = pd.to_datetime(df_f.iloc[:, 11], dayfirst=True, errors='coerce')
+                df_f['Status_K'] = df_f.iloc[:, 10].astype(str).str.upper().str.strip()
 
-                    # Cálculos de Tiempo
-                    hoy_ref = pd.to_datetime("2026-04-02")
-                    df_f['DT_ETD'] = pd.to_datetime(df_f[c_etd], dayfirst=True, errors='coerce')
-                    df_f['Status_K'] = df_f[c_status].astype(str).str.upper().str.strip()
+                df_f['Gestion'] = (df_f['DT_ETD'] - df_f['DT_Inst']).dt.days
+                df_f['Espera'] = (hoy_f - df_f['DT_Inst']).dt.days
 
-                    df_f['Dias_Gestion'] = (df_f['DT_ETD'] - df_f['DT_Inst']).dt.days
-                    df_f['Dias_Espera'] = (hoy_ref - df_f['DT_Inst']).dt.days
+                # 5. AGRUPACIÓN
+                col_ffww = df_f.columns[6]
+                res_ag = df_f.groupby(col_ffww).agg(
+                    SO=(df_f.columns[0], 'count'),
+                    M3=(df_f.columns[24], lambda x: pd.to_numeric(x.astype(str).str.replace(',', '.'), errors='coerce').sum()),
+                    Confirmados=('Status_K', lambda x: (x == "OK").sum()),
+                    Prom_Gest=('Gestion', 'mean'),
+                    Prom_Esp=('Espera', lambda x: x[df_f.loc[x.index, 'Status_K'] != "OK"].mean())
+                ).reset_index()
 
-                    # Agrupación
-                    res_ag = df_f.groupby(c_ffww).agg(
-                        Cant_SO=(df_f.columns[0], 'count'),
-                        M3=(c_m3, lambda x: pd.to_numeric(x.astype(str).str.replace(',', '.'), errors='coerce').sum()),
-                        Confirmados=('Status_K', lambda x: (x == "OK").sum()),
-                        Gestion=('Dias_Gestion', 'mean'),
-                        Espera=('Dias_Espera', lambda x: x[df_f.loc[x.index, 'Status_K'] != "OK"].mean())
-                    ).reset_index()
+                res_ag['%_OK'] = (res_ag['Confirmados'] / res_ag['SO'] * 100).fillna(0)
+                res_ag = res_ag.sort_values('SO', ascending=False)
 
-                    res_ag['%_OK'] = (res_ag['Confirmados'] / res_ag['Cant_SO'] * 100).fillna(0)
-                    res_ag = res_ag.sort_values('Cant_SO', ascending=False)
+                # 6. TABLA
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.dataframe(
+                    res_ag,
+                    column_config={
+                        col_ffww: "Forwarder",
+                        "SO": "Cant. SO",
+                        "M3": st.column_config.NumberColumn("M3 Total", format="%.1f"),
+                        "Prom_Gest": st.column_config.NumberColumn("Gestión (Días)", format="%d"),
+                        "Prom_Esp": st.column_config.NumberColumn("Espera (Días)", format="%d"),
+                        "%_OK": st.column_config.ProgressColumn("Efectividad %", min_value=0, max_value=100, format="%d%%")
+                    },
+                    use_container_width=True, hide_index=True
+                )
 
-                    # Tabla Final
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    st.dataframe(
-                        res_ag,
-                        column_config={
-                            c_ffww: "Forwarder",
-                            "Cant_SO": "SO",
-                            "M3": st.column_config.NumberColumn("M3 Total", format="%.1f"),
-                            "Gestion": st.column_config.NumberColumn("Gestión (Prom)", format="%d d"),
-                            "Espera": st.column_config.NumberColumn("Espera (Prom)", format="%d d"),
-                            "%_OK": st.column_config.ProgressColumn("Efectividad %", min_value=0, max_value=100, format="%d%%")
-                        },
-                        use_container_width=True, hide_index=True
-                    )
         except Exception as e:
-            st.error(f"Error específico en solapa Agentes: {e}")
+            st.error(f"Error en Solapa Agentes: {e}")
+
+# --- SOLAPAS RESTANTES VACÍAS PARA EVITAR ERRORES ---
+    with tabs[4]: st.info("Módulo Analistas en desarrollo.")
+    with tabs[5]: st.info("Módulo Fletes en desarrollo.")
+
+except Exception as e:
+    st.error(f"Error crítico en el Tablero: {e}")
