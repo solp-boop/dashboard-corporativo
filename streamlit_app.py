@@ -640,76 +640,96 @@ try:
 except Exception as e:
     st.error(f"Error crítico: {e}")
 # ==========================================
-    # SOLAPA 4: PERFORMANCE AGENTES (TIEMPO REAL)
+    # SOLAPA 4: PERFORMANCE AGENTES (RESERVAS)
     # ==========================================
     with tabs[3]:
         try:
-            # 1. USAMOS df_res (que ya cargamos en la Solapa 2 desde 'Reservas')
-            # Si por alguna razón no está, lo volvemos a asegurar:
-            if 'df_res' not in locals():
-                url_res = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
-                df_ag_res = pd.read_csv(url_res, engine='python', on_bad_lines='skip')
-                df_ag_res.columns = df_ag_res.columns.str.strip()
-            else:
-                df_ag_res = df_res.copy()
+            # 1. CARGA DE DATOS (Asegurando que usamos la hoja de Reservas)
+            url_reserva = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
+            
+            @st.cache_data(ttl=60)
+            def load_agents_reserva(url):
+                return pd.read_csv(url, engine='python', on_bad_lines='skip')
 
+            df_ag_raw = load_agents_reserva(url_reserva)
+            df_ag_raw.columns = df_ag_raw.columns.str.strip()
             hoy = pd.to_datetime("2026-04-02")
 
-            # 2. LIMPIEZA Y FILTRADO (Solo lo instruido en Col U / Índice 20)
-            df_ag_res['F_Inst'] = pd.to_datetime(df_ag_res.iloc[:, 20], dayfirst=True, errors='coerce')
-            df_ag_res['F_ETD'] = pd.to_datetime(df_ag_res.iloc[:, 11], dayfirst=True, errors='coerce')
-            df_ag_res = df_ag_res[df_ag_res['F_Inst'].notna()].copy()
+            # 2. FILTRADO INICIAL: Todo lo que tenga Fecha de Instrucción (Col H - Índice 7)
+            df_ag_raw['F_Inst'] = pd.to_datetime(df_ag_raw.iloc[:, 7], dayfirst=True, errors='coerce')
+            df_a = df_ag_raw[df_ag_raw['F_Inst'].notna()].copy()
 
-            # Identificamos columnas clave
-            # Agente: Columna K (Índice 10) o AE (Índice 30) - Ajusto a Índice 10 que suele ser el Agente en Reservas
-            col_nom_agente = df_ag_res.columns[10] 
-            df_ag_res['Status_ETD'] = df_ag_res.iloc[:, 10].astype(str).str.upper().str.strip()
+            # Clasificación de Transporte (Col F - Índice 5)
+            def clasificar_ag(x):
+                x = str(x).upper()
+                if any(m in x for m in ["40 HQ", "40 ST", "20 ST", "40NOR", "MARITIMO"]): return "MARITIMO"
+                if any(a in x for a in ["AVION", "COURIER", "COURRIER"]): return "AVION / COURIER"
+                return "OTROS"
+            
+            df_a['Tipo_Transporte'] = df_a.iloc[:, 5].apply(clasificar_ag)
+            
+            # Selector de tipo de transporte para análisis
+            st.markdown("<br>", unsafe_allow_html=True)
+            tipo_sel = st.radio("Filtrar Análisis por:", ["MARITIMO", "AVION / COURIER"], horizontal=True)
+            df_filtrado = df_a[df_a['Tipo_Transporte'] == tipo_sel].copy()
 
-            # 3. CÁLCULOS POR AGENTE
-            # Días de gestión (para los OK)
-            df_ag_res['Dias_Gestion'] = (df_ag_res['F_ETD'] - df_ag_res['F_Inst']).dt.days
-            # Días de espera (para los Pendientes)
-            df_ag_res['Dias_Espera'] = (hoy - df_ag_res['F_Inst']).dt.days
+            # 3. CÁLCULOS DE TIEMPOS
+            # Fecha ETD (Col L - Índice 11) para calcular gestión
+            df_filtrado['F_ETD'] = pd.to_datetime(df_filtrado.iloc[:, 11], dayfirst=True, errors='coerce')
+            # Status OK (Col K - Índice 10)
+            df_filtrado['Status_K'] = df_filtrado.iloc[:, 10].astype(str).str.upper().str.strip()
 
-            res_agente = df_ag_res.groupby(col_nom_agente).agg(
-                Total_Inst=(df_ag_res.columns[0], 'count'),
-                Confirmados=(df_ag_res.columns[10], lambda x: (x.str.upper() == "OK").sum()),
+            # Gestión: Diferencia entre Inst y ETD solo para los OK
+            df_filtrado['Dias_Gestion'] = (df_filtrado['F_ETD'] - df_filtrado['F_Inst']).dt.days
+            # Espera: Diferencia entre Inst y Hoy para los que NO son OK
+            df_filtrado['Dias_Espera'] = (hoy - df_filtrado['F_Inst']).dt.days
+
+            # 4. AGRUPACIÓN POR FORWARDER (Col G - Índice 6)
+            col_ffww = df_filtrado.columns[6]
+            col_m3 = df_filtrado.columns[24]
+
+            res_ag = df_filtrado.groupby(col_ffww).agg(
+                Cant_SO=(df_filtrado.columns[0], 'count'),
+                M3_Total=(col_m3, lambda x: pd.to_numeric(x.astype(str).str.replace(',', '.'), errors='coerce').sum()),
+                Confirmados=('Status_K', lambda x: (x == "OK").sum()),
                 Prom_Gestion=('Dias_Gestion', 'mean'),
-                Max_Espera=('Dias_Espera', lambda x: x[df_ag_res.loc[x.index, 'Status_ETD'] != "OK"].max())
+                Prom_Espera=('Dias_Espera', lambda x: x[df_filtrado.loc[x.index, 'Status_K'] != "OK"].mean())
             ).reset_index()
 
-            res_agente['%_Efectividad'] = (res_agente['Confirmados'] / res_agente['Total_Inst'] * 100).fillna(0)
-            res_agente = res_agente.sort_values('Total_Inst', ascending=False)
+            res_ag['%_OK'] = (res_ag['Confirmados'] / res_ag['Cant_SO'] * 100).fillna(0)
+            res_ag = res_ag.sort_values('Cant_SO', ascending=False)
 
-            # --- 4. VISUALIZACIÓN ---
-            st.markdown("<br><p style='color:#00ff88; font-weight:700; letter-spacing:2px; font-size:20px; text-align:center;'>MONITOR DE GESTIÓN DE AGENTES (ACTUAL)</p>", unsafe_allow_html=True)
-            st.markdown(f"<p style='text-align:center; color:#8899A6; font-size:12px;'>Basado en {len(df_ag_res)} instrucciones vigentes</p>", unsafe_allow_html=True)
-            st.markdown("<br>", unsafe_allow_html=True)
+            # 5. RENDERIZADO DE TABLA DE PERFORMANCE
+            st.markdown(f"<p style='color:#00a8ff; font-weight:700; font-size:18px;'>RESUMEN PERFORMANCE: {tipo_sel}</p>", unsafe_allow_html=True)
+            
+            # Encabezados
+            h1, h2, h3, h4, h5, h6 = st.columns([1.5, 0.8, 1, 1, 1, 1])
+            headers = ["FORWARDER", "SO", "M3", "GESTIÓN", "ESPERA", "% ETD OK"]
+            for i, col in enumerate([h1, h2, h3, h4, h5, h6]):
+                col.markdown(f"<p style='color:#8899A6; font-size:10px; font-weight:700; text-align:center;'>{headers[i]}</p>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin:0; border-top: 2px solid #00a8ff;'>", unsafe_allow_html=True)
 
-            # Tabla de Control
-            c1, c2, c3, c4, c5 = st.columns([1.5, 1, 1, 1, 1])
-            headers = ["AGENTE", "INSTRUIDAS", "CONFIRMADAS", "PROM. GESTIÓN", "EFECTIVIDAD"]
-            for i, col in enumerate([c1, c2, c3, c4, c5]):
-                col.markdown(f"<p style='color:#8899A6; font-size:11px; font-weight:700; text-align:center;'>{headers[i]}</p>", unsafe_allow_html=True)
-            st.markdown("<hr style='margin:0; border-top: 2px solid #00ff88;'>", unsafe_allow_html=True)
-
-            for _, row in res_agente.iterrows():
-                r1, r2, r3, r4, r5 = st.columns([1.5, 1, 1, 1, 1])
+            for _, row in res_ag.iterrows():
+                r1, r2, r3, r4, r5, r6 = st.columns([1.5, 0.8, 1, 1, 1, 1])
                 
-                # Color según efectividad
-                color_efec = "#00ff88" if row['%_Efectividad'] >= 80 else "#ffaa00" if row['%_Efectividad'] >= 50 else "#ff4b4b"
+                color_pct = "#00ff88" if row['%_OK'] >= 80 else "#ffaa00" if row['%_OK'] >= 50 else "#ff4b4b"
                 
-                r1.markdown(f"<p style='font-weight:700; margin-top:10px;'>{row[col_nom_agente]}</p>", unsafe_allow_html=True)
-                r2.markdown(f"<p style='text-align:center; margin-top:10px;'>{int(row['Total_Inst'])}</p>", unsafe_allow_html=True)
-                r3.markdown(f"<p style='text-align:center; margin-top:10px; color:#00ff88;'>{int(row['Confirmados'])}</p>", unsafe_allow_html=True)
+                r1.markdown(f"<p style='font-weight:700; margin-top:10px;'>{row[col_ffww]}</p>", unsafe_allow_html=True)
+                r2.markdown(f"<p style='text-align:center; margin-top:10px;'>{int(row['Cant_SO'])}</p>", unsafe_allow_html=True)
+                r3.markdown(f"<p style='text-align:center; margin-top:10px;'>{row['M3_Total']:.1f}</p>", unsafe_allow_html=True)
                 
-                gest_val = f"{int(round(row['Prom_Gestion']))}d" if not pd.isna(row['Prom_Gestion']) else "---"
-                r4.markdown(f"<p style='text-align:center; margin-top:10px; font-weight:700;'>{gest_val}</p>", unsafe_allow_html=True)
+                # Promedios
+                g_val = f"{int(round(row['Prom_Gestion']))}d" if not pd.isna(row['Prom_Gestion']) else "---"
+                e_val = f"{int(round(row['Prom_Espera']))}d" if not pd.isna(row['Prom_Espera']) else "0d"
                 
-                r5.markdown(f"""
-                    <div style="background: {color_efec}22; color: {color_efec}; border: 1px solid {color_efec}44; 
+                r4.markdown(f"<p style='text-align:center; margin-top:10px; color:#00ff88;'>{g_val}</p>", unsafe_allow_html=True)
+                r5.markdown(f"<p style='text-align:center; margin-top:10px; color:#ff4b4b;'>{e_val}</p>", unsafe_allow_html=True)
+                
+                # Progress Bar / Badge para % OK
+                r6.markdown(f"""
+                    <div style="background: {color_pct}22; color: {color_pct}; border: 1px solid {color_pct}44; 
                     text-align:center; border-radius:5px; padding:3px; font-weight:700; font-size:14px; margin-top:5px;">
-                        {int(row['%_Efectividad'])}%
+                        {int(row['%_OK'])}%
                     </div>
                 """, unsafe_allow_html=True)
                 st.markdown("<hr style='margin:0; opacity:0.05;'>", unsafe_allow_html=True)
