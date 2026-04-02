@@ -356,7 +356,7 @@ try:
     # ==========================================
     with tabs[1]:
         try:
-            # 1. CARGA DE DATOS CON GESTIÓN DE ERRORES
+            # 1. CARGA DE DATOS (Planif Cargas GID 276804813)
             url_reserva = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
             
             @st.cache_data(ttl=60)
@@ -369,33 +369,31 @@ try:
                 df_res = pd.read_csv(url_reserva)
             
             df_res.columns = df_res.columns.str.strip()
-            hoy = pd.to_datetime("2026-04-02") # Fecha de referencia hoy
+            hoy = pd.to_datetime("2026-04-02")
 
-            # --- CORRECCIÓN DE MAPEADO ---
-            # Filtramos por Columna U (índice 20): Fecha de Instrucción
-            # Traemos todo lo que tenga una fecha válida (longitud > 4 para evitar celdas con ruidos)
-            df_res['Fecha_Inst_Check'] = df_res.iloc[:, 20].astype(str).str.strip()
-            df_g = df_res[df_res['Fecha_Inst_Check'].apply(lambda x: len(str(x)) > 4)].copy()
+            # --- FILTRO MAESTRO: COLUMNA U (Fecha de Instrucción) ---
+            # Traemos todo lo que tenga una fecha válida en la columna U (índice 20)
+            df_res['F_Inst_Raw'] = pd.to_datetime(df_res.iloc[:, 20], dayfirst=True, errors='coerce')
+            df_g = df_res[df_res['F_Inst_Raw'].notna()].copy()
 
-            # --- BLOQUE 1: KPIs GRANDES ---
+            # --- BLOQUE 1: KPIs GRANDES (MAPEADOS SEGÚN SOLICITUD) ---
             st.markdown("<br>", unsafe_allow_html=True)
             k1, k2, k3 = st.columns(3)
             
             with k1: 
                 # SO: Columna A (índice 0)
-                so_instruidas = df_g.iloc[:, 0].nunique()
-                st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>SO INSTRUIDAS</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(so_instruidas)}</p></div>", unsafe_allow_html=True)
+                cant_so = df_g.iloc[:, 0].nunique()
+                st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>SO INSTRUIDAS</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(cant_so)}</p></div>", unsafe_allow_html=True)
             
             with k2: 
                 # M3 Total: Columna AY (índice 50)
-                # Limpiamos puntos/comas para asegurar que sea numérico
                 vol_m3 = pd.to_numeric(df_g.iloc[:, 50].astype(str).str.replace(',', '.'), errors='coerce').sum()
                 st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>VOLUMEN (M3)</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(round(vol_m3)):,}</p></div>", unsafe_allow_html=True)
             
             with k3: 
                 # Proveedor: Columna AE (índice 30)
-                prov_count = df_g.iloc[:, 30].nunique()
-                st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>PROVEEDORES</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(prov_count)}</p></div>", unsafe_allow_html=True)
+                cant_prov = df_g.iloc[:, 30].nunique()
+                st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>PROVEEDORES</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(cant_prov)}</p></div>", unsafe_allow_html=True)
 
             st.markdown("<br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
 
@@ -417,16 +415,15 @@ try:
             st.markdown("<br>", unsafe_allow_html=True)
 
             # --- BLOQUE KPIs DE TIEMPO: GESTIÓN Y ESPERA ---
-            # Fecha de Instrucción (Col U - Índice 20) y Fecha ETD (Col L - Índice 11)
-            df_g['F_Inst'] = pd.to_datetime(df_g.iloc[:, 20], dayfirst=True, errors='coerce')
-            df_g['F_ETD'] = pd.to_datetime(df_g.iloc[:, 11], dayfirst=True, errors='coerce')
+            # Fecha ETD: Columna L (índice 11)
+            df_g['F_ETD_DT'] = pd.to_datetime(df_g.iloc[:, 11], dayfirst=True, errors='coerce')
 
             df_conf = df_g[df_g['ETD_Status_K'] == "OK"].copy()
-            df_conf['diff_g'] = (df_conf['F_ETD'] - df_conf['F_Inst']).dt.days
+            df_conf['diff_g'] = (df_conf['F_ETD_DT'] - df_conf['F_Inst_Raw']).dt.days
             p_gestion = df_conf['diff_g'].mean() if not df_conf['diff_g'].dropna().empty else 0
 
             df_pend = df_g[df_g['ETD_Status_K'] != "OK"].copy()
-            df_pend['diff_e'] = (hoy - df_pend['F_Inst']).dt.days
+            df_pend['diff_e'] = (hoy - df_pend['F_Inst_Raw']).dt.days
             p_espera = df_pend['diff_e'].mean() if not df_pend['diff_e'].dropna().empty else 0
 
             st_c1, st_c2 = st.columns(2)
