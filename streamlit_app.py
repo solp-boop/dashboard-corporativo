@@ -351,7 +351,7 @@ try:
         except Exception as e:
             st.error(f"Error en Solapa Origen: {e}")
 # ==========================================
- # ==========================================
+# ==========================================
     # --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
     # ==========================================
     with tabs[1]:
@@ -369,7 +369,7 @@ try:
                 df_res = pd.read_csv(url_reserva)
             
             df_res.columns = df_res.columns.str.strip()
-            hoy = pd.to_datetime("2026-04-02") # Fecha de referencia
+            hoy = pd.to_datetime("2026-04-02") # Fecha de referencia hoy
 
             # Filtrar solo lo instruido (Columna H = índice 7)
             df_res['Fecha_Inst_H'] = df_res.iloc[:, 7].astype(str).str.strip()
@@ -399,14 +399,14 @@ try:
             _, c_mid, _ = st.columns([0.05, 1, 0.05])
             with c_mid:
                 m1, m2, m3, m4 = st.columns(4)
-                m1.markdown(f"<div style='text-align:center;'><p style='font-weight:700; font-size:14px; margin:0;'>ETD OK (TOTAL)</p><p style='font-weight:300; font-size:32px; margin:0;'>{confirmados_glob} Emb.</p></div>", unsafe_allow_html=True)
-                m2.markdown(f"<div style='text-align:center;'><p style='font-weight:700; font-size:14px; margin:0;'>PENDIENTES (TOTAL)</p><p style='font-weight:300; font-size:32px; margin:0;'>{pendientes_glob} Emb.</p></div>", unsafe_allow_html=True)
+                m1.markdown(f"<div style='text-align:center;'><p style='font-weight:700; font-size:14px; margin:0;'>ETD OK (TOTAL)</p><p style='font-weight:300; font-size:32px; margin:0;'>{confirmados_glob}</p></div>", unsafe_allow_html=True)
+                m2.markdown(f"<div style='text-align:center;'><p style='font-weight:700; font-size:14px; margin:0;'>PENDIENTES (TOTAL)</p><p style='font-weight:300; font-size:32px; margin:0;'>{pendientes_glob}</p></div>", unsafe_allow_html=True)
                 m3.markdown(f"<div style='text-align:center;'><p style='font-weight:700; font-size:14px; margin:0;'>% EFECTIVIDAD</p><p style='font-weight:300; font-size:32px; margin:0;'>{int(p_ok_glob)}%</p></div>", unsafe_allow_html=True)
                 m4.markdown(f"<div style='text-align:center;'><p style='font-weight:700; font-size:14px; margin:0;'>% PENDIENTE</p><p style='font-weight:300; font-size:32px; margin:0;'>{int(100 - p_ok_glob)}%</p></div>", unsafe_allow_html=True)
 
             st.markdown("<br>", unsafe_allow_html=True)
 
-            # --- BLOQUE NUEVO: PROM. GESTIÓN Y PROM. ESPERA ---
+            # --- BLOQUE KPIs DE TIEMPO: GESTIÓN Y ESPERA ---
             df_g['F_Inst'] = pd.to_datetime(df_g.iloc[:, 9], dayfirst=True, errors='coerce')
             df_g['F_ETD'] = pd.to_datetime(df_g.iloc[:, 11], dayfirst=True, errors='coerce')
 
@@ -462,7 +462,9 @@ try:
                         <p style="font-size: 12px; color: #94a3b8; font-weight: 300; margin: 0;"><span style="color: #00ff88;">Confirmados: {ok_t}</span> | <span style="color: #ff4b4b;">Pendientes: {pend_t}</span></p>
                     </div>""", unsafe_allow_html=True)
 
-            # --- BLOQUE 4: BOTONES ---
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # --- BLOQUE 4: BOTONES Y ANÁLISIS ---
             df_mar = df_g[df_g['Transporte'] == "MARITIMO"].copy()
             c_btn1, c_btn2 = st.columns(2)
             if c_btn1.button("ANALISIS BOOKING IN ADVANCE", key="btn_adv", use_container_width=True):
@@ -493,7 +495,7 @@ try:
                         </div>""", unsafe_allow_html=True)
 
         except Exception as e:
-            st.error(f"Error en Gestión de Reservas: {e}")rue)
+            st.error(f"Error en Gestión de Reservas: {e}")
 # ==========================================
     # SOLAPA 3: INDICADORES (VERSIÓN EJECUTIVA COMPLETA)
     # ==========================================
