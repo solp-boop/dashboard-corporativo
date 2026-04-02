@@ -371,26 +371,36 @@ try:
             df_res.columns = df_res.columns.str.strip()
             hoy = pd.to_datetime("2026-04-02") # Fecha de referencia hoy
 
-            # Filtrar solo lo instruido (Columna H = índice 7)
-            df_res['Fecha_Inst_H'] = df_res.iloc[:, 7].astype(str).str.strip()
-            df_g = df_res[df_res['Fecha_Inst_H'].apply(lambda x: len(str(x)) > 4)].copy()
+            # --- CORRECCIÓN DE MAPEADO ---
+            # Filtramos por Columna U (índice 20): Fecha de Instrucción
+            # Traemos todo lo que tenga una fecha válida (longitud > 4 para evitar celdas con ruidos)
+            df_res['Fecha_Inst_Check'] = df_res.iloc[:, 20].astype(str).str.strip()
+            df_g = df_res[df_res['Fecha_Inst_Check'].apply(lambda x: len(str(x)) > 4)].copy()
 
             # --- BLOQUE 1: KPIs GRANDES ---
             st.markdown("<br>", unsafe_allow_html=True)
             k1, k2, k3 = st.columns(3)
             
             with k1: 
-                st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>SO INSTRUIDAS</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(len(df_g))}</p></div>", unsafe_allow_html=True)
+                # SO: Columna A (índice 0)
+                so_instruidas = df_g.iloc[:, 0].nunique()
+                st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>SO INSTRUIDAS</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(so_instruidas)}</p></div>", unsafe_allow_html=True)
+            
             with k2: 
-                vol_m3 = pd.to_numeric(df_g.iloc[:, 14], errors='coerce').sum()
+                # M3 Total: Columna AY (índice 50)
+                # Limpiamos puntos/comas para asegurar que sea numérico
+                vol_m3 = pd.to_numeric(df_g.iloc[:, 50].astype(str).str.replace(',', '.'), errors='coerce').sum()
                 st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>VOLUMEN (M3)</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(round(vol_m3)):,}</p></div>", unsafe_allow_html=True)
+            
             with k3: 
-                prov_count = df_g.iloc[:, 3].nunique()
+                # Proveedor: Columna AE (índice 30)
+                prov_count = df_g.iloc[:, 30].nunique()
                 st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>PROVEEDORES</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 25px rgba(0,168,255,0.4);'>{int(prov_count)}</p></div>", unsafe_allow_html=True)
 
             st.markdown("<br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
 
             # --- BLOQUE 2: PERFORMANCE GLOBAL ---
+            # ETD Status: Columna K (índice 10)
             df_g['ETD_Status_K'] = df_g.iloc[:, 10].astype(str).str.upper().str.strip()
             confirmados_glob = len(df_g[df_g['ETD_Status_K'] == "OK"])
             pendientes_glob = len(df_g) - confirmados_glob
@@ -407,7 +417,8 @@ try:
             st.markdown("<br>", unsafe_allow_html=True)
 
             # --- BLOQUE KPIs DE TIEMPO: GESTIÓN Y ESPERA ---
-            df_g['F_Inst'] = pd.to_datetime(df_g.iloc[:, 9], dayfirst=True, errors='coerce')
+            # Fecha de Instrucción (Col U - Índice 20) y Fecha ETD (Col L - Índice 11)
+            df_g['F_Inst'] = pd.to_datetime(df_g.iloc[:, 20], dayfirst=True, errors='coerce')
             df_g['F_ETD'] = pd.to_datetime(df_g.iloc[:, 11], dayfirst=True, errors='coerce')
 
             df_conf = df_g[df_g['ETD_Status_K'] == "OK"].copy()
