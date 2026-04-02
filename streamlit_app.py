@@ -640,90 +640,79 @@ try:
 except Exception as e:
     st.error(f"Error crítico: {e}")
 # ==========================================
-    # SOLAPA 4: PERFORMANCE DE AGENTES
+    # SOLAPA 4: PERFORMANCE AGENTES (TIEMPO REAL)
     # ==========================================
     with tabs[3]:
         try:
-            # 1. VERIFICACIÓN DE DATOS
-            # Usamos df_ind que ya fue procesado en la Solapa 3
-            if df_ind.empty:
-                st.warning("No hay datos marítimos de 2026 para analizar agentes.")
+            # 1. USAMOS df_res (que ya cargamos en la Solapa 2 desde 'Reservas')
+            # Si por alguna razón no está, lo volvemos a asegurar:
+            if 'df_res' not in locals():
+                url_res = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
+                df_ag_res = pd.read_csv(url_res, engine='python', on_bad_lines='skip')
+                df_ag_res.columns = df_ag_res.columns.str.strip()
             else:
-                st.markdown("<br><p style='color:#00a8ff; font-weight:700; letter-spacing:3px; font-size:22px; text-align:center;'>PERFORMANCE POR AGENTE DE CARGA</p>", unsafe_allow_html=True)
-                st.markdown("<br>", unsafe_allow_html=True)
+                df_ag_res = df_res.copy()
 
-                # 2. DEFINICIÓN DE COLUMNAS (Basado en el histórico GID 32771816)
-                # Agente: Columna AF (Índice 31)
-                # Tiempos: AE(30), AF(31), AG(32)
-                col_agente = df_ind.columns[31]
-                col_t_comex = df_ind.columns[30]
-                col_t_agente = df_ind.columns[31] # Nota: En el histórico AF se repite como nombre de agente y tiempo, usamos índices.
-                col_t_total = df_ind.columns[32]
+            hoy = pd.to_datetime("2026-04-02")
 
-                # 3. AGRUPACIÓN Y CÁLCULOS
-                df_ag = df_ind.groupby(col_agente).agg(
-                    Cant_Emb=(df_ind.columns[0], 'count'),
-                    Prom_Comex=(df_ind.columns[30], 'mean'),
-                    Prom_Agente=(df_ind.columns[31], 'mean'),
-                    Prom_Total=(df_ind.columns[32], 'mean'),
-                    SLA_OK=(df_ind.columns[32], lambda x: (x <= 25).sum())
-                ).reset_index()
+            # 2. LIMPIEZA Y FILTRADO (Solo lo instruido en Col U / Índice 20)
+            df_ag_res['F_Inst'] = pd.to_datetime(df_ag_res.iloc[:, 20], dayfirst=True, errors='coerce')
+            df_ag_res['F_ETD'] = pd.to_datetime(df_ag_res.iloc[:, 11], dayfirst=True, errors='coerce')
+            df_ag_res = df_ag_res[df_ag_res['F_Inst'].notna()].copy()
 
-                # Score de Eficiencia
-                df_ag['Score'] = (df_ag['SLA_OK'] / df_ag['Cant_Emb'] * 100).round(0)
-                df_ag = df_ag.sort_values('Cant_Emb', ascending=False)
+            # Identificamos columnas clave
+            # Agente: Columna K (Índice 10) o AE (Índice 30) - Ajusto a Índice 10 que suele ser el Agente en Reservas
+            col_nom_agente = df_ag_res.columns[10] 
+            df_ag_res['Status_ETD'] = df_ag_res.iloc[:, 10].astype(str).str.upper().str.strip()
 
-                # --- 4. TOP 3 AGENTES (PODIO) ---
-                top_cols = st.columns(3)
-                # Solo iteramos si hay al menos 3 agentes, si no, lo que haya
-                for i, (idx, row) in enumerate(df_ag.head(3).iterrows()):
-                    color_podio = ["#00a8ff", "#00ff88", "#ffaa00"][i]
-                    with top_cols[i]:
-                        st.markdown(f"""
-                            <div style="background: rgba(255,255,255,0.03); padding: 20px; border-radius: 15px; border-top: 4px solid {color_podio}; text-align: center;">
-                                <p style="color: #8899A6; font-size: 11px; margin:0; font-weight:700;">TOP {i+1} AGENTE</p>
-                                <p style="color: {color_podio}; font-size: 18px; font-weight: 800; margin:5px 0; text-transform: uppercase;">{row[col_agente]}</p>
-                                <p style="font-size: 32px; font-weight: 900; margin:0;">{int(row['Cant_Emb'])} <span style="font-size:14px; color:#8899A6;">Bks</span></p>
-                                <p style="color: {color_podio}; font-size: 13px; font-weight: 700;">Eficiencia: {int(row['Score'])}%</p>
-                            </div>
-                        """, unsafe_allow_html=True)
+            # 3. CÁLCULOS POR AGENTE
+            # Días de gestión (para los OK)
+            df_ag_res['Dias_Gestion'] = (df_ag_res['F_ETD'] - df_ag_res['F_Inst']).dt.days
+            # Días de espera (para los Pendientes)
+            df_ag_res['Dias_Espera'] = (hoy - df_ag_res['F_Inst']).dt.days
 
-                st.markdown("<br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
+            res_agente = df_ag_res.groupby(col_nom_agente).agg(
+                Total_Inst=(df_ag_res.columns[0], 'count'),
+                Confirmados=(df_ag_res.columns[10], lambda x: (x.str.upper() == "OK").sum()),
+                Prom_Gestion=('Dias_Gestion', 'mean'),
+                Max_Espera=('Dias_Espera', lambda x: x[df_ag_res.loc[x.index, 'Status_ETD'] != "OK"].max())
+            ).reset_index()
 
-                # --- 5. TABLA COMPARATIVA ---
-                st.markdown("<p style='color:#8899A6; font-weight:700; font-size:12px; letter-spacing:1px;'>COMPARATIVA DETALLADA DE GESTIÓN</p>", unsafe_allow_html=True)
+            res_agente['%_Efectividad'] = (res_agente['Confirmados'] / res_agente['Total_Inst'] * 100).fillna(0)
+            res_agente = res_agente.sort_values('Total_Inst', ascending=False)
+
+            # --- 4. VISUALIZACIÓN ---
+            st.markdown("<br><p style='color:#00ff88; font-weight:700; letter-spacing:2px; font-size:20px; text-align:center;'>MONITOR DE GESTIÓN DE AGENTES (ACTUAL)</p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='text-align:center; color:#8899A6; font-size:12px;'>Basado en {len(df_ag_res)} instrucciones vigentes</p>", unsafe_allow_html=True)
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # Tabla de Control
+            c1, c2, c3, c4, c5 = st.columns([1.5, 1, 1, 1, 1])
+            headers = ["AGENTE", "INSTRUIDAS", "CONFIRMADAS", "PROM. GESTIÓN", "EFECTIVIDAD"]
+            for i, col in enumerate([c1, c2, c3, c4, c5]):
+                col.markdown(f"<p style='color:#8899A6; font-size:11px; font-weight:700; text-align:center;'>{headers[i]}</p>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin:0; border-top: 2px solid #00ff88;'>", unsafe_allow_html=True)
+
+            for _, row in res_agente.iterrows():
+                r1, r2, r3, r4, r5 = st.columns([1.5, 1, 1, 1, 1])
                 
-                # Encabezados
-                t1, t2, t3, t4, t5, t6 = st.columns([1.5, 0.8, 1, 1, 1, 0.8])
-                header_text = ["AGENTE", "VOLUMEN", "T. COMEX", "T. AGENTE", "TIEMPO TOTAL", "SCORE SLA"]
-                for i, col in enumerate([t1, t2, t3, t4, t5, t6]):
-                    col.markdown(f"<p style='color:#8899A6; font-size:10px; font-weight:700; text-align:center;'>{header_text[i]}</p>", unsafe_allow_html=True)
-                st.markdown("<hr style='margin:0; border-top: 2px solid #ffffff;'>", unsafe_allow_html=True)
-
-                for _, row in df_ag.iterrows():
-                    r1, r2, r3, r4, r5, r6 = st.columns([1.5, 0.8, 1, 1, 1, 0.8])
-                    
-                    # Semáforo de Score
-                    sc = row['Score']
-                    color_score = "#00ff88" if sc >= 85 else "#ffaa00" if sc >= 70 else "#ff4b4b"
-                    
-                    r1.markdown(f"<p style='font-weight:700; margin-top:10px; font-size:14px;'>{row[col_agente]}</p>", unsafe_allow_html=True)
-                    r2.markdown(f"<p style='text-align:center; margin-top:10px;'>{int(row['Cant_Emb'])}</p>", unsafe_allow_html=True)
-                    r3.markdown(f"<p style='text-align:center; margin-top:10px; color:#8899A6;'>{int(round(row['Prom_Comex']))}d</p>", unsafe_allow_html=True)
-                    r4.markdown(f"<p style='text-align:center; margin-top:10px; color:#8899A6;'>{int(round(row['Prom_Agente']))}d</p>", unsafe_allow_html=True)
-                    
-                    # Tiempo Total Resaltado
-                    r5.markdown(f"<p style='text-align:center; font-weight:900; color:#00a8ff; font-size:18px; margin-top:5px;'>{int(round(row['Prom_Total']))}d</p>", unsafe_allow_html=True)
-                    
-                    # Badge de Score
-                    r6.markdown(f"""
-                        <div style="background: {color_score}22; color: {color_score}; border: 1px solid {color_score}44; 
-                        text-align:center; border-radius:5px; padding:3px; font-weight:700; font-size:11px; margin-top:10px;">
-                            {int(sc)}%
-                        </div>
-                    """, unsafe_allow_html=True)
-                    
-                    st.markdown("<hr style='margin:0; opacity:0.05;'>", unsafe_allow_html=True)
+                # Color según efectividad
+                color_efec = "#00ff88" if row['%_Efectividad'] >= 80 else "#ffaa00" if row['%_Efectividad'] >= 50 else "#ff4b4b"
+                
+                r1.markdown(f"<p style='font-weight:700; margin-top:10px;'>{row[col_nom_agente]}</p>", unsafe_allow_html=True)
+                r2.markdown(f"<p style='text-align:center; margin-top:10px;'>{int(row['Total_Inst'])}</p>", unsafe_allow_html=True)
+                r3.markdown(f"<p style='text-align:center; margin-top:10px; color:#00ff88;'>{int(row['Confirmados'])}</p>", unsafe_allow_html=True)
+                
+                gest_val = f"{int(round(row['Prom_Gestion']))}d" if not pd.isna(row['Prom_Gestion']) else "---"
+                r4.markdown(f"<p style='text-align:center; margin-top:10px; font-weight:700;'>{gest_val}</p>", unsafe_allow_html=True)
+                
+                r5.markdown(f"""
+                    <div style="background: {color_efec}22; color: {color_efec}; border: 1px solid {color_efec}44; 
+                    text-align:center; border-radius:5px; padding:3px; font-weight:700; font-size:14px; margin-top:5px;">
+                        {int(row['%_Efectividad'])}%
+                    </div>
+                """, unsafe_allow_html=True)
+                st.markdown("<hr style='margin:0; opacity:0.05;'>", unsafe_allow_html=True)
 
         except Exception as e:
-            st.error(f"Error en Solapa Agentes: {e}")
+            st.error(f"Error en Solapa Agentes (Reservas): {e}")
