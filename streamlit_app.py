@@ -640,88 +640,96 @@ try:
 except Exception as e:
     st.error(f"Error crítico: {e}")
 # ==========================================
-    # SOLAPA 4: PERFORMANCE AGENTES (RESERVAS)
+    # SOLAPA 4: PERFORMANCE AGENTES (VERSIÓN AUTO-DETECT)
     # ==========================================
     with tabs[3]:
         try:
-            # 1. CARGA DE DATOS (URL Directa de Reservas)
+            # 1. CARGA DE DATOS
             sheet_id = "1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI"
             gid_res = "276804813"
             url_res = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid_res}&nocache={time.time()}"
             
-            # Leemos y limpiamos nombres de columnas
             df_ag_raw = pd.read_csv(url_res, engine='python')
             df_ag_raw.columns = [str(c).strip() for c in df_ag_raw.columns]
             
-            # 2. DEFINICIÓN DE COLUMNAS POR NOMBRE (Para que no falle si se mueven)
-            # Mapeamos los nombres exactos que me pasaste
-            c_inst = "Fecha de Instrucción"
-            c_trans = "Transporte"
-            c_ffww = "Forwarder"
-            c_m3 = "M3 Total"
-            c_status = "ETD OK FFWW"
-            c_etd = "ETD"
-            c_so = "SO"
+            # --- MOTOR DE DETECCIÓN DE COLUMNAS ---
+            # Buscamos las columnas por palabras clave para evitar errores de nombres exactos
+            def buscar_col(keywords):
+                for k in keywords:
+                    for c in df_ag_raw.columns:
+                        if k.upper() in c.upper():
+                            return c
+                return None
 
-            # 3. FILTRADO: Solo lo que tiene Fecha de Instrucción
-            # Usamos errors='coerce' para que lo que no es fecha se vuelva NaN y luego borramos
-            df_ag_raw['DT_Inst'] = pd.to_datetime(df_ag_raw[c_inst], dayfirst=True, errors='coerce')
-            df_a = df_ag_raw[df_ag_raw['DT_Inst'].notna()].copy()
+            c_inst = buscar_col(["Instrucción", "Instruccion", "Fecha de Inst"])
+            c_trans = buscar_col(["Transporte", "Tipo", "Medio"])
+            c_ffww = buscar_col(["Forwarder", "Agente", "Agente de Carga"])
+            c_m3 = buscar_col(["M3 Total", "Volumen", "M3"])
+            c_status = buscar_col(["ETD OK FFWW", "Status", "Confirmado"])
+            c_etd = buscar_col(["ETD", "Fecha Salida"])
+            c_so = buscar_col(["SO", "Nro de SO", "Pedido"])
 
-            if df_a.empty:
-                st.info("Esperando datos... No se detectaron fechas válidas en la columna 'Fecha de Instrucción'.")
+            # Verificación de Columnas Críticas
+            if not c_inst or not c_ffww:
+                st.error("🚨 No se pudieron detectar las columnas 'Fecha de Instrucción' o 'Forwarder'.")
+                st.write("Columnas encontradas en tu Excel:", list(df_ag_raw.columns))
             else:
-                st.markdown("<p style='color:#00ff88; font-weight:700; letter-spacing:2px; font-size:22px; text-align:center;'>PERFORMANCE AGENTES - GESTIÓN ACTUAL</p>", unsafe_allow_html=True)
-                
-                # Clasificación de Transporte
-                def clasificar_ag(x):
-                    x = str(x).upper()
-                    if any(m in x for m in ["40", "20", "MARITIMO", "FCL", "LCL"]): return "MARITIMO"
-                    return "AVION / COURIER"
-                
-                df_a['Tipo_T'] = df_a[c_trans].apply(clasificar_ag)
-                
-                # Selector de Transporte
-                tipo_sel = st.pills("Seleccionar Tipo:", ["MARITIMO", "AVION / COURIER"], default="MARITIMO")
-                df_f = df_a[df_a['Tipo_T'] == tipo_sel].copy()
+                # 2. FILTRADO Y LIMPIEZA
+                # Convertimos a fecha y quitamos lo que no tenga instrucción
+                df_ag_raw['DT_Inst'] = pd.to_datetime(df_ag_raw[c_inst], dayfirst=True, errors='coerce')
+                df_a = df_ag_raw[df_ag_raw['DT_Inst'].notna()].copy()
 
-                # 4. CÁLCULOS
-                hoy = pd.to_datetime("2026-04-02")
-                df_f['DT_ETD'] = pd.to_datetime(df_f[c_etd], dayfirst=True, errors='coerce')
-                df_f['Status_K'] = df_f[c_status].astype(str).str.upper().str.strip()
+                if df_a.empty:
+                    st.warning("⚠️ No hay datos con 'Fecha de Instrucción' válida hoy.")
+                else:
+                    st.markdown("<p style='color:#00ff88; font-weight:700; letter-spacing:2px; font-size:22px; text-align:center;'>PERFORMANCE AGENTES - GESTIÓN ACTUAL</p>", unsafe_allow_html=True)
+                    
+                    # Clasificación
+                    def clasificar_ag(x):
+                        x = str(x).upper()
+                        if any(m in x for m in ["40", "20", "MARITIMO", "FCL", "LCL"]): return "MARITIMO"
+                        return "AVION / COURIER"
+                    
+                    df_a['Tipo_T'] = df_a[c_trans].apply(clasificar_ag) if c_trans else "MARITIMO"
+                    
+                    tipo_sel = st.radio("Ver transporte:", ["MARITIMO", "AVION / COURIER"], horizontal=True)
+                    df_f = df_a[df_a['Tipo_T'] == tipo_sel].copy()
 
-                # Tiempos (Promedios)
-                df_f['Dias_Gestion'] = (df_f['DT_ETD'] - df_f['DT_Inst']).dt.days
-                df_f['Dias_Espera'] = (hoy - df_f['DT_Inst']).dt.days
+                    # 3. CÁLCULOS
+                    hoy = pd.to_datetime("2026-04-02")
+                    df_f['DT_ETD'] = pd.to_datetime(df_f[c_etd], dayfirst=True, errors='coerce')
+                    df_f['Status_K'] = df_f[c_status].astype(str).str.upper().str.strip() if c_status else ""
 
-                # Agrupación
-                res_ag = df_f.groupby(c_ffww).agg(
-                    Cant_SO=(c_so, 'count'),
-                    M3=(c_m3, lambda x: pd.to_numeric(x.astype(str).str.replace(',', '.'), errors='coerce').sum()),
-                    Confirmados=('Status_K', lambda x: (x == "OK").sum()),
-                    Prom_Gestion=('Dias_Gestion', 'mean'),
-                    Prom_Espera=('Dias_Espera', lambda x: x[df_f.loc[x.index, 'Status_K'] != "OK"].mean())
-                ).reset_index()
+                    df_f['Dias_Gestion'] = (df_f['DT_ETD'] - df_f['DT_Inst']).dt.days
+                    df_f['Dias_Espera'] = (hoy - df_f['DT_Inst']).dt.days
 
-                res_ag['%_OK'] = (res_ag['Confirmados'] / res_ag['Cant_SO'] * 100).fillna(0)
-                res_ag = res_ag.sort_values('Cant_SO', ascending=False)
+                    # 4. AGRUPACIÓN
+                    res_ag = df_f.groupby(c_ffww).agg(
+                        Cant_SO=(c_so if c_so else df_f.columns[0], 'count'),
+                        M3=(c_m3 if c_m3 else df_f.columns[0], lambda x: pd.to_numeric(x.astype(str).str.replace(',', '.'), errors='coerce').sum() if c_m3 else 0),
+                        Confirmados=('Status_K', lambda x: (x == "OK").sum()),
+                        Prom_Gestion=('Dias_Gestion', 'mean'),
+                        Prom_Espera=('Dias_Espera', lambda x: x[df_f.loc[x.index, 'Status_K'] != "OK"].mean())
+                    ).reset_index()
 
-                # 5. RENDERIZADO DE TABLA
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.dataframe(
-                    res_ag,
-                    column_config={
-                        c_ffww: "Agente / Forwarder",
-                        "Cant_SO": st.column_config.NumberColumn("SO", help="Cantidad de SO Instruidas"),
-                        "M3": st.column_config.NumberColumn("Volumen M3", format="%.2f"),
-                        "Prom_Gestion": st.column_config.NumberColumn("Gestión (Prom)", format="%d días"),
-                        "Prom_Espera": st.column_config.NumberColumn("Espera (Prom)", format="%d días"),
-                        "%_OK": st.column_config.ProgressColumn("Efectividad %", min_value=0, max_value=100, format="%d%%")
-                    },
-                    use_container_width=True,
-                    hide_index=True
-                )
+                    res_ag['%_OK'] = (res_ag['Confirmados'] / res_ag['Cant_SO'] * 100).fillna(0)
+                    res_ag = res_ag.sort_values('Cant_SO', ascending=False)
+
+                    # 5. TABLA
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.dataframe(
+                        res_ag,
+                        column_config={
+                            c_ffww: "Forwarder",
+                            "Cant_SO": "SO",
+                            "M3": st.column_config.NumberColumn("M3", format="%.2f"),
+                            "Prom_Gestion": st.column_config.NumberColumn("Gestión", format="%d días"),
+                            "Prom_Espera": st.column_config.NumberColumn("Espera", format="%d días"),
+                            "%_OK": st.column_config.ProgressColumn("Eficiencia", min_value=0, max_value=100, format="%d%%")
+                        },
+                        use_container_width=True,
+                        hide_index=True
+                    )
 
         except Exception as e:
-            st.error(f"Hubo un problema al cargar los Agentes: {e}")
-            st.caption("Verifica que los nombres de las columnas en el Excel coincidan exactamente.")
+            st.error(f"Error de sistema: {e}")
