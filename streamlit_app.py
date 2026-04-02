@@ -348,6 +348,9 @@ try:
                 )
                 st.plotly_chart(fig_a, use_container_width=True)
 
+    except Exception as e:
+            st.error(f"Error en Solapa Origen: {e}")
+
 # --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
     with tabs[1]:
         try:
