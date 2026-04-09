@@ -88,7 +88,7 @@ try:
     st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><div class='bidcom-subtitle'>Tablero Logistica Internacional</div></div>", unsafe_allow_html=True)
     tabs = st.tabs(["ORIGEN", "CONTROL GESTIÓN RESERVAS", "INDICADORES", "AGENTES", "ANALISTAS", "FLETES"])
 
-  # --- SOLAPA 1: ORIGEN ---
+ # --- SOLAPA 1: ORIGEN ---
     with tabs[0]:
         try:
             # --- CÁLCULOS LOCALES ---
@@ -119,19 +119,15 @@ try:
 
             st.markdown("<br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
 
-         # --- BLOQUE 2: BOTONES DE FILTRADO CON RESALTADO DINÁMICO ---
+            # --- BLOQUE 2: BOTONES DE FILTRADO ---
             b1_col, b2_col, b3_col, b4_col, b5_col = st.columns(5)
-
-            # Recuperamos el filtro activo del session_state
             filtro_actual = st.session_state.get('f')
 
-            # Función para aplicar estilo de "Resaltado"
             def get_btn_style(target):
                 if filtro_actual == target:
                     return "border: 2px solid #00a8ff; background: rgba(0, 168, 255, 0.1);"
                 return "border: 1px solid #1e293b; background: transparent;"
 
-            # Botón 1: MERCADERÍA INSTRUIDA
             with b1_col:
                 st.markdown(f"<div style='{get_btn_style('inst')} border-radius:5px;'>", unsafe_allow_html=True)
                 if st.button(f"MERCADERIA \n INSTRUIDA {p_inst_val}%", key="btn_inst_o", use_container_width=True):
@@ -139,7 +135,6 @@ try:
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 
-            # Botón 2: PRÓXIMA A INSTRUIR
             with b2_col:
                 st.markdown(f"<div style='{get_btn_style('crit')} border-radius:5px;'>", unsafe_allow_html=True)
                 if st.button(f"PROXIMA A \n INSTRUIR {p_crit_val}%", key="btn_crit_o", use_container_width=True):
@@ -147,7 +142,6 @@ try:
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 
-            # Botón 3: LISTA EN +30 DIAS
             with b3_col:
                 st.markdown(f"<div style='{get_btn_style('rest')} border-radius:5px;'>", unsafe_allow_html=True)
                 if st.button(f"LISTA EN \n +30 DIAS {p_rest_val}%", key="btn_rest_o", use_container_width=True):
@@ -155,7 +149,6 @@ try:
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 
-            # Botón 4: TOP 100 RANKING
             with b4_col:
                 st.markdown(f"<div style='{get_btn_style('rank')} border-radius:5px;'>", unsafe_allow_html=True)
                 if st.button("TOP 100 \n RANKING", key="btn_rank_o", use_container_width=True):
@@ -163,7 +156,6 @@ try:
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 
-            # Botón 5: MONOPROVEEDOR / CONSOLIDADO
             with b5_col:
                 st.markdown(f"<div style='{get_btn_style('estr')} border-radius:5px;'>", unsafe_allow_html=True)
                 if st.button("MONOPROV. / \n CONSOLIDADO", key="btn_estr_o", use_container_width=True):
@@ -171,193 +163,100 @@ try:
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 
-            # --- BLOQUE 3: CUADROS DESPLEGABLES (DISEÑO TARJETA RESERVAS) ---
+            # --- BLOQUE 3: CUADROS DESPLEGABLES ---
             f = st.session_state.get('f')
             if f:
                 st.markdown("<br>", unsafe_allow_html=True)
-
                 if f in ["inst", "crit", "rest"]:
                     if f == "inst": titulo, dff, color = "MERCADERIA INSTRUIDA", df_inst, "#00a8ff"
                     elif f == "crit": titulo, dff, color = "PROXIMA A INSTRUIR", df_criticos, "#ff4b4b"
                     elif f == "rest": titulo, dff, color = "LISTA EN +30 DIAS", df_resto, "#8899A6"
-
                     cant_so_f = len(dff)
                     m3_f = int(round(dff['M3 Total'].sum()))
-
-                    # Diseño de Tarjeta igual a Reservas
-                    st.markdown(f"""
-                        <div style="background: rgba(255,255,255,0.02); padding: 25px; border-radius: 10px; border-left: 5px solid {color}; margin-bottom: 20px;">
-                            <p style="font-weight:700; color:{color}; margin-bottom:15px; font-size:14px; letter-spacing:1px;">{titulo} ({int(round(m3_f/m3_totales_global*100)) if m3_totales_global > 0 else 0}%)</p>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                                <div><p style="font-size:11px; color:#8899A6; margin:0;">CANTIDAD SO</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{cant_so_f}</p></div>
-                                <div><p style="font-size:11px; color:#8899A6; margin:0;">VOLUMEN TOTAL</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{m3_f:,} M3</p></div>
-                            </div>
-                        </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown(f"""<div style="background: rgba(255,255,255,0.02); padding: 25px; border-radius: 10px; border-left: 5px solid {color}; margin-bottom: 20px;">
+                        <p style="font-weight:700; color:{color}; margin-bottom:15px; font-size:14px; letter-spacing:1px;">{titulo} ({int(round(m3_f/m3_totales_global*100)) if m3_totales_global > 0 else 0}%)</p>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div><p style="font-size:11px; color:#8899A6; margin:0;">CANTIDAD SO</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{cant_so_f}</p></div>
+                            <div><p style="font-size:11px; color:#8899A6; margin:0;">VOLUMEN TOTAL</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{m3_f:,} M3</p></div>
+                        </div></div>""", unsafe_allow_html=True)
                     st.dataframe(dff[['SO', 'Proveedor', 'M3 Total', 'Fecha de Instruccion' if f=='inst' else df.columns[99]]], use_container_width=True)
 
                 elif f == "rank":
                     col_rank = df.columns[1]
-                    col_prior = df.columns[99]
                     df_rank = df[pd.to_numeric(df[col_rank], errors='coerce') <= 100].sort_values(by=col_rank).copy()
                     df_rank['Status'] = df_rank['Fecha_Inst_DT'].apply(lambda x: "✅ OK" if pd.notna(x) else "❌ PEND")
-
-                    st.markdown(f"""
-                        <div style="background: rgba(255,255,255,0.02); padding: 25px; border-radius: 10px; border-left: 5px solid #00a8ff; margin-bottom: 20px;">
-                            <p style="font-weight:700; color:#00a8ff; margin-bottom:15px; font-size:14px; letter-spacing:1px;">TOP 100 RANKING - RESUMEN</p>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                                <div><p style="font-size:11px; color:#8899A6; margin:0;">EMBARQUES EN RANGO</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{len(df_rank)}</p></div>
-                                <div><p style="font-size:11px; color:#8899A6; margin:0;">M3 TOTAL PRIORITARIO</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{int(df_rank['M3 Total'].sum()):,} M3</p></div>
-                            </div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                    st.dataframe(df_rank[['SO', col_rank, 'Proveedor', col_prior, 'M3 Total', 'Status']], use_container_width=True)
+                    st.markdown(f"""<div style="background: rgba(255,255,255,0.02); padding: 25px; border-radius: 10px; border-left: 5px solid #00a8ff; margin-bottom: 20px;">
+                        <p style="font-weight:700; color:#00a8ff; margin-bottom:15px; font-size:14px; letter-spacing:1px;">TOP 100 RANKING - RESUMEN</p>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div><p style="font-size:11px; color:#8899A6; margin:0;">EMBARQUES EN RANGO</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{len(df_rank)}</p></div>
+                            <div><p style="font-size:11px; color:#8899A6; margin:0;">M3 TOTAL PRIORITARIO</p><p style="font-size:26px; font-weight:300; margin:0; color:#ffffff;">{int(df_rank['M3 Total'].sum()):,} M3</p></div>
+                        </div></div>""", unsafe_allow_html=True)
+                    st.dataframe(df_rank[['SO', col_rank, 'Proveedor', df.columns[99], 'M3 Total', 'Status']], use_container_width=True)
 
                 elif f == "estr":
                     col_cp = df.columns[93]
                     df['Tipo_Carga'] = df[col_cp].apply(lambda x: 'MONOPROVEEDOR' if str(x).upper() == 'SI' else 'CONSOLIDADO')
-
                     st.markdown("<p style='color:#00a8ff; font-weight:700; letter-spacing:1px; margin-bottom:15px;'>ANALISIS ESTRUCTURA CARGA</p>", unsafe_allow_html=True)
                     e1, e2 = st.columns(2)
-                    tipos = ["CONSOLIDADO", "MONOPROVEEDOR"]
-                    colores_e = ["#8899A6", "#00a8ff"]
-
-                    for i, t_carga in enumerate(tipos):
+                    for i, t_carga in enumerate(["CONSOLIDADO", "MONOPROVEEDOR"]):
                         df_c = df[df['Tipo_Carga'] == t_carga]
                         with [e1, e2][i]:
-                            st.markdown(f"""
-                                <div style="background: rgba(255,255,255,0.02); padding: 20px; border-radius: 10px; border-left: 5px solid {colores_e[i]};">
-                                    <p style="font-weight:700; color:{colores_e[i]}; margin-bottom:10px; font-size:13px;">{t_carga}</p>
-                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                                        <div><p style="font-size:10px; color:#8899A6; margin:0;">CANT. SO</p><p style="font-size:22px; font-weight:300; margin:0; color:#ffffff;">{len(df_c)}</p></div>
-                                        <div><p style="font-size:10px; color:#8899A6; margin:0;">TOTAL M3</p><p style="font-size:22px; font-weight:300; margin:0; color:#ffffff;">{int(df_c['M3 Total'].sum()):,}</p></div>
-                                    </div>
-                                </div>
-                            """, unsafe_allow_html=True)
+                            st.markdown(f"""<div style="background: rgba(255,255,255,0.02); padding: 20px; border-radius: 10px; border-left: 5px solid {["#8899A6", "#00a8ff"][i]};">
+                                <p style="font-weight:700; color:{["#8899A6", "#00a8ff"][i]}; margin-bottom:10px; font-size:13px;">{t_carga}</p>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                    <div><p style="font-size:10px; color:#8899A6; margin:0;">CANT. SO</p><p style="font-size:22px; font-weight:300; margin:0; color:#ffffff;">{len(df_c)}</p></div>
+                                    <div><p style="font-size:10px; color:#8899A6; margin:0;">TOTAL M3</p><p style="font-size:22px; font-weight:300; margin:0; color:#ffffff;">{int(df_c['M3 Total'].sum()):,}</p></div>
+                                </div></div>""", unsafe_allow_html=True)
 
             st.markdown("<br><hr style='opacity:0.1'><br>", unsafe_allow_html=True)
 
- # --- BLOQUE 4: PARTICIPACIÓN POR PAÍS (CON CORRECCIÓN "SIN DEFINIR") ---
-            st.markdown("<br>", unsafe_allow_html=True)
+            # --- BLOQUE 4: PARTICIPACIÓN POR PAÍS ---
             st.markdown("<p style='color:#00a8ff; font-weight:700; letter-spacing:2px; font-size:14px; margin-bottom:20px;'>DISTRIBUCIÓN GEOGRÁFICA DE CARGA</p>", unsafe_allow_html=True)
-
-            # Limpieza de datos: Rellenamos vacíos en Pais Destino antes de agrupar
             df['Pais Destino'] = df['Pais Destino'].fillna('SIN DEFINIR').replace('', 'SIN DEFINIR')
-
             res_p = df.groupby('Pais Destino').agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT_SO', 'M3 Total': 'M3'}).sort_values(by='M3', ascending=False)
-
-            # Totales para la fila final
-            total_so_p = res_p['CANT_SO'].sum()
             total_m3_p = res_p['M3'].sum()
 
-            # Encabezado con línea blanca sólida
             h1, h2, h3, h4 = st.columns([1.5, 1, 1, 0.8])
             h1.markdown("<p style='color:#8899A6; font-size:12px; font-weight:700;'>PAÍS DE DESTINO</p>", unsafe_allow_html=True)
             h2.markdown("<p style='color:#8899A6; font-size:12px; font-weight:700; text-align:center;'>VOLUMEN (M3)</p>", unsafe_allow_html=True)
             h3.markdown("<p style='color:#8899A6; font-size:12px; font-weight:700; text-align:center;'>CANTIDAD SO</p>", unsafe_allow_html=True)
             h4.markdown("<p style='color:#8899A6; font-size:12px; font-weight:700; text-align:right;'>SHARE %</p>", unsafe_allow_html=True)
-            st.markdown("<hr style='margin:0; border: none; border-top: 2px solid #ffffff; opacity:0.8;'>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin:0; border-top: 2px solid #ffffff; opacity:0.8;'>", unsafe_allow_html=True)
 
-            # Filas de países con líneas divisoras blancas sutiles
             for pais, row in res_p.iterrows():
-                m3_v = int(round(row['M3']))
-                so_v = int(row['CANT_SO'])
-                # Usamos el total calculado de la tabla para que el % sea exacto sobre lo visualizado
+                m3_v, so_v = int(round(row['M3'])), int(row['CANT_SO'])
                 pct_v = int(round((m3_v / total_m3_p * 100))) if total_m3_p > 0 else 0
-
-                # Resaltamos "SIN DEFINIR" en un color grisáceo si aparece
-                color_texto = "#ffffff" if pais != "SIN DEFINIR" else "#8899A6"
-
                 c1, c2, c3, c4 = st.columns([1.5, 1, 1, 0.8])
-                c1.markdown(f"<p style='color:{color_texto}; font-weight:700; font-size:16px; margin:12px 0;'>{pais.upper()}</p>", unsafe_allow_html=True)
-                c2.markdown(f"<p style='color:#00a8ff; font-weight:300; font-size:22px; text-align:center; margin:8px 0;'>{m3_v:,}</p>", unsafe_allow_html=True)
-                c3.markdown(f"<p style='color:{color_texto}; font-weight:300; font-size:22px; text-align:center; margin:8px 0;'>{so_v}</p>", unsafe_allow_html=True)
+                c1.markdown(f"<p style='font-weight:700; font-size:16px; margin:12px 0;'>{pais.upper()}</p>", unsafe_allow_html=True)
+                c2.markdown(f"<p style='color:#00a8ff; font-size:22px; text-align:center; margin:8px 0;'>{m3_v:,}</p>", unsafe_allow_html=True)
+                c3.markdown(f"<p style='font-size:22px; text-align:center; margin:8px 0;'>{so_v}</p>", unsafe_allow_html=True)
                 c4.markdown(f"<p style='color:#00ff88; font-weight:700; font-size:18px; text-align:right; margin:10px 0;'>{pct_v}%</p>", unsafe_allow_html=True)
+                st.markdown("<hr style='margin:0; border-top: 1px solid #ffffff; opacity:0.2;'>", unsafe_allow_html=True)
 
-                st.markdown("<hr style='margin:0; border: none; border-top: 1px solid #ffffff; opacity:0.2;'>", unsafe_allow_html=True)
-
-            # --- FILA DE TOTALES (RESALTADA) ---
-            t1, t2, t3, t4 = st.columns([1.5, 1, 1, 0.8])
-            t1.markdown("<p style='color:#ffffff; font-weight:900; font-size:18px; margin:15px 0;'>TOTAL GENERAL</p>", unsafe_allow_html=True)
-            t2.markdown(f"<p style='color:#00a8ff; font-weight:700; font-size:24px; text-align:center; margin:10px 0;'>{int(round(total_m3_p)):,}</p>", unsafe_allow_html=True)
-            t3.markdown(f"<p style='color:#ffffff; font-weight:700; font-size:24px; text-align:center; margin:10px 0;'>{int(total_so_p)}</p>", unsafe_allow_html=True)
-            t4.markdown("<p style='color:#00ff88; font-weight:900; font-size:20px; text-align:right; margin:15px 0;'>100%</p>", unsafe_allow_html=True)
-
-            st.markdown("<hr style='margin:0; border: none; border-top: 2px solid #ffffff; opacity:0.8;'>", unsafe_allow_html=True)
+            # --- BLOQUE 5: GRÁFICOS DE PROYECCIÓN (CORREGIDOS) ---
             st.markdown("<br><br>", unsafe_allow_html=True)
-
-      # --- BLOQUE 5: GRÁFICOS DE PROYECCIÓN Y SALIDA (FORMATO MAXIMIZADO Y CENTRADO) ---
-            st.markdown("<br><br>", unsafe_allow_html=True)
-
-            # 1. Gráfico de Puertos (Ocupa todo el ancho arriba)
-            st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:16px; text-align:center; letter-spacing:1px; margin-bottom:15px;'>DISTRIBUCIÓN POR PUERTO DE SALIDA (M3)</p>", unsafe_allow_html=True)
             col_puerto = df.columns[41]
             p_df = df.groupby(col_puerto).agg({'M3 Total': 'sum'}).reset_index().sort_values(by='M3 Total')
-
-            fig_p = px.bar(p_df, y=col_puerto, x='M3 Total', orientation='h', 
-                           text_auto=',.0f', color_discrete_sequence=['#00a8ff'], template='plotly_dark')
-            fig_p.update_traces(textposition='outside', cliponaxis=False, textfont_size=14, textfont_color="white")
-            fig_p.update_layout(
-                xaxis_visible=False, 
-                yaxis_title=None, 
-                height=500, 
-                margin=dict(l=150, r=100, t=20, b=20),
-                font=dict(size=13),
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)'
-            )
+            fig_p = px.bar(p_df, y=col_puerto, x='M3 Total', orientation='h', text_auto=',.0f', color_discrete_sequence=['#00a8ff'], template='plotly_dark')
             st.plotly_chart(fig_p, use_container_width=True)
 
             st.markdown("<br><br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
-
-            # 2. Proyecciones en 2 Columnas con SEPARADOR central
-            # El [1, 0.2, 1] crea una columna del 20% de ancho vacía en el medio para separar
             ga, g_sep, gb = st.columns([1, 0.2, 1])
-
-       with ga:
+            
+            with ga:
                 st.markdown("<p style='color:#00ff88; font-weight:700; font-size:15px; text-align:center; margin-bottom:15px;'>PROYECCIÓN MENSUAL ETD</p>", unsafe_allow_html=True)
                 etd_p = df.groupby('Mes_ETD_Full').agg({'M3 Total': 'sum'}).reset_index()
-                
-                # Agregamos el total acumulado en el título o subtítulo para control
-                total_etd_m3 = etd_p['M3 Total'].sum()
-                st.markdown(f"<p style='text-align:center; color:#8899A6; font-size:12px;'>Total ETD: {int(round(total_etd_m3)):,} M3</p>", unsafe_allow_html=True)
-
-                fig_e = px.bar(etd_p, x='Mes_ETD_Full', y='M3 Total', text_auto=',.0f', 
-                               color_discrete_sequence=['#00ff88'], template='plotly_dark')
-                fig_e.update_traces(textfont_size=14, textposition='outside', textfont_color="white")
-                fig_e.update_layout(
-                    yaxis_visible=True, # ACTIVAMOS EL EJE Y
-                    yaxis_title="M3 Totales",
-                    xaxis_title=None, 
-                    height=450, 
-                    margin=dict(l=20, r=20, t=40, b=20),
-                    font=dict(size=12),
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)'
-                )
+                st.markdown(f"<p style='text-align:center; color:#8899A6; font-size:12px;'>Total ETD: {int(round(etd_p['M3 Total'].sum())):,}</p>", unsafe_allow_html=True)
+                fig_e = px.bar(etd_p, x='Mes_ETD_Full', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#00ff88'], template='plotly_dark')
+                fig_e.update_layout(yaxis_visible=True, yaxis_title="M3", xaxis_title=None, height=450)
                 st.plotly_chart(fig_e, use_container_width=True)
-            
+
             with gb:
                 st.markdown("<p style='color:#ff4b4b; font-weight:700; font-size:15px; text-align:center; margin-bottom:15px;'>PROYECCIÓN MENSUAL ETA</p>", unsafe_allow_html=True)
                 eta_p = df.groupby('Mes_ETA_Full', observed=True).agg({'M3 Total': 'sum'}).reset_index()
-                
-                # Agregamos el total acumulado en el título o subtítulo para control
-                total_eta_m3 = eta_p['M3 Total'].sum()
-                st.markdown(f"<p style='text-align:center; color:#8899A6; font-size:12px;'>Total ETA: {int(round(total_eta_m3)):,} M3</p>", unsafe_allow_html=True)
-
-                fig_a = px.bar(eta_p, x='Mes_ETA_Full', y='M3 Total', text_auto=',.0f', 
-                               color_discrete_sequence=['#ff4b4b'], template='plotly_dark')
-                fig_a.update_traces(textfont_size=14, textposition='outside', textfont_color="white")
-                fig_a.update_layout(
-                    yaxis_visible=True, # ACTIVAMOS EL EJE Y
-                    yaxis_title="M3 Totales",
-                    xaxis_title=None, 
-                    height=450, 
-                    margin=dict(l=20, r=20, t=40, b=20),
-                    font=dict(size=12),
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)'
-                )
+                st.markdown(f"<p style='text-align:center; color:#8899A6; font-size:12px;'>Total ETA: {int(round(eta_p['M3 Total'].sum())):,}</p>", unsafe_allow_html=True)
+                fig_a = px.bar(eta_p, x='Mes_ETA_Full', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#ff4b4b'], template='plotly_dark')
+                fig_a.update_layout(yaxis_visible=True, yaxis_title="M3", xaxis_title=None, height=450)
                 st.plotly_chart(fig_a, use_container_width=True)
 
         except Exception as e:
