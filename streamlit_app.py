@@ -263,14 +263,15 @@ try:
                 fig_a.update_traces(textfont_size=16, textposition='outside', textfont_color="white")
                 fig_a.update_layout(yaxis_visible=True, yaxis_title="M3", xaxis_title=None, height=450)
                 st.plotly_chart(fig_a, use_container_width=True)
-
-            # --- BLOQUE 6: PROYECCIÓN DE CONTENEDORES (NUEVO) ---
+# --- BLOQUE 6: PROYECCIÓN DE CONTENEDORES (REDONDEADO) ---
             st.markdown("<br><br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
             st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:18px; text-align:center; letter-spacing:2px; margin-bottom:10px;'>EQUIVALENTE EN CONTENEDORES (CÁLCULO ESTIMADO)</p>", unsafe_allow_html=True)
-            st.markdown("<p style='color:#8899A6; font-size:12px; text-align:center; margin-bottom:25px;'>Filtro: Modalidad Barco | Factor: 1 Contenedor = 60 M3</p>", unsafe_allow_html=True)
+            st.markdown("<p style='color:#8899A6; font-size:12px; text-align:center; margin-bottom:25px;'>Filtro: Modalidad Barco | Factor: 1 Contenedor = 60 M3 | Redondeo: Hacia arriba</p>", unsafe_allow_html=True)
 
-            col_modalidad = df.columns[68] # Columna BQ es índice 68
+            col_modalidad = df.columns[68] 
             df_maritimo = df[df[col_modalidad].astype(str).str.upper().str.startswith("BARCO", na=False)].copy()
+            
+            # Cálculo de contenedores
             df_maritimo['Contenedores'] = df_maritimo['M3 Total'] / 60
 
             ca, c_sep, cb = st.columns([1, 0.2, 1])
@@ -278,23 +279,35 @@ try:
             with ca:
                 st.markdown("<p style='color:#00ff88; font-weight:700; font-size:15px; text-align:center; margin-bottom:5px;'>CONTENEDORES POR ETD</p>", unsafe_allow_html=True)
                 etd_c = df_maritimo.groupby('Mes_ETD_Full').agg({'Contenedores': 'sum'}).reset_index()
-                st.markdown(f"<p style='text-align:center; color:#FFFFFF; font-size:22px; font-weight:800; margin-top:0;'>{etd_c['Contenedores'].sum():.1f}<span style='font-size:14px; margin-left:5px;'>EQUIPOS</span></p>", unsafe_allow_html=True)
-                fig_ce = px.bar(etd_c, x='Mes_ETD_Full', y='Contenedores', text_auto='.1f', color_discrete_sequence=['#00ff88'], template='plotly_dark')
+                
+                # Redondeamos el total hacia arriba (importante importar math o usar numpy si fuera necesario, pero aquí usamos round/ceil simple)
+                total_c_etd = int(pd.Series(etd_c['Contenedores'].sum()).apply(lambda x: __import__('math').ceil(x)).iloc[0])
+                
+                st.markdown(f"<p style='text-align:center; color:#FFFFFF; font-size:22px; font-weight:800; margin-top:0;'>{total_c_etd}<span style='font-size:14px; margin-left:5px;'>EQUIPOS</span></p>", unsafe_allow_html=True)
+                
+                # Aplicamos redondeo a las barras del gráfico
+                etd_c['Cont_Redond'] = etd_c['Contenedores'].apply(lambda x: __import__('math').ceil(x))
+                
+                fig_ce = px.bar(etd_c, x='Mes_ETD_Full', y='Cont_Redond', text_auto=True, color_discrete_sequence=['#00ff88'], template='plotly_dark')
                 fig_ce.update_traces(textfont_size=16, textposition='outside', textfont_color="white")
-                fig_ce.update_layout(yaxis_visible=True, yaxis_title="Cant. Contenedores", xaxis_title=None, height=400)
+                fig_ce.update_layout(yaxis_visible=True, yaxis_title="Cant. Equipos", xaxis_title=None, height=400)
                 st.plotly_chart(fig_ce, use_container_width=True)
 
             with cb:
                 st.markdown("<p style='color:#ff4b4b; font-weight:700; font-size:15px; text-align:center; margin-bottom:5px;'>CONTENEDORES POR ETA</p>", unsafe_allow_html=True)
                 eta_c = df_maritimo.groupby('Mes_ETA_Full', observed=True).agg({'Contenedores': 'sum'}).reset_index()
-                st.markdown(f"<p style='text-align:center; color:#FFFFFF; font-size:22px; font-weight:800; margin-top:0;'>{eta_c['Contenedores'].sum():.1f}<span style='font-size:14px; margin-left:5px;'>EQUIPOS</span></p>", unsafe_allow_html=True)
-                fig_ca = px.bar(eta_c, x='Mes_ETA_Full', y='Contenedores', text_auto='.1f', color_discrete_sequence=['#ff4b4b'], template='plotly_dark')
+                
+                total_c_eta = int(pd.Series(eta_c['Contenedores'].sum()).apply(lambda x: __import__('math').ceil(x)).iloc[0])
+                
+                st.markdown(f"<p style='text-align:center; color:#FFFFFF; font-size:22px; font-weight:800; margin-top:0;'>{total_c_eta}<span style='font-size:14px; margin-left:5px;'>EQUIPOS</span></p>", unsafe_allow_html=True)
+                
+                # Aplicamos redondeo a las barras del gráfico
+                eta_c['Cont_Redond'] = eta_c['Contenedores'].apply(lambda x: __import__('math').ceil(x))
+                
+                fig_ca = px.bar(eta_c, x='Mes_ETA_Full', y='Cont_Redond', text_auto=True, color_discrete_sequence=['#ff4b4b'], template='plotly_dark')
                 fig_ca.update_traces(textfont_size=16, textposition='outside', textfont_color="white")
-                fig_ca.update_layout(yaxis_visible=True, yaxis_title="Cant. Contenedores", xaxis_title=None, height=400)
+                fig_ca.update_layout(yaxis_visible=True, yaxis_title="Cant. Equipos", xaxis_title=None, height=400)
                 st.plotly_chart(fig_ca, use_container_width=True)
-
-        except Exception as e:
-            st.error(f"Error en Solapa Origen: {e}")
 # --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
     with tabs[1]:
         try:
