@@ -88,10 +88,7 @@ try:
     st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><div class='bidcom-subtitle'>Tablero Logistica Internacional</div></div>", unsafe_allow_html=True)
     tabs = st.tabs(["ORIGEN", "CONTROL GESTIÓN RESERVAS", "INDICADORES", "AGENTES", "ANALISTAS", "FLETES"])
 
-# --- CIERRE PREVENTIVO DE BLOQUE TRY (Para evitar el SyntaxError en línea 92) ---
-    except Exception as e:
-        st.error(f"Error en el procesamiento de datos: {e}")
-# --- SOLAPA 1 COMPLETA ---
+# --- SOLAPA 1 COMPLETA (Reemplaza desde tu línea 91 en adelante) ---
 with tab1:
     try:
         # 1. BLOQUE DE RANKING DE PROVEEDORES
@@ -103,7 +100,7 @@ with tab1:
             key='sel_rank_tab1'
         )
 
-        # Agrupación de datos
+        # Procesamiento de datos para el ranking
         df_rank = df_filtrado.groupby('Proveedor').agg({
             'SO': 'count',
             'Total USD': 'sum',
@@ -111,10 +108,8 @@ with tab1:
         }).rename(columns={'SO': 'Cant. de SO'}).sort_values(by=col_rank, ascending=False).reset_index()
 
         st.write(f"Detalle de proveedores ordenados por {col_rank}:")
-        # Tabla de Ranking
         st.dataframe(df_rank[['Proveedor', 'Cant. de SO', 'Total USD', 'Ahorro USD']], use_container_width=True)
 
-        # Gráfico de Ranking
         fig_rank = px.bar(
             df_rank.head(10), 
             x='Proveedor', 
@@ -149,7 +144,6 @@ with tab1:
             df_proy = df_filtrado.copy()
             df_proy['Fecha'] = pd.to_datetime(df_proy['Fecha'])
             
-            # Extraemos Mes y Semana
             df_proy['Mes'] = df_proy['Fecha'].dt.month_name()
             df_proy['Semana'] = df_proy['Fecha'].dt.isocalendar().week
 
@@ -165,11 +159,8 @@ with tab1:
 
             if not proyeccion_semanal.empty:
                 st.write(f"Resumen de carga para **{mes_seleccionado}**:")
-                st.dataframe(
-                    proyeccion_semanal[['Semana', 'Puerto', 'Total m3', 'Cant. Contenedores']], 
-                    use_container_width=True, 
-                    hide_index=True
-                )
+                st.dataframe(proyeccion_semanal[['Semana', 'Puerto', 'Total m3', 'Cant. Contenedores']], 
+                             use_container_width=True, hide_index=True)
 
                 fig_proy = px.bar(
                     proyeccion_semanal,
@@ -182,12 +173,12 @@ with tab1:
                 )
                 st.plotly_chart(fig_proy, use_container_width=True)
             else:
-                st.info(f"No hay datos para el mes de {mes_seleccionado}.")
+                st.info("No hay datos para el mes seleccionado.")
         else:
-            st.warning("Se requiere una columna 'Fecha' para la proyección.")
+            st.warning("Se requiere columna 'Fecha' para proyección.")
 
     except Exception as e:
-        st.error(f"Hubo un error al procesar la Solapa 1: {e}")
+        st.error(f"Error en Solapa 1: {e}")
 # --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
     with tabs[1]:
         try:
