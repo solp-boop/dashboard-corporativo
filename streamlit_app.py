@@ -66,102 +66,53 @@ except Exception as e:
     st.error(f"Error cargando los datos base: {e}")
     st.stop()
 
-# --- SOLAPA 1: ORIGEN ---
-with tabs[0]:
-    try:
-        # --- 1. CÁLCULOS LOCALES ---
-        df['Fecha_Inst_DT'] = pd.to_datetime(df['Fecha de Instruccion'], errors='coerce')
+# --- SOLAPA 1: RANKING DE PROVEEDORES ---
+    with tab1:
+        st.subheader("🏆 Ranking de Proveedores")
         
-        cond_instruido = df['Fecha_Inst_DT'].notna() & ~(df['Fecha de Instruccion'].astype(str).str.upper().str.contains("SIN INSTRUCCION", na=False))
-        cond_critico = (~cond_instruido) & (df['Fecha_Prior_DT'] <= limite_proximo)
-        cond_resto = (~cond_instruido) & (~cond_critico)
+        # Métrica para el ranking
+        col_rank = st.selectbox(
+            "Seleccionar métrica para ranking:",
+            ['Cant. de SO', 'Total USD', 'Ahorro USD'],
+            key='sel_rank_tab1'
+        )
 
-        df_inst = df[cond_instruido].copy()
-        df_criticos = df[cond_critico].copy()
-        df_resto = df[cond_resto].copy()
+        # Procesamiento de datos para el ranking
+        df_rank = df_filtrado.groupby('Proveedor').agg({
+            'SO': 'count',
+            'Total USD': 'sum',
+            'Ahorro USD': 'sum'
+        }).rename(columns={'SO': 'Cant. de SO'}).sort_values(by=col_rank, ascending=False).reset_index()
 
-        m3_inst = int(round(df_inst['M3 Total'].sum()))
-        m3_crit = int(round(df_criticos['M3 Total'].sum()))
-        m3_rest = int(round(df_resto['M3 Total'].sum()))
-
-        total_vol_ref = m3_totales_global if m3_totales_global > 0 else 1
-        p_inst_val = int(round(m3_inst / total_vol_ref * 100))
-        p_crit_val = int(round(m3_crit / total_vol_ref * 100))
-        p_rest_val = int(round(m3_rest / total_vol_ref * 100))
-
-        # --- 2. KPIs MASIVOS ---
-        st.markdown("<br>", unsafe_allow_html=True)
-        o1, o2, o3 = st.columns(3)
-        with o1: st.markdown(f"<div class='metric-container'><p style='font-size: 20px; color: #00a8ff; font-weight: 700;'>CANTIDAD DE SO</p><p style='font-size: 80px; font-weight: 900; color: #00a8ff; line-height: 1;'>{int(cant_so_global)}</p></div>", unsafe_allow_html=True)
-        with o2: st.markdown(f"<div class='metric-container'><p style='font-size: 20px; color: #00a8ff; font-weight: 700;'>VOLUMEN TOTAL (M3)</p><p style='font-size: 80px; font-weight: 900; color: #00a8ff; line-height: 1;'>{int(round(m3_totales_global)):,}</p></div>", unsafe_allow_html=True)
-        with o3: st.markdown(f"<div class='metric-container'><p style='font-size: 20px; color: #00a8ff; font-weight: 700;'>PROVEEDORES</p><p style='font-size: 80px; font-weight: 900; color: #00a8ff; line-height: 1;'>{int(cant_proveedores_global)}</p></div>", unsafe_allow_html=True)
-
-        st.markdown("<br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
-
-        # --- 3. BOTONES DE FILTRADO ---
-        b1, b2, b3, b4, b5 = st.columns(5)
-        f_act = st.session_state.get('f')
+        # Mostrar Tabla de Ranking
+        st.write(f"Detalle de proveedores ordenados por {col_rank}:")
         
-        with b1:
-            if st.button(f"INSTRUIDA {p_inst_val}%", key="b1_v", use_container_width=True):
-                st.session_state.f = 'inst' if f_act != 'inst' else None
-                st.rerun()
-        with b2:
-            if st.button(f"CRÍTICA {p_crit_val}%", key="b2_v", use_container_width=True):
-                st.session_state.f = 'crit' if f_act != 'crit' else None
-                st.rerun()
-        with b3:
-            if st.button(f"RESTO {p_rest_val}%", key="b3_v", use_container_width=True):
-                st.session_state.f = 'rest' if f_act != 'rest' else None
-                st.rerun()
-        with b4:
-            if st.button("RANKING", key="b4_v", use_container_width=True):
-                st.session_state.f = 'rank' if f_act != 'rank' else None
-                st.rerun()
-        with b5:
-            if st.button("ESTRUCTURA", key="b5_v", use_container_width=True):
-                st.session_state.f = 'estr' if f_act != 'estr' else None
-                st.rerun()
+        # LÍNEA 194 CORREGIDA: Se cierran los corchetes de la lista y el paréntesis de st.dataframe
+        st.dataframe(df_rank[['Proveedor', 'Cant. de SO', 'Total USD', 'Ahorro USD']], use_container_width=True)
 
-        # --- 4. DISTRIBUCIÓN POR PAÍS ---
-        st.markdown("<p style='color:#00a8ff; font-weight:700; font-size: 20px;'>DISTRIBUCIÓN GEOGRÁFICA</p>", unsafe_allow_html=True)
-        res_p = df.groupby('Pais Destino').agg({'SO': 'count', 'M3 Total': 'sum'}).sort_values(by='M3 Total', ascending=False)
-        for pais, row in res_p.iterrows():
-            c1, c2, c3 = st.columns([1.5, 1, 1])
-            c1.write(f"**{str(pais).upper()}**")
-            c2.write(f"{int(row['M3 Total']):,} M3")
-            c3.write(f"{int(row['SO'])} SO")
-
-        # --- 5. GRÁFICOS ---
         st.markdown("---")
-        col_puerto = df.columns[41]
-        p_plot = df.groupby(col_puerto)['M3 Total'].sum().reset_index()
-        st.plotly_chart(px.bar(p_plot, y=col_puerto, x='M3 Total', orientation='h', title="M3 POR PUERTO", template='plotly_dark'), use_container_width=True)
 
-        ga, gb = st.columns(2)
-        with ga:
-            e_plot = df.groupby('Mes_ETD_Full')['M3 Total'].sum().reset_index()
-            st.plotly_chart(px.bar(e_plot, x='Mes_ETD_Full', y='M3 Total', title="ETD", template='plotly_dark', color_discrete_sequence=['#00ff88']), use_container_width=True)
-        with gb:
-            a_plot = df.groupby('Mes_ETA_Full', observed=True)['M3 Total'].sum().reset_index()
-            st.plotly_chart(px.bar(a_plot, x='Mes_ETA_Full', y='M3 Total', title="ETA", template='plotly_dark', color_discrete_sequence=['#ff4b4b']), use_container_width=True)
+        # Gráfico de barras del Top 10
+        st.subheader(f"Top 10 Proveedores por {col_rank}")
+        fig_rank = px.bar(
+            df_rank.head(10), 
+            x='Proveedor', 
+            y=col_rank, 
+            color=col_rank,
+            text_auto='.2s',
+            color_continuous_scale='Blues',
+            labels={col_rank: col_rank, 'Proveedor': 'Proveedor'}
+        )
+        fig_rank.update_layout(xaxis_tickangle=-45)
+        st.plotly_chart(fig_rank, use_container_width=True)
 
-        # --- 6. CONTENEDORES (REVISADO) ---
-        st.markdown("---")
-        col_mod_idx = df.columns[68]
-        df_m = df[df[col_mod_idx].astype(str).str.upper().str.startswith("BARCO", na=False)].copy()
-        df_m['Equipos'] = df_m['M3 Total'] / 60
-        
-        ca, cb = st.columns(2)
-        with ca:
-            etd_c = df_m.groupby('Mes_ETD_Full')['Equipos'].sum().reset_index()
-            st.plotly_chart(px.bar(etd_c, x='Mes_ETD_Full', y='Equipos', title="EQUIPOS ETD", color_discrete_sequence=['#00ff88'], template='plotly_dark'), use_container_width=True)
-        with cb:
-            eta_c = df_m.groupby('Mes_ETA_Full', observed=True)['Equipos'].sum().reset_index()
-            st.plotly_chart(px.bar(eta_c, x='Mes_ETA_Full', y='Equipos', title="EQUIPOS ETA", color_discrete_sequence=['#ff4b4b'], template='plotly_dark'), use_container_width=True)
-
-    except Exception as e:
-        st.error(f"Error en Solapa Origen: {e}")
+        # Métricas rápidas del líder
+        if not df_rank.empty:
+            top_prov = df_rank.iloc[0]
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Proveedor Líder", top_prov['Proveedor'])
+            col2.metric(f"{col_rank} (Líder)", f"{top_prov[col_rank]:,.2f}")
+            col3.metric("Participación", f"{(top_prov[col_rank] / df_rank[col_rank].sum() * 100):.1f}%")
 # --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
     with tabs[1]:
         try:
