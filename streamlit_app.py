@@ -69,7 +69,7 @@ except Exception as e:
 # --- SOLAPA 1: ORIGEN ---
 with tabs[0]:
     try:
-        # --- CÁLCULOS LOCALES ---
+        # --- 1. CÁLCULOS LOCALES ---
         df['Fecha_Inst_DT'] = pd.to_datetime(df['Fecha de Instruccion'], errors='coerce')
         cond_instruido = df['Fecha_Inst_DT'].notna() & ~(df['Fecha de Instruccion'].astype(str).str.upper().str.contains("SIN INSTRUCCION", na=False))
         cond_critico = (~cond_instruido) & (df['Fecha_Prior_DT'] <= limite_proximo)
@@ -87,7 +87,7 @@ with tabs[0]:
         p_crit_val = int(round(m3_crit / m3_totales_global * 100)) if m3_totales_global > 0 else 0
         p_rest_val = int(round(m3_rest / m3_totales_global * 100)) if m3_totales_global > 0 else 0
 
-        # --- BLOQUE 1: KPIs ---
+        # --- 2. KPIs MASIVOS ---
         st.markdown("<br>", unsafe_allow_html=True)
         o1, o2, o3 = st.columns(3)
         with o1: st.markdown(f"<div class='metric-container'><p style='font-size: 22px; color: #00a8ff; letter-spacing: 4px; font-weight: 700; margin-bottom: 0;'>CANTIDAD DE SO</p><p style='font-size: 90px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0;'>{int(cant_so_global)}</p></div>", unsafe_allow_html=True)
@@ -96,10 +96,10 @@ with tabs[0]:
 
         st.markdown("<br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
 
-        # --- BLOQUE 2: FILTROS ---
+        # --- 3. BOTONES DE FILTRADO ---
         b1, b2, b3, b4, b5 = st.columns(5)
         f_act = st.session_state.get('f')
-        
+
         with b1: 
             if st.button(f"INSTRUIDA {p_inst_val}%", key="b1", use_container_width=True): 
                 st.session_state.f = 'inst' if f_act != 'inst' else None
@@ -121,17 +121,16 @@ with tabs[0]:
                 st.session_state.f = 'estr' if f_act != 'estr' else None
                 st.rerun()
 
-        # --- BLOQUE 4: PAÍSES ---
+        # --- 4. DISTRIBUCIÓN GEOGRÁFICA ---
         st.markdown("<p style='color:#00a8ff; font-weight:700; font-size: 20px;'>DISTRIBUCIÓN GEOGRÁFICA</p>", unsafe_allow_html=True)
-        df['Pais Destino'] = df['Pais Destino'].fillna('SIN DEFINIR')
         res_p = df.groupby('Pais Destino').agg({'SO': 'count', 'M3 Total': 'sum'}).sort_values(by='M3 Total', ascending=False)
         for pais, row in res_p.iterrows():
             c1, c2, c3 = st.columns([1.5, 1, 1])
-            c1.write(f"**{pais.upper()}**")
+            c1.write(f"**{str(pais).upper()}**")
             c2.write(f"{int(row['M3 Total']):,} M3")
             c3.write(f"{int(row['SO'])} SO")
 
-        # --- BLOQUE 5: GRÁFICOS ---
+        # --- 5. GRÁFICOS DE PROYECCIÓN ---
         st.markdown("---")
         col_puerto = df.columns[41]
         fig_p = px.bar(df.groupby(col_puerto)['M3 Total'].sum().reset_index(), 
@@ -142,14 +141,30 @@ with tabs[0]:
         ga, gb = st.columns(2)
         with ga: 
             fig_e = px.bar(df.groupby('Mes_ETD_Full')['M3 Total'].sum().reset_index(), 
-                         x='Mes_ETD_Full', y='M3 Total', title="PROYECCIÓN ETD", 
+                         x='Mes_ETD_Full', y='M3 Total', title="PROYECCIÓN ETD (M3)", 
                          template='plotly_dark', color_discrete_sequence=['#00ff88'])
             st.plotly_chart(fig_e, use_container_width=True)
         with gb: 
             fig_a = px.bar(df.groupby('Mes_ETA_Full', observed=True)['M3 Total'].sum().reset_index(), 
-                         x='Mes_ETA_Full', y='M3 Total', title="PROYECCIÓN ETA", 
+                         x='Mes_ETA_Full', y='M3 Total', title="PROYECCIÓN ETA (M3)", 
                          template='plotly_dark', color_discrete_sequence=['#ff4b4b'])
             st.plotly_chart(fig_a, use_container_width=True)
+
+        # --- 6. EQUIVALENTE CONTENEDORES ---
+        st.markdown("---")
+        st.markdown("<p style='text-align:center; color:#00a8ff; font-weight:700;'>EQUIVALENTE EN CONTENEDORES (BARCO)</p>", unsafe_allow_html=True)
+        
+        col_modalidad = df.columns[68]
+        df_maritimo = df[df[col_modalidad].astype(str).str.upper().str.startswith("BARCO", na=False)].copy()
+        df_maritimo['Contenedores'] = df_maritimo['M3 Total'] / 60
+        
+        ca, cb = st.columns(2)
+        with ca:
+            etd_c = df_maritimo.groupby('Mes_ETD_Full').agg({'Contenedores': 'sum'}).reset_index()
+            st.plotly_chart(px.bar(etd_c, x='Mes_ETD_Full', y='Contenedores', title="EQUIPOS ETD", color_discrete_sequence=['#00ff88'], template='plotly_dark'), use_container_width=True)
+        with cb:
+            eta_c = df_maritimo.groupby('Mes_ETA_Full', observed=True).agg({'Contenedores': 'sum'}).reset_index()
+            st.plotly_chart(px.bar(eta_c, x='Mes_ETA_Full', y='Contenedores', title="EQUIPOS ETA", color_discrete_sequence=['#ff4b4b'], template='plotly_dark'), use_container_width=True)
 
     except Exception as e:
         st.error(f"Error en Solapa Origen: {e}")
