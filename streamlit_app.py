@@ -143,22 +143,28 @@ with tabs[0]:
             df_eta_g = df.groupby('Mes_ETA_Full', observed=True)['M3 Total'].sum().reset_index()
             st.plotly_chart(px.bar(df_eta_g, x='Mes_ETA_Full', y='M3 Total', title="ETA (M3)", template='plotly_dark', color_discrete_sequence=['#ff4b4b']), use_container_width=True)
 
-        # --- 6. CONTENEDORES ---
+  # --- 6. CONTENEDORES (Bloque revisado) ---
         st.markdown("---")
         st.markdown("<p style='text-align:center; color:#00a8ff; font-weight:700;'>EQUIVALENTE EN CONTENEDORES (BARCO)</p>", unsafe_allow_html=True)
         
         col_mod_idx = df.columns[68]
+        # Filtramos y calculamos equipos
         df_m = df[df[col_mod_idx].astype(str).str.upper().str.startswith("BARCO", na=False)].copy()
         df_m['Equipos'] = df_m['M3 Total'] / 60
         
         c_cont1, c_cont2 = st.columns(2)
+        
         with c_cont1:
             etd_c = df_m.groupby('Mes_ETD_Full')['Equipos'].sum().reset_index()
-            st.plotly_chart(px.bar(etd_c, x='Mes_ETD_Full', y='Equipos', title="EQUIPOS ETD", color_discrete_sequence=['#00ff88'], template='plotly_dark'), use_container_width=True)
+            fig_cont_etd = px.bar(etd_c, x='Mes_ETD_Full', y='Equipos', title="EQUIPOS ETD", color_discrete_sequence=['#00ff88'], template='plotly_dark')
+            st.plotly_chart(fig_cont_etd, use_container_width=True)
+            
         with c_cont2:
             eta_c = df_m.groupby('Mes_ETA_Full', observed=True)['Equipos'].sum().reset_index()
-            st.plotly_chart(px.bar(eta_c, x='Mes_ETA_Full', y='Equipos', title="EQUIPOS ETA", color_discrete_sequence=['#ff4b4b'], template='plotly_dark'), use_container_width=True)
+            fig_cont_eta = px.bar(eta_c, x='Mes_ETA_Full', y='Equipos', title="EQUIPOS ETA", color_discrete_sequence=['#ff4b4b'], template='plotly_dark')
+            st.plotly_chart(fig_cont_eta, use_container_width=True)
 
+    # AQUÍ SE CIERRA EL TRY QUE EMPEZÓ AL INICIO DE LA SOLAPA
     except Exception as e:
         st.error(f"Error en Solapa Origen: {e}")
 # --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
