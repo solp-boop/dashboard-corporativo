@@ -22,33 +22,12 @@ st.markdown("""
     .bidcom-header h1 { font-size: 60px; letter-spacing: 10px; color: #ffffff; font-weight: 900; margin: 0; text-shadow: 2px 2px 15px rgba(0, 168, 255, 0.8); }
     .bidcom-subtitle { font-size: 18px; color: #00a8ff; letter-spacing: 4px; text-transform: uppercase; font-weight: 600; margin-top: 5px; }
     .metric-container { text-align: center; padding: 20px; }
-    .label-massive { font-size: 24px; color: #00a8ff; letter-spacing: 5px; text-transform: uppercase; font-weight: 800; margin-bottom: 5px; }
-    .value-massive { font-size: 120px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 30px rgba(0,168,255,0.5); }
-    .stButton>button {
-        border-radius: 15px !important; color: white !important;
-        width: 100%; height: 140px; font-weight: 800 !important; font-size: 18px !important;
-        background: rgba(255, 255, 255, 0.03) !important; border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        transition: all 0.3s ease-in-out !important;
-    }
-    .stButton>button:hover { background-color: rgba(0, 168, 255, 0.2) !important; border-color: #00a8ff !important; color: #00a8ff !important; box-shadow: 0 0 20px rgba(0, 168, 255, 0.4) !important; }
-    .chart-title { text-align: center; letter-spacing: 2px; color: #00a8ff; font-weight: 900; font-size: 20px; margin: 25px 0 15px 0; text-transform: uppercase; }
-    
-    /* Estilos para KPI de Reservas */
-    .reserva-box {
-        background: rgba(0, 168, 255, 0.05);
-        padding: 15px;
-        border-radius: 12px;
-        border: 1px solid #004080;
-        text-align: center;
-    }
     </style>
     """, unsafe_allow_html=True)
 
+# --- 3. CARGA DE DATOS ---
 try:
-    # --- 3. CARGA DE DATOS ---
     base_url = "https://docs.google.com/spreadsheets/d/1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI"
-
-    # Origen (GID 0)
     df = pd.read_csv(f"{base_url}/export?format=csv&gid=0&nocache={time.time()}")
     df.columns = df.columns.str.strip()
 
@@ -56,9 +35,7 @@ try:
         df['M3 Total'] = df['M3 Total'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
         df['M3 Total'] = pd.to_numeric(df['M3 Total'], errors='coerce').fillna(0)
 
-    # Procesamiento Fechas Origen
-    df.iloc[:, 23] = df.iloc[:, 23].astype(str).str.strip()
-    df.iloc[:, 24] = df.iloc[:, 24].astype(str).str.strip()
+    # Procesamiento Fechas
     df['ETD_DT'] = pd.to_datetime(df.iloc[:, 23], errors='coerce')
     df['ETA_DT'] = pd.to_datetime(df.iloc[:, 24], errors='coerce')
     df['Fecha_Prior_DT'] = pd.to_datetime(df.iloc[:, 99], errors='coerce') 
@@ -76,17 +53,18 @@ try:
     df['Mes_ETD_Full'] = df['ETD_DT'].apply(lambda x: label_proyeccion(x, inicio_mes))
     df['Mes_ETA_Full'] = df['ETA_DT'].apply(lambda x: label_proyeccion(x, hoy))
 
-    meses_eta = [m for m in df['Mes_ETA_Full'].unique() if m not in ["PASADO/REALIZADO", "SIN FECHA"]]
-    meses_eta_ordenados = sorted(meses_eta, key=lambda x: datetime.strptime(x, '%m/%Y'))
-    orden_final_eta = ["PASADO/REALIZADO"] + meses_eta_ordenados + ["SIN FECHA"]
-    df['Mes_ETA_Full'] = pd.Categorical(df['Mes_ETA_Full'], categories=orden_final_eta, ordered=True)
-
     m3_totales_global = round(df['M3 Total'].sum())
     cant_so_global = len(df)
     cant_proveedores_global = df['Proveedor'].nunique() if 'Proveedor' in df.columns else 0
 
     st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><div class='bidcom-subtitle'>Tablero Logistica Internacional</div></div>", unsafe_allow_html=True)
+    
+    # IMPORTANTE: Desempaquetamos las pestañas
     tabs = st.tabs(["ORIGEN", "CONTROL GESTIÓN RESERVAS", "INDICADORES", "AGENTES", "ANALISTAS", "FLETES"])
+
+except Exception as e:
+    st.error(f"Error cargando los datos base: {e}")
+    st.stop()
 
 # --- SOLAPA 1: ORIGEN ---
 with tabs[0]:
@@ -121,36 +99,57 @@ with tabs[0]:
         # --- BLOQUE 2: FILTROS ---
         b1, b2, b3, b4, b5 = st.columns(5)
         f_act = st.session_state.get('f')
-        def style(t): return "border: 2px solid #00a8ff; background: rgba(0, 168, 255, 0.1);" if f_act == t else "border: 1px solid #1e293b;"
-
+        
         with b1: 
-            if st.button(f"INSTRUIDA {p_inst_val}%", key="b1"): st.session_state.f = 'inst' if f_act != 'inst' else None; st.rerun()
+            if st.button(f"INSTRUIDA {p_inst_val}%", key="b1", use_container_width=True): 
+                st.session_state.f = 'inst' if f_act != 'inst' else None
+                st.rerun()
         with b2: 
-            if st.button(f"CRÍTICA {p_crit_val}%", key="b2"): st.session_state.f = 'crit' if f_act != 'crit' else None; st.rerun()
+            if st.button(f"CRÍTICA {p_crit_val}%", key="b2", use_container_width=True): 
+                st.session_state.f = 'crit' if f_act != 'crit' else None
+                st.rerun()
         with b3: 
-            if st.button(f"RESTO {p_rest_val}%", key="b3"): st.session_state.f = 'rest' if f_act != 'rest' else None; st.rerun()
+            if st.button(f"RESTO {p_rest_val}%", key="b3", use_container_width=True): 
+                st.session_state.f = 'rest' if f_act != 'rest' else None
+                st.rerun()
         with b4: 
-            if st.button("RANKING", key="b4"): st.session_state.f = 'rank' if f_act != 'rank' else None; st.rerun()
+            if st.button("RANKING", key="b4", use_container_width=True): 
+                st.session_state.f = 'rank' if f_act != 'rank' else None
+                st.rerun()
         with b5: 
-            if st.button("ESTRUCTURA", key="b5"): st.session_state.f = 'estr' if f_act != 'estr' else None; st.rerun()
+            if st.button("ESTRUCTURA", key="b5", use_container_width=True): 
+                st.session_state.f = 'estr' if f_act != 'estr' else None
+                st.rerun()
 
         # --- BLOQUE 4: PAÍSES ---
-        st.markdown("<p style='color:#00a8ff; font-weight:700;'>DISTRIBUCIÓN GEOGRÁFICA</p>", unsafe_allow_html=True)
+        st.markdown("<p style='color:#00a8ff; font-weight:700; font-size: 20px;'>DISTRIBUCIÓN GEOGRÁFICA</p>", unsafe_allow_html=True)
+        df['Pais Destino'] = df['Pais Destino'].fillna('SIN DEFINIR')
         res_p = df.groupby('Pais Destino').agg({'SO': 'count', 'M3 Total': 'sum'}).sort_values(by='M3 Total', ascending=False)
         for pais, row in res_p.iterrows():
             c1, c2, c3 = st.columns([1.5, 1, 1])
             c1.write(f"**{pais.upper()}**")
-            c2.write(f"{int(row['M3 Total']):,}")
+            c2.write(f"{int(row['M3 Total']):,} M3")
             c3.write(f"{int(row['SO'])} SO")
 
         # --- BLOQUE 5: GRÁFICOS ---
+        st.markdown("---")
         col_puerto = df.columns[41]
-        fig_p = px.bar(df.groupby(col_puerto)['M3 Total'].sum().reset_index(), y=col_puerto, x='M3 Total', orientation='h', template='plotly_dark')
+        fig_p = px.bar(df.groupby(col_puerto)['M3 Total'].sum().reset_index(), 
+                     y=col_puerto, x='M3 Total', orientation='h', 
+                     title="M3 POR PUERTO", template='plotly_dark')
         st.plotly_chart(fig_p, use_container_width=True)
 
         ga, gb = st.columns(2)
-        with ga: st.plotly_chart(px.bar(df.groupby('Mes_ETD_Full')['M3 Total'].sum().reset_index(), x='Mes_ETD_Full', y='M3 Total', title="ETD", template='plotly_dark', color_discrete_sequence=['#00ff88']), use_container_width=True)
-        with gb: st.plotly_chart(px.bar(df.groupby('Mes_ETA_Full', observed=True)['M3 Total'].sum().reset_index(), x='Mes_ETA_Full', y='M3 Total', title="ETA", template='plotly_dark', color_discrete_sequence=['#ff4b4b']), use_container_width=True)
+        with ga: 
+            fig_e = px.bar(df.groupby('Mes_ETD_Full')['M3 Total'].sum().reset_index(), 
+                         x='Mes_ETD_Full', y='M3 Total', title="PROYECCIÓN ETD", 
+                         template='plotly_dark', color_discrete_sequence=['#00ff88'])
+            st.plotly_chart(fig_e, use_container_width=True)
+        with gb: 
+            fig_a = px.bar(df.groupby('Mes_ETA_Full', observed=True)['M3 Total'].sum().reset_index(), 
+                         x='Mes_ETA_Full', y='M3 Total', title="PROYECCIÓN ETA", 
+                         template='plotly_dark', color_discrete_sequence=['#ff4b4b'])
+            st.plotly_chart(fig_a, use_container_width=True)
 
     except Exception as e:
         st.error(f"Error en Solapa Origen: {e}")
