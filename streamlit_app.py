@@ -113,6 +113,38 @@ except Exception as e:
             col1.metric("Proveedor Líder", top_prov['Proveedor'])
             col2.metric(f"{col_rank} (Líder)", f"{top_prov[col_rank]:,.2f}")
             col3.metric("Participación", f"{(top_prov[col_rank] / df_rank[col_rank].sum() * 100):.1f}%")
+
+    # --- BLOQUE: Análisis de Contenedores por Puerto ---
+st.markdown("---")
+st.subheader("🚢 Cantidad de Contenedores por Puerto")
+
+# Verificamos que las columnas existan antes de procesar
+if 'Puerto' in df_filtrado.columns and 'Contenedor' in df_filtrado.columns:
+    
+    # Agrupamos por Puerto y contamos los contenedores únicos
+    df_puertos = df_filtrado.groupby('Puerto')['Contenedor'].count().reset_index()
+    df_puertos.columns = ['Puerto', 'Cantidad de Contenedores']
+    df_puertos = df_puertos.sort_values(by='Cantidad de Contenedores', ascending=False)
+
+    col_tabla, col_grafico = st.columns([1, 2])
+
+    with col_tabla:
+        st.write("Resumen por Puerto:")
+        st.dataframe(df_puertos, use_container_width=True, hide_index=True)
+
+    with col_grafico:
+        fig_puertos = px.pie(
+            df_puertos, 
+            values='Cantidad de Contenedores', 
+            names='Puerto', 
+            title="Distribución de Contenedores",
+            hole=0.4, # Estilo dona
+            color_discrete_sequence=px.colors.qualitative.Safe
+        )
+        st.plotly_chart(fig_puertos, use_container_width=True)
+
+else:
+    st.warning("No se encontraron las columnas 'Puerto' o 'Contenedor' en el archivo cargado.")
 # --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
     with tabs[1]:
         try:
