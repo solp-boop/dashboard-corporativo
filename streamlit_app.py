@@ -88,7 +88,7 @@ try:
     st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><div class='bidcom-subtitle'>Tablero Logistica Internacional</div></div>", unsafe_allow_html=True)
     tabs = st.tabs(["ORIGEN", "CONTROL GESTIÓN RESERVAS", "INDICADORES", "AGENTES", "ANALISTAS", "FLETES"])
 
- # --- SOLAPA 1: ORIGEN ---
+# --- SOLAPA 1: ORIGEN ---
     with tabs[0]:
         try:
             # --- CÁLCULOS LOCALES ---
@@ -233,16 +233,12 @@ try:
                 c4.markdown(f"<p style='color:#00ff88; font-weight:700; font-size:18px; text-align:right; margin:10px 0;'>{pct_v}%</p>", unsafe_allow_html=True)
                 st.markdown("<hr style='margin:0; border-top: 1px solid #ffffff; opacity:0.2;'>", unsafe_allow_html=True)
 
-# --- BLOQUE 5: GRÁFICOS DE PROYECCIÓN (MEJORADOS) ---
+            # --- BLOQUE 5: GRÁFICOS DE PROYECCIÓN (MEJORADOS) ---
             st.markdown("<br><br>", unsafe_allow_html=True)
             st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:16px; text-align:center; letter-spacing:1px; margin-bottom:15px;'>DISTRIBUCIÓN POR PUERTO DE SALIDA (M3)</p>", unsafe_allow_html=True)
-            
             col_puerto = df.columns[41]
             p_df = df.groupby(col_puerto).agg({'M3 Total': 'sum'}).reset_index().sort_values(by='M3 Total')
-            
             fig_p = px.bar(p_df, y=col_puerto, x='M3 Total', orientation='h', text_auto=',.0f', color_discrete_sequence=['#00a8ff'], template='plotly_dark')
-            
-            # Ajuste de tamaño de números en Puertos
             fig_p.update_traces(textfont_size=18, textposition='outside', textfont_color="white", cliponaxis=False)
             fig_p.update_layout(xaxis_visible=False, yaxis_title=None, height=500, margin=dict(l=150, r=100, t=20, b=20))
             st.plotly_chart(fig_p, use_container_width=True)
@@ -253,9 +249,7 @@ try:
             with ga:
                 st.markdown("<p style='color:#00ff88; font-weight:700; font-size:15px; text-align:center; margin-bottom:5px;'>PROYECCIÓN MENSUAL ETD</p>", unsafe_allow_html=True)
                 etd_p = df.groupby('Mes_ETD_Full').agg({'M3 Total': 'sum'}).reset_index()
-                # Total en blanco y más grande
                 st.markdown(f"<p style='text-align:center; color:#FFFFFF; font-size:22px; font-weight:800; margin-top:0;'>{int(round(etd_p['M3 Total'].sum())):,}<span style='font-size:14px; margin-left:5px;'>M3</span></p>", unsafe_allow_html=True)
-                
                 fig_e = px.bar(etd_p, x='Mes_ETD_Full', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#00ff88'], template='plotly_dark')
                 fig_e.update_traces(textfont_size=16, textposition='outside', textfont_color="white")
                 fig_e.update_layout(yaxis_visible=True, yaxis_title="M3", xaxis_title=None, height=450)
@@ -264,26 +258,19 @@ try:
             with gb:
                 st.markdown("<p style='color:#ff4b4b; font-weight:700; font-size:15px; text-align:center; margin-bottom:5px;'>PROYECCIÓN MENSUAL ETA</p>", unsafe_allow_html=True)
                 eta_p = df.groupby('Mes_ETA_Full', observed=True).agg({'M3 Total': 'sum'}).reset_index()
-                # Total en blanco y más grande
                 st.markdown(f"<p style='text-align:center; color:#FFFFFF; font-size:22px; font-weight:800; margin-top:0;'>{int(round(eta_p['M3 Total'].sum())):,}<span style='font-size:14px; margin-left:5px;'>M3</span></p>", unsafe_allow_html=True)
-                
                 fig_a = px.bar(eta_p, x='Mes_ETA_Full', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#ff4b4b'], template='plotly_dark')
                 fig_a.update_traces(textfont_size=16, textposition='outside', textfont_color="white")
                 fig_a.update_layout(yaxis_visible=True, yaxis_title="M3", xaxis_title=None, height=450)
                 st.plotly_chart(fig_a, use_container_width=True)
 
-        except Exception as e:
-            st.error(f"Error en Solapa Origen: {e}")
-# --- BLOQUE 6: PROYECCIÓN DE CONTENEDORES (NUEVO) ---
+            # --- BLOQUE 6: PROYECCIÓN DE CONTENEDORES (NUEVO) ---
             st.markdown("<br><br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
             st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:18px; text-align:center; letter-spacing:2px; margin-bottom:10px;'>EQUIVALENTE EN CONTENEDORES (CÁLCULO ESTIMADO)</p>", unsafe_allow_html=True)
             st.markdown("<p style='color:#8899A6; font-size:12px; text-align:center; margin-bottom:25px;'>Filtro: Modalidad Barco | Factor: 1 Contenedor = 60 M3</p>", unsafe_allow_html=True)
 
-            # 1. Preparar datos: Filtrar solo lo que empieza con "Barco" en columna BQ
-            col_modalidad = df.columns[68] # Columna BQ es la 69 (índice 68)
+            col_modalidad = df.columns[68] # Columna BQ es índice 68
             df_maritimo = df[df[col_modalidad].astype(str).str.upper().str.startswith("BARCO", na=False)].copy()
-            
-            # 2. Calcular contenedores (M3 / 60)
             df_maritimo['Contenedores'] = df_maritimo['M3 Total'] / 60
 
             ca, c_sep, cb = st.columns([1, 0.2, 1])
@@ -291,9 +278,7 @@ try:
             with ca:
                 st.markdown("<p style='color:#00ff88; font-weight:700; font-size:15px; text-align:center; margin-bottom:5px;'>CONTENEDORES POR ETD</p>", unsafe_allow_html=True)
                 etd_c = df_maritimo.groupby('Mes_ETD_Full').agg({'Contenedores': 'sum'}).reset_index()
-                total_c_etd = etd_c['Contenedores'].sum()
-                st.markdown(f"<p style='text-align:center; color:#FFFFFF; font-size:22px; font-weight:800; margin-top:0;'>{total_c_etd:.1f}<span style='font-size:14px; margin-left:5px;'>EQUIPOS</span></p>", unsafe_allow_html=True)
-                
+                st.markdown(f"<p style='text-align:center; color:#FFFFFF; font-size:22px; font-weight:800; margin-top:0;'>{etd_c['Contenedores'].sum():.1f}<span style='font-size:14px; margin-left:5px;'>EQUIPOS</span></p>", unsafe_allow_html=True)
                 fig_ce = px.bar(etd_c, x='Mes_ETD_Full', y='Contenedores', text_auto='.1f', color_discrete_sequence=['#00ff88'], template='plotly_dark')
                 fig_ce.update_traces(textfont_size=16, textposition='outside', textfont_color="white")
                 fig_ce.update_layout(yaxis_visible=True, yaxis_title="Cant. Contenedores", xaxis_title=None, height=400)
@@ -302,13 +287,14 @@ try:
             with cb:
                 st.markdown("<p style='color:#ff4b4b; font-weight:700; font-size:15px; text-align:center; margin-bottom:5px;'>CONTENEDORES POR ETA</p>", unsafe_allow_html=True)
                 eta_c = df_maritimo.groupby('Mes_ETA_Full', observed=True).agg({'Contenedores': 'sum'}).reset_index()
-                total_c_eta = eta_c['Contenedores'].sum()
-                st.markdown(f"<p style='text-align:center; color:#FFFFFF; font-size:22px; font-weight:800; margin-top:0;'>{total_c_eta:.1f}<span style='font-size:14px; margin-left:5px;'>EQUIPOS</span></p>", unsafe_allow_html=True)
-                
+                st.markdown(f"<p style='text-align:center; color:#FFFFFF; font-size:22px; font-weight:800; margin-top:0;'>{eta_c['Contenedores'].sum():.1f}<span style='font-size:14px; margin-left:5px;'>EQUIPOS</span></p>", unsafe_allow_html=True)
                 fig_ca = px.bar(eta_c, x='Mes_ETA_Full', y='Contenedores', text_auto='.1f', color_discrete_sequence=['#ff4b4b'], template='plotly_dark')
                 fig_ca.update_traces(textfont_size=16, textposition='outside', textfont_color="white")
                 fig_ca.update_layout(yaxis_visible=True, yaxis_title="Cant. Contenedores", xaxis_title=None, height=400)
                 st.plotly_chart(fig_ca, use_container_width=True)
+
+        except Exception as e:
+            st.error(f"Error en Solapa Origen: {e}")
 # --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
     with tabs[1]:
         try:
