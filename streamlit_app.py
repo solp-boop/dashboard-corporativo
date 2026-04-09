@@ -88,29 +88,27 @@ try:
     st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><div class='bidcom-subtitle'>Tablero Logistica Internacional</div></div>", unsafe_allow_html=True)
     tabs = st.tabs(["ORIGEN", "CONTROL GESTIÓN RESERVAS", "INDICADORES", "AGENTES", "ANALISTAS", "FLETES"])
 
-# --- SOLAPA 1: RANKING Y PROYECCIÓN ---
+# --- SOLAPA 1: RANKING, PUERTOS Y PROYECCIÓN ---
 with tab1:
+    # --- BLOQUE 1: RANKING DE PROVEEDORES ---
     st.subheader("🏆 Ranking de Proveedores")
     
-    # Métrica para el ranking
     col_rank = st.selectbox(
         "Seleccionar métrica para ranking:",
         ['Cant. de SO', 'Total USD', 'Ahorro USD'],
         key='sel_rank_tab1'
     )
 
-    # Procesamiento de datos para el ranking
     df_rank = df_filtrado.groupby('Proveedor').agg({
         'SO': 'count',
         'Total USD': 'sum',
         'Ahorro USD': 'sum'
     }).rename(columns={'SO': 'Cant. de SO'}).sort_values(by=col_rank, ascending=False).reset_index()
 
-    # Mostrar Tabla de Ranking (Línea 194 corregida)
     st.write(f"Detalle de proveedores ordenados por {col_rank}:")
+    # Línea con los corchetes correctamente cerrados
     st.dataframe(df_rank[['Proveedor', 'Cant. de SO', 'Total USD', 'Ahorro USD']], use_container_width=True)
 
-    # Gráfico de barras del Top 10
     fig_rank = px.bar(
         df_rank.head(10), 
         x='Proveedor', 
@@ -123,10 +121,24 @@ with tab1:
 
     st.markdown("---")
 
-    # --- NUEVO BLOQUE: PROYECCIÓN SEMANAL ---
+    # --- BLOQUE 2: CONTENEDORES POR PUERTO ---
+    st.subheader("🚢 Cantidad de Contenedores por Puerto")
+    if 'Puerto' in df_filtrado.columns and 'Contenedor' in df_filtrado.columns:
+        df_puertos = df_filtrado.groupby('Puerto')['Contenedor'].count().reset_index()
+        df_puertos.columns = ['Puerto', 'Cantidad de Contenedores']
+        
+        col_t, col_g = st.columns([1, 2])
+        with col_t:
+            st.dataframe(df_puertos.sort_values(by='Cantidad de Contenedores', ascending=False), hide_index=True)
+        with col_g:
+            fig_p = px.pie(df_puertos, values='Cantidad de Contenedores', names='Puerto', hole=0.4)
+            st.plotly_chart(fig_p, use_container_width=True)
+
+    st.markdown("---")
+
+    # --- BLOQUE 3: PROYECCIÓN SEMANAL ---
     st.subheader("📅 Proyección Semanal de Arribos")
 
-    # Verificamos columna de fecha (ajustar 'Fecha' si el nombre varía en tu Excel)
     if 'Fecha' in df_filtrado.columns:
         df_proy = df_filtrado.copy()
         df_proy['Fecha'] = pd.to_datetime(df_proy['Fecha'])
@@ -135,11 +147,9 @@ with tab1:
         df_proy['Mes'] = df_proy['Fecha'].dt.month_name()
         df_proy['Semana'] = df_proy['Fecha'].dt.isocalendar().week
 
-        # Selector de Mes
         meses_disponibles = df_proy['Mes'].unique()
         mes_seleccionado = st.selectbox("Seleccionar Mes para analizar:", meses_disponibles, key='sel_mes_proy')
 
-        # Filtrado y Agrupación por Semana, Puerto, m3 y Cantidad
         df_mes = df_proy[df_proy['Mes'] == mes_seleccionado]
         
         proyeccion_semanal = df_mes.groupby(['Semana', 'Puerto']).agg({
@@ -149,11 +159,10 @@ with tab1:
 
         if not proyeccion_semanal.empty:
             st.write(f"Resumen de carga para **{mes_seleccionado}**:")
-            # Tabla con Semana, Puerto, m3 y Cantidad
+            # Tabla con las columnas solicitadas
             st.dataframe(proyeccion_semanal[['Semana', 'Puerto', 'Total m3', 'Cant. Contenedores']], 
                          use_container_width=True, hide_index=True)
 
-            # Gráfico visual de la proyección
             fig_proy = px.bar(
                 proyeccion_semanal,
                 x='Semana',
@@ -165,9 +174,9 @@ with tab1:
             )
             st.plotly_chart(fig_proy, use_container_width=True)
         else:
-            st.info("No hay datos disponibles para el mes seleccionado.")
+            st.info("No hay datos para el mes seleccionado.")
     else:
-        st.warning("Para ver la proyección, asegúrate de que el archivo tenga una columna llamada 'Fecha'.")
+        st.warning("No se encontró la columna 'Fecha' para la proyección.")
 # --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
     with tabs[1]:
         try:
