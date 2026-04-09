@@ -274,7 +274,41 @@ try:
 
         except Exception as e:
             st.error(f"Error en Solapa Origen: {e}")
+# --- BLOQUE 6: PROYECCIÓN DE CONTENEDORES (NUEVO) ---
+            st.markdown("<br><br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
+            st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:18px; text-align:center; letter-spacing:2px; margin-bottom:10px;'>EQUIVALENTE EN CONTENEDORES (CÁLCULO ESTIMADO)</p>", unsafe_allow_html=True)
+            st.markdown("<p style='color:#8899A6; font-size:12px; text-align:center; margin-bottom:25px;'>Filtro: Modalidad Barco | Factor: 1 Contenedor = 60 M3</p>", unsafe_allow_html=True)
 
+            # 1. Preparar datos: Filtrar solo lo que empieza con "Barco" en columna BQ
+            col_modalidad = df.columns[68] # Columna BQ es la 69 (índice 68)
+            df_maritimo = df[df[col_modalidad].astype(str).str.upper().str.startswith("BARCO", na=False)].copy()
+            
+            # 2. Calcular contenedores (M3 / 60)
+            df_maritimo['Contenedores'] = df_maritimo['M3 Total'] / 60
+
+            ca, c_sep, cb = st.columns([1, 0.2, 1])
+
+            with ca:
+                st.markdown("<p style='color:#00ff88; font-weight:700; font-size:15px; text-align:center; margin-bottom:5px;'>CONTENEDORES POR ETD</p>", unsafe_allow_html=True)
+                etd_c = df_maritimo.groupby('Mes_ETD_Full').agg({'Contenedores': 'sum'}).reset_index()
+                total_c_etd = etd_c['Contenedores'].sum()
+                st.markdown(f"<p style='text-align:center; color:#FFFFFF; font-size:22px; font-weight:800; margin-top:0;'>{total_c_etd:.1f}<span style='font-size:14px; margin-left:5px;'>EQUIPOS</span></p>", unsafe_allow_html=True)
+                
+                fig_ce = px.bar(etd_c, x='Mes_ETD_Full', y='Contenedores', text_auto='.1f', color_discrete_sequence=['#00ff88'], template='plotly_dark')
+                fig_ce.update_traces(textfont_size=16, textposition='outside', textfont_color="white")
+                fig_ce.update_layout(yaxis_visible=True, yaxis_title="Cant. Contenedores", xaxis_title=None, height=400)
+                st.plotly_chart(fig_ce, use_container_width=True)
+
+            with cb:
+                st.markdown("<p style='color:#ff4b4b; font-weight:700; font-size:15px; text-align:center; margin-bottom:5px;'>CONTENEDORES POR ETA</p>", unsafe_allow_html=True)
+                eta_c = df_maritimo.groupby('Mes_ETA_Full', observed=True).agg({'Contenedores': 'sum'}).reset_index()
+                total_c_eta = eta_c['Contenedores'].sum()
+                st.markdown(f"<p style='text-align:center; color:#FFFFFF; font-size:22px; font-weight:800; margin-top:0;'>{total_c_eta:.1f}<span style='font-size:14px; margin-left:5px;'>EQUIPOS</span></p>", unsafe_allow_html=True)
+                
+                fig_ca = px.bar(eta_c, x='Mes_ETA_Full', y='Contenedores', text_auto='.1f', color_discrete_sequence=['#ff4b4b'], template='plotly_dark')
+                fig_ca.update_traces(textfont_size=16, textposition='outside', textfont_color="white")
+                fig_ca.update_layout(yaxis_visible=True, yaxis_title="Cant. Contenedores", xaxis_title=None, height=400)
+                st.plotly_chart(fig_ca, use_container_width=True)
 # --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
     with tabs[1]:
         try:
