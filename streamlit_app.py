@@ -314,7 +314,7 @@ try:
             # El [1, 0.2, 1] crea una columna del 20% de ancho vacía en el medio para separar
             ga, g_sep, gb = st.columns([1, 0.2, 1])
 
-         with ga:
+       with ga:
                 st.markdown("<p style='color:#00ff88; font-weight:700; font-size:15px; text-align:center; margin-bottom:15px;'>PROYECCIÓN MENSUAL ETD</p>", unsafe_allow_html=True)
                 etd_p = df.groupby('Mes_ETD_Full').agg({'M3 Total': 'sum'}).reset_index()
                 
@@ -336,15 +336,21 @@ try:
                     plot_bgcolor='rgba(0,0,0,0)'
                 )
                 st.plotly_chart(fig_e, use_container_width=True)
-
+            
             with gb:
                 st.markdown("<p style='color:#ff4b4b; font-weight:700; font-size:15px; text-align:center; margin-bottom:15px;'>PROYECCIÓN MENSUAL ETA</p>", unsafe_allow_html=True)
                 eta_p = df.groupby('Mes_ETA_Full', observed=True).agg({'M3 Total': 'sum'}).reset_index()
+                
+                # Agregamos el total acumulado en el título o subtítulo para control
+                total_eta_m3 = eta_p['M3 Total'].sum()
+                st.markdown(f"<p style='text-align:center; color:#8899A6; font-size:12px;'>Total ETA: {int(round(total_eta_m3)):,} M3</p>", unsafe_allow_html=True)
+
                 fig_a = px.bar(eta_p, x='Mes_ETA_Full', y='M3 Total', text_auto=',.0f', 
                                color_discrete_sequence=['#ff4b4b'], template='plotly_dark')
                 fig_a.update_traces(textfont_size=14, textposition='outside', textfont_color="white")
                 fig_a.update_layout(
-                    yaxis_visible=False, 
+                    yaxis_visible=True, # ACTIVAMOS EL EJE Y
+                    yaxis_title="M3 Totales",
                     xaxis_title=None, 
                     height=450, 
                     margin=dict(l=20, r=20, t=40, b=20),
