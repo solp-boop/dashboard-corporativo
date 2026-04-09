@@ -269,7 +269,7 @@ with tabs[0]:
         st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:18px; text-align:center; letter-spacing:2px; margin-bottom:10px;'>EQUIVALENTE EN CONTENEDORES (CÁLCULO ESTIMADO)</p>", unsafe_allow_html=True)
         st.markdown("<p style='color:#8899A6; font-size:12px; text-align:center; margin-bottom:25px;'>Filtro: Modalidad Barco | Factor: 1 Contenedor = 60 M3</p>", unsafe_allow_html=True)
 
-        col_modalidad = df.columns[68] # Columna BQ es índice 68
+        col_modalidad = df.columns[68] # Columna BQ
         df_maritimo = df[df[col_modalidad].astype(str).str.upper().str.startswith("BARCO", na=False)].copy()
         df_maritimo['Contenedores'] = df_maritimo['M3 Total'] / 60
 
