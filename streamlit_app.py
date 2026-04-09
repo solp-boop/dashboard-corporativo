@@ -295,6 +295,53 @@ try:
 
         except Exception as e:
             st.error(f"Error en Solapa Origen: {e}")
+
+    # --- BLOQUE: Proyección Semanal ---
+st.markdown("---")
+st.subheader("📅 Proyección Semanal de Arribos")
+
+# 1. Aseguramos que la columna de fecha sea tipo datetime (ajusta 'Fecha' al nombre real de tu columna)
+if 'Fecha' in df_filtrado.columns:
+    df_proy = df_filtrado.copy()
+    df_proy['Fecha'] = pd.to_datetime(df_proy['Fecha'])
+    
+    # Extraemos Mes y Semana
+    df_proy['Mes'] = df_proy['Fecha'].dt.month_name()
+    df_proy['Semana'] = df_proy['Fecha'].dt.isocalendar().week
+
+    # 2. Selector de Mes
+    meses_disponibles = df_proy['Mes'].unique()
+    mes_seleccionado = st.selectbox("Seleccionar Mes para Proyección:", meses_disponibles)
+
+    # 3. Filtrado por mes y Agrupación
+    df_mes = df_proy[df_proy['Mes'] == mes_seleccionado]
+    
+    proyeccion_semanal = df_mes.groupby(['Semana', 'Puerto']).agg({
+        'Contenedor': 'count',
+        'm3': 'sum'
+    }).reset_index().rename(columns={'Contenedor': 'Cant. Contenedores', 'm3': 'Total m3'})
+
+    # 4. Visualización
+    if not proyeccion_semanal.empty:
+        # Tabla detallada
+        st.write(f"Distribución para el mes de **{mes_seleccionado}**:")
+        st.dataframe(proyeccion_semanal, use_container_width=True, hide_index=True)
+
+        # Gráfico de barras apiladas para ver la carga por semana y puerto
+        fig_proy = px.bar(
+            proyeccion_semanal,
+            x='Semana',
+            y='Cant. Contenedores',
+            color='Puerto',
+            title=f"Contenedores por Semana - {mes_seleccionado}",
+            barmode='group',
+            text_auto=True
+        )
+        st.plotly_chart(fig_proy, use_container_width=True)
+    else:
+        st.info("No hay datos para el mes seleccionado.")
+else:
+    st.error("No se encontró una columna 'Fecha' para realizar la proyección. Por favor, verifica el nombre de la columna en tu archivo.")
 # --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
     with tabs[1]:
         try:
