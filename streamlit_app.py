@@ -22,12 +22,33 @@ st.markdown("""
     .bidcom-header h1 { font-size: 60px; letter-spacing: 10px; color: #ffffff; font-weight: 900; margin: 0; text-shadow: 2px 2px 15px rgba(0, 168, 255, 0.8); }
     .bidcom-subtitle { font-size: 18px; color: #00a8ff; letter-spacing: 4px; text-transform: uppercase; font-weight: 600; margin-top: 5px; }
     .metric-container { text-align: center; padding: 20px; }
+    .label-massive { font-size: 24px; color: #00a8ff; letter-spacing: 5px; text-transform: uppercase; font-weight: 800; margin-bottom: 5px; }
+    .value-massive { font-size: 120px; font-weight: 900; color: #00a8ff; line-height: 1; margin: 0; text-shadow: 0 0 30px rgba(0,168,255,0.5); }
+    .stButton>button {
+        border-radius: 15px !important; color: white !important;
+        width: 100%; height: 140px; font-weight: 800 !important; font-size: 18px !important;
+        background: rgba(255, 255, 255, 0.03) !important; border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        transition: all 0.3s ease-in-out !important;
+    }
+    .stButton>button:hover { background-color: rgba(0, 168, 255, 0.2) !important; border-color: #00a8ff !important; color: #00a8ff !important; box-shadow: 0 0 20px rgba(0, 168, 255, 0.4) !important; }
+    .chart-title { text-align: center; letter-spacing: 2px; color: #00a8ff; font-weight: 900; font-size: 20px; margin: 25px 0 15px 0; text-transform: uppercase; }
+    
+    /* Estilos para KPI de Reservas */
+    .reserva-box {
+        background: rgba(0, 168, 255, 0.05);
+        padding: 15px;
+        border-radius: 12px;
+        border: 1px solid #004080;
+        text-align: center;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. CARGA DE DATOS ---
 try:
+    # --- 3. CARGA DE DATOS ---
     base_url = "https://docs.google.com/spreadsheets/d/1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI"
+
+    # Origen (GID 0)
     df = pd.read_csv(f"{base_url}/export?format=csv&gid=0&nocache={time.time()}")
     df.columns = df.columns.str.strip()
 
@@ -35,7 +56,9 @@ try:
         df['M3 Total'] = df['M3 Total'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
         df['M3 Total'] = pd.to_numeric(df['M3 Total'], errors='coerce').fillna(0)
 
-    # Procesamiento Fechas
+    # Procesamiento Fechas Origen
+    df.iloc[:, 23] = df.iloc[:, 23].astype(str).str.strip()
+    df.iloc[:, 24] = df.iloc[:, 24].astype(str).str.strip()
     df['ETD_DT'] = pd.to_datetime(df.iloc[:, 23], errors='coerce')
     df['ETA_DT'] = pd.to_datetime(df.iloc[:, 24], errors='coerce')
     df['Fecha_Prior_DT'] = pd.to_datetime(df.iloc[:, 99], errors='coerce') 
@@ -53,18 +76,17 @@ try:
     df['Mes_ETD_Full'] = df['ETD_DT'].apply(lambda x: label_proyeccion(x, inicio_mes))
     df['Mes_ETA_Full'] = df['ETA_DT'].apply(lambda x: label_proyeccion(x, hoy))
 
+    meses_eta = [m for m in df['Mes_ETA_Full'].unique() if m not in ["PASADO/REALIZADO", "SIN FECHA"]]
+    meses_eta_ordenados = sorted(meses_eta, key=lambda x: datetime.strptime(x, '%m/%Y'))
+    orden_final_eta = ["PASADO/REALIZADO"] + meses_eta_ordenados + ["SIN FECHA"]
+    df['Mes_ETA_Full'] = pd.Categorical(df['Mes_ETA_Full'], categories=orden_final_eta, ordered=True)
+
     m3_totales_global = round(df['M3 Total'].sum())
     cant_so_global = len(df)
     cant_proveedores_global = df['Proveedor'].nunique() if 'Proveedor' in df.columns else 0
 
     st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><div class='bidcom-subtitle'>Tablero Logistica Internacional</div></div>", unsafe_allow_html=True)
-    
-    # IMPORTANTE: Desempaquetamos las pestañas
     tabs = st.tabs(["ORIGEN", "CONTROL GESTIÓN RESERVAS", "INDICADORES", "AGENTES", "ANALISTAS", "FLETES"])
-
-except Exception as e:
-    st.error(f"Error cargando los datos base: {e}")
-    st.stop()
 
   # --- SOLAPA 1: ORIGEN ---
     with tabs[0]:
