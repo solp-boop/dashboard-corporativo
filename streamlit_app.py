@@ -88,7 +88,7 @@ try:
     st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><div class='bidcom-subtitle'>Tablero Logistica Internacional</div></div>", unsafe_allow_html=True)
     tabs = st.tabs(["ORIGEN", "CONTROL GESTIÓN RESERVAS", "INDICADORES", "AGENTES", "ANALISTAS", "FLETES"])
 
- # --- SOLAPA 1: ORIGEN ---
+  # --- SOLAPA 1: ORIGEN ---
     with tabs[0]:
         try:
             # --- CÁLCULOS LOCALES ---
@@ -347,26 +347,6 @@ try:
                     plot_bgcolor='rgba(0,0,0,0)'
                 )
                 st.plotly_chart(fig_a, use_container_width=True)
-                # >>> COLOCA AQUÍ EL NUEVO BLOQUE DE CONTENEDORES <<<
-        st.markdown("<br><br><hr style='opacity:0.1;'><br>", unsafe_allow_html=True)
-        st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:18px; text-align:center; letter-spacing:2px; margin-bottom:10px;'>EQUIVALENTE EN CONTENEDORES (ESTIMADO)</p>", unsafe_allow_html=True)
-        st.markdown("<p style='color:#8899A6; font-size:12px; text-align:center; margin-bottom:25px;'>Factor: 1 Contenedor = 60 M3 | Solo Modalidad Barco</p>", unsafe_allow_html=True)
-
-        col_modalidad = df.columns[68] # Columna BQ
-        df_maritimo = df[df[col_modalidad].astype(str).str.upper().str.startswith("BARCO", na=False)].copy()
-        df_maritimo['Equipos'] = df_maritimo['M3 Total'] / 60
-
-        ca, cb = st.columns(2)
-        with ca:
-            etd_c = df_maritimo.groupby('Mes_ETD_Full').agg({'Equipos': 'sum'}).reset_index()
-            st.plotly_chart(px.bar(etd_c, x='Mes_ETD_Full', y='Equipos', title="EQUIPOS ETD", color_discrete_sequence=['#00ff88'], template='plotly_dark'), use_container_width=True)
-        with cb:
-            eta_c = df_maritimo.groupby('Mes_ETA_Full', observed=True).agg({'Equipos': 'sum'}).reset_index()
-            st.plotly_chart(px.bar(eta_c, x='Mes_ETA_Full', y='Equipos', title="EQUIPOS ETA", color_discrete_sequence=['#ff4b4b'], template='plotly_dark'), use_container_width=True)
-        # >>> FIN DEL BLOQUE NUEVO <<<
-
-    except Exception as e:
-        st.error(f"Error en Solapa Origen: {e}")
 
         except Exception as e:
             st.error(f"Error en Solapa Origen: {e}")
