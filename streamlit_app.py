@@ -225,6 +225,18 @@ try:
         df['M3 Total'] = df['M3 Total'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
         df['M3 Total'] = pd.to_numeric(df['M3 Total'], errors='coerce').fillna(0)
 
+    if 'Fob total Origen' in df.columns:
+        def clean_val(x):
+            if isinstance(x, (int, float)): return x
+            x = str(x).replace('USD', '').replace('$', '').replace(' ', '')
+            num = ''.join(c for c in x if c.isdigit() or c in '.,')
+            if ',' in num and '.' in num:
+                num = num.replace('.', '').replace(',', '.')
+            elif ',' in num:
+                num = num.replace(',', '.')
+            return pd.to_numeric(num, errors='coerce')
+        df['Fob total Origen'] = df['Fob total Origen'].apply(clean_val).fillna(0)
+
     # Procesamiento Fechas Origen
     df.iloc[:, 23] = df.iloc[:, 23].astype(str).str.strip()
     df.iloc[:, 24] = df.iloc[:, 24].astype(str).str.strip()
@@ -283,6 +295,48 @@ try:
             with o1: st.markdown(f"<div class='metric-container'><p>CANTIDAD DE SO</p><p>{int(cant_so_global)}</p></div>", unsafe_allow_html=True)
             with o2: st.markdown(f"<div class='metric-container'><p>VOLUMEN TOTAL (M3)</p><p>{int(round(m3_totales_global)):,}</p></div>", unsafe_allow_html=True)
             with o3: st.markdown(f"<div class='metric-container'><p>PROVEEDORES</p><p>{int(cant_proveedores_global)}</p></div>", unsafe_allow_html=True)
+
+            st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
+
+            # --- NUEVO BLOQUE: DESGLOSE POR TIPO DE INGRESO (REPUESTOS) ---
+            st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:16px; letter-spacing:4px; margin-top:10px; margin-bottom: 20px; text-transform:uppercase; text-align:center;'>DESGLOSE OPERATIVO (REPUESTOS / MUESTRAS)</p>", unsafe_allow_html=True)
+            
+            if 'Repuestos' in df.columns and 'Fob total Origen' in df.columns:
+                def get_tipo_repuesto(val):
+                    val_str = str(val).strip().lower()
+                    if val_str in ['', 'nan', 'none'] or pd.isna(val): return "Gadnic"
+                    elif "muestra" in val_str: return "Muestras"
+                    elif "sin planeamiento" in val_str: return "Marcas"
+                    return "Gadnic"
+                
+                df['Tipo_Repuesto'] = df['Repuestos'].apply(get_tipo_repuesto)
+                res_rep = df.groupby('Tipo_Repuesto').agg({'SO': 'count', 'M3 Total': 'sum', 'Fob total Origen': 'sum'})
+                
+                cat_colors = {"Gadnic": "#00a8ff", "Muestras": "#ffaa00", "Marcas": "#00ff88"}
+                rc1, rc2, rc3 = st.columns(3)
+                
+                for idx, cat in enumerate(["Gadnic", "Muestras", "Marcas"]):
+                    if cat in res_rep.index:
+                        c_so = int(res_rep.loc[cat, 'SO'])
+                        c_m3 = int(round(res_rep.loc[cat, 'M3 Total']))
+                        c_fob = float(res_rep.loc[cat, 'Fob total Origen'])
+                    else:
+                        c_so = c_m3 = c_fob = 0
+                    
+                    color = cat_colors.get(cat, "#f8fafc")
+                    with [rc1, rc2, rc3][idx]:
+                        st.markdown(f"""
+                            <div class="custom-card" style="padding: 20px; border-top: 4px solid {color}; margin-bottom: 20px; background: rgba(255,255,255,0.02);">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                    <p class="custom-card-title" style="color:{color}; font-size:15px; margin:0;">{cat.upper()}</p>
+                                    <p style="color:#ffffff; font-weight:800; font-size:20px; margin:0;">{c_so} <span style="font-size:11px; color:#94a3b8; font-weight:600;">SOs</span></p>
+                                </div>
+                                <div class="grid-2" style="margin-bottom: 10px;">
+                                    <div><p class="minicard-title">M3 TOTAL</p><p class="minicard-value" style="font-size:22px; color:#f8fafc;">{c_m3:,}</p></div>
+                                    <div><p class="minicard-title">FOB TOTAL</p><p class="minicard-value" style="font-size:20px; color:#f8fafc;"><span style="font-size:12px; color:#94a3b8;">USD</span> {c_fob:,.0f}</p></div>
+                                </div>
+                            </div>
+                        """, unsafe_allow_html=True)
 
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
 
