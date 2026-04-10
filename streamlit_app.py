@@ -615,17 +615,49 @@ try:
 
             # OVERALL PERFORMANCE
             df_g['ETD_Status_K'] = df_g.iloc[:, 10].astype(str).str.upper().str.strip()
-            confirmados_glob = len(df_g[df_g['ETD_Status_K'] == "OK"])
-            pendientes_glob = len(df_g) - confirmados_glob
-            p_ok_glob = round((confirmados_glob / len(df_g) * 100)) if len(df_g) > 0 else 0
+            def safe_float(val):
+                try:
+                    if pd.isna(val) or val == '': return 0.0
+                    s = str(val).replace('.', '').replace(',', '.')
+                    num = ''.join(c for c in s if c.isdigit() or c == '.')
+                    return float(num) if num else 0.0
+                except:
+                    return 0.0
+                    
+            df_g['M3_Num_G'] = df_g.iloc[:, 24].apply(safe_float)
+            df_g['Shipper_Clean'] = df_g.iloc[:, 20].astype(str).str.strip()
+            
+            df_ok = df_g[df_g['ETD_Status_K'] == "OK"]
+            df_pend = df_g[df_g['ETD_Status_K'] != "OK"]
+            
+            cant_emb_ok = len(df_ok)
+            cant_emb_pend = len(df_pend)
+            prov_ok = df_ok['Shipper_Clean'].nunique()
+            prov_pend = df_pend['Shipper_Clean'].nunique()
+            m3_ok = df_ok['M3_Num_G'].sum()
+            m3_pend = df_pend['M3_Num_G'].sum()
+            total_emb = len(df_g)
+            
+            pct_ok = round((cant_emb_ok / total_emb * 100)) if total_emb > 0 else 0
+            pct_pend = 100 - pct_ok if total_emb > 0 else 0
 
             st.markdown(f"""
-                <div class="custom-card" style="border: 1px solid rgba(0,255,136,0.3); box-shadow: 0 0 30px rgba(0,255,136,0.1);">
-                    <div class="grid-4" style="text-align:center;">
-                        <div><p class="minicard-title">ETD OK (TOTAL)</p><p style="font-size:45px; font-weight:900; color:#00ff88; margin:0; text-shadow:0 0 20px rgba(0,255,136,0.4);">{confirmados_glob}</p></div>
-                        <div><p class="minicard-title">PENDIENTES</p><p style="font-size:45px; font-weight:900; color:#ff4b4b; margin:0; text-shadow:0 0 20px rgba(255,75,75,0.4);">{pendientes_glob}</p></div>
-                        <div><p class="minicard-title">% EFECTIVIDAD</p><p style="font-size:45px; font-weight:900; color:#f8fafc; margin:0;">{int(p_ok_glob)}%</p></div>
-                        <div><p class="minicard-title">% PENDIENTE</p><p style="font-size:45px; font-weight:900; color:#94a3b8; margin:0;">{int(100 - p_ok_glob)}%</p></div>
+                <div class="grid-2">
+                    <div class="custom-card" style="border: 2px solid rgba(0,255,136,0.5); box-shadow: 0 0 30px rgba(0,255,136,0.15);">
+                        <p style="font-size: 22px; font-weight: 800; color: #00ff88; margin-bottom: 20px; letter-spacing: 2px; text-transform: uppercase;">EMBARQUES CON ETD OK ({pct_ok}%)</p>
+                        <div class="grid-2" style="text-align: center;">
+                            <div><p class="minicard-title">EMBARQUES</p><p style="font-size:45px; font-weight:900; color:#f8fafc; margin:0; text-shadow:0 0 15px rgba(0,255,136,0.4);">{cant_emb_ok}</p></div>
+                            <div><p class="minicard-title">PROVEEDORES</p><p style="font-size:45px; font-weight:600; color:#00ff88; margin:0;">{prov_ok}</p></div>
+                            <div style="grid-column: span 2;"><p class="minicard-title">VOLUMEN TOTAL</p><p style="font-size:35px; font-weight:800; color:#f8fafc; margin:0;">{int(round(m3_ok)):,} <span style="font-size:16px;">M3</span></p></div>
+                        </div>
+                    </div>
+                    <div class="custom-card" style="border: 2px solid rgba(255,75,75,0.5); box-shadow: 0 0 30px rgba(255,75,75,0.15);">
+                        <p style="font-size: 22px; font-weight: 800; color: #ff4b4b; margin-bottom: 20px; letter-spacing: 2px; text-transform: uppercase;">EMBARQUES PENDIENTES ({pct_pend}%)</p>
+                        <div class="grid-2" style="text-align: center;">
+                            <div><p class="minicard-title">EMBARQUES</p><p style="font-size:45px; font-weight:900; color:#f8fafc; margin:0; text-shadow:0 0 15px rgba(255,75,75,0.4);">{cant_emb_pend}</p></div>
+                            <div><p class="minicard-title">PROVEEDORES</p><p style="font-size:45px; font-weight:600; color:#ff4b4b; margin:0;">{prov_pend}</p></div>
+                            <div style="grid-column: span 2;"><p class="minicard-title">VOLUMEN TOTAL</p><p style="font-size:35px; font-weight:800; color:#f8fafc; margin:0;">{int(round(m3_pend)):,} <span style="font-size:16px;">M3</span></p></div>
+                        </div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
@@ -679,9 +711,11 @@ try:
             df_mar.iloc[:, 29] = pd.to_numeric(df_mar.iloc[:, 29], errors='coerce').fillna(0)
             df_mar.iloc[:, 21] = df_mar.iloc[:, 21].apply(clean_val).fillna(0)
 
-            c_btn1, c_btn2 = st.columns(2)
-            if c_btn1.button("ANALISIS BOOKING IN ADVANCE", key="btn_adv", use_container_width=True): st.session_state.mode = 'adv' if st.session_state.get('mode') != 'adv' else None
-            if c_btn2.button("ANALISIS MONOPROVEEDOR / CONSOLIDADO", key="btn_mono", use_container_width=True): st.session_state.mode = 'mono' if st.session_state.get('mode') != 'mono' else None
+            st.markdown("<div style='margin-bottom:20px;'>", unsafe_allow_html=True)
+            if st.button("ANALISIS BOOKING IN ADVANCE", key="btn_adv", use_container_width=True): st.session_state.mode = 'adv' if st.session_state.get('mode') != 'adv' else None
+            st.markdown("</div><div style='margin-bottom:20px;'>", unsafe_allow_html=True)
+            if st.button("ANALISIS MONOPROVEEDOR / CONSOLIDADO", key="btn_mono", use_container_width=True): st.session_state.mode = 'mono' if st.session_state.get('mode') != 'mono' else None
+            st.markdown("</div>", unsafe_allow_html=True)
 
             mode = st.session_state.get('mode')
             if mode:
