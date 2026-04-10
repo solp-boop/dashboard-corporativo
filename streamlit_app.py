@@ -273,28 +273,38 @@ try:
     with tabs[0]:
         try:
             df['Fecha_Inst_DT'] = pd.to_datetime(df['Fecha de Instruccion'], errors='coerce')
+            col_rank = df.columns[1]
+            df['Rank_Num'] = pd.to_numeric(df[col_rank], errors='coerce').fillna(999999)
+
             cond_instruido = df['Fecha_Inst_DT'].notna() & ~(df['Fecha de Instruccion'].astype(str).str.upper().str.contains("SIN INSTRUCCION", na=False))
-            cond_critico = (~cond_instruido) & (df['Fecha_Prior_DT'] <= limite_proximo)
-            cond_resto = (~cond_instruido) & (~cond_critico)
+            cond_vencida = (~cond_instruido) & (df['Fecha_Prior_DT'] < hoy)
+            cond_prox_25 = (~cond_instruido) & (df['Fecha_Prior_DT'] >= hoy) & (df['Fecha_Prior_DT'] <= hoy + timedelta(days=25))
+            cond_resto = (~cond_instruido) & (df['Fecha_Prior_DT'] > hoy + timedelta(days=25))
 
-            df_inst = df[cond_instruido].copy()
-            df_criticos = df[cond_critico].copy()
-            df_resto = df[cond_resto].copy()
+            df_inst = df[cond_instruido].sort_values(by='Rank_Num').copy()
+            df_vencida = df[cond_vencida].sort_values(by='Rank_Num').copy()
+            df_prox_25 = df[cond_prox_25].sort_values(by='Rank_Num').copy()
+            df_resto = df[cond_resto].sort_values(by='Rank_Num').copy()
 
-            m3_inst = int(round(df_inst['M3 Total'].sum()))
-            m3_crit = int(round(df_criticos['M3 Total'].sum()))
-            m3_rest = int(round(df_resto['M3 Total'].sum()))
+            m3_inst = df_inst['M3 Total'].sum()
+            m3_vencida = df_vencida['M3 Total'].sum()
+            m3_prox_25 = df_prox_25['M3 Total'].sum()
+            m3_resto = df_resto['M3 Total'].sum()
 
             p_inst_val = int(round(m3_inst / m3_totales_global * 100)) if m3_totales_global > 0 else 0
-            p_crit_val = int(round(m3_crit / m3_totales_global * 100)) if m3_totales_global > 0 else 0
-            p_rest_val = int(round(m3_rest / m3_totales_global * 100)) if m3_totales_global > 0 else 0
+            p_vencida_val = int(round(m3_vencida / m3_totales_global * 100)) if m3_totales_global > 0 else 0
+            p_prox_25_val = int(round(m3_prox_25 / m3_totales_global * 100)) if m3_totales_global > 0 else 0
+            p_resto_val = int(round(m3_resto / m3_totales_global * 100)) if m3_totales_global > 0 else 0
+            
+            fob_total_global = df['Fob total Origen'].sum()
 
             # --- BLOQUE 1: KPIs ULTRA MASIVOS ---
             st.markdown("<br>", unsafe_allow_html=True)
-            o1, o2, o3 = st.columns(3)
+            o1, o2, o3, o4 = st.columns(4)
             with o1: st.markdown(f"<div class='metric-container'><p>CANTIDAD DE SO</p><p>{int(cant_so_global)}</p></div>", unsafe_allow_html=True)
             with o2: st.markdown(f"<div class='metric-container'><p>VOLUMEN TOTAL (M3)</p><p>{int(round(m3_totales_global)):,}</p></div>", unsafe_allow_html=True)
             with o3: st.markdown(f"<div class='metric-container'><p>PROVEEDORES</p><p>{int(cant_proveedores_global)}</p></div>", unsafe_allow_html=True)
+            with o4: st.markdown(f"<div class='metric-container'><p>FOB TOTAL (USD)</p><p>${int(round(fob_total_global)):,}</p></div>", unsafe_allow_html=True)
 
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
 
@@ -323,12 +333,14 @@ try:
                     else:
                         c_so = c_m3 = c_fob = 0
                     
+                    pct_fob = (c_fob / fob_total_global * 100) if fob_total_global > 0 else 0
+                    
                     color = cat_colors.get(cat, "#f8fafc")
                     with [rc1, rc2, rc3][idx]:
                         st.markdown(f"""
                             <div class="custom-card" style="padding: 20px; border-top: 4px solid {color}; margin-bottom: 20px; background: rgba(255,255,255,0.02);">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                                    <p class="custom-card-title" style="color:{color}; font-size:15px; margin:0;">{cat.upper()}</p>
+                                    <p class="custom-card-title" style="color:{color}; font-size:15px; margin:0;">{cat.upper()} <span style="font-size:12px; color:#94a3b8;">({int(round(pct_fob))}% FOB)</span></p>
                                     <p style="color:#ffffff; font-weight:800; font-size:20px; margin:0;">{c_so} <span style="font-size:11px; color:#94a3b8; font-weight:600;">SOs</span></p>
                                 </div>
                                 <div class="grid-2" style="margin-bottom: 10px;">
@@ -341,7 +353,7 @@ try:
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
 
             # --- BLOQUE 2: BOTONES DE FILTRADO CON RESALTADO DINÁMICO ---
-            b1_col, b2_col, b3_col, b4_col, b5_col = st.columns(5)
+            c_sup1, c_sup2, c_sup3, c_sup4, c_sup5, c_sup6 = st.columns(6)
             filtro_actual = st.session_state.get('f')
 
             def get_btn_style(target):
@@ -349,37 +361,44 @@ try:
                     return "border: 2px solid #00a8ff; background: rgba(0, 168, 255, 0.15); box-shadow: 0 0 20px rgba(0,168,255,0.4);"
                 return "background: transparent;"
 
-            with b1_col:
+            with c_sup1:
                 st.markdown(f"<div style='{get_btn_style('inst')} border-radius:16px; transition: all 0.3s ease;'>", unsafe_allow_html=True)
-                if st.button(f"MERCADERIA \n INSTRUIDA {p_inst_val}%", key="btn_inst_o", use_container_width=True):
+                if st.button(f"INSTRUIDA \n {p_inst_val}%", key="btn_inst_o", use_container_width=True):
                     st.session_state.f = 'inst' if filtro_actual != 'inst' else None
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 
-            with b2_col:
-                st.markdown(f"<div style='{get_btn_style('crit')} border-radius:16px; transition: all 0.3s ease;'>", unsafe_allow_html=True)
-                if st.button(f"PROXIMA A \n INSTRUIR {p_crit_val}%", key="btn_crit_o", use_container_width=True):
-                    st.session_state.f = 'crit' if filtro_actual != 'crit' else None
+            with c_sup2:
+                st.markdown(f"<div style='{get_btn_style('venc')} border-radius:16px; transition: all 0.3s ease;'>", unsafe_allow_html=True)
+                if st.button(f"VENCIDA \n {p_vencida_val}%", key="btn_venc_o", use_container_width=True):
+                    st.session_state.f = 'venc' if filtro_actual != 'venc' else None
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 
-            with b3_col:
+            with c_sup3:
+                st.markdown(f"<div style='{get_btn_style('px25')} border-radius:16px; transition: all 0.3s ease;'>", unsafe_allow_html=True)
+                if st.button(f"PRÓX. (≤25D) \n {p_prox_25_val}%", key="btn_px25_o", use_container_width=True):
+                    st.session_state.f = 'px25' if filtro_actual != 'px25' else None
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            with c_sup4:
                 st.markdown(f"<div style='{get_btn_style('rest')} border-radius:16px; transition: all 0.3s ease;'>", unsafe_allow_html=True)
-                if st.button(f"LISTA EN \n +30 DIAS {p_rest_val}%", key="btn_rest_o", use_container_width=True):
+                if st.button(f"PRÓX. (+30D) \n {p_resto_val}%", key="btn_rest_o", use_container_width=True):
                     st.session_state.f = 'rest' if filtro_actual != 'rest' else None
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 
-            with b4_col:
+            with c_sup5:
                 st.markdown(f"<div style='{get_btn_style('rank')} border-radius:16px; transition: all 0.3s ease;'>", unsafe_allow_html=True)
                 if st.button("TOP 100 \n RANKING", key="btn_rank_o", use_container_width=True):
                     st.session_state.f = 'rank' if filtro_actual != 'rank' else None
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 
-            with b5_col:
+            with c_sup6:
                 st.markdown(f"<div style='{get_btn_style('estr')} border-radius:16px; transition: all 0.3s ease;'>", unsafe_allow_html=True)
-                if st.button("MONOPROV. / \n CONSOLIDADO", key="btn_estr_o", use_container_width=True):
+                if st.button("ESTRUCTURA \n CARGA", key="btn_estr_o", use_container_width=True):
                     st.session_state.f = 'estr' if filtro_actual != 'estr' else None
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
@@ -388,10 +407,11 @@ try:
             f = st.session_state.get('f')
             if f:
                 st.markdown("<br>", unsafe_allow_html=True)
-                if f in ["inst", "crit", "rest"]:
+                if f in ["inst", "venc", "px25", "rest"]:
                     if f == "inst": titulo, dff, color = "MERCADERIA INSTRUIDA", df_inst, "#00a8ff"
-                    elif f == "crit": titulo, dff, color = "PROXIMA A INSTRUIR", df_criticos, "#ff4b4b"
-                    elif f == "rest": titulo, dff, color = "LISTA EN +30 DIAS", df_resto, "#94a3b8"
+                    elif f == "venc": titulo, dff, color = "MERCADERIA VENCIDA A INSTRUIR", df_vencida, "#ff4b4b"
+                    elif f == "px25": titulo, dff, color = "PROXIMA A INSTRUIR (≤ 25 DÍAS)", df_prox_25, "#ffaa00"
+                    elif f == "rest": titulo, dff, color = "PROXIMA A INSTRUIR (+ 30 DÍAS)", df_resto, "#94a3b8"
 
                     cant_so_f = len(dff)
                     m3_f = int(round(dff['M3 Total'].sum()))
@@ -405,12 +425,13 @@ try:
                             </div>
                         </div>
                     """, unsafe_allow_html=True)
-                    st.dataframe(dff[['SO', 'Proveedor', 'M3 Total', 'Fecha de Instruccion' if f=='inst' else df.columns[99]]], use_container_width=True)
+                    cols_to_show = ['SO', col_rank, 'Proveedor', 'M3 Total', 'Fecha de Instruccion' if f=='inst' else df.columns[99]]
+                    st.dataframe(dff[cols_to_show], use_container_width=True)
 
                 elif f == "rank":
                     col_rank = df.columns[1]
                     col_prior = df.columns[99]
-                    df_rank = df[pd.to_numeric(df[col_rank], errors='coerce') <= 100].sort_values(by=col_rank).copy()
+                    df_rank = df[df['Rank_Num'] <= 100].sort_values(by='Rank_Num').copy()
                     df_rank['Status'] = df_rank['Fecha_Inst_DT'].apply(lambda x: "✅ OK" if pd.notna(x) else "❌ PEND")
 
                     st.markdown(f"""
