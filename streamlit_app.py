@@ -625,20 +625,20 @@ try:
                     return 0.0
                     
             df_g['M3_Num_G'] = df_g.iloc[:, 24].apply(safe_float)
-            df_g['Shipper_Clean'] = df_g.iloc[:, 20].astype(str).str.strip()
+            df_g['Cntr_Num_G'] = df_g.iloc[:, 1].apply(safe_float)
             
             df_ok = df_g[df_g['ETD_Status_K'] == "OK"]
             df_pend = df_g[df_g['ETD_Status_K'] != "OK"]
             
-            cant_emb_ok = len(df_ok)
-            cant_emb_pend = len(df_pend)
-            prov_ok = df_ok['Shipper_Clean'].nunique()
-            prov_pend = df_pend['Shipper_Clean'].nunique()
+            cant_so_ok = len(df_ok)
+            cant_so_pend = len(df_pend)
+            cntr_ok = df_ok['Cntr_Num_G'].sum()
+            cntr_pend = df_pend['Cntr_Num_G'].sum()
             m3_ok = df_ok['M3_Num_G'].sum()
             m3_pend = df_pend['M3_Num_G'].sum()
             total_emb = len(df_g)
             
-            pct_ok = round((cant_emb_ok / total_emb * 100)) if total_emb > 0 else 0
+            pct_ok = round((cant_so_ok / total_emb * 100)) if total_emb > 0 else 0
             pct_pend = 100 - pct_ok if total_emb > 0 else 0
 
             st.markdown(f"""
@@ -646,22 +646,62 @@ try:
                     <div class="custom-card" style="border: 2px solid rgba(0,255,136,0.5); box-shadow: 0 0 30px rgba(0,255,136,0.15);">
                         <p style="font-size: 22px; font-weight: 800; color: #00ff88; margin-bottom: 20px; letter-spacing: 2px; text-transform: uppercase;">EMBARQUES CON ETD OK ({pct_ok}%)</p>
                         <div class="grid-2" style="text-align: center;">
-                            <div><p class="minicard-title">EMBARQUES</p><p style="font-size:45px; font-weight:900; color:#f8fafc; margin:0; text-shadow:0 0 15px rgba(0,255,136,0.4);">{cant_emb_ok}</p></div>
-                            <div><p class="minicard-title">PROVEEDORES</p><p style="font-size:45px; font-weight:600; color:#00ff88; margin:0;">{prov_ok}</p></div>
+                            <div><p class="minicard-title">CANTIDAD SOs</p><p style="font-size:45px; font-weight:900; color:#f8fafc; margin:0; text-shadow:0 0 15px rgba(0,255,136,0.4);">{cant_so_ok}</p></div>
+                            <div><p class="minicard-title">CONTENEDORES</p><p style="font-size:45px; font-weight:600; color:#00ff88; margin:0;">{int(cntr_ok)}</p></div>
                             <div style="grid-column: span 2;"><p class="minicard-title">VOLUMEN TOTAL</p><p style="font-size:35px; font-weight:800; color:#f8fafc; margin:0;">{int(round(m3_ok)):,} <span style="font-size:16px;">M3</span></p></div>
                         </div>
                     </div>
                     <div class="custom-card" style="border: 2px solid rgba(255,75,75,0.5); box-shadow: 0 0 30px rgba(255,75,75,0.15);">
                         <p style="font-size: 22px; font-weight: 800; color: #ff4b4b; margin-bottom: 20px; letter-spacing: 2px; text-transform: uppercase;">EMBARQUES PENDIENTES ({pct_pend}%)</p>
                         <div class="grid-2" style="text-align: center;">
-                            <div><p class="minicard-title">EMBARQUES</p><p style="font-size:45px; font-weight:900; color:#f8fafc; margin:0; text-shadow:0 0 15px rgba(255,75,75,0.4);">{cant_emb_pend}</p></div>
-                            <div><p class="minicard-title">PROVEEDORES</p><p style="font-size:45px; font-weight:600; color:#ff4b4b; margin:0;">{prov_pend}</p></div>
+                            <div><p class="minicard-title">CANTIDAD SOs</p><p style="font-size:45px; font-weight:900; color:#f8fafc; margin:0; text-shadow:0 0 15px rgba(255,75,75,0.4);">{cant_so_pend}</p></div>
+                            <div><p class="minicard-title">CONTENEDORES</p><p style="font-size:45px; font-weight:600; color:#ff4b4b; margin:0;">{int(cntr_pend)}</p></div>
                             <div style="grid-column: span 2;"><p class="minicard-title">VOLUMEN TOTAL</p><p style="font-size:35px; font-weight:800; color:#f8fafc; margin:0;">{int(round(m3_pend)):,} <span style="font-size:16px;">M3</span></p></div>
                         </div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
 
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<div class='custom-card' style='text-align:center; border-color:#00a8ff; box-shadow: 0 0 30px rgba(0,168,255,0.1);'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:4px; margin:0; font-size:22px;'>MONITOR DE GESTIÓN POR FORWARDER</h2></div>", unsafe_allow_html=True)
+            
+            df_g['DT_Inst'] = pd.to_datetime(df_g.iloc[:, 7], dayfirst=True, errors='coerce')
+            df_fw = df_g[df_g['DT_Inst'].notna()].copy()
+            if not df_fw.empty:
+                df_fw['Tipo_T'] = df_fw.iloc[:, 5].apply(lambda x: "MARITIMO" if any(m in str(x).upper() for m in ["40", "20", "MARITIMO", "NOR"]) else "AVION / COURIER")
+                t_sel_fw = st.radio("SELECCIONE VÍA PARA FORWARDERS:", ["MARITIMO", "AVION / COURIER"], horizontal=True, key="ag_radio_res")
+                df_fwd = df_fw[df_fw['Tipo_T'] == t_sel_fw].copy()
+
+                hoy_f = pd.Timestamp("2026-04-02")
+                df_fwd['DT_ETD'] = pd.to_datetime(df_fwd.iloc[:, 11], dayfirst=True, errors='coerce')
+                df_fwd['Gestion'] = (df_fwd['DT_ETD'] - df_fwd['DT_Inst']).dt.days
+                df_fwd['Espera'] = (hoy_f - df_fwd['DT_Inst']).dt.days
+
+                res_fw = df_fwd.groupby(df_fwd.columns[6]).agg(
+                    SO=(df_fwd.columns[0], 'count'),
+                    M3=(df_fwd.columns[24], lambda x: pd.to_numeric(x.astype(str).str.replace(',', '.'), errors='coerce').sum()),
+                    Confirmados=('ETD_Status_K', lambda x: (x == "OK").sum()),
+                    Prom_Gest=('Gestion', 'mean'),
+                    Prom_Esp=('Espera', lambda x: x[df_fwd.loc[x.index, 'ETD_Status_K'] != "OK"].mean())
+                ).reset_index()
+
+                res_fw['%_OK'] = (res_fw['Confirmados'] / res_fw['SO'] * 100).fillna(0)
+                res_fw = res_fw.sort_values('SO', ascending=False)
+
+                st.dataframe(
+                    res_fw,
+                    column_config={
+                        df_fwd.columns[6]: "Agente Forwarder",
+                        "SO": "Cant. SO / Emb",
+                        "M3": st.column_config.NumberColumn("M3 Total", format="%.1f"),
+                        "Prom_Gest": st.column_config.NumberColumn("Gestión (Días)", format="%d"),
+                        "Prom_Esp": st.column_config.NumberColumn("Espera (Días)", format="%d"),
+                        "%_OK": st.column_config.ProgressColumn("Efectividad %", min_value=0, max_value=100, format="%d%%")
+                    },
+                    use_container_width=True, hide_index=True
+                )
+            
+            st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
             st.markdown("<br><p style='text-align:center; color:#00a8ff; font-weight:700; letter-spacing:4px; font-size:16px;'>DESGLOSE POR TIPO DE TRANSPORTE</p>", unsafe_allow_html=True)
 
             # MARITIMO / AEREO
@@ -711,49 +751,53 @@ try:
             df_mar.iloc[:, 29] = pd.to_numeric(df_mar.iloc[:, 29], errors='coerce').fillna(0)
             df_mar.iloc[:, 21] = df_mar.iloc[:, 21].apply(clean_val).fillna(0)
 
-            st.markdown("<div style='margin-bottom:20px;'>", unsafe_allow_html=True)
+            st.markdown("<div style='margin-bottom:10px;'>", unsafe_allow_html=True)
             if st.button("ANALISIS BOOKING IN ADVANCE", key="btn_adv", use_container_width=True): st.session_state.mode = 'adv' if st.session_state.get('mode') != 'adv' else None
-            st.markdown("</div><div style='margin-bottom:20px;'>", unsafe_allow_html=True)
-            if st.button("ANALISIS MONOPROVEEDOR / CONSOLIDADO", key="btn_mono", use_container_width=True): st.session_state.mode = 'mono' if st.session_state.get('mode') != 'mono' else None
             st.markdown("</div>", unsafe_allow_html=True)
-
-            mode = st.session_state.get('mode')
-            if mode:
-                st.markdown("<br>", unsafe_allow_html=True)
+            
+            def renderizar_detalle(mask, etiquetas, is_adv):
                 col_a, col_b = st.columns(2)
-                if mode == 'adv':
-                    mask = df_mar.iloc[:, 8].astype(str).str.strip() == "Booked in Advance"
-                    labels = [("Booked in Advance", df_mar[mask]), ("No Booked in Advance", df_mar[~mask])]
-                else:
-                    mask = df_mar.iloc[:, 34].astype(str).str.strip() == "Monoproveedor"
-                    labels = [("Monoproveedor", df_mar[mask]), ("Consolidado", df_mar[~mask])]
-
-                total_m = len(df_mar) if len(df_mar) > 0 else 1
-                for i, (titulo, dff) in enumerate(labels):
-                    cant_emb = len(dff)
-                    pct_rel = round((cant_emb / total_m) * 100)
-                    cant_adv = len(dff[dff.iloc[:, 8].astype(str).str.strip() == "Booked in Advance"])
-                    pct_adv = round((cant_adv / cant_emb * 100)) if cant_emb > 0 else 0
+                tot_local = len(df_mar) if len(df_mar) > 0 else 1
+                for i_b, (titulo, dff_loc) in enumerate(etiquetas):
+                    c_emb = len(dff_loc)
+                    c_rel = round((c_emb / tot_local) * 100)
+                    c_adv = len(dff_loc[dff_loc.iloc[:, 8].astype(str).str.strip() == "Booked in Advance"])
+                    p_adv = round((c_adv / c_emb * 100)) if c_emb > 0 else 0
+                    c_box = "#00a8ff" if i_b == 0 else "#94a3b8"
                     
-                    color_box = "#00a8ff" if i == 0 else "#94a3b8"
-                    with [col_a, col_b][i]:
+                    with [col_a, col_b][i_b]:
                         st.markdown(f"""
-                            <div class="custom-card" style="border-left: 5px solid {color_box};">
+                            <div class="custom-card" style="border-left: 5px solid {c_box}; margin-bottom: 20px;">
                                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px;">
-                                    <p class="custom-card-title" style="color:{color_box};">{titulo} ({int(pct_rel)}%)</p>
+                                    <p class="custom-card-title" style="color:{c_box};">{titulo} ({int(c_rel)}%)</p>
                                     <div style="text-align: right;">
-                                        <p style="font-size:11px; color:#00ff88; font-weight:700; margin:0; letter-spacing:1px;">ADVANCE: {int(pct_adv)}%</p>
-                                        <p style="font-size:11px; color:#ff4b4b; font-weight:700; margin:0; letter-spacing:1px;">SPOT: {int(100 - pct_adv)}%</p>
+                                        <p style="font-size:11px; color:#00ff88; font-weight:700; margin:0; letter-spacing:1px;">ADVANCE: {int(p_adv)}%</p>
+                                        <p style="font-size:11px; color:#ff4b4b; font-weight:700; margin:0; letter-spacing:1px;">SPOT: {int(100 - p_adv)}%</p>
                                     </div>
                                 </div>
                                 <div class="grid-4">
-                                    <div><p class="minicard-title">EMBARQUES</p><p class="minicard-value" style="font-weight:600;">{int(cant_emb)}</p></div>
-                                    <div><p class="minicard-title">CONTS.</p><p class="minicard-value" style="font-weight:600;">{int(round(dff.iloc[:, 1].sum()))}</p></div>
-                                    <div><p class="minicard-title">PROM. CONS.</p><p class="minicard-value" style="font-weight:600; color:#00ff88;">{int(round(dff.iloc[:, 29].mean() if cant_emb > 0 else 0))}d</p></div>
-                                    <div><p class="minicard-title">FOB USD</p><p class="minicard-value" style="font-size:22px;">{int(round(dff.iloc[:, 21].sum())):,}</p></div>
+                                    <div><p class="minicard-title">CANT. SOs</p><p class="minicard-value" style="font-weight:600;">{int(c_emb)}</p></div>
+                                    <div><p class="minicard-title">CONTS.</p><p class="minicard-value" style="font-weight:600;">{int(round(dff_loc.iloc[:, 1].sum()))}</p></div>
+                                    <div><p class="minicard-title">PROM. CONS.</p><p class="minicard-value" style="font-weight:600; color:#00ff88;">{int(round(dff_loc.iloc[:, 29].mean() if c_emb > 0 else 0))}d</p></div>
+                                    <div><p class="minicard-title">FOB USD</p><p class="minicard-value" style="font-size:22px;">{int(round(dff_loc.iloc[:, 21].sum())):,}</p></div>
                                 </div>
                             </div>
                         """, unsafe_allow_html=True)
+
+            mode = st.session_state.get('mode')
+            if mode == 'adv':
+                msk_adv = df_mar.iloc[:, 8].astype(str).str.strip() == "Booked in Advance"
+                lbl_adv = [("Booked in Advance", df_mar[msk_adv]), ("No Booked in Advance", df_mar[~msk_adv])]
+                renderizar_detalle(msk_adv, lbl_adv, True)
+
+            st.markdown("<div style='margin-bottom:10px;'>", unsafe_allow_html=True)
+            if st.button("ANALISIS MONOPROVEEDOR / CONSOLIDADO", key="btn_mono", use_container_width=True): st.session_state.mode = 'mono' if st.session_state.get('mode') != 'mono' else None
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+            if mode == 'mono':
+                msk_mon = df_mar.iloc[:, 34].astype(str).str.strip() == "Monoproveedor"
+                lbl_mon = [("Monoproveedor", df_mar[msk_mon]), ("Consolidado", df_mar[~msk_mon])]
+                renderizar_detalle(msk_mon, lbl_mon, False)
 
         except Exception as e:
             st.error(f"Error en Gestión de Reservas: {e}")
