@@ -1,8 +1,8 @@
 import streamlit as st
-    import pandas as pd
-    import plotly.express as px
-    from datetime import datetime, timedelta
-    import time
+import pandas as pd
+import plotly.express as px
+from datetime import datetime, timedelta
+import time
 
     # --- 1. CONFIGURACIÓN DE PÁGINA ---
     st.set_page_config(page_title="BIDCOM | Dashboard Ejecutivo", layout="wide")
