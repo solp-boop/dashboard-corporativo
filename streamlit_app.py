@@ -445,7 +445,7 @@ try:
             fig_p.update_xaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)')
             st.plotly_chart(fig_p, use_container_width=True)
 
-            ga, gb, gc = st.columns(3)
+            ga, gb = st.columns(2)
             with ga:
                 etd_p = df.groupby('Mes_ETD_Full').agg({'M3 Total': 'sum'}).reset_index()
                 st.markdown(f"<p style='color:#00ff88; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:20px;'>PROYECCIÓN MENSUAL ETD<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL: {int(round(etd_p['M3 Total'].sum())):,} M3</span></p>", unsafe_allow_html=True)
@@ -470,24 +470,41 @@ try:
                 fig_a.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)')
                 st.plotly_chart(fig_a, use_container_width=True)
 
+            st.markdown("<hr class='white-divider'>", unsafe_allow_html=True)
+
+            gc, gd = st.columns(2)
             with gc:
                 col_mod_opciones = [c for c in df.columns if 'MODALIDAD' in str(c).upper() and 'COSTEO' in str(c).upper()]
                 col_mod = col_mod_opciones[0] if col_mod_opciones else 'Modalidad de Costeo Reposicion'
                 
                 if col_mod in df.columns:
                     mask_barco = df[col_mod].astype(str).str.upper().str.startswith("BARCO")
-                    df_c = df[mask_barco].groupby('Mes_ETD_Full').agg({'M3 Total': 'sum'}).reset_index()
-                    df_c['Contenedores'] = round(df_c['M3 Total'] / 60, 1)
-                    tot_cont = df_c['Contenedores'].sum()
-                    st.markdown(f"<p style='color:#ffaa00; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:20px;'>PROYECCIÓN CONTENEDORES (ETD)<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL: {int(round(tot_cont)):,} CNTR</span></p>", unsafe_allow_html=True)
+                    df_c_etd = df[mask_barco].groupby('Mes_ETD_Full').agg({'M3 Total': 'sum'}).reset_index()
+                    df_c_etd['Contenedores'] = (df_c_etd['M3 Total'] / 60).round().astype(int)
+                    tot_cont_etd = df_c_etd['Contenedores'].sum()
+                    st.markdown(f"<p style='color:#ffaa00; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:20px;'>PROYECCIÓN CONTENEDORES (ETD)<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL: {int(tot_cont_etd):,} CNTR</span></p>", unsafe_allow_html=True)
                     
-                    fig_c = px.bar(df_c, x='Mes_ETD_Full', y='Contenedores', text_auto=',.1f', color_discrete_sequence=['#ffaa00'])
-                    fig_c.update_traces(textfont_size=16, textposition='outside', textfont_color="#f8fafc", marker=dict(cornerradius=5))
-                    fig_c.update_layout(yaxis_visible=True, yaxis_title="Cant. Cont", xaxis_title="Mes ETD", height=450, margin=dict(l=20, r=20, t=20, b=20), font=dict(size=14, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-                    fig_c.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)')
-                    st.plotly_chart(fig_c, use_container_width=True)
+                    fig_cetd = px.bar(df_c_etd, x='Mes_ETD_Full', y='Contenedores', text_auto=',.0f', color_discrete_sequence=['#ffaa00'])
+                    fig_cetd.update_traces(textfont_size=16, textposition='outside', textfont_color="#f8fafc", marker=dict(cornerradius=5))
+                    fig_cetd.update_layout(yaxis_visible=True, yaxis_title="Cant. Cont", xaxis_title="Mes ETD", height=450, margin=dict(l=20, r=20, t=20, b=20), font=dict(size=14, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                    fig_cetd.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)')
+                    st.plotly_chart(fig_cetd, use_container_width=True)
                 else:
-                    st.warning(f"La columna requerida '{col_mod}' no se encuentra para calcular la proyección de contenedores.")
+                    st.warning(f"La columna requerida '{col_mod}' no se encuentra para calcular la proyección.")
+
+            with gd:
+                if col_mod in df.columns:
+                    mask_barco = df[col_mod].astype(str).str.upper().str.startswith("BARCO")
+                    df_c_eta = df[mask_barco].groupby('Mes_ETA_Full', observed=True).agg({'M3 Total': 'sum'}).reset_index()
+                    df_c_eta['Contenedores'] = (df_c_eta['M3 Total'] / 60).round().astype(int)
+                    tot_cont_eta = df_c_eta['Contenedores'].sum()
+                    st.markdown(f"<p style='color:#ffaa00; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:20px;'>PROYECCIÓN CONTENEDORES (ETA)<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL: {int(tot_cont_eta):,} CNTR</span></p>", unsafe_allow_html=True)
+                    
+                    fig_ceta = px.bar(df_c_eta, x='Mes_ETA_Full', y='Contenedores', text_auto=',.0f', color_discrete_sequence=['#ffaa00'])
+                    fig_ceta.update_traces(textfont_size=16, textposition='outside', textfont_color="#f8fafc", marker=dict(cornerradius=5))
+                    fig_ceta.update_layout(yaxis_visible=True, yaxis_title="Cant. Cont", xaxis_title="Mes ETA", height=450, margin=dict(l=20, r=20, t=20, b=20), font=dict(size=14, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                    fig_ceta.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)')
+                    st.plotly_chart(fig_ceta, use_container_width=True)
 
         except Exception as e:
             st.error(f"Error en Solapa Origen: {e}")
