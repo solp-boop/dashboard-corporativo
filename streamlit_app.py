@@ -262,6 +262,7 @@ try:
     orden_final_eta = ["PASADO/REALIZADO"] + meses_eta_ordenados + ["SIN FECHA"]
     df['Mes_ETA_Full'] = pd.Categorical(df['Mes_ETA_Full'], categories=orden_final_eta, ordered=True)
 
+    df = df[df['SO'].astype(str).str.strip() != ""]
     m3_totales_global = round(df['M3 Total'].sum())
     cant_so_global = len(df)
     cant_proveedores_global = df['Proveedor'].nunique() if 'Proveedor' in df.columns else 0
@@ -279,7 +280,7 @@ try:
             cond_instruido = df['Fecha_Inst_DT'].notna() & ~(df['Fecha de Instruccion'].astype(str).str.upper().str.contains("SIN INSTRUCCION", na=False))
             cond_vencida = (~cond_instruido) & (df['Fecha_Prior_DT'] < hoy)
             cond_prox_25 = (~cond_instruido) & (df['Fecha_Prior_DT'] >= hoy) & (df['Fecha_Prior_DT'] <= hoy + timedelta(days=25))
-            cond_resto = (~cond_instruido) & (df['Fecha_Prior_DT'] > hoy + timedelta(days=25))
+            cond_resto = (~cond_instruido) & (~cond_vencida) & (~cond_prox_25)
 
             df_inst = df[cond_instruido].sort_values(by='Rank_Num').copy()
             df_vencida = df[cond_vencida].sort_values(by='Rank_Num').copy()
@@ -353,7 +354,8 @@ try:
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
 
             # --- BLOQUE 2: BOTONES DE FILTRADO CON RESALTADO DINÁMICO ---
-            c_sup1, c_sup2, c_sup3, c_sup4, c_sup5, c_sup6 = st.columns(6)
+            c_sup1, c_sup2, c_sup3, c_sup4 = st.columns(4)
+            c_inf1, c_inf2, c_inf3, c_inf4 = st.columns(4)
             filtro_actual = st.session_state.get('f')
 
             def get_btn_style(target):
@@ -363,41 +365,41 @@ try:
 
             with c_sup1:
                 st.markdown(f"<div style='{get_btn_style('inst')} border-radius:16px; transition: all 0.3s ease;'>", unsafe_allow_html=True)
-                if st.button(f"INSTRUIDA \n {p_inst_val}%", key="btn_inst_o", use_container_width=True):
+                if st.button(f"MERCADERÍA \n INSTRUIDA {p_inst_val}%", key="btn_inst_o", use_container_width=True):
                     st.session_state.f = 'inst' if filtro_actual != 'inst' else None
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 
             with c_sup2:
                 st.markdown(f"<div style='{get_btn_style('venc')} border-radius:16px; transition: all 0.3s ease;'>", unsafe_allow_html=True)
-                if st.button(f"VENCIDA \n {p_vencida_val}%", key="btn_venc_o", use_container_width=True):
+                if st.button(f"MERCADERÍA \n VENCIDA {p_vencida_val}%", key="btn_venc_o", use_container_width=True):
                     st.session_state.f = 'venc' if filtro_actual != 'venc' else None
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 
             with c_sup3:
                 st.markdown(f"<div style='{get_btn_style('px25')} border-radius:16px; transition: all 0.3s ease;'>", unsafe_allow_html=True)
-                if st.button(f"PRÓX. (≤25D) \n {p_prox_25_val}%", key="btn_px25_o", use_container_width=True):
+                if st.button(f"MERCADERÍA \n PRÓX. (≤25D) {p_prox_25_val}%", key="btn_px25_o", use_container_width=True):
                     st.session_state.f = 'px25' if filtro_actual != 'px25' else None
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 
             with c_sup4:
                 st.markdown(f"<div style='{get_btn_style('rest')} border-radius:16px; transition: all 0.3s ease;'>", unsafe_allow_html=True)
-                if st.button(f"PRÓX. (+30D) \n {p_resto_val}%", key="btn_rest_o", use_container_width=True):
+                if st.button(f"MERCADERÍA \n PRÓX. (+30D) {p_resto_val}%", key="btn_rest_o", use_container_width=True):
                     st.session_state.f = 'rest' if filtro_actual != 'rest' else None
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 
-            with c_sup5:
-                st.markdown(f"<div style='{get_btn_style('rank')} border-radius:16px; transition: all 0.3s ease;'>", unsafe_allow_html=True)
+            with c_inf1:
+                st.markdown(f"<div style='{get_btn_style('rank')} border-radius:16px; transition: all 0.3s ease; margin-top:20px;'>", unsafe_allow_html=True)
                 if st.button("TOP 100 \n RANKING", key="btn_rank_o", use_container_width=True):
                     st.session_state.f = 'rank' if filtro_actual != 'rank' else None
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 
-            with c_sup6:
-                st.markdown(f"<div style='{get_btn_style('estr')} border-radius:16px; transition: all 0.3s ease;'>", unsafe_allow_html=True)
+            with c_inf2:
+                st.markdown(f"<div style='{get_btn_style('estr')} border-radius:16px; transition: all 0.3s ease; margin-top:20px;'>", unsafe_allow_html=True)
                 if st.button("ESTRUCTURA \n CARGA", key="btn_estr_o", use_container_width=True):
                     st.session_state.f = 'estr' if filtro_actual != 'estr' else None
                     st.rerun()
@@ -426,6 +428,8 @@ try:
                         </div>
                     """, unsafe_allow_html=True)
                     cols_to_show = ['SO', col_rank, 'Proveedor', 'M3 Total', 'Fecha de Instruccion' if f=='inst' else df.columns[99]]
+                    if 'Repuestos' in df.columns:
+                        cols_to_show.insert(3, 'Repuestos')
                     st.dataframe(dff[cols_to_show], use_container_width=True)
 
                 elif f == "rank":
@@ -443,7 +447,9 @@ try:
                             </div>
                         </div>
                     """, unsafe_allow_html=True)
-                    st.dataframe(df_rank[['SO', col_rank, 'Proveedor', col_prior, 'M3 Total', 'Status']], use_container_width=True)
+                    cols_rank = ['SO', col_rank, 'Proveedor', col_prior, 'M3 Total', 'Status']
+                    if 'Repuestos' in df.columns: cols_rank.insert(3, 'Repuestos')
+                    st.dataframe(df_rank[cols_rank], use_container_width=True)
 
                 elif f == "estr":
                     col_cp = df.columns[93]
