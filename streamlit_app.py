@@ -267,7 +267,7 @@ try:
     cant_proveedores_global = df['Proveedor'].nunique() if 'Proveedor' in df.columns else 0
 
     st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><div class='bidcom-subtitle'>Tablero Logístico Corporativo</div></div>", unsafe_allow_html=True)
-    tabs = st.tabs(["ORIGEN", "CONTROL GESTIÓN RESERVAS", "INDICADORES", "AGENTES", "ANALISTAS", "FLETES"])
+    tabs = st.tabs(["ORIGEN", "CONTROL GESTIÓN RESERVAS", "INDICADORES", "AGENTES", "ANALISTAS", "FLETES", "COTIZACIÓN FFWW"])
 
     # --- SOLAPA 1: ORIGEN ---
     with tabs[0]:
@@ -890,6 +890,72 @@ try:
 
     with tabs[4]: st.info("Módulo Analistas en desarrollo.")
     with tabs[5]: st.info("Módulo Fletes en desarrollo.")
+
+    # --- SOLAPA 7: COTIZACIÓN FFWW ---
+    with tabs[6]:
+        try:
+            st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:20px; letter-spacing:4px; text-transform:uppercase;'>Cotización Forwarders (Proyección Marítima)</p>", unsafe_allow_html=True)
+            st.markdown("<p style='color:#94a3b8; font-size:14px; margin-bottom:30px;'>Módulo exclusivo para consultar volumen semanal (M3) y cantidad de contenedores requeridos por puerto.</p>", unsafe_allow_html=True)
+            
+            col_mod_opciones = [c for c in df.columns if 'MODALIDAD' in str(c).upper() and 'COSTEO' in str(c).upper()]
+            col_mod = col_mod_opciones[0] if col_mod_opciones else 'Modalidad de Costeo Reposicion'
+            
+            if col_mod in df.columns:
+                mask_barco = df[col_mod].astype(str).str.upper().str.startswith("BARCO")
+                df_ffww = df[mask_barco].copy()
+                
+                if not df_ffww.empty:
+                    meses_disp = [m for m in df_ffww['Mes_ETD_Full'].unique() if m not in ["PASADO/REALIZADO", "SIN FECHA"]]
+                    meses_disp = sorted(meses_disp, key=lambda x: datetime.strptime(x, '%m/%Y'))
+                    
+                    if meses_disp:
+                        sel_mes = st.selectbox("📅 SELECCIONE EL MES A COTIZAR:", meses_disp, index=0)
+                        df_mes = df_ffww[df_ffww['Mes_ETD_Full'] == sel_mes].copy()
+                        
+                        if not df_mes.empty:
+                            df_mes['Semana_Num'] = df_mes['ETD_DT'].dt.isocalendar().week
+                            col_puerto = df.columns[41] # Puerto de Salida
+                            
+                            # Agrupación por semana y puerto
+                            res_ffww = df_mes.groupby(['Semana_Num', col_puerto]).agg({'M3 Total': 'sum'}).reset_index()
+                            res_ffww['Contenedores'] = (res_ffww['M3 Total'] / 60).round().astype(int)
+                            res_ffww['M3 Total'] = res_ffww['M3 Total'].round().astype(int)
+                            res_ffww['Semana'] = "Semana " + res_ffww['Semana_Num'].astype(str)
+                            
+                            res_ffww = res_ffww[['Semana', col_puerto, 'Contenedores', 'M3 Total']].sort_values(by=['Semana', 'Contenedores'], ascending=[True, False])
+                            res_ffww.columns = ['Semana (ISO)', 'Puerto de Salida', 'Cant. Contenedores', 'Total M3']
+                            
+                            st.markdown("<hr class='white-divider'>", unsafe_allow_html=True)
+                            
+                            st.dataframe(
+                                res_ffww,
+                                use_container_width=True,
+                                hide_index=True,
+                                column_config={
+                                    'Semana (ISO)': st.column_config.TextColumn("Semana del Año"),
+                                    'Puerto de Salida': st.column_config.TextColumn("Pol"),
+                                    'Total M3': st.column_config.NumberColumn(format="%d M3"),
+                                    'Cant. Contenedores': st.column_config.NumberColumn(format="%d CNTR")
+                                }
+                            )
+                            
+                            st.markdown("<br>", unsafe_allow_html=True)
+                            c1, c2, _ = st.columns([1,1,2])
+                            with c1:
+                                st.markdown(f"<div class='custom-card' style='border-left: 4px solid #ffaa00;'><p class='minicard-title'>TOTAL CONTENEDORES</p><p class='minicard-value' style='font-size:26px;'>{res_ffww['Cant. Contenedores'].sum()}</p></div>", unsafe_allow_html=True)
+                            with c2:
+                                st.markdown(f"<div class='custom-card' style='border-left: 4px solid #00a8ff;'><p class='minicard-title'>VOLUMEN TOTAL</p><p class='minicard-value' style='font-size:26px;'>{res_ffww['Total M3'].sum():,} M3</p></div>", unsafe_allow_html=True)
+                        else:
+                            st.info("No hay operaciones marítimas para el mes seleccionado.")
+                    else:
+                        st.info("No hay proyecciones de meses futuros disponibles para cotizar.")
+                else:
+                    st.info("No se registran operaciones marítimas ('Barco') en la base actual.")
+            else:
+                st.warning("Falta la columna 'Modalidad de Costeo' para identificar la carga marítima.")
+                
+        except Exception as e:
+            st.error(f"Error cargando solapa de Cotización FFWW: {e}")
 
 except Exception as e:
     st.error(f"Error crítico en el Tablero: {e}")
