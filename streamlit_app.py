@@ -104,11 +104,7 @@ html, body, [class*="css"] {
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     animation: fadeInUp 0.8s backwards;
 }
-.metric-container:hover {
-    transform: translateY(-8px);
-    box-shadow: 0 20px 40px rgba(0,168,255,0.2);
-    border-color: rgba(0, 168, 255, 0.4);
-}
+/* .metric-container:hover eliminado por ser no accionable */
 .metric-container p:first-child { 
     font-size: 18px !important;
     color: #94a3b8 !important; 
@@ -139,11 +135,7 @@ html, body, [class*="css"] {
     margin-bottom: 25px;
     animation: fadeInUp 1s backwards;
 }
-.custom-card:hover {
-    transform: translateY(-4px);
-    background: linear-gradient(145deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%);
-    box-shadow: 0 15px 45px rgba(0,0,0,0.5);
-}
+/* .custom-card:hover eliminado por ser no accionable */
 
 .custom-card-title {
     font-weight: 700;
@@ -446,10 +438,11 @@ try:
             fig_p = px.bar(p_df, y=col_puerto, x='M3 Total', orientation='h', text_auto=',.0f', color_discrete_sequence=['#00a8ff'])
             fig_p.update_traces(textposition='outside', cliponaxis=False, textfont_size=16, textfont_color="#f8fafc", marker=dict(cornerradius=5))
             fig_p.update_layout(
-                xaxis_visible=False, yaxis_title=None, height=500, margin=dict(l=150, r=100, t=20, b=20),
+                xaxis_visible=True, xaxis_title="Total M3", yaxis_title="Puerto", height=500, margin=dict(l=150, r=100, t=20, b=20),
                 font=dict(size=14, family='Outfit, sans-serif'),
                 paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
             )
+            fig_p.update_xaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)')
             st.plotly_chart(fig_p, use_container_width=True)
 
             ga, _, gb = st.columns([1, 0.1, 1])
@@ -459,9 +452,10 @@ try:
                 fig_e = px.bar(etd_p, x='Mes_ETD_Full', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#00ff88'])
                 fig_e.update_traces(textfont_size=16, textposition='outside', textfont_color="#f8fafc", marker=dict(cornerradius=5))
                 fig_e.update_layout(
-                    yaxis_visible=False, xaxis_title=None, height=450, margin=dict(l=20, r=20, t=20, b=20),
+                    yaxis_visible=True, yaxis_title="Total M3", xaxis_title="Mes ETD", height=450, margin=dict(l=20, r=20, t=20, b=20),
                     font=dict(size=14, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
                 )
+                fig_e.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)')
                 st.plotly_chart(fig_e, use_container_width=True)
 
             with gb:
@@ -470,9 +464,10 @@ try:
                 fig_a = px.bar(eta_p, x='Mes_ETA_Full', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#ff4b4b'])
                 fig_a.update_traces(textfont_size=16, textposition='outside', textfont_color="#f8fafc", marker=dict(cornerradius=5))
                 fig_a.update_layout(
-                    yaxis_visible=False, xaxis_title=None, height=450, margin=dict(l=20, r=20, t=20, b=20),
+                    yaxis_visible=True, yaxis_title="Total M3", xaxis_title="Mes ETA", height=450, margin=dict(l=20, r=20, t=20, b=20),
                     font=dict(size=14, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
                 )
+                fig_a.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)')
                 st.plotly_chart(fig_a, use_container_width=True)
 
         except Exception as e:
