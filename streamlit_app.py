@@ -613,50 +613,49 @@ try:
             with k3: st.markdown(f"<div class='metric-container'><p>PROVEEDORES</p><p>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
 
-            # OVERALL PERFORMANCE
-            df_g['ETD_Status_K'] = df_g.iloc[:, 10].astype(str).str.upper().str.strip()
-            def safe_float(val):
-                try:
-                    if pd.isna(val) or val == '': return 0.0
-                    s = str(val).replace('.', '').replace(',', '.')
-                    num = ''.join(c for c in s if c.isdigit() or c == '.')
-                    return float(num) if num else 0.0
-                except:
-                    return 0.0
-                    
-            df_g['M3_Num_G'] = df_g.iloc[:, 24].apply(safe_float)
-            df_g['Cntr_Num_G'] = df_g.iloc[:, 1].apply(safe_float)
+            # OVERALL PERFORMANCE FROM PLANIF CARGAS
+            if '¿ETD OK FFWW?' in df_inst.columns:
+                col_etd = '¿ETD OK FFWW?'
+            else:
+                col_etd = df_inst.columns[97]
+                
+            df_inst_t = df_inst.copy()
+            df_inst_t['ETD_Status_P'] = df_inst_t[col_etd].astype(str).str.upper().str.strip()
+            df_p_ok = df_inst_t[df_inst_t['ETD_Status_P'] == "OK"]
+            df_p_pend = df_inst_t[df_inst_t['ETD_Status_P'] != "OK"]
             
-            df_ok = df_g[df_g['ETD_Status_K'] == "OK"]
-            df_pend = df_g[df_g['ETD_Status_K'] != "OK"]
+            c_so_ok = df_p_ok['SO'].count()
+            c_emb_ok = df_p_ok.iloc[:, 16].nunique()
+            prov_ok_p = df_p_ok['Proveedor'].nunique()
+            m3_ok_p = df_p_ok['M3 Total'].sum()
             
-            cant_so_ok = len(df_ok)
-            cant_so_pend = len(df_pend)
-            cntr_ok = df_ok['Cntr_Num_G'].sum()
-            cntr_pend = df_pend['Cntr_Num_G'].sum()
-            m3_ok = df_ok['M3_Num_G'].sum()
-            m3_pend = df_pend['M3_Num_G'].sum()
-            total_emb = len(df_g)
+            c_so_pend = df_p_pend['SO'].count()
+            c_emb_pend = df_p_pend.iloc[:, 16].nunique()
+            prov_pend_p = df_p_pend['Proveedor'].nunique()
+            m3_pend_p = df_p_pend['M3 Total'].sum()
             
-            pct_ok = round((cant_so_ok / total_emb * 100)) if total_emb > 0 else 0
-            pct_pend = 100 - pct_ok if total_emb > 0 else 0
+            total_so_p = len(df_inst_t)
+            pct_ok_p = round((c_so_ok / total_so_p * 100)) if total_so_p > 0 else 0
+            pct_pend_p = 100 - pct_ok_p if total_so_p > 0 else 0
 
             st.markdown(f"""
                 <div class="grid-2">
                     <div class="custom-card" style="border: 2px solid rgba(0,255,136,0.5); box-shadow: 0 0 30px rgba(0,255,136,0.15);">
-                        <p style="font-size: 22px; font-weight: 800; color: #00ff88; margin-bottom: 20px; letter-spacing: 2px; text-transform: uppercase;">EMBARQUES CON ETD OK ({pct_ok}%)</p>
+                        <p style="font-size: 22px; font-weight: 800; color: #00ff88; margin-bottom: 20px; letter-spacing: 2px; text-transform: uppercase;">EMBARQUES CON ETD OK ({pct_ok_p}%)</p>
                         <div class="grid-2" style="text-align: center;">
-                            <div><p class="minicard-title">CANTIDAD SOs</p><p style="font-size:45px; font-weight:900; color:#f8fafc; margin:0; text-shadow:0 0 15px rgba(0,255,136,0.4);">{cant_so_ok}</p></div>
-                            <div><p class="minicard-title">CONTENEDORES</p><p style="font-size:45px; font-weight:600; color:#00ff88; margin:0;">{int(cntr_ok)}</p></div>
-                            <div style="grid-column: span 2;"><p class="minicard-title">VOLUMEN TOTAL</p><p style="font-size:35px; font-weight:800; color:#f8fafc; margin:0;">{int(round(m3_ok)):,} <span style="font-size:16px;">M3</span></p></div>
+                            <div><p class="minicard-title">CANTIDAD SOs</p><p style="font-size:45px; font-weight:900; color:#f8fafc; margin:0; text-shadow:0 0 15px rgba(0,255,136,0.4);">{c_so_ok}</p></div>
+                            <div><p class="minicard-title">EMBARQUES</p><p style="font-size:45px; font-weight:600; color:#f8fafc; margin:0;">{c_emb_ok}</p></div>
+                            <div><p class="minicard-title">PROVEEDORES</p><p style="font-size:45px; font-weight:600; color:#00ff88; margin:0;">{prov_ok_p}</p></div>
+                            <div><p class="minicard-title">VOLUMEN TOTAL</p><p style="font-size:35px; font-weight:800; color:#f8fafc; margin:0;">{int(round(m3_ok_p)):,} <span style="font-size:16px;">M3</span></p></div>
                         </div>
                     </div>
                     <div class="custom-card" style="border: 2px solid rgba(255,75,75,0.5); box-shadow: 0 0 30px rgba(255,75,75,0.15);">
-                        <p style="font-size: 22px; font-weight: 800; color: #ff4b4b; margin-bottom: 20px; letter-spacing: 2px; text-transform: uppercase;">EMBARQUES PENDIENTES ({pct_pend}%)</p>
+                        <p style="font-size: 22px; font-weight: 800; color: #ff4b4b; margin-bottom: 20px; letter-spacing: 2px; text-transform: uppercase;">EMBARQUES PENDIENTES ({pct_pend_p}%)</p>
                         <div class="grid-2" style="text-align: center;">
-                            <div><p class="minicard-title">CANTIDAD SOs</p><p style="font-size:45px; font-weight:900; color:#f8fafc; margin:0; text-shadow:0 0 15px rgba(255,75,75,0.4);">{cant_so_pend}</p></div>
-                            <div><p class="minicard-title">CONTENEDORES</p><p style="font-size:45px; font-weight:600; color:#ff4b4b; margin:0;">{int(cntr_pend)}</p></div>
-                            <div style="grid-column: span 2;"><p class="minicard-title">VOLUMEN TOTAL</p><p style="font-size:35px; font-weight:800; color:#f8fafc; margin:0;">{int(round(m3_pend)):,} <span style="font-size:16px;">M3</span></p></div>
+                            <div><p class="minicard-title">CANTIDAD SOs</p><p style="font-size:45px; font-weight:900; color:#f8fafc; margin:0; text-shadow:0 0 15px rgba(255,75,75,0.4);">{c_so_pend}</p></div>
+                            <div><p class="minicard-title">EMBARQUES</p><p style="font-size:45px; font-weight:600; color:#f8fafc; margin:0;">{c_emb_pend}</p></div>
+                            <div><p class="minicard-title">PROVEEDORES</p><p style="font-size:45px; font-weight:600; color:#ff4b4b; margin:0;">{prov_pend_p}</p></div>
+                            <div><p class="minicard-title">VOLUMEN TOTAL</p><p style="font-size:35px; font-weight:800; color:#f8fafc; margin:0;">{int(round(m3_pend_p)):,} <span style="font-size:16px;">M3</span></p></div>
                         </div>
                     </div>
                 </div>
@@ -666,36 +665,50 @@ try:
             st.markdown("<div class='custom-card' style='text-align:center; border-color:#00a8ff; box-shadow: 0 0 30px rgba(0,168,255,0.1);'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:4px; margin:0; font-size:22px;'>MONITOR DE GESTIÓN POR FORWARDER</h2></div>", unsafe_allow_html=True)
             
             df_g['DT_Inst'] = pd.to_datetime(df_g.iloc[:, 7], dayfirst=True, errors='coerce')
+            df_g['ETD_Status_K'] = df_g.iloc[:, 10].astype(str).str.upper().str.strip()
             df_fw = df_g[df_g['DT_Inst'].notna()].copy()
+            
+            def safe_float_f(val):
+                try:
+                    if pd.isna(val) or val == '': return 0.0
+                    s = str(val).replace('.', '').replace(',', '.')
+                    num = ''.join(c for c in s if c.isdigit() or c == '.')
+                    return float(num) if num else 0.0
+                except: return 0.0
+                
             if not df_fw.empty:
                 df_fw['Tipo_T'] = df_fw.iloc[:, 5].apply(lambda x: "MARITIMO" if any(m in str(x).upper() for m in ["40", "20", "MARITIMO", "NOR"]) else "AVION / COURIER")
                 t_sel_fw = st.radio("SELECCIONE VÍA PARA FORWARDERS:", ["MARITIMO", "AVION / COURIER"], horizontal=True, key="ag_radio_res")
                 df_fwd = df_fw[df_fw['Tipo_T'] == t_sel_fw].copy()
 
-                hoy_f = pd.Timestamp("2026-04-02")
                 df_fwd['DT_ETD'] = pd.to_datetime(df_fwd.iloc[:, 11], dayfirst=True, errors='coerce')
+                df_fwd['M3_Num'] = df_fwd.iloc[:, 24].apply(safe_float_f)
+                df_fwd['CNTR_Num'] = df_fwd.iloc[:, 1].apply(safe_float_f)
+                
                 df_fwd['Gestion'] = (df_fwd['DT_ETD'] - df_fwd['DT_Inst']).dt.days
-                df_fwd['Espera'] = (hoy_f - df_fwd['DT_Inst']).dt.days
+                df_fwd['Espera'] = (pd.to_datetime('today') - df_fwd['DT_Inst']).dt.days
 
                 res_fw = df_fwd.groupby(df_fwd.columns[6]).agg(
-                    SO=(df_fwd.columns[0], 'count'),
-                    M3=(df_fwd.columns[24], lambda x: pd.to_numeric(x.astype(str).str.replace(',', '.'), errors='coerce').sum()),
+                    Cant_Emb=(df_fwd.columns[0], 'count'),
+                    Cant_CNTR=('CNTR_Num', 'sum'),
+                    M3=('M3_Num', 'sum'),
                     Confirmados=('ETD_Status_K', lambda x: (x == "OK").sum()),
-                    Prom_Gest=('Gestion', 'mean'),
+                    Prom_Gest=('Gestion', lambda x: x[df_fwd.loc[x.index, 'ETD_Status_K'] == "OK"].mean()),
                     Prom_Esp=('Espera', lambda x: x[df_fwd.loc[x.index, 'ETD_Status_K'] != "OK"].mean())
                 ).reset_index()
 
-                res_fw['%_OK'] = (res_fw['Confirmados'] / res_fw['SO'] * 100).fillna(0)
-                res_fw = res_fw.sort_values('SO', ascending=False)
+                res_fw['%_OK'] = (res_fw['Confirmados'] / res_fw['Cant_Emb'] * 100).fillna(0)
+                res_fw = res_fw.sort_values('Cant_Emb', ascending=False)
 
                 st.dataframe(
                     res_fw,
                     column_config={
                         df_fwd.columns[6]: "Agente Forwarder",
-                        "SO": "Cant. SO / Emb",
+                        "Cant_Emb": "Cant. Embarques",
+                        "Cant_CNTR": "Cant. CTNRS",
                         "M3": st.column_config.NumberColumn("M3 Total", format="%.1f"),
-                        "Prom_Gest": st.column_config.NumberColumn("Gestión (Días)", format="%d"),
-                        "Prom_Esp": st.column_config.NumberColumn("Espera (Días)", format="%d"),
+                        "Prom_Gest": st.column_config.NumberColumn("Gestión OK (Días)", format="%d"),
+                        "Prom_Esp": st.column_config.NumberColumn("Espera PEND. (Días)", format="%d"),
                         "%_OK": st.column_config.ProgressColumn("Efectividad %", min_value=0, max_value=100, format="%d%%")
                     },
                     use_container_width=True, hide_index=True
