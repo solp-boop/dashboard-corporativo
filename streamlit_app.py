@@ -264,7 +264,7 @@ try:
 
     df = df[df['SO'].notna() & (df['SO'].astype(str).str.strip() != "") & (df['SO'].astype(str).str.strip().str.lower() != "nan")]
     m3_totales_global = round(df['M3 Total'].sum())
-    cant_so_global = len(df)
+    cant_so_global = df['SO'].nunique()
     cant_proveedores_global = df['Proveedor'].nunique() if 'Proveedor' in df.columns else 0
 
     st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><div class='bidcom-subtitle'>Tablero Logístico Corporativo</div></div>", unsafe_allow_html=True)
@@ -321,7 +321,7 @@ try:
                     return "Gadnic"
                 
                 df['Tipo_Repuesto'] = df['Repuestos'].apply(get_tipo_repuesto)
-                res_rep = df.groupby('Tipo_Repuesto').agg({'SO': 'count', 'M3 Total': 'sum', 'Fob total Origen': 'sum'})
+                res_rep = df.groupby('Tipo_Repuesto').agg({'SO': 'nunique', 'M3 Total': 'sum', 'Fob total Origen': 'sum'})
                 
                 cat_colors = {"Gadnic": "#00a8ff", "Muestras": "#ffaa00", "Marcas": "#00ff88"}
                 rc1, rc2, rc3 = st.columns(3)
@@ -442,7 +442,7 @@ try:
                         <div class="custom-card" style="border-left: 5px solid #00a8ff;">
                             <p class="custom-card-title" style="color:#00a8ff;">TOP 100 RANKING - RESUMEN</p>
                             <div class="grid-2">
-                                <div><p class="minicard-title">EMBARQUES EN RANGO</p><p class="minicard-value">{len(df_rank)}</p></div>
+                                <div><p class="minicard-title">EMBARQUES EN RANGO</p><p class="minicard-value">{df_rank['SO'].nunique()}</p></div>
                                 <div><p class="minicard-title">M3 TOTAL PRIORITARIO</p><p class="minicard-value">{int(df_rank['M3 Total'].sum()):,} M3</p></div>
                             </div>
                         </div>
@@ -467,7 +467,7 @@ try:
                                 <div class="custom-card" style="border-left: 5px solid {colores_e[i]};">
                                     <p class="custom-card-title" style="color:{colores_e[i]};">{t_carga}</p>
                                     <div class="grid-2">
-                                        <div><p class="minicard-title">CANT. SO</p><p class="minicard-value">{len(df_c)}</p></div>
+                                        <div><p class="minicard-title">CANT. SO</p><p class="minicard-value">{df_c['SO'].nunique()}</p></div>
                                         <div><p class="minicard-title">TOTAL M3</p><p class="minicard-value">{int(df_c['M3 Total'].sum()):,}</p></div>
                                     </div>
                                 </div>
@@ -479,7 +479,7 @@ try:
             st.markdown("<p style='color:#00a8ff; font-weight:700; letter-spacing:4px; font-size:18px; margin-bottom:25px;'>DISTRIBUCIÓN GEOGRÁFICA</p>", unsafe_allow_html=True)
 
             df['Pais Destino'] = df['Pais Destino'].fillna('SIN DEFINIR').replace('', 'SIN DEFINIR')
-            res_p = df.groupby('Pais Destino').agg({'SO': 'count', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT_SO', 'M3 Total': 'M3'}).sort_values(by='M3', ascending=False)
+            res_p = df.groupby('Pais Destino').agg({'SO': 'nunique', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT_SO', 'M3 Total': 'M3'}).sort_values(by='M3', ascending=False)
             total_so_p = res_p['CANT_SO'].sum()
             total_m3_p = res_p['M3'].sum()
 
@@ -608,7 +608,7 @@ try:
             # KPIs MASIVOS
             st.markdown("<br>", unsafe_allow_html=True)
             k1, k2, k3 = st.columns(3)
-            with k1: st.markdown(f"<div class='metric-container'><p>SO INSTRUIDAS</p><p>{int(len(df_inst))}</p></div>", unsafe_allow_html=True)
+            with k1: st.markdown(f"<div class='metric-container'><p>SO INSTRUIDAS</p><p>{int(df_inst['SO'].nunique())}</p></div>", unsafe_allow_html=True)
             with k2: st.markdown(f"<div class='metric-container'><p>VOLUMEN (M3)</p><p>{int(round(df_inst['M3 Total'].sum())):,}</p></div>", unsafe_allow_html=True)
             with k3: st.markdown(f"<div class='metric-container'><p>PROVEEDORES</p><p>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
@@ -624,17 +624,17 @@ try:
             df_p_ok = df_inst_t[df_inst_t['ETD_Status_P'] == "OK"]
             df_p_pend = df_inst_t[df_inst_t['ETD_Status_P'] != "OK"]
             
-            c_so_ok = df_p_ok['SO'].count()
+            c_so_ok = df_p_ok['SO'].nunique()
             c_emb_ok = df_p_ok.iloc[:, 16].nunique()
             prov_ok_p = df_p_ok['Proveedor'].nunique()
             m3_ok_p = df_p_ok['M3 Total'].sum()
             
-            c_so_pend = df_p_pend['SO'].count()
+            c_so_pend = df_p_pend['SO'].nunique()
             c_emb_pend = df_p_pend.iloc[:, 16].nunique()
             prov_pend_p = df_p_pend['Proveedor'].nunique()
             m3_pend_p = df_p_pend['M3 Total'].sum()
             
-            total_so_p = len(df_inst_t)
+            total_so_p = df_inst_t['SO'].nunique()
             pct_ok_p = round((c_so_ok / total_so_p * 100)) if total_so_p > 0 else 0
             pct_pend_p = 100 - pct_ok_p if total_so_p > 0 else 0
 
