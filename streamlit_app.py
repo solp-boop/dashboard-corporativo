@@ -999,7 +999,19 @@ try:
                 df_2026['Mes'] = df_2026['ETD_DT'].dt.month
                 # Identificamos Columna de Tipo (Monoproveedor vs Consolidado)
                 col_tipo = [c for c in df_hi.columns if 'MONOPROVEEDOR' in c.upper()][0] if any('MONOPROVEEDOR' in c.upper() for c in df_hi.columns) else df_hi.columns[31]
-                col_sla_val = df_hi.columns[32] # Tiempo total de consolidacion
+                
+                # Columna AD (índice 29) es "Tiempo total de consolidacion"
+                col_sla_val = df_hi.columns[29] 
+                
+                # Limpieza robusta de datos numéricos (manejo de comas y objetos)
+                def clean_num_vfinal(val):
+                    if pd.isna(val) or str(val).strip() in ['', 'nan']: return 0.0
+                    try:
+                        s = str(val).replace(',', '.').replace(' ', '').strip()
+                        return pd.to_numeric(s, errors='coerce')
+                    except: return 0.0
+
+                df_2026[col_sla_val] = df_2026[col_sla_val].apply(clean_num_vfinal).fillna(0.0)
                 
                 st.markdown("<p style='color:#00ff88; font-weight:700;'>RESUMEN MENSUAL POR TIPO DE CARGA (2026)</p>", unsafe_allow_html=True)
                 
@@ -1034,9 +1046,16 @@ try:
             
             # Detectamos columnas necesarias
             col_mono = [c for c in df_re.columns if 'MONOPROVEEDOR' in c.upper()][0] if any('MONOPROVEEDOR' in c.upper() for c in df_re.columns) else df_re.columns[31]
-            df_re['P_Min'] = pd.to_datetime(df_re.iloc[:, 18], dayfirst=True, errors='coerce')
-            df_re['P_Max'] = pd.to_datetime(df_re.iloc[:, 19], dayfirst=True, errors='coerce')
-            df_re['T_Consol'] = (df_re['P_Max'] - df_re['P_Min']).dt.days
+            
+            # Limpieza de Columna AD (índice 29) para "Tiempo total de consolidacion"
+            def clean_num_alert(val):
+                if pd.isna(val) or str(val).strip() in ['', 'nan']: return 0.0
+                try:
+                    s = str(val).replace(',', '.').replace(' ', '').strip()
+                    return pd.to_numeric(s, errors='coerce')
+                except: return 0.0
+
+            df_re['T_Consol'] = df_re.iloc[:, 29].apply(clean_num_alert).fillna(0.0)
             df_re['DT_ETD_M'] = pd.to_datetime(df_re.iloc[:, 12], dayfirst=True, errors='coerce')
             
             # Definimos SLA inteligente
