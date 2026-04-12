@@ -1083,8 +1083,7 @@ try:
             df_re = load_res_alt_v4(url_r_alt)
             df_re.columns = [str(c).strip() for c in df_re.columns]
 
-            # --- MONITOR 1: MERCADERÍA SIN INSTRUIR (CONSOLIDACIONES PENDIENTES) ---
-            # Movido al tope por solicitud del usuario
+            # 1. MERCADERÍA SIN INSTRUIR (CONSOLIDACIONES PENDIENTES) ---
             st.markdown("<p style='color:#ffaa00; font-weight:700; font-size:18px; letter-spacing:2px;'>1. MERCADERÍA SIN INSTRUIR (CONSOLIDACIONES PENDIENTES)</p>", unsafe_allow_html=True)
             
             col_inst_idx = 20
@@ -1109,17 +1108,23 @@ try:
             if not df_no_inst.empty:
                 col_puerto = df.columns[41]
                 puertos_disp = sorted(df_no_inst[col_puerto].astype(str).unique().tolist())
-                sel_ptr = st.selectbox("🚢 FILTRAR POR PUERTO DE SALIDA (PENDIENTES):", ["TODOS"] + puertos_disp, key="sel_ptr_noinst_vfinal")
+                # Placeholder para ocultar por defecto
+                sel_ptr = st.selectbox("🚢 FILTRAR POR PUERTO DE SALIDA (PENDIENTES):", ["-- SELECCIONAR PUERTO --", "TODOS"] + puertos_disp, key="sel_ptr_noinst_vfinal")
                 
-                df_no_inst_f = df_no_inst if sel_ptr == "TODOS" else df_no_inst[df_no_inst[col_puerto] == sel_ptr]
-                
-                col_invoice = [c for c in df.columns if 'INVOICE' in c.upper()][0] if any('INVOICE' in c.upper() for c in df.columns) else "Invoice"
-                col_prior = df.columns[99]
-                
-                st.dataframe(df_no_inst_f[[col_invoice, 'SO', col_prior, 'M3 Total', c_mono_p]].sort_values(col_prior), 
-                             column_config={col_prior: st.column_config.DateColumn("Fecha Prioritaria"), 'M3 Total': st.column_config.NumberColumn("M3", format="%.1f")},
-                             use_container_width=True, hide_index=True)
-                st.info(f"💡 Mostrando SOs sin instruir con prioridad <= {hoy_ni.strftime('%d/%m')} (+10d No Mono / +25d Mono).")
+                if sel_ptr != "-- SELECCIONAR PUERTO --":
+                    df_no_inst_f = df_no_inst if sel_ptr == "TODOS" else df_no_inst[df_no_inst[col_puerto] == sel_ptr]
+                    
+                    # Columna AD (índice 29) es N Invoice
+                    col_n_inv = df.columns[29]
+                    
+                    # Preparación de tabla ordenada y formateada
+                    df_no_inst_f = df_no_inst_f.sort_values('Fecha_Prior_DT', ascending=True)
+                    df_no_inst_f['F. Prioritaria'] = df_no_inst_f['Fecha_Prior_DT'].dt.strftime('%d/%m/%Y')
+                    
+                    st.dataframe(df_no_inst_f[[col_n_inv, 'SO', 'F. Prioritaria', 'M3 Total', c_mono_p]], 
+                                 column_config={'M3 Total': st.column_config.NumberColumn("M3", format="%.1f")},
+                                 use_container_width=True, hide_index=True)
+                    st.info(f"💡 Mostrando SOs sin instruir con prioridad <= {hoy_ni.strftime('%d/%m')} (+10d No Mono / +25d Mono).")
             else: st.info("Sin SOs pendientes de instrucción para el rango de fechas actual.")
 
             st.markdown("<br><hr class='white-divider'><br>", unsafe_allow_html=True)
@@ -1152,16 +1157,17 @@ try:
                 col_r_sla = col_resp_sla[0] if col_resp_sla else df_re.columns[6]
                 
                 analistas_sla = sorted(df_sla_alert[col_r_sla].astype(str).unique().tolist())
-                sel_an_sla = st.selectbox("🎯 FILTRAR POR RESPONSABLE (SLA):", ["TODOS"] + analistas_sla, key="sel_sla_an_vfinal")
+                sel_an_sla = st.selectbox("🎯 FILTRAR POR RESPONSABLE (SLA):", ["-- SELECCIONAR RESPONSABLE --", "TODOS"] + analistas_sla, key="sel_sla_an_vfinal_v2")
                 
-                df_sla_f = df_sla_alert if sel_an_sla == "TODOS" else df_sla_alert[df_sla_alert[col_r_sla] == sel_an_sla]
-                
-                df_sla_table = df_sla_f[[df_sla_f.columns[0], df_sla_f.columns[4], 'DT_ETD_M', 'T_Consol', col_r_sla, col_mono]].copy()
-                df_sla_table['DT_ETD_M'] = df_sla_table['DT_ETD_M'].dt.strftime('%d/%m/%Y')
-                df_sla_table.columns = ["Embarque", "Puerto/Aero", "ETD", "Días Consol.", "Responsable", "¿Mono?"]
-                
-                st.dataframe(df_sla_table.sort_values("ETD", ascending=True), use_container_width=True, hide_index=True)
-                st.info("💡 Los casos anteriores superan los 7 días (Monoproveedor) o 25 días (Consolidado).")
+                if sel_an_sla != "-- SELECCIONAR RESPONSABLE --":
+                    df_sla_f = df_sla_alert if sel_an_sla == "TODOS" else df_sla_alert[df_sla_alert[col_r_sla] == sel_an_sla]
+                    
+                    df_sla_table = df_sla_f[[df_sla_f.columns[0], df_sla_f.columns[4], 'DT_ETD_M', 'T_Consol', col_r_sla, col_mono]].copy()
+                    df_sla_table['DT_ETD_M'] = df_sla_table['DT_ETD_M'].dt.strftime('%d/%m/%Y')
+                    df_sla_table.columns = ["Embarque", "Puerto/Aero", "ETD", "Días Consol.", "Responsable", "¿Mono?"]
+                    
+                    st.dataframe(df_sla_table.sort_values("ETD", ascending=True), use_container_width=True, hide_index=True)
+                    st.info("💡 Los casos anteriores superan los 7 días (Monoproveedor) o 25 días (Consolidado).")
             else: st.success("Todos los tiempos de consolidación están dentro de los límites de SLA.")
 
             st.markdown("<br><hr class='white-divider'><br>", unsafe_allow_html=True)
@@ -1178,24 +1184,25 @@ try:
                 col_an = col_analista[0] if col_analista else df_re.columns[6]
                 
                 analistas_disp = sorted(df_alert_g[col_an].astype(str).unique().tolist())
-                sel_an = st.selectbox("🎯 FILTRAR POR ANALISTA (AGRUPAMIENTO):", ["TODOS"] + analistas_disp, key="sel_an_agrup_v4")
+                sel_an = st.selectbox("🎯 FILTRAR POR ANALISTA (AGRUPAMIENTO):", ["-- SELECCIONAR ANALISTA --", "TODOS"] + analistas_disp, key="sel_an_agrup_v4")
                 
-                df_g_show = df_alert_g if sel_an == "TODOS" else df_alert_g[df_alert_g[col_an] == sel_an]
-                
-                df_g_table = df_g_show.groupby(df_re.columns[0]).agg({
-                    col_an: 'first',
-                    'P_Min': 'min',
-                    'P_Max': 'max',
-                    'Rango_Dias': 'max',
-                    df_re.columns[10]: 'first', # ETD OK FFWW
-                    df_re.columns[12]: 'first'  # ETD
-                }).reset_index()
-                
-                df_g_table['P_Min'] = pd.to_datetime(df_g_table['P_Min']).dt.strftime('%d/%m/%Y')
-                df_g_table['P_Max'] = pd.to_datetime(df_g_table['P_Max']).dt.strftime('%d/%m/%Y')
-                df_g_table.columns = ["Embarque", "Analista", "F. Min Packeo", "F. Max Packeo", "Días Rango", "ETD Status", "ETD"]
-                
-                st.dataframe(df_g_table.sort_values('Días Rango', ascending=False), use_container_width=True, hide_index=True)
+                if sel_an != "-- SELECCIONAR ANALISTA --":
+                    df_g_show = df_alert_g if sel_an == "TODOS" else df_alert_g[df_alert_g[col_an] == sel_an]
+                    
+                    df_g_table = df_g_show.groupby(df_re.columns[0]).agg({
+                        col_an: 'first',
+                        'P_Min': 'min',
+                        'P_Max': 'max',
+                        'Rango_Dias': 'max',
+                        df_re.columns[10]: 'first', # ETD OK FFWW
+                        df_re.columns[12]: 'first'  # ETD
+                    }).reset_index()
+                    
+                    df_g_table['P_Min'] = pd.to_datetime(df_g_table['P_Min']).dt.strftime('%d/%m/%Y')
+                    df_g_table['P_Max'] = pd.to_datetime(df_g_table['P_Max']).dt.strftime('%d/%m/%Y')
+                    df_g_table.columns = ["Embarque", "Analista", "F. Min Packeo", "F. Max Packeo", "Días Rango", "ETD Status", "ETD"]
+                    
+                    st.dataframe(df_g_table.sort_values('Días Rango', ascending=False), use_container_width=True, hide_index=True)
             else: st.success("Agrupamientos eficientes (<= 7 días).")
 
             st.markdown("<br><hr class='white-divider'><br>", unsafe_allow_html=True)
@@ -1217,13 +1224,14 @@ try:
                 col_r_v4 = col_resp_v4[0] if col_resp_v4 else df_re.columns[6]
                 
                 analistas_m3 = sorted(df_no_mov[col_r_v4].astype(str).unique().tolist())
-                sel_an3 = st.selectbox("👨‍💻 FILTRAR POR RESPONSABLE (MOVILIZACIÓN):", ["TODOS"] + analistas_m3, key="sel_an_mov_v4")
+                sel_an3 = st.selectbox("👨‍💻 FILTRAR POR RESPONSABLE (MOVILIZACIÓN):", ["-- SELECCIONAR RESPONSABLE --", "TODOS"] + analistas_m3, key="sel_an_mov_v4")
                 
-                df_no_mov_f = df_no_mov if sel_an3 == "TODOS" else df_no_mov[df_no_mov[col_r_v4] == sel_an3]
-                
-                df_view = df_no_mov_f[[df_no_mov_f.columns[0], df_no_mov_f.columns[12], col_resp_v4[0] if col_resp_v4 else df_no_mov_f.columns[6], col_impo2_v4]].copy()
-                df_view.columns = ["Embarque", "ETD (Col M)", "Responsable", "Status Impo2"]
-                st.dataframe(df_view.sort_values("ETD (Col M)", ascending=True), use_container_width=True, hide_index=True)
+                if sel_an3 != "-- SELECCIONAR RESPONSABLE --":
+                    df_no_mov_f = df_no_mov if sel_an3 == "TODOS" else df_no_mov[df_no_mov[col_r_v4] == sel_an3]
+                    
+                    df_view = df_no_mov_f[[df_no_mov_f.columns[0], df_no_mov_f.columns[12], col_resp_v4[0] if col_resp_v4 else df_no_mov_f.columns[6], col_impo2_v4]].copy()
+                    df_view.columns = ["Embarque", "ETD (Col M)", "Responsable", "Status Impo2"]
+                    st.dataframe(df_view.sort_values("ETD (Col M)", ascending=True), use_container_width=True, hide_index=True)
             else: st.success("Todo movilizado correctamente según Reservas.")
 
         except Exception as e: st.error(f"Error en Alertas: {e}")
