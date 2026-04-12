@@ -998,77 +998,81 @@ try:
             if not df_2026.empty:
                 df_2026['Mes'] = df_2026['ETD_DT'].dt.month
                 # Identificamos Columnas Clave
-                col_tipo = [c for c in df_hi.columns if 'MONOPROVEEDOR' in c.upper()][0] if any('MONOPROVEEDOR' in c.upper() for c in df_hi.columns) else df_hi.columns[31]
-                col_puerto_hi = df_hi.columns[1]
-                col_comex = df_hi.columns[27]
-                col_agente = df_hi.columns[28]
-                col_total = df_hi.columns[29]
+                # --- FILTRO MARÍTIMO (EXCLUYE AVION Y COURRIER) ---
+                col_tipo_carga = df_hi.columns[5] # Col F
+                df_mar = df_2026[~df_2026[col_tipo_carga].astype(str).str.upper().str.contains('AVION|COURRIER', na=False)].copy()
                 
-                # Limpieza de columnas numéricas
-                def clean_n(val):
+                # Identificamos Columnas Clave
+                col_mono_hi = df_hi.columns[31] # Col AF
+                col_puerto_hi = df_hi.columns[4] # Col E
+                col_cons_hi = df_hi.columns[32] # Col AG (Solicitado por el usuario para históricos)
+                
+                # Limpieza de columna numérica de consolidación
+                def clean_n_hi(val):
                     if pd.isna(val) or str(val).strip() in ['', 'nan']: return 0.0
                     try:
                         s = str(val).replace(',', '.').replace(' ', '').strip()
                         return pd.to_numeric(s, errors='coerce')
                     except: return 0.0
 
-                for c_num in [col_comex, col_agente, col_total]:
-                    df_2026[c_num] = df_2026[c_num].apply(clean_n).fillna(0.0)
+                df_mar[col_cons_hi] = df_mar[col_cons_hi].apply(clean_n_hi).fillna(0.0)
                 
-                # Construcción de la tabla segmentada
-                final_rows = []
-                meses = sorted(df_2026['Mes'].unique())
+                st.markdown("<p style='color:#00ff88; font-weight:700; font-size:18px; margin-bottom:10px;'>1. RESUMEN MES CERRADO (MARÍTIMOS 2026)</p>", unsafe_allow_html=True)
                 
-                for m in meses:
-                    df_m = df_2026[df_2026['Mes'] == m]
-                    # Agrupación por Puerto
-                    puertos = sorted(df_m[col_puerto_hi].astype(str).unique())
-                    for p in puertos:
-                        df_p = df_m[df_m[col_puerto_hi] == p]
-                        cant = len(df_p)
-                        p_comex = df_p[col_comex].mean()
-                        p_agente = df_p[col_agente].mean()
-                        p_total = df_p[col_total].mean()
-                        
-                        count_mono = len(df_p[df_p[col_tipo].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)])
-                        pct_mono = (count_mono / cant) if cant > 0 else 0
-                        pct_cons = 1 - pct_mono
-                        
-                        final_rows.append({
-                            "Mes": m, "Puerto / Aeropuerto": p, "Cant. Emb": cant,
-                            "Prom. Comex": p_comex, "Prom. Agente": p_agente, "Prom. Total": p_total,
-                            "% Monoproveedor": pct_mono, "% Consolidado": pct_cons, "Total": 1.0
-                        })
-                    
-                    # Fila de Subtotal Mensual
-                    cant_m = len(df_m)
-                    p_comex_m = df_m[col_comex].mean()
-                    p_agente_m = df_m[col_agente].mean()
-                    p_total_m = df_m[col_total].mean()
-                    count_mono_m = len(df_m[df_m[col_tipo].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)])
-                    pct_mono_m = (count_mono_m / cant_m) if cant_m > 0 else 0
-                    
-                    final_rows.append({
-                        "Mes": m, "Puerto / Aeropuerto": "TOTAL MES GENERAL", "Cant. Emb": cant_m,
-                        "Prom. Comex": p_comex_m, "Prom. Agente": p_agente_m, "Prom. Total": p_total_m,
-                        "% Monoproveedor": pct_mono_m, "% Consolidado": 1 - pct_mono_m, "Total": 1.0
-                    })
+                # Resumen Mensual General
+                res_mensual = df_mar.groupby('Mes').agg({
+                    df_hi.columns[0]: 'count',
+                    col_cons_hi: 'mean'
+                }).reset_index()
+                
+                # Cálculo de Porcentajes Mensuales
+                for idx, row in res_mensual.iterrows():
+                    df_m_temp = df_mar[df_mar['Mes'] == row['Mes']]
+                    count_mono = len(df_m_temp[df_m_temp[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)])
+                    total = row[df_hi.columns[0]]
+                    res_mensual.at[idx, '% Monoproveedor'] = (count_mono / total) if total > 0 else 0
+                    res_mensual.at[idx, '% Consolidado'] = 1 - res_mensual.at[idx, '% Monoproveedor']
 
-                df_final_ind = pd.DataFrame(final_rows)
-                
-                st.dataframe(df_final_ind, use_container_width=True, hide_index=True,
+                res_mensual.columns = ["Mes", "Cant. Embarques", "Prom. Consolidación (d)", "% Monoproveedor", "% Consolidado"]
+                st.dataframe(res_mensual.sort_values("Mes"), use_container_width=True, hide_index=True,
                              column_config={
-                                 "Prom. Comex": st.column_config.NumberColumn(format="%.1f"),
-                                 "Prom. Agente": st.column_config.NumberColumn(format="%.1f"),
-                                 "Prom. Total": st.column_config.NumberColumn(format="%.1f"),
+                                 "Prom. Consolidación (d)": st.column_config.NumberColumn(format="%.1f d"),
                                  "% Monoproveedor": st.column_config.NumberColumn(format="%.2%"),
-                                 "% Consolidado": st.column_config.NumberColumn(format="%.2%"),
-                                 "Total": st.column_config.NumberColumn(format="%.0%")
+                                 "% Consolidado": st.column_config.NumberColumn(format="%.2%")
                              })
                 
-                with st.expander("🔍 VER DETALLE HISTÓRICO 2026"):
-                    st.dataframe(df_2026[[df_hi.columns[0], col_puerto_hi, 'ETD_DT', col_tipo, col_total]], use_container_width=True, hide_index=True)
-            else: st.warning("No se encontraron registros históricos para el año 2026.")
+                st.markdown("<br><p style='color:#ffffff; font-weight:700; font-size:18px; margin-bottom:10px;'>🔍 DETALLE POR PUERTO / AEROPUERTO (LA LUPA)</p>", unsafe_allow_html=True)
+                
+                # Selector de Mes para el Detalle
+                meses_det = sorted(df_mar['Mes'].unique())
+                mes_sel = st.selectbox("📅 SELECCIONAR MES PARA VER DETALLE:", meses_det, format_func=lambda x: f"Mes {x}")
+                
+                if mes_sel:
+                    df_mes_sel = df_mar[df_mar['Mes'] == mes_sel]
+                    res_puerto = df_mes_sel.groupby(col_puerto_hi).agg({
+                        df_hi.columns[0]: 'count',
+                        col_cons_hi: 'mean'
+                    }).reset_index()
+                    
+                    # Cálculo de porcentajes por puerto
+                    for idx, row in res_puerto.iterrows():
+                        df_p_temp = df_mes_sel[df_mes_sel[col_puerto_hi] == row[col_puerto_hi]]
+                        c_mono_p = len(df_p_temp[df_p_temp[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)])
+                        tot_p = row[df_hi.columns[0]]
+                        res_puerto.at[idx, '% Monoproveedor'] = (c_mono_p / tot_p) if tot_p > 0 else 0
+                        res_puerto.at[idx, '% Consolidado'] = 1 - res_puerto.at[idx, '% Monoproveedor']
+                    
+                    res_puerto.columns = ["Puerto / Aeropuerto", "Cant. Embarques", "Prom. Consolidación (d)", "% Monoproveedor", "% Consolidado"]
+                    st.dataframe(res_puerto.sort_values("Cant. Embarques", ascending=False), use_container_width=True, hide_index=True,
+                                 column_config={
+                                     "Prom. Consolidación (d)": st.column_config.NumberColumn(format="%.1f d"),
+                                     "% Monoproveedor": st.column_config.NumberColumn(format="%.2%"),
+                                     "% Consolidado": st.column_config.NumberColumn(format="%.2%")
+                                 })
+
+                with st.expander("💼 VER TIRA DE DATOS CRUDA (MARÍTIMOS 2026)"):
+                    st.dataframe(df_mar[[df_hi.columns[0], col_puerto_hi, 'ETD_DT', col_mono_hi, col_cons_hi]], use_container_width=True, hide_index=True)
+            else: st.warning("No se encontraron registros marítimos para el año 2026.")
         except Exception as e: st.error(f"Error en Indicadores: {e}")
 
     # --- SOLAPA 7: ALERTAS ESTRATÉGICAS ---
