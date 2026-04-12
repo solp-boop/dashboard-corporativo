@@ -943,22 +943,35 @@ try:
         try:
             st.markdown("<div style='background: rgba(0, 168, 255, 0.05); padding: 15px 25px; border-radius: 20px; border: 1px solid rgba(0, 168, 255, 0.2); margin: 15px 0;'><h3 style='color:#00a8ff; margin:0; text-align:center; letter-spacing:5px; text-transform:uppercase; font-weight:900;'>COTIZACIÓN FFWW — PROYECCIÓN MARÍTIMA</h3></div>", unsafe_allow_html=True)
             st.markdown("<p style='color:#94a3b8; font-size:13px; text-align:center; margin-bottom:20px;'>Fuente: <b>Planif Cargas</b> · Filtro: Modalidad de Costeo = <b>BARCO</b> · ETD = Columna X</p>", unsafe_allow_html=True)
-            
+
+            # Cargar datos SIN filtro de SO para capturar TODAS las filas de planificación
+            @st.cache_data(ttl=60)
+            def load_planif_raw(u):
+                d = pd.read_csv(u)
+                d.columns = d.columns.str.strip()
+                if 'M3 Total' in d.columns:
+                    d['M3 Total'] = d['M3 Total'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
+                    d['M3 Total'] = pd.to_numeric(d['M3 Total'], errors='coerce').fillna(0)
+                return d
+
+            df_raw = load_planif_raw(f"{base_url}/export?format=csv&gid=0&nocache={time.time()}")
+
             # Detectar columna Modalidad de Costeo
-            col_mod_opciones = [c for c in df.columns if 'MODALIDAD' in str(c).upper() and 'COSTEO' in str(c).upper()]
+            col_mod_opciones = [c for c in df_raw.columns if 'MODALIDAD' in str(c).upper() and 'COSTEO' in str(c).upper()]
             col_mod = col_mod_opciones[0] if col_mod_opciones else 'Modalidad de Costeo Reposicion'
 
-            if col_mod in df.columns:
-                mask_barco = df[col_mod].astype(str).str.upper().str.startswith("BARCO")
-                df_ffww = df[mask_barco].copy()
+            if col_mod in df_raw.columns:
+                mask_barco = df_raw[col_mod].astype(str).str.upper().str.startswith("BARCO")
+                df_ffww = df_raw[mask_barco].copy()
 
                 if not df_ffww.empty:
-                    # ETD = Columna X = índice 23 (confirmado por usuario)
+                    # ETD = Columna X = índice 23
                     df_ffww['ETD_DT'] = pd.to_datetime(df_ffww.iloc[:, 23], errors='coerce')
-                    df_ffww['Mes_ETD_Full'] = df_ffww['ETD_DT'].apply(lambda x: label_proyeccion(x, pd.Timestamp(datetime.now().date())))
-                    
+                    df_ffww['Mes_ETD_Full'] = df_ffww['ETD_DT'].apply(lambda x: label_proyeccion(x, inicio_mes))
+
                     meses_disp = [m for m in df_ffww['Mes_ETD_Full'].unique() if m not in ["PASADO/REALIZADO", "SIN FECHA"]]
                     meses_disp = sorted(meses_disp, key=lambda x: datetime.strptime(x, '%m/%Y'))
+
 
                     if meses_disp:
                         # Detectar columna Puerto
