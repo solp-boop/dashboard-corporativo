@@ -1008,8 +1008,8 @@ try:
             # Recargamos Reservas para asegurar datos frescos para las alertas
             url_r_alt = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
             @st.cache_data(ttl=60)
-            def load_res_alt_v3(u): return pd.read_csv(u, engine='python')
-            df_re = load_res_alt_v3(url_r_alt)
+            def load_res_alt_v4(u): return pd.read_csv(u, engine='python')
+            df_re = load_res_alt_v4(url_r_alt)
             df_re.columns = [str(c).strip() for c in df_re.columns]
 
             # --- MONITOR 1: AGRUPAMIENTO DE MERCADERÍA (>7 DÍAS VENTANA) ---
@@ -1024,20 +1024,23 @@ try:
                 col_an = col_analista[0] if col_analista else df_re.columns[6]
                 
                 analistas_disp = sorted(df_alert_g[col_an].astype(str).unique().tolist())
-                sel_an = st.selectbox("🎯 FILTRAR POR ANALISTA (AGRUPAMIENTO):", ["TODOS"] + analistas_disp, key="sel_an_agrup")
+                sel_an = st.selectbox("🎯 FILTRAR POR ANALISTA (AGRUPAMIENTO):", ["TODOS"] + analistas_disp, key="sel_an_agrup_v4")
                 
                 df_g_show = df_alert_g if sel_an == "TODOS" else df_alert_g[df_alert_g[col_an] == sel_an]
                 
+                # Agrupamos por Embarque
                 df_g_table = df_g_show.groupby(df_re.columns[0]).agg({
                     col_an: 'first',
                     'P_Min': 'min',
                     'P_Max': 'max',
-                    'Rango_Dias': 'max'
+                    'Rango_Dias': 'max',
+                    df_re.columns[10]: 'first', # ETD OK FFWW
+                    df_re.columns[12]: 'first'  # ETD
                 }).reset_index()
                 
                 df_g_table['P_Min'] = df_g_table['P_Min'].dt.date
                 df_g_table['P_Max'] = df_g_table['P_Max'].dt.date
-                df_g_table.columns = ["Embarque", "Analista", "F. Min Packeo", "F. Max Packeo", "Días Rango"]
+                df_g_table.columns = ["Embarque", "Analista", "F. Min Packeo", "F. Max Packeo", "Días Rango", "ETD Status", "ETD"]
                 
                 st.dataframe(df_g_table.sort_values('Días Rango', ascending=False), use_container_width=True, hide_index=True)
             else: st.success("Agrupamientos eficientes (<= 7 días).")
@@ -1046,55 +1049,56 @@ try:
             st.markdown("<br><hr class='white-divider'><br>", unsafe_allow_html=True)
             st.markdown("<p style='color:#ffaa00; font-weight:700; font-size:18px; letter-spacing:2px;'>2. MERCADERÍA SIN INSTRUIR (CONSOLIDACIONES PENDIENTES)</p>", unsafe_allow_html=True)
             
-            # Filtramos del df general las que no están en df_inst (sin fecha de instrucción en Col 20)
-            df_no_inst = df[df.iloc[:, 20].isna() | (df.iloc[:, 20].astype(str).str.strip() == "")].copy()
+            # Buscamos la columna de instrucción de forma robusta
+            col_inst_idx = 20
+            col_inst_name = [c for c in df.columns if 'INSTRUCCION' in c.upper()]
+            if col_inst_name:
+                df_no_inst = df[df[col_inst_name[0]].isna() | (df[col_inst_name[0]].astype(str).str.strip().isin(['', 'nan', 'sin instruccion']))].copy()
+            else:
+                df_no_inst = df[df.iloc[:, col_inst_idx].isna() | (df.iloc[:, col_inst_idx].astype(str).str.strip().isin(['', 'nan', 'sin instruccion']))].copy()
             
             if not df_no_inst.empty:
                 col_puerto = df.columns[41]
                 puertos_disp = sorted(df_no_inst[col_puerto].astype(str).unique().tolist())
-                sel_ptr = st.selectbox("🚢 FILTRAR POR PUERTO DE SALIDA:", ["TODOS"] + puertos_disp, key="sel_ptr_noinst")
+                sel_ptr = st.selectbox("🚢 FILTRAR POR PUERTO DE SALIDA:", ["TODOS"] + puertos_disp, key="sel_ptr_noinst_v4")
                 
                 df_no_inst_f = df_no_inst if sel_ptr == "TODOS" else df_no_inst[df_no_inst[col_puerto] == sel_ptr]
                 
-                # Columnas específicas: Invoice, SO, Fecha Prioritaria, M3
                 col_invoice = [c for c in df.columns if 'INVOICE' in c.upper()][0] if any('INVOICE' in c.upper() for c in df.columns) else "Invoice"
                 col_prior = df.columns[99]
                 
                 st.dataframe(df_no_inst_f[[col_invoice, 'SO', col_prior, 'M3 Total']].sort_values(col_prior), 
                              column_config={col_prior: st.column_config.DateColumn("Fecha Prioritaria"), 'M3 Total': st.column_config.NumberColumn("M3", format="%.1f")},
                              use_container_width=True, hide_index=True)
-            else: st.info("Sin SOs pendientes de instrucción.")
+            else: st.info("Sin SOs pendientes de instrucción según Planif Cargas.")
 
-            # --- MONITOR 3: ALERTA CARGA NO MOVILIZADA (>5 DÍAS ETD OK) ---
+            # --- MONITOR 3: ALERTA CARGA NO MOVILIZADA (PENDIENTE TRÁNSITO) ---
             st.markdown("<br><hr class='white-divider'><br>", unsafe_allow_html=True)
-            st.markdown("<p style='color:#ff4b4b; font-weight:700; font-size:18px; letter-spacing:2px;'>3. ALERTA CARGA NO MOVILIZADA (>5 DÍAS ETD OK)</p>", unsafe_allow_html=True)
+            st.markdown("<p style='color:#ff4b4b; font-weight:700; font-size:18px; letter-spacing:2px;'>3. ALERTA CARGA NO MOVILIZADA (TRÁNSITO PENDIENTE)</p>", unsafe_allow_html=True)
             
-            df_re['DT_ETD'] = pd.to_datetime(df_re.iloc[:, 9], dayfirst=True, errors='coerce')
-            df_re['Status_OK'] = df_re.iloc[:, 10].astype(str).str.lower().str.strip() == "ok"
-            df_re['Dias_Pasados'] = (pd.to_datetime('today') - df_re['DT_ETD']).dt.days
+            df_re['DT_ETD_M'] = pd.to_datetime(df_re.iloc[:, 12], dayfirst=True, errors='coerce')
+            df_re['Status_OK_K'] = df_re.iloc[:, 10].astype(str).str.lower().str.strip() == "ok"
             
-            # Filtro por Impo2 (Col AE - índice 30)
-            # El usuario dice: si dice "Falta cargar" se trae.
-            col_impo2 = df_re.columns[30]
-            df_re['Impo2_Status'] = df_re[col_impo2].astype(str).str.strip()
+            col_impo2_v4 = df_re.columns[30]
+            df_re['Impo2_Status'] = df_re[col_impo2_v4].astype(str).str.strip()
             
-            df_no_mov = df_re[df_re['Status_OK'] & (df_re['Dias_Pasados'] > 5) & (df_re['Impo2_Status'] != "Cargado en Impo2")].copy()
+            hoy_v4 = pd.Timestamp(datetime.now().date())
+            # Alerta: ETD <= Hoy AND Status == "ok" AND Impo2 == "Falta cargar"
+            df_no_mov = df_re[df_re['Status_OK_K'] & (df_re['DT_ETD_M'] <= hoy_v4) & (df_re['Impo2_Status'] == "Falta cargar")].copy()
             
             if not df_no_mov.empty:
-                col_resp = [c for c in df_re.columns if 'ANALISTA' in c.upper() or 'RESPONSABLE' in c.upper()]
-                col_r = col_resp[0] if col_resp else df_re.columns[6]
+                col_resp_v4 = [c for c in df_re.columns if 'ANALISTA' in c.upper() or 'RESPONSABLE' in c.upper()]
+                col_r_v4 = col_resp_v4[0] if col_resp_v4 else df_re.columns[6]
                 
-                analistas_m3 = sorted(df_no_mov[col_r].astype(str).unique().tolist())
-                sel_an3 = st.selectbox("👨‍💻 FILTRAR POR ANALISTA (MOVILIZACIÓN):", ["TODOS"] + analistas_m3, key="sel_an_mov")
+                analistas_m3 = sorted(df_no_mov[col_r_v4].astype(str).unique().tolist())
+                sel_an3 = st.selectbox("👨‍💻 FILTRAR POR RESPONSABLE (MOVILIZACIÓN):", ["TODOS"] + analistas_m3, key="sel_an_mov_v4")
                 
-                df_no_mov_f = df_no_mov if sel_an3 == "TODOS" else df_no_mov[df_no_mov[col_r] == sel_an3]
+                df_no_mov_f = df_no_mov if sel_an3 == "TODOS" else df_no_mov[df_no_mov[col_r_v4] == sel_an3]
                 
-                df_view = df_no_mov_f[[df_no_mov_f.columns[0], df_no_mov_f.columns[9], 'Dias_Pasados', col_r, col_impo2]].copy()
-                df_view.columns = ["Embarque", "ETD", "Retraso", "Responsable", "Status Impo2"]
-                st.dataframe(df_view.sort_values('Retraso', ascending=False),
-                             column_config={"Retraso": st.column_config.NumberColumn("Wait", format="%d d")},
-                             use_container_width=True, hide_index=True)
-            else: st.success("Todo movilizado correctamente.")
+                df_view = df_no_mov_f[[df_no_mov_f.columns[0], df_no_mov_f.columns[12], col_r_v4, col_impo2_v4]].copy()
+                df_view.columns = ["Embarque", "ETD (Col M)", "Responsable", "Status Impo2"]
+                st.dataframe(df_view.sort_values("ETD (Col M)"), use_container_width=True, hide_index=True)
+            else: st.success("Todo movilizado correctamente según Reservas.")
 
         except Exception as e: st.error(f"Error en Alertas: {e}")
 
