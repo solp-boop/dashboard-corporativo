@@ -275,7 +275,9 @@ try:
         try:
             df['Fecha_Inst_DT'] = pd.to_datetime(df['Fecha de Instruccion'], errors='coerce')
             col_rank = df.columns[1]
-            df['Rank_Num'] = pd.to_numeric(df[col_rank], errors='coerce').fillna(999999)
+            # Limpiar Ranking (manejo de puntos de miles y comas decimales)
+            df['Rank_Num'] = df[col_rank].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
+            df['Rank_Num'] = pd.to_numeric(df['Rank_Num'], errors='coerce').fillna(999999)
 
             cond_instruido = df['Fecha_Inst_DT'].notna() & ~(df['Fecha de Instruccion'].astype(str).str.upper().str.contains("SIN INSTRUCCION", na=False))
             cond_vencida = (~cond_instruido) & (df['Fecha_Prior_DT'] < hoy)
