@@ -700,25 +700,27 @@ try:
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("<p style='text-align:center; color:#00a8ff; font-weight:700; letter-spacing:4px; font-size:16px;'>DESGLOSE POR TIPO DE TRANSPORTE</p>", unsafe_allow_html=True)
 
-            # MARITIMO / AEREO (SEGÚN TIPO CARGA COLUMNA W)
-            def clasificar_transporte(x):
+            # MARITIMO / AEREO (SACA DE RESERVAS SEGÚN PEDIDO)
+            def clasificar_transp_res(x):
                 x = str(x).upper().strip()
                 if any(m in x for m in ["40 HQ", "40 ST", "40 NOR", "20 ST", "40NOR"]): return "MARITIMO"
                 if any(a in x for a in ["AVION", "COURIER", "COURRIER"]): return "AVION / COURIER"
                 return "OTROS"
 
-            # Columna W (index 22) en Planif Cargas
-            df_plan_res['Transporte'] = df_plan_res.iloc[:, 22].apply(clasificar_transporte) 
+            # Aplicar a df_g (Reservas) usando Columna F (index 5)
+            df_g['Transporte'] = df_g.iloc[:, 5].apply(clasificar_transp_res) 
             t1, t2 = st.columns(2)
             for i, tipo in enumerate(["MARITIMO", "AVION / COURIER"]):
-                df_tipo = df_plan_res[df_plan_res['Transporte'] == tipo]
-                total_t = df_tipo.iloc[:, 16].nunique()
-                ok_t = df_tipo[df_tipo['Status_P'] == "ok"].iloc[:, 16].nunique()
+                df_tipo = df_g[df_g['Transporte'] == tipo]
+                total_t = df_tipo.iloc[:, 0].nunique()
+                ok_t = df_tipo[df_tipo['ETD_Status_K'] == "OK"].iloc[:, 0].nunique()
                 pend_t = total_t - ok_t
+                crit_t = df_tipo[df_tipo['Critico']].iloc[:, 0].nunique()
                 
-                # Para críticos seguimos usando df_g (que es la de reclamo)
-                df_g['Transporte'] = df_g.iloc[:, 5].apply(clasificar_transporte)
-                crit_t = df_g[(df_g['Transporte'] == tipo) & (df_g['Critico'])].iloc[:, 0].nunique()
+                # Métricas adicionales (Contenedores y M3)
+                m3_t = df_tipo.iloc[:, 24].apply(safe_float_f).sum()
+                cntr_t = df_tipo.iloc[:, 1].apply(safe_float_f).sum()
+                
                 pct_ok = round((ok_t / total_t * 100)) if total_t > 0 else 0
                 pct_pend = 100 - pct_ok if total_t > 0 else 0
                 color_status = "#00ff88" if ok_t >= pend_t and total_t > 0 else "#ff4b4b"
@@ -734,7 +736,11 @@ try:
                                 <p style="color: #ff4b4b; font-weight: 600; margin: 0; font-size: 16px; opacity: 0.8;">{int(pct_pend)}% <span style="font-size:11px; color:#94a3b8;">PEND</span></p>
                             </div>
                         </div>
-                        <p style="font-size: 35px; font-weight: 300; color: #f8fafc; margin-top: 15px; margin-bottom: 5px;">Total: <span style="font-weight:700;">{total_t}</span></p>
+                        <p style="font-size: 35px; font-weight: 300; color: #f8fafc; margin-top: 15px; margin-bottom: 5px;">Emb: <span style="font-weight:700;">{total_t}</span></p>
+                        <div style="display: flex; gap: 15px; margin-top: 5px;">
+                            <p style="color: #94a3b8; font-size: 13px;">CTNRS: <span style="color: #f8fafc; font-weight: 600;">{int(cntr_t)}</span></p>
+                            <p style="color: #94a3b8; font-size: 13px;">VOL: <span style="color: #f8fafc; font-weight: 600;">{int(round(m3_t)):,} M3</span></p>
+                        </div>
                         <p style="font-size: 14px; color: #94a3b8; font-weight: 600; margin: 0;">
                             <span style="color: #00ff88;">Confirmados: {ok_t}</span> | <span style="color: #ff4b4b;">Pendientes: {pend_t}</span>
                         </p>
