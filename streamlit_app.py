@@ -1038,8 +1038,8 @@ try:
                     df_re.columns[12]: 'first'  # ETD
                 }).reset_index()
                 
-                df_g_table['P_Min'] = df_g_table['P_Min'].dt.date
-                df_g_table['P_Max'] = df_g_table['P_Max'].dt.date
+                df_g_table['P_Min'] = pd.to_datetime(df_g_table['P_Min']).dt.strftime('%d/%m/%Y')
+                df_g_table['P_Max'] = pd.to_datetime(df_g_table['P_Max']).dt.strftime('%d/%m/%Y')
                 df_g_table.columns = ["Embarque", "Analista", "F. Min Packeo", "F. Max Packeo", "Días Rango", "ETD Status", "ETD"]
                 
                 st.dataframe(df_g_table.sort_values('Días Rango', ascending=False), use_container_width=True, hide_index=True)
@@ -1095,9 +1095,10 @@ try:
                 
                 df_no_mov_f = df_no_mov if sel_an3 == "TODOS" else df_no_mov[df_no_mov[col_r_v4] == sel_an3]
                 
-                df_view = df_no_mov_f[[df_no_mov_f.columns[0], df_no_mov_f.columns[12], col_r_v4, col_impo2_v4]].copy()
+                df_view = df_no_mov_f[[df_no_mov_f.columns[0], df_no_mov_f.columns[12], col_resp_v4[0] if col_resp_v4 else df_no_mov_f.columns[6], col_impo2_v4]].copy()
                 df_view.columns = ["Embarque", "ETD (Col M)", "Responsable", "Status Impo2"]
-                st.dataframe(df_view.sort_values("ETD (Col M)"), use_container_width=True, hide_index=True)
+                # Ordenamos de la fecha más lejana (más antigua) a la más próxima
+                st.dataframe(df_view.sort_values("ETD (Col M)", ascending=True), use_container_width=True, hide_index=True)
             else: st.success("Todo movilizado correctamente según Reservas.")
 
         except Exception as e: st.error(f"Error en Alertas: {e}")
