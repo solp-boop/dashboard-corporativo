@@ -1083,90 +1083,10 @@ try:
             df_re = load_res_alt_v4(url_r_alt)
             df_re.columns = [str(c).strip() for c in df_re.columns]
 
-            # --- NUEVA SECCIÓN: ALERTA DE TIEMPOS DE CONSOLIDACIÓN (SLA) ---
-            st.markdown("<p style='color:#00ff88; font-weight:700; font-size:18px; letter-spacing:2px;'>ALERTA DE TIEMPOS DE CONSOLIDACIÓN (FUERA DE SLA)</p>", unsafe_allow_html=True)
+            # --- MONITOR 1: MERCADERÍA SIN INSTRUIR (CONSOLIDACIONES PENDIENTES) ---
+            # Movido al tope por solicitud del usuario
+            st.markdown("<p style='color:#ffaa00; font-weight:700; font-size:18px; letter-spacing:2px;'>1. MERCADERÍA SIN INSTRUIR (CONSOLIDACIONES PENDIENTES)</p>", unsafe_allow_html=True)
             
-            # Detectamos columnas necesarias
-            col_mono = [c for c in df_re.columns if 'MONOPROVEEDOR' in c.upper()][0] if any('MONOPROVEEDOR' in c.upper() for c in df_re.columns) else df_re.columns[31]
-            
-            # Limpieza de Columna AD (índice 29) para "Tiempo total de consolidacion"
-            def clean_num_alert(val):
-                if pd.isna(val) or str(val).strip() in ['', 'nan']: return 0.0
-                try:
-                    s = str(val).replace(',', '.').replace(' ', '').strip()
-                    return pd.to_numeric(s, errors='coerce')
-                except: return 0.0
-
-            df_re['T_Consol'] = df_re.iloc[:, 29].apply(clean_num_alert).fillna(0.0)
-            df_re['DT_ETD_M'] = pd.to_datetime(df_re.iloc[:, 12], dayfirst=True, errors='coerce')
-            
-            # Definimos SLA inteligente
-            def get_sla(row):
-                if "SÍ" in str(row[col_mono]).upper() or "SI" in str(row[col_mono]).upper() or "MONO" in str(row[col_mono]).upper():
-                    return 7
-                return 25
-            
-            df_re['SLA_Limit'] = df_re.apply(get_sla, axis=1)
-            df_sla_alert = df_re[df_re['T_Consol'] > df_re['SLA_Limit']].copy()
-            
-            if not df_sla_alert.empty:
-                col_resp_sla = [c for c in df_re.columns if 'ANALISTA' in c.upper() or 'RESPONSABLE' in c.upper()]
-                col_r_sla = col_resp_sla[0] if col_resp_sla else df_re.columns[6]
-                
-                analistas_sla = sorted(df_sla_alert[col_r_sla].astype(str).unique().tolist())
-                sel_an_sla = st.selectbox("🎯 FILTRAR POR RESPONSABLE (SLA):", ["TODOS"] + analistas_sla, key="sel_sla_an_vfinal")
-                
-                df_sla_f = df_sla_alert if sel_an_sla == "TODOS" else df_sla_alert[df_sla_alert[col_r_sla] == sel_an_sla]
-                
-                # Usamos Columna E (índice 4) para Puerto/Aero
-                df_sla_table = df_sla_f[[df_sla_f.columns[0], df_sla_f.columns[4], 'DT_ETD_M', 'T_Consol', col_r_sla, col_mono]].copy()
-                df_sla_table['DT_ETD_M'] = df_sla_table['DT_ETD_M'].dt.strftime('%d/%m/%Y')
-                df_sla_table.columns = ["Embarque", "Puerto/Aero", "ETD", "Días Consol.", "Responsable", "¿Mono?"]
-                
-                st.dataframe(df_sla_table.sort_values("ETD", ascending=True), use_container_width=True, hide_index=True)
-                st.info("💡 Los casos anteriores superan los 7 días (Monoproveedor) o 25 días (Consolidado).")
-            else: st.success("Todos los tiempos de consolidación están dentro de los límites de SLA.")
-
-            st.markdown("<br><hr class='white-divider'><br>", unsafe_allow_html=True)
-
-            # --- MONITOR 1: AGRUPAMIENTO DE MERCADERÍA (>7 DÍAS VENTANA) ---
-            st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:18px; letter-spacing:2px;'>1. MONITOR DE AGRUPAMIENTO (>7 DÍAS VENTANA)</p>", unsafe_allow_html=True)
-            df_re['P_Min'] = pd.to_datetime(df_re.iloc[:, 18], dayfirst=True, errors='coerce')
-            df_re['P_Max'] = pd.to_datetime(df_re.iloc[:, 19], dayfirst=True, errors='coerce')
-            df_re['Rango_Dias'] = (df_re['P_Max'] - df_re['P_Min']).dt.days
-            
-            df_alert_g = df_re[df_re['Rango_Dias'] > 7].copy()
-            if not df_alert_g.empty:
-                col_analista = [c for c in df_re.columns if 'ANALISTA' in c.upper() or 'RESPONSABLE' in c.upper()]
-                col_an = col_analista[0] if col_analista else df_re.columns[6]
-                
-                analistas_disp = sorted(df_alert_g[col_an].astype(str).unique().tolist())
-                sel_an = st.selectbox("🎯 FILTRAR POR ANALISTA (AGRUPAMIENTO):", ["TODOS"] + analistas_disp, key="sel_an_agrup_v4")
-                
-                df_g_show = df_alert_g if sel_an == "TODOS" else df_alert_g[df_alert_g[col_an] == sel_an]
-                
-                # Agrupamos por Embarque
-                df_g_table = df_g_show.groupby(df_re.columns[0]).agg({
-                    col_an: 'first',
-                    'P_Min': 'min',
-                    'P_Max': 'max',
-                    'Rango_Dias': 'max',
-                    df_re.columns[10]: 'first', # ETD OK FFWW
-                    df_re.columns[12]: 'first'  # ETD
-                }).reset_index()
-                
-                df_g_table['P_Min'] = pd.to_datetime(df_g_table['P_Min']).dt.strftime('%d/%m/%Y')
-                df_g_table['P_Max'] = pd.to_datetime(df_g_table['P_Max']).dt.strftime('%d/%m/%Y')
-                df_g_table.columns = ["Embarque", "Analista", "F. Min Packeo", "F. Max Packeo", "Días Rango", "ETD Status", "ETD"]
-                
-                st.dataframe(df_g_table.sort_values('Días Rango', ascending=False), use_container_width=True, hide_index=True)
-            else: st.success("Agrupamientos eficientes (<= 7 días).")
-
-            # --- MONITOR 2: MERCADERÍA SIN INSTRUIR (CONSOLIDACIÓN) ---
-            st.markdown("<br><hr class='white-divider'><br>", unsafe_allow_html=True)
-            st.markdown("<p style='color:#ffaa00; font-weight:700; font-size:18px; letter-spacing:2px;'>2. MERCADERÍA SIN INSTRUIR (CONSOLIDACIONES PENDIENTES)</p>", unsafe_allow_html=True)
-            
-            # Monitor 2: Lógica refinada
             col_inst_idx = 20
             col_inst_name = [c for c in df.columns if 'INSTRUCCION' in c.upper()]
             col_mono_plan = [c for c in df.columns if 'MONOPROVEEDOR' in c.upper()]
@@ -1176,9 +1096,6 @@ try:
             
             df_ni = df[df[c_inst].isna() | (df[c_inst].astype(str).str.strip().isin(['', 'nan', 'SIN INSTRUCCION', 'sin instruccion']))].copy()
             
-            # Filtro por Fecha Prioritaria y Monoproveedor
-            # Mono "No" -> hoy + 10 días
-            # Mono "Si" -> hoy + 25 días
             hoy_ni = pd.Timestamp(datetime.now().date())
             df_ni['Fecha_Prior_DT'] = pd.to_datetime(df.iloc[:, 99], errors='coerce')
             
@@ -1205,9 +1122,86 @@ try:
                 st.info(f"💡 Mostrando SOs sin instruir con prioridad <= {hoy_ni.strftime('%d/%m')} (+10d No Mono / +25d Mono).")
             else: st.info("Sin SOs pendientes de instrucción para el rango de fechas actual.")
 
-            # --- MONITOR 3: ALERTA CARGA NO MOVILIZADA (PENDIENTE TRÁNSITO) ---
             st.markdown("<br><hr class='white-divider'><br>", unsafe_allow_html=True)
-            st.markdown("<p style='color:#ff4b4b; font-weight:700; font-size:18px; letter-spacing:2px;'>3. ALERTA CARGA NO MOVILIZADA (TRÁNSITO PENDIENTE)</p>", unsafe_allow_html=True)
+
+            # --- MONITOR 2: ALERTA DE TIEMPOS DE CONSOLIDACIÓN (SLA) ---
+            st.markdown("<p style='color:#00ff88; font-weight:700; font-size:18px; letter-spacing:2px;'>2. ALERTA DE TIEMPOS DE CONSOLIDACIÓN (FUERA DE SLA)</p>", unsafe_allow_html=True)
+            
+            col_mono = [c for c in df_re.columns if 'MONOPROVEEDOR' in c.upper()][0] if any('MONOPROVEEDOR' in c.upper() for c in df_re.columns) else df_re.columns[31]
+            
+            def clean_num_alert(val):
+                if pd.isna(val) or str(val).strip() in ['', 'nan']: return 0.0
+                try:
+                    s = str(val).replace(',', '.').replace(' ', '').strip()
+                    return pd.to_numeric(s, errors='coerce')
+                except: return 0.0
+
+            df_re['T_Consol'] = df_re.iloc[:, 29].apply(clean_num_alert).fillna(0.0)
+            df_re['DT_ETD_M'] = pd.to_datetime(df_re.iloc[:, 12], dayfirst=True, errors='coerce')
+            
+            def get_sla(row):
+                if "SÍ" in str(row[col_mono]).upper() or "SI" in str(row[col_mono]).upper() or "MONO" in str(row[col_mono]).upper():
+                    return 7
+                return 25
+            
+            df_re['SLA_Limit'] = df_re.apply(get_sla, axis=1)
+            df_sla_alert = df_re[df_re['T_Consol'] > df_re['SLA_Limit']].copy()
+            
+            if not df_sla_alert.empty:
+                col_resp_sla = [c for c in df_re.columns if 'ANALISTA' in c.upper() or 'RESPONSABLE' in c.upper()]
+                col_r_sla = col_resp_sla[0] if col_resp_sla else df_re.columns[6]
+                
+                analistas_sla = sorted(df_sla_alert[col_r_sla].astype(str).unique().tolist())
+                sel_an_sla = st.selectbox("🎯 FILTRAR POR RESPONSABLE (SLA):", ["TODOS"] + analistas_sla, key="sel_sla_an_vfinal")
+                
+                df_sla_f = df_sla_alert if sel_an_sla == "TODOS" else df_sla_alert[df_sla_alert[col_r_sla] == sel_an_sla]
+                
+                df_sla_table = df_sla_f[[df_sla_f.columns[0], df_sla_f.columns[4], 'DT_ETD_M', 'T_Consol', col_r_sla, col_mono]].copy()
+                df_sla_table['DT_ETD_M'] = df_sla_table['DT_ETD_M'].dt.strftime('%d/%m/%Y')
+                df_sla_table.columns = ["Embarque", "Puerto/Aero", "ETD", "Días Consol.", "Responsable", "¿Mono?"]
+                
+                st.dataframe(df_sla_table.sort_values("ETD", ascending=True), use_container_width=True, hide_index=True)
+                st.info("💡 Los casos anteriores superan los 7 días (Monoproveedor) o 25 días (Consolidado).")
+            else: st.success("Todos los tiempos de consolidación están dentro de los límites de SLA.")
+
+            st.markdown("<br><hr class='white-divider'><br>", unsafe_allow_html=True)
+
+            # --- MONITOR 3: MONITOR DE AGRUPAMIENTO (>7 DÍAS VENTANA) ---
+            st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:18px; letter-spacing:2px;'>3. MONITOR DE AGRUPAMIENTO (>7 DÍAS VENTANA)</p>", unsafe_allow_html=True)
+            df_re['P_Min'] = pd.to_datetime(df_re.iloc[:, 18], dayfirst=True, errors='coerce')
+            df_re['P_Max'] = pd.to_datetime(df_re.iloc[:, 19], dayfirst=True, errors='coerce')
+            df_re['Rango_Dias'] = (df_re['P_Max'] - df_re['P_Min']).dt.days
+            
+            df_alert_g = df_re[df_re['Rango_Dias'] > 7].copy()
+            if not df_alert_g.empty:
+                col_analista = [c for c in df_re.columns if 'ANALISTA' in c.upper() or 'RESPONSABLE' in c.upper()]
+                col_an = col_analista[0] if col_analista else df_re.columns[6]
+                
+                analistas_disp = sorted(df_alert_g[col_an].astype(str).unique().tolist())
+                sel_an = st.selectbox("🎯 FILTRAR POR ANALISTA (AGRUPAMIENTO):", ["TODOS"] + analistas_disp, key="sel_an_agrup_v4")
+                
+                df_g_show = df_alert_g if sel_an == "TODOS" else df_alert_g[df_alert_g[col_an] == sel_an]
+                
+                df_g_table = df_g_show.groupby(df_re.columns[0]).agg({
+                    col_an: 'first',
+                    'P_Min': 'min',
+                    'P_Max': 'max',
+                    'Rango_Dias': 'max',
+                    df_re.columns[10]: 'first', # ETD OK FFWW
+                    df_re.columns[12]: 'first'  # ETD
+                }).reset_index()
+                
+                df_g_table['P_Min'] = pd.to_datetime(df_g_table['P_Min']).dt.strftime('%d/%m/%Y')
+                df_g_table['P_Max'] = pd.to_datetime(df_g_table['P_Max']).dt.strftime('%d/%m/%Y')
+                df_g_table.columns = ["Embarque", "Analista", "F. Min Packeo", "F. Max Packeo", "Días Rango", "ETD Status", "ETD"]
+                
+                st.dataframe(df_g_table.sort_values('Días Rango', ascending=False), use_container_width=True, hide_index=True)
+            else: st.success("Agrupamientos eficientes (<= 7 días).")
+
+            st.markdown("<br><hr class='white-divider'><br>", unsafe_allow_html=True)
+
+            # --- MONITOR 4: ALERTA CARGA NO MOVILIZADA (PENDIENTE TRÁNSITO) ---
+            st.markdown("<p style='color:#ff4b4b; font-weight:700; font-size:18px; letter-spacing:2px;'>4. ALERTA CARGA NO MOVILIZADA (TRÁNSITO PENDIENTE)</p>", unsafe_allow_html=True)
             
             df_re['DT_ETD_M'] = pd.to_datetime(df_re.iloc[:, 12], dayfirst=True, errors='coerce')
             df_re['Status_OK_K'] = df_re.iloc[:, 10].astype(str).str.lower().str.strip() == "ok"
@@ -1216,7 +1210,6 @@ try:
             df_re['Impo2_Status'] = df_re[col_impo2_v4].astype(str).str.strip()
             
             hoy_v4 = pd.Timestamp(datetime.now().date())
-            # Alerta: ETD <= Hoy AND Status == "ok" AND Impo2 == "Falta cargar"
             df_no_mov = df_re[df_re['Status_OK_K'] & (df_re['DT_ETD_M'] <= hoy_v4) & (df_re['Impo2_Status'] == "Falta cargar")].copy()
             
             if not df_no_mov.empty:
@@ -1230,7 +1223,6 @@ try:
                 
                 df_view = df_no_mov_f[[df_no_mov_f.columns[0], df_no_mov_f.columns[12], col_resp_v4[0] if col_resp_v4 else df_no_mov_f.columns[6], col_impo2_v4]].copy()
                 df_view.columns = ["Embarque", "ETD (Col M)", "Responsable", "Status Impo2"]
-                # Ordenamos de la fecha más lejana (más antigua) a la más próxima
                 st.dataframe(df_view.sort_values("ETD (Col M)", ascending=True), use_container_width=True, hide_index=True)
             else: st.success("Todo movilizado correctamente según Reservas.")
 
