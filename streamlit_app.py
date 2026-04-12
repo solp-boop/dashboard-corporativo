@@ -675,60 +675,8 @@ try:
             """, unsafe_allow_html=True)
 
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("<div class='custom-card' style='text-align:center; border-color:#00a8ff; box-shadow: 0 0 30px rgba(0,168,255,0.1);'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:4px; margin:0; font-size:22px;'>MONITOR DE GESTIÓN POR FORWARDER</h2></div>", unsafe_allow_html=True)
-            
-            df_g['DT_Inst'] = pd.to_datetime(df_g.iloc[:, 7], dayfirst=True, errors='coerce')
-            df_g['ETD_Status_K'] = df_g.iloc[:, 10].astype(str).str.upper().str.strip()
-            df_fw = df_g[df_g['DT_Inst'].notna()].copy()
-            
-            def safe_float_f(val):
-                try:
-                    if pd.isna(val) or val == '': return 0.0
-                    s = str(val).replace('.', '').replace(',', '.')
-                    num = ''.join(c for c in s if c.isdigit() or c == '.')
-                    return float(num) if num else 0.0
-                except: return 0.0
-                
-            if not df_fw.empty:
-                df_fw['Tipo_T'] = df_fw.iloc[:, 5].apply(lambda x: "MARITIMO" if any(m in str(x).upper() for m in ["40", "20", "MARITIMO", "NOR"]) else "AVION / COURIER")
-                t_sel_fw = st.radio("SELECCIONE VÍA PARA FORWARDERS:", ["MARITIMO", "AVION / COURIER"], horizontal=True, key="ag_radio_res")
-                df_fwd = df_fw[df_fw['Tipo_T'] == t_sel_fw].copy()
-
-                df_fwd['DT_ETD'] = pd.to_datetime(df_fwd.iloc[:, 11], dayfirst=True, errors='coerce')
-                df_fwd['M3_Num'] = df_fwd.iloc[:, 24].apply(safe_float_f)
-                df_fwd['CNTR_Num'] = df_fwd.iloc[:, 1].apply(safe_float_f)
-                
-                df_fwd['Gestion'] = (df_fwd['DT_ETD'] - df_fwd['DT_Inst']).dt.days
-                df_fwd['Espera'] = (pd.to_datetime('today') - df_fwd['DT_Inst']).dt.days
-
-                res_fw = df_fwd.groupby(df_fwd.columns[6]).agg(
-                    Cant_Emb=(df_fwd.columns[0], 'count'),
-                    Cant_CNTR=('CNTR_Num', 'sum'),
-                    M3=('M3_Num', 'sum'),
-                    Confirmados=('ETD_Status_K', lambda x: (x == "OK").sum()),
-                    Prom_Gest=('Gestion', lambda x: x[df_fwd.loc[x.index, 'ETD_Status_K'] == "OK"].mean()),
-                    Prom_Esp=('Espera', lambda x: x[df_fwd.loc[x.index, 'ETD_Status_K'] != "OK"].mean())
-                ).reset_index()
-
-                res_fw['%_OK'] = (res_fw['Confirmados'] / res_fw['Cant_Emb'] * 100).fillna(0)
-                res_fw = res_fw.sort_values('Cant_Emb', ascending=False)
-
-                st.dataframe(
-                    res_fw,
-                    column_config={
-                        df_fwd.columns[6]: "Agente Forwarder",
-                        "Cant_Emb": "Cant. Embarques",
-                        "Cant_CNTR": "Cant. CTNRS",
-                        "M3": st.column_config.NumberColumn("M3 Total", format="%.1f"),
-                        "Prom_Gest": st.column_config.NumberColumn("Gestión OK (Días)", format="%d"),
-                        "Prom_Esp": st.column_config.NumberColumn("Espera PEND. (Días)", format="%d"),
-                        "%_OK": st.column_config.ProgressColumn("Efectividad %", min_value=0, max_value=100, format="%d%%")
-                    },
-                    use_container_width=True, hide_index=True
-                )
-            
-            st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
-            st.markdown("<br><p style='text-align:center; color:#00a8ff; font-weight:700; letter-spacing:4px; font-size:16px;'>DESGLOSE POR TIPO DE TRANSPORTE</p>", unsafe_allow_html=True)
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align:center; color:#00a8ff; font-weight:700; letter-spacing:4px; font-size:16px;'>DESGLOSE POR TIPO DE TRANSPORTE</p>", unsafe_allow_html=True)
 
             # MARITIMO / AEREO
             def clasificar_transporte(x):
@@ -762,6 +710,9 @@ try:
                         <p style="font-size: 35px; font-weight: 300; color: #f8fafc; margin-top: 15px; margin-bottom: 5px;">Total: <span style="font-weight:700;">{total_t}</span></p>
                         <p style="font-size: 14px; color: #94a3b8; font-weight: 600; margin: 0;"><span style="color: #00ff88;">Confirmados: {ok_t}</span> | <span style="color: #ff4b4b;">Pendientes: {pend_t}</span></p>
                     </div>""", unsafe_allow_html=True)
+            
+            st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
+            
 
             st.markdown("<br>", unsafe_allow_html=True)
 
@@ -824,6 +775,64 @@ try:
                 msk_mon = df_mar.iloc[:, 34].astype(str).str.strip() == "Monoproveedor"
                 lbl_mon = [("Monoproveedor", df_mar[msk_mon]), ("Consolidado", df_mar[~msk_mon])]
                 renderizar_detalle(msk_mon, lbl_mon, False)
+
+            # --- MONITOR DE GESTIÓN POR FORWARDER (AL PIE) ---
+            st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
+            st.markdown("<div class='custom-card' style='text-align:center; border-color:#00a8ff; box-shadow: 0 0 30px rgba(0,168,255,0.1);'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:4px; margin:0; font-size:22px;'>MONITOR DE GESTIÓN POR FORWARDER</h2></div>", unsafe_allow_html=True)
+            
+            df_g['DT_Inst'] = pd.to_datetime(df_g.iloc[:, 7], dayfirst=True, errors='coerce')
+            df_g['ETD_Status_K'] = df_g.iloc[:, 10].astype(str).str.upper().str.strip()
+            df_fw = df_g[df_g['DT_Inst'].notna()].copy()
+            
+            def safe_float_f(val):
+                try:
+                    if pd.isna(val) or val == '': return 0.0
+                    s = str(val).replace('.', '').replace(',', '.')
+                    num = ''.join(c for c in s if c.isdigit() or c == '.')
+                    return float(num) if num else 0.0
+                except: return 0.0
+                
+            if not df_fw.empty:
+                df_fw['Tipo_T'] = df_fw.iloc[:, 5].apply(lambda x: "MARITIMO" if any(m in str(x).upper() for m in ["40", "20", "MARITIMO", "NOR"]) else "AVION / COURIER")
+                t_sel_fw = st.radio("SELECCIONE VÍA PARA FORWARDERS:", ["MARITIMO", "AVION / COURIER"], horizontal=True, key="ag_radio_res")
+                df_fwd = df_fw[df_fw['Tipo_T'] == t_sel_fw].copy()
+
+                df_fwd['DT_ETD'] = pd.to_datetime(df_fwd.iloc[:, 11], dayfirst=True, errors='coerce')
+                df_fwd['M3_Num'] = df_fwd.iloc[:, 24].apply(safe_float_f)
+                df_fwd['CNTR_Num'] = df_fwd.iloc[:, 1].apply(safe_float_f)
+                
+                df_fwd['Gestion'] = (df_fwd['DT_ETD'] - df_fwd['DT_Inst']).dt.days
+                df_fwd['Espera'] = (pd.to_datetime('today') - df_fwd['DT_Inst']).dt.days
+                
+                # Definir Críticos (Status != OK y Espera > 5)
+                df_fwd['Critico'] = (df_fwd['ETD_Status_K'] != "OK") & (df_fwd['Espera'] > 5)
+
+                res_fw = df_fwd.groupby(df_fwd.columns[6]).agg(
+                    Cant_Emb=(df_fwd.columns[0], 'count'),
+                    Confirmados=('ETD_Status_K', lambda x: (x == "OK").sum()),
+                    Pendientes=('ETD_Status_K', lambda x: (x != "OK").sum()),
+                    Criticos=('Critico', 'sum'),
+                    M3=('M3_Num', 'sum'),
+                    Prom_Esp=('Espera', lambda x: x[df_fwd.loc[x.index, 'ETD_Status_K'] != "OK"].mean())
+                ).reset_index()
+
+                res_fw['%_OK'] = (res_fw['Confirmados'] / res_fw['Cant_Emb'] * 100).fillna(0)
+                res_fw = res_fw.sort_values('Cant_Emb', ascending=False)
+
+                st.dataframe(
+                    res_fw,
+                    column_config={
+                        df_fwd.columns[6]: "Agente Forwarder",
+                        "Cant_Emb": "Cant. Embarques",
+                        "Confirmados": "Confirmados (OK)",
+                        "Pendientes": "Pendientes",
+                        "Criticos": st.column_config.NumberColumn("🚨 CRITICOS (>5d)", help="Embarques instruidos hace más de 5 días sin reserva confirmada", format="%d"),
+                        "M3": st.column_config.NumberColumn("Volumen M3", format="%.1f"),
+                        "Prom_Esp": st.column_config.NumberColumn("Espera PEND. (Días)", format="%d"),
+                        "%_OK": st.column_config.ProgressColumn("Efectividad %", min_value=0, max_value=100, format="%d%%")
+                    },
+                    use_container_width=True, hide_index=True
+                )
 
         except Exception as e:
             st.error(f"Error en Gestión de Reservas: {e}")
