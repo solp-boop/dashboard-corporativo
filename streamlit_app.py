@@ -700,14 +700,15 @@ try:
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("<p style='text-align:center; color:#00a8ff; font-weight:700; letter-spacing:4px; font-size:16px;'>DESGLOSE POR TIPO DE TRANSPORTE</p>", unsafe_allow_html=True)
 
-            # MARITIMO / AEREO
+            # MARITIMO / AEREO (SEGÚN TIPO CARGA COLUMNA W)
             def clasificar_transporte(x):
-                x = str(x).upper()
-                if any(m in x for m in ["40 HQ", "40 ST", "20 ST", "40NOR"]): return "MARITIMO"
+                x = str(x).upper().strip()
+                if any(m in x for m in ["40 HQ", "40 ST", "40 NOR", "20 ST", "40NOR"]): return "MARITIMO"
                 if any(a in x for a in ["AVION", "COURIER", "COURRIER"]): return "AVION / COURIER"
                 return "OTROS"
 
-            df_plan_res['Transporte'] = df_plan_res.iloc[:, 5].apply(clasificar_transporte) 
+            # Columna W (index 22) en Planif Cargas
+            df_plan_res['Transporte'] = df_plan_res.iloc[:, 22].apply(clasificar_transporte) 
             t1, t2 = st.columns(2)
             for i, tipo in enumerate(["MARITIMO", "AVION / COURIER"]):
                 df_tipo = df_plan_res[df_plan_res['Transporte'] == tipo]
