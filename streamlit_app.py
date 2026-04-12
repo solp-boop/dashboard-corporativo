@@ -997,35 +997,77 @@ try:
             
             if not df_2026.empty:
                 df_2026['Mes'] = df_2026['ETD_DT'].dt.month
-                # Identificamos Columna de Tipo (Monoproveedor vs Consolidado)
+                # Identificamos Columnas Clave
                 col_tipo = [c for c in df_hi.columns if 'MONOPROVEEDOR' in c.upper()][0] if any('MONOPROVEEDOR' in c.upper() for c in df_hi.columns) else df_hi.columns[31]
+                col_puerto_hi = df_hi.columns[1]
+                col_comex = df_hi.columns[27]
+                col_agente = df_hi.columns[28]
+                col_total = df_hi.columns[29]
                 
-                # Columna AD (índice 29) es "Tiempo total de consolidacion"
-                col_sla_val = df_hi.columns[29] 
-                
-                # Limpieza robusta de datos numéricos (manejo de comas y objetos)
-                def clean_num_vfinal(val):
+                # Limpieza de columnas numéricas
+                def clean_n(val):
                     if pd.isna(val) or str(val).strip() in ['', 'nan']: return 0.0
                     try:
                         s = str(val).replace(',', '.').replace(' ', '').strip()
                         return pd.to_numeric(s, errors='coerce')
                     except: return 0.0
 
-                df_2026[col_sla_val] = df_2026[col_sla_val].apply(clean_num_vfinal).fillna(0.0)
+                for c_num in [col_comex, col_agente, col_total]:
+                    df_2026[c_num] = df_2026[c_num].apply(clean_n).fillna(0.0)
                 
-                st.markdown("<p style='color:#00ff88; font-weight:700;'>RESUMEN MENSUAL POR TIPO DE CARGA (2026)</p>", unsafe_allow_html=True)
+                # Construcción de la tabla segmentada
+                final_rows = []
+                meses = sorted(df_2026['Mes'].unique())
                 
-                res_hi = df_2026.groupby(['Mes', col_tipo]).agg({
-                    df_hi.columns[0]: 'count',
-                    col_sla_val: 'mean'
-                }).reset_index()
-                res_hi.columns = ["Mes", "Tipo de Carga", "Cant. Embarques", "Promedio Consolidación (d)"]
+                for m in meses:
+                    df_m = df_2026[df_2026['Mes'] == m]
+                    # Agrupación por Puerto
+                    puertos = sorted(df_m[col_puerto_hi].astype(str).unique())
+                    for p in puertos:
+                        df_p = df_m[df_m[col_puerto_hi] == p]
+                        cant = len(df_p)
+                        p_comex = df_p[col_comex].mean()
+                        p_agente = df_p[col_agente].mean()
+                        p_total = df_p[col_total].mean()
+                        
+                        count_mono = len(df_p[df_p[col_tipo].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)])
+                        pct_mono = (count_mono / cant) if cant > 0 else 0
+                        pct_cons = 1 - pct_mono
+                        
+                        final_rows.append({
+                            "Mes": m, "Puerto / Aeropuerto": p, "Cant. Emb": cant,
+                            "Prom. Comex": p_comex, "Prom. Agente": p_agente, "Prom. Total": p_total,
+                            "% Monoproveedor": pct_mono, "% Consolidado": pct_cons, "Total": 1.0
+                        })
+                    
+                    # Fila de Subtotal Mensual
+                    cant_m = len(df_m)
+                    p_comex_m = df_m[col_comex].mean()
+                    p_agente_m = df_m[col_agente].mean()
+                    p_total_m = df_m[col_total].mean()
+                    count_mono_m = len(df_m[df_m[col_tipo].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)])
+                    pct_mono_m = (count_mono_m / cant_m) if cant_m > 0 else 0
+                    
+                    final_rows.append({
+                        "Mes": m, "Puerto / Aeropuerto": "TOTAL MES GENERAL", "Cant. Emb": cant_m,
+                        "Prom. Comex": p_comex_m, "Prom. Agente": p_agente_m, "Prom. Total": p_total_m,
+                        "% Monoproveedor": pct_mono_m, "% Consolidado": 1 - pct_mono_m, "Total": 1.0
+                    })
+
+                df_final_ind = pd.DataFrame(final_rows)
                 
-                st.dataframe(res_hi.sort_values(["Mes", "Promedio Consolidación (d)"]), use_container_width=True, hide_index=True,
-                             column_config={"Promedio Consolidación (d)": st.column_config.NumberColumn(format="%.1f d")})
+                st.dataframe(df_final_ind, use_container_width=True, hide_index=True,
+                             column_config={
+                                 "Prom. Comex": st.column_config.NumberColumn(format="%.1f"),
+                                 "Prom. Agente": st.column_config.NumberColumn(format="%.1f"),
+                                 "Prom. Total": st.column_config.NumberColumn(format="%.1f"),
+                                 "% Monoproveedor": st.column_config.NumberColumn(format="%.2%"),
+                                 "% Consolidado": st.column_config.NumberColumn(format="%.2%"),
+                                 "Total": st.column_config.NumberColumn(format="%.0%")
+                             })
                 
                 with st.expander("🔍 VER DETALLE HISTÓRICO 2026"):
-                    st.dataframe(df_2026[[df_hi.columns[0], df_hi.columns[1], 'ETD_DT', col_tipo, col_sla_val]], use_container_width=True, hide_index=True)
+                    st.dataframe(df_2026[[df_hi.columns[0], col_puerto_hi, 'ETD_DT', col_tipo, col_total]], use_container_width=True, hide_index=True)
             else: st.warning("No se encontraron registros históricos para el año 2026.")
         except Exception as e: st.error(f"Error en Indicadores: {e}")
 
@@ -1071,11 +1113,15 @@ try:
                 col_resp_sla = [c for c in df_re.columns if 'ANALISTA' in c.upper() or 'RESPONSABLE' in c.upper()]
                 col_r_sla = col_resp_sla[0] if col_resp_sla else df_re.columns[6]
                 
-                df_sla_table = df_sla_alert[[df_sla_alert.columns[0], df_sla_alert.columns[1], 'DT_ETD_M', 'T_Consol', col_r_sla, col_mono]].copy()
+                analistas_sla = sorted(df_sla_alert[col_r_sla].astype(str).unique().tolist())
+                sel_an_sla = st.selectbox("🎯 FILTRAR POR RESPONSABLE (SLA):", ["TODOS"] + analistas_sla, key="sel_sla_an")
+                
+                df_sla_f = df_sla_alert if sel_an_sla == "TODOS" else df_sla_alert[df_sla_alert[col_r_sla] == sel_an_sla]
+                
+                df_sla_table = df_sla_f[[df_sla_f.columns[0], df_sla_f.columns[1], 'DT_ETD_M', 'T_Consol', col_r_sla, col_mono]].copy()
                 df_sla_table['DT_ETD_M'] = df_sla_table['DT_ETD_M'].dt.strftime('%d/%m/%Y')
                 df_sla_table.columns = ["Embarque", "Puerto/Aero", "ETD", "Días Consol.", "Responsable", "¿Mono?"]
                 
-                # Ordenamos por ETD (Col M / index 12 original) descrita por el usuario como orden cronológico
                 st.dataframe(df_sla_table.sort_values("ETD", ascending=True), use_container_width=True, hide_index=True)
                 st.info("💡 Los casos anteriores superan los 7 días (Monoproveedor) o 25 días (Consolidado).")
             else: st.success("Todos los tiempos de consolidación están dentro de los límites de SLA.")
