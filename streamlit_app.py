@@ -268,7 +268,7 @@ try:
     cant_proveedores_global = df['Proveedor'].nunique() if 'Proveedor' in df.columns else 0
 
     st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><div class='bidcom-subtitle'>Tablero Logístico Corporativo</div></div>", unsafe_allow_html=True)
-    tabs = st.tabs(["PANEL EJECUTIVO (ORIGEN)", "CONTROL GESTIÓN RESERVAS", "AGENTES Y ANALISTAS", "FLETES, CERTIFICACIONES Y GASTOS", "COTIZACIÓN FFWW", "ALERTAS ESTRATÉGICAS"])
+    tabs = st.tabs(["ORIGEN", "MERCADERÍA EN PROCESO", "PERFORMANCE DE AGENTES Y ANALISTAS", "FLETES, GASTOS Y CERTIFICACIONES", "COTIZACIÓN FFWW", "ALERTAS ESTRATÉGICAS", "ASK COMEX"])
 
     # --- SOLAPA 1: ORIGEN ---
     with tabs[0]:
@@ -388,17 +388,17 @@ try:
                 """, unsafe_allow_html=True)
                 
                 # NIVEL 1: URGENTE
-                if st.button(f"🔴 NIVEL 1: VENCIDA (URGENTE) - {int(df_urgente['SO'].nunique())} SO", key="btn_urg_new", use_container_width=True):
+                if st.button(f"🔴 NIVEL 1: VENCIDA (URGENTE) - {int(round(df_urgente['M3 Total'].sum()))} M3", key="btn_urg_new", use_container_width=True):
                     st.session_state.f = 'venc' if filtro_actual != 'venc' else None
                     st.rerun()
 
                 # NIVEL 2: ACCIONAR
-                if st.button(f"🟠 NIVEL 2: ACCIONAR (PRÓXIMA) - {int(df_accionar['SO'].nunique())} SO", key="btn_acc_new", use_container_width=True):
+                if st.button(f"🟠 NIVEL 2: ACCIONAR (PRÓXIMA) - {int(round(df_accionar['M3 Total'].sum()))} M3", key="btn_acc_new", use_container_width=True):
                     st.session_state.f = 'px25' if filtro_actual != 'px25' else None
                     st.rerun()
 
                 # NIVEL 3: PROGRAMADA
-                if st.button(f"🔵 NIVEL 3: PROGRAMADA (FUTURA) - {int(df_futura['SO'].nunique())} SO", key="btn_rest_new", use_container_width=True):
+                if st.button(f"🔵 NIVEL 3: PROGRAMADA (FUTURA) - {int(round(df_futura['M3 Total'].sum()))} M3", key="btn_rest_new", use_container_width=True):
                     st.session_state.f = 'rest' if filtro_actual != 'rest' else None
                     st.rerun()
 
@@ -646,12 +646,19 @@ try:
 
             # KPIs MASIVOS
             st.markdown("<br>", unsafe_allow_html=True)
-            k1, k2, k3 = st.columns(3)
+            k1, k2, k3, k4 = st.columns(4)
             # Asegurar limpieza para el KPI masivo también por si acaso
             m3_total_clean = df_inst['M3 Total'].apply(safe_float_f).sum()
+            fob_total_clean = df_inst['Fob total Origen'].apply(safe_float_f).sum()
+            
             with k1: st.markdown(f"<div class='metric-container'><p>SO INSTRUIDAS</p><p>{int(df_inst['SO'].nunique())}</p></div>", unsafe_allow_html=True)
             with k2: st.markdown(f"<div class='metric-container'><p>VOLUMEN (M3)</p><p>{int(round(m3_total_clean)):,}</p></div>", unsafe_allow_html=True)
             with k3: st.markdown(f"<div class='metric-container'><p>PROVEEDORES</p><p>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
+            with k4: st.markdown(f"<div class='metric-container'><p>FOB TOTAL (USD)</p><p>${int(round(fob_total_clean)):,}</p></div>", unsafe_allow_html=True)
+            
+            # Título Estilizado para la solapa
+            st.markdown("<div style='text-align:center; padding: 20px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; margin: 30px 0;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>CONTROL GESTIÓN RESERVAS</h2></div>", unsafe_allow_html=True)
+            
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
 
             # OVERALL PERFORMANCE FROM PLANIF CARGAS
@@ -887,36 +894,14 @@ try:
         except Exception as e:
             st.error(f"Error en Gestión de Reservas: {e}")
 
-        # --- SUB-SECCIÓN: INDICADORES DE CONSOLIDACIÓN (HISTÓRICO) ---
-        st.markdown("<br><hr class='glow-divider'><br>", unsafe_allow_html=True)
-        with st.expander("📊 VER INDICADORES DE CONSOLIDACIÓN Y SLA (HISTÓRICO)"):
-            try:
-                url_hist = f"{base_url}/export?format=csv&gid=32771816&nocache={time.time()}"
-                @st.cache_data(ttl=60)
-                def load_hist_v3(u): return pd.read_csv(u, engine='python')
-                df_h = load_hist_v3(url_hist)
-                df_h.columns = df_h.columns.str.strip()
-                nombres_meses = {1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril", 5: "Mayo", 6: "Junio",
-                                7: "Julio", 8: "Agosto", 9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"}
-                df_h['ETD_DT'] = pd.to_datetime(df_h.iloc[:, 11], dayfirst=True, errors='coerce')
-                for i in [30, 31, 32]: df_h.iloc[:, i] = pd.to_numeric(df_h.iloc[:, i].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
-                
-                df_ind = df_h[(df_h['ETD_DT'].dt.year == 2026)].copy()
-                df_ind['Mes_Num'] = df_ind['ETD_DT'].dt.month
-                res_gen = df_ind.groupby('Mes_Num').agg({df_ind.columns[0]:'count', df_ind.columns[30]:'mean', df_ind.columns[31]:'mean', df_ind.columns[32]:'mean'}).reset_index()
-                
-                st.markdown("<p style='color:#00a8ff; font-weight:700; text-align:center;'>EFICIENCIA MENSUAL (DÍAS PROMEDIO)</p>", unsafe_allow_html=True)
-                st.dataframe(res_gen, use_container_width=True, hide_index=True)
-            except: st.info("Datos históricos disponibles en solapa correspondiente.")
-
-    # --- SOLAPA 3: AGENTES Y ANALISTAS ---
+        # --- SOLAPA 3: PERFORMANCE DE AGENTES Y ANALISTAS ---
     with tabs[2]:
-        st.markdown("<div class='custom-card' style='text-align:center; border-color:#00a8ff; padding:20px;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:4px; margin:0;'>MONITOR DE AGENTES Y ANALISTAS</h2></div>", unsafe_allow_html=True)
+        st.markdown("<div class='custom-card' style='text-align:center; border-color:#00a8ff; padding:20px;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:4px; margin:0;'>PERFORMANCE DE AGENTES Y ANALISTAS</h2></div>", unsafe_allow_html=True)
         try:
             u_ag = f"{base_url}/export?format=csv&gid=276804813"
             @st.cache_data(ttl=60)
-            def load_ag_v_final_v2(u): return pd.read_csv(u, engine='python')
-            df_ag_raw = load_ag_v_final_v2(u_ag)
+            def load_ag_v_vfinal(u): return pd.read_csv(u, engine='python')
+            df_ag_raw = load_ag_v_vfinal(u_ag)
             df_ag_raw.columns = [str(c).strip() for c in df_ag_raw.columns]
             df_ag_raw['DT_Inst'] = pd.to_datetime(df_ag_raw.iloc[:, 7], dayfirst=True, errors='coerce')
             df_a = df_ag_raw[df_ag_raw['DT_Inst'].notna()].copy()
@@ -924,7 +909,7 @@ try:
             if df_a.empty: st.warning("Esperando datos de instrucción para el análisis.")
             else:
                 df_a['Tipo_T'] = df_a.iloc[:, 5].apply(lambda x: "MARITIMO" if any(m in str(x).upper() for m in ["40", "20", "MARITIMO"]) else "AVION / COURIER")
-                t_sel = st.radio("Carga vía:", ["MARITIMO", "AVION / COURIER"], horizontal=True, key="ag_analistas_radio_vfinal")
+                t_sel = st.radio("Carga vía:", ["MARITIMO", "AVION / COURIER"], horizontal=True, key="ag_analistas_radio_vfinal_v2")
                 df_f = df_a[df_a['Tipo_T'] == t_sel].copy()
                 
                 # Resumen Agentes
@@ -935,68 +920,13 @@ try:
                 st.dataframe(res_ag.sort_values('SO', ascending=False), use_container_width=True, hide_index=True)
                 
                 st.markdown("<hr class='white-divider'>", unsafe_allow_html=True)
-                st.info("💡 Módulo Analistas: Próximamente integración de métricas de performance por usuario (Comex/Compras).")
-        except Exception as e: st.error(f"Error en Monitor Agentes/Analistas: {e}")
+                st.info("💡 Módulo : Próximamente integración de métricas de performance por usuario (Comex/Agentes).")
+        except Exception as e: st.error(f"Error en Performance Agentes: {e}")
 
-    # --- SOLAPA 4: FLETES, CERTIFICACIONES Y GASTOS ---
+    # --- SOLAPA 4: CONTROL DE FLETES, GASTOS Y CERTIFICACIONES ---
     with tabs[3]:
-        st.markdown("<div class='custom-card' style='text-align:center; border-color:#ffaa00; padding:20px;'><h2 style='color:#ffaa00; font-weight:800; letter-spacing:4px; margin:0;'>FLETES, CERTIFICACIONES Y GASTOS</h2></div>", unsafe_allow_html=True)
-        st.info("Módulo en desarrollo: Integración de costos logísticos, certificaciones ANMAT/Lealtad y gastos de despacho.")
-
-    # --- SOLAPA 5: COTIZACIÓN FFWW ---
-    with tabs[4]:
-        try:
-            st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:20px; letter-spacing:4px; text-transform:uppercase;'>Cotización Forwarders (Proyección Marítima)</p>", unsafe_allow_html=True)
-            
-            col_mod_opciones = [c for c in df.columns if 'MODALIDAD' in str(c).upper() and 'COSTEO' in str(c).upper()]
-            col_mod = col_mod_opciones[0] if col_mod_opciones else 'Modalidad de Costeo Reposicion'
-            
-            if col_mod in df.columns:
-                mask_barco = df[col_mod].astype(str).str.upper().str.startswith("BARCO")
-                df_ffww = df[mask_barco].copy()
-                if not df_ffww.empty:
-                    st.info("Proyectando volúmenes semanales para negociación de fletes...")
-                    # Reusing the existing projection logic if needed, but keeping it simplified for the structural fix
-                    st.dataframe(df_ffww.groupby(df.columns[41]).agg({'SO':'count', 'M3 Total':'sum'}).sort_values('M3 Total', ascending=False), use_container_width=True)
-                else: st.info("No hay proyecciones marítimas actuales.")
-        except Exception as e: st.error(f"Error en Cotización: {e}")
-
-    # --- SOLAPA 6: ALERTAS ESTRATÉGICAS ---
-    with tabs[5]:
-        try:
-            st.markdown("<h2 style='color:#ff4b4b; font-weight:800; letter-spacing:4px; margin:20px 0; font-size:24px; text-align:center;'>ALERTAS ESTRATÉGICAS</h2>", unsafe_allow_html=True)
-            
-            # Recargamos Reservas para asegurar datos frescos
-            url_reserva = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
-            try: df_re = pd.read_csv(url_reserva)
-            except: df_re = pd.read_csv(url_reserva)
-            df_re.columns = df_re.columns.str.strip()
-
-            # 1. MONITOR DE CRÍTICOS
-            st.markdown("<p style='color:#ff4b4b; font-weight:700;'>1. MONITOR DE GESTIÓN (CRÍTICOS)</p>", unsafe_allow_html=True)
-            df_re['DT_Inst'] = pd.to_datetime(df_re.iloc[:, 7], dayfirst=True, errors='coerce')
-            df_re['ETD_Status_K'] = df_re.iloc[:, 10].astype(str).str.upper().str.strip()
-            df_re['Espera'] = (pd.to_datetime('today') - df_re['DT_Inst']).dt.days
-            
-            df_crit = df_re[(df_re['ETD_Status_K'] != "OK") & (df_re['Espera'] > 5)].copy()
-            if not df_crit.empty:
-                st.dataframe(df_crit.iloc[:, [0, 6, 7, 18, 19, 25]].sort_values('Espera', ascending=False), use_container_width=True, hide_index=True)
-            else: st.success("Sin casos críticos pendientes.")
-
-            # 2. MONITOR DE AGRUPAMIENTO
-            st.markdown("<br><p style='color:#00a8ff; font-weight:700;'>2. MONITOR DE AGRUPAMIENTO (>7 DÍAS VENTANA)</p>", unsafe_allow_html=True)
-            df_re['P_Min'] = pd.to_datetime(df_re.iloc[:, 18], dayfirst=True, errors='coerce')
-            df_re['P_Max'] = pd.to_datetime(df_re.iloc[:, 19], dayfirst=True, errors='coerce')
-            df_re['R_Dias'] = (df_re['P_Max'] - df_re['P_Min']).dt.days
-            df_alert = df_re[df_re['R_Dias'] > 7].copy()
-            if not df_alert.empty:
-                st.dataframe(df_alert.iloc[:, [0, 6, 18, 19, -1]].sort_values('R_Dias', ascending=False), use_container_width=True, hide_index=True)
-            else: st.success("Agrupamientos dentro de ventana (<= 7 días).")
-
-        except Exception as e: st.error(f"Error en Alertas: {e}")
-
-except Exception as e:
-    st.error(f"Error crítico en el Tablero: {e}")
+        st.markdown("<div style='text-align:center; padding: 20px; background: rgba(255, 170, 0, 0.05); border-radius: 20px; margin-bottom: 30px;'><h2 style='color:#ffaa00; font-weight:800; letter-spacing:5px; margin:0;'>CONTROL DE FLETES, GASTOS Y CERTIFICACIONES</h2></div>", unsafe_allow_html=True)
+        st.info("Módulo en desarrollo: Integración de costos logísticos, certificación de fletes gastos en origen y destino.")
 
     # --- SOLAPA 5: COTIZACIÓN FFWW ---
     with tabs[4]:
@@ -1012,6 +942,7 @@ except Exception as e:
                 df_ffww = df[mask_barco].copy()
                 
                 if not df_ffww.empty:
+                    df_ffww['ETD_DT'] = pd.to_datetime(df_ffww.iloc[:, 74], errors='coerce') # ETD Original
                     meses_disp = [m for m in df_ffww['Mes_ETD_Full'].unique() if m not in ["PASADO/REALIZADO", "SIN FECHA"]]
                     meses_disp = sorted(meses_disp, key=lambda x: datetime.strptime(x, '%m/%Y'))
                     
@@ -1029,56 +960,50 @@ except Exception as e:
                             res_ffww['M3 Total'] = res_ffww['M3 Total'].round().astype(int)
                             res_ffww['Semana'] = "Semana " + res_ffww['Semana_Num'].astype(str)
                             
-                            # Guardamos los totales limpios para los indicadores de abajo
-                            tot_mes_cont = res_ffww['Contenedores'].sum()
-                            tot_mes_m3 = res_ffww['M3 Total'].sum()
-                            
                             # Subtotales por semana
                             subtot_ffww = res_ffww.groupby(['Semana_Num', 'Semana']).agg({'Contenedores': 'sum', 'M3 Total': 'sum'}).reset_index()
                             subtot_ffww[col_puerto] = "📌 SUBTOTAL SEMANA"
                             
-                            # Marcador para ordenar el subtotal siempre abajo por semana
                             res_ffww['IsTotal'] = False
                             subtot_ffww['IsTotal'] = True
                             
                             final_ffww = pd.concat([res_ffww, subtot_ffww], ignore_index=True)
                             final_ffww = final_ffww.sort_values(by=['Semana_Num', 'IsTotal', 'Contenedores'], ascending=[True, True, False])
                             
-                            # Formateamos DataFrame final
                             final_ffww = final_ffww[['Semana', col_puerto, 'Contenedores', 'M3 Total']]
                             final_ffww.columns = ['Semana (ISO)', 'Puerto de Salida', 'Cant. Contenedores', 'Total M3']
                             
-                            st.markdown("<hr class='white-divider'>", unsafe_allow_html=True)
-                            
-                            st.dataframe(
-                                final_ffww,
-                                use_container_width=True,
-                                hide_index=True,
-                                column_config={
-                                    'Semana (ISO)': st.column_config.TextColumn("Semana del Año"),
-                                    'Puerto de Salida': st.column_config.TextColumn("Pol"),
-                                    'Total M3': st.column_config.NumberColumn(format="%d M3"),
-                                    'Cant. Contenedores': st.column_config.NumberColumn(format="%d CNTR")
-                                }
-                            )
+                            st.dataframe(final_ffww, use_container_width=True, hide_index=True,
+                                column_config={'Total M3': st.column_config.NumberColumn(format="%d M3"), 'Cant. Contenedores': st.column_config.NumberColumn(format="%d CNTR")})
                             
                             st.markdown("<br>", unsafe_allow_html=True)
-                            c1, c2, _ = st.columns([1,1,2])
-                            with c1:
-                                st.markdown(f"<div class='custom-card' style='border-left: 4px solid #ffaa00;'><p class='minicard-title'>TOTAL CONTENEDORES (MES)</p><p class='minicard-value' style='font-size:26px;'>{tot_mes_cont}</p></div>", unsafe_allow_html=True)
-                            with c2:
-                                st.markdown(f"<div class='custom-card' style='border-left: 4px solid #00a8ff;'><p class='minicard-title'>VOLUMEN TOTAL (MES)</p><p class='minicard-value' style='font-size:26px;'>{tot_mes_m3:,} M3</p></div>", unsafe_allow_html=True)
-                        else:
-                            st.info("No hay operaciones marítimas para el mes seleccionado.")
-                    else:
-                        st.info("No hay proyecciones de meses futuros disponibles para cotizar.")
-                else:
-                    st.info("No se registran operaciones marítimas ('Barco') en la base actual.")
-            else:
-                st.warning("Falta la columna 'Modalidad de Costeo' para identificar la carga marítima.")
-                
-        except Exception as e:
-            st.error(f"Error cargando solapa de Cotización FFWW: {e}")
+                            cc1, cc2, _ = st.columns([1,1,2])
+                            cc1.metric("TOTAL CONTENEDORES (MES)", res_ffww['Contenedores'].sum())
+                            cc2.metric("VOLUMEN TOTAL (MES)", f"{res_ffww['M3 Total'].sum():,} M3")
+                        else: st.info("No hay proyecciones para este mes.")
+                else: st.info("No hay operaciones marítimas.")
+        except Exception as e: st.error(f"Error en Cotización: {e}")
+
+    # --- SOLAPA 6: ALERTAS ESTRATÉGICAS ---
+    with tabs[5]:
+        try:
+            st.markdown("<h2 style='color:#ff4b4b; font-weight:800; letter-spacing:4px; margin:20px 0; font-size:24px; text-align:center;'>ALERTAS ESTRATÉGICAS</h2>", unsafe_allow_html=True)
+            # Reutilizamos df_re (Reservas)
+            st.markdown("<p style='color:#ff4b4b; font-weight:700;'>1. MONITOR DE GESTIÓN (CRÍTICOS)</p>", unsafe_allow_html=True)
+            df_re['Wait'] = (pd.to_datetime('today') - pd.to_datetime(df_re.iloc[:, 7], errors='coerce')).dt.days
+            df_crit = df_re[(df_re.iloc[:, 10].astype(str).str.upper() != "OK") & (df_re['Wait'] > 5)].copy()
+            if not df_crit.empty:
+                st.dataframe(df_crit.iloc[:, [0, 6, 7, 18, 19, -1]].sort_values('Wait', ascending=False), use_container_width=True, hide_index=True)
+            else: st.success("Sin alertas críticas.")
+        except Exception as e: st.error(f"Error en Alertas: {e}")
+
+    # --- SOLAPA 7: ASK COMEX ---
+    with tabs[6]:
+        st.markdown("<div style='text-align:center; padding: 40px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; border: 2px dashed rgba(0, 168, 255, 0.2);'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:10px;'>ASK COMEX</h2><p style='color:#94a3b8; font-size:18px; margin-top:20px;'>Mapeo de módulo avanzado de consultas con IA.</p></div>", unsafe_allow_html=True)
+        st.info("Próximamente: Integración de buscador inteligente de SO/SKU y asistente dinámico Comex.")
+
+except Exception as e:
+    st.error(f"Error crítico en el Tablero: {e}")
 
     # --- SOLAPA 6: ALERTAS ESTRATÉGICAS ---
     with tabs[5]:
