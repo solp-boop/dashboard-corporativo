@@ -895,11 +895,11 @@ try:
                     
                     df_crit_show = df_crit if sel_ag == "TODOS" else df_crit[df_crit.iloc[:, 6] == sel_ag]
                     
-                    # Columnas: Embarque (0), Fecha Instruccion (7), Espera
-                    cols_show = [df_crit.columns[0], df_crit.columns[7], 'Espera']
+                    # Columnas: Embarque (0), Fecha Instruccion (7), Packeo Min (18), Packeo Max (19), Espera
+                    cols_show = [df_crit.columns[0], df_crit.columns[7], df_crit.columns[18], df_crit.columns[19], 'Espera']
                     # Renombrar columnas para visualizacion
                     df_crit_disp = df_crit_show[cols_show].copy()
-                    df_crit_disp.columns = ["Embarque", "Fecha Instrucción", "Días de Espera"]
+                    df_crit_disp.columns = ["Embarque", "Fecha Instrucción", "F. Packeo Min", "F. Packeo Max", "Días de Espera"]
                     
                     st.dataframe(df_crit_disp.sort_values('Días de Espera', ascending=False), 
                                  column_config={
