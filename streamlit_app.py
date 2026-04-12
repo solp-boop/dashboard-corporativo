@@ -620,6 +620,18 @@ try:
             df_g = df_res[df_res['Fecha_Inst_H'].apply(lambda x: len(str(x)) > 4)].copy()
             df_g['DT_Inst'] = pd.to_datetime(df_g.iloc[:, 7], dayfirst=True, errors='coerce')
             df_g['ETD_Status_K'] = df_g.iloc[:, 10].astype(str).str.upper().str.strip()
+            
+            # Días de espera para criticidad
+            df_g['Espera'] = (pd.to_datetime('today') - df_g['DT_Inst']).dt.days
+            df_g['Critico'] = (df_g['ETD_Status_K'] != "OK") & (df_g['Espera'] > 5)
+
+            def safe_float_f(val):
+                try:
+                    if pd.isna(val) or val == '': return 0.0
+                    s = str(val).replace('.', '').replace(',', '.')
+                    num = ''.join(c for c in s if c.isdigit() or c == '.')
+                    return float(num) if num else 0.0
+                except: return 0.0
 
             # KPIs MASIVOS
             st.markdown("<br>", unsafe_allow_html=True)
@@ -629,30 +641,26 @@ try:
             with k3: st.markdown(f"<div class='metric-container'><p>PROVEEDORES</p><p>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
 
-            # OVERALL PERFORMANCE FROM PLANIF CARGAS
-            if '¿ETD OK FFWW?' in df_inst.columns:
-                col_etd = '¿ETD OK FFWW?'
-            else:
-                col_etd = df_inst.columns[97]
-                
-            df_inst_t = df_inst.copy()
-            df_inst_t['ETD_Status_P'] = df_inst_t[col_etd].astype(str).str.upper().str.strip()
-            df_p_ok = df_inst_t[df_inst_t['ETD_Status_P'] == "OK"]
-            df_p_pend = df_inst_t[df_inst_t['ETD_Status_P'] != "OK"]
+            # OVERALL PERFORMANCE FROM GESTIÓN RESERVAS
+            col_so_res = [c for c in df_g.columns if 'SO' in str(c).upper()][0] if any('SO' in str(c).upper() for c in df_g.columns) else df_g.columns[2]
+            col_prov_res = [c for c in df_g.columns if 'PROVEEDOR' in str(c).upper()][0] if any('PROVEEDOR' in str(c).upper() for c in df_g.columns) else df_g.columns[6]
             
-            c_so_ok = df_p_ok['SO'].nunique()
-            c_emb_ok = df_p_ok.iloc[:, 16].nunique()
-            prov_ok_p = df_p_ok['Proveedor'].nunique()
-            m3_ok_p = df_p_ok['M3 Total'].sum()
+            df_p_ok = df_g[df_g['ETD_Status_K'] == "OK"]
+            df_p_pend = df_g[df_g['ETD_Status_K'] != "OK"]
             
-            c_so_pend = df_p_pend['SO'].nunique()
-            c_emb_pend = df_p_pend.iloc[:, 16].nunique()
-            prov_pend_p = df_p_pend['Proveedor'].nunique()
-            m3_pend_p = df_p_pend['M3 Total'].sum()
+            c_so_ok = df_p_ok[col_so_res].nunique()
+            c_emb_ok = df_p_ok.iloc[:, 0].nunique()
+            prov_ok_p = df_p_ok[col_prov_res].nunique()
+            m3_ok_p = df_p_ok.iloc[:, 24].apply(safe_float_f).sum()
             
-            total_so_p = df_inst_t['SO'].nunique()
-            pct_ok_p = round((c_so_ok / total_so_p * 100)) if total_so_p > 0 else 0
-            pct_pend_p = 100 - pct_ok_p if total_so_p > 0 else 0
+            c_so_pend = df_p_pend[col_so_res].nunique()
+            c_emb_pend = df_p_pend.iloc[:, 0].nunique()
+            prov_pend_p = df_p_pend[col_prov_res].nunique()
+            m3_pend_p = df_p_pend.iloc[:, 24].apply(safe_float_f).sum()
+            
+            total_emb_p = df_g.iloc[:, 0].nunique()
+            pct_ok_p = round((c_emb_ok / total_emb_p * 100)) if total_emb_p > 0 else 0
+            pct_pend_p = 100 - pct_ok_p if total_emb_p > 0 else 0
 
             st.markdown(f"""
                 <div class="grid-2">
@@ -692,9 +700,10 @@ try:
             t1, t2 = st.columns(2)
             for i, tipo in enumerate(["MARITIMO", "AVION / COURIER"]):
                 df_tipo = df_g[df_g['Transporte'] == tipo]
-                total_t = len(df_tipo)
-                ok_t = len(df_tipo[df_tipo['ETD_Status_K'] == "OK"])
+                total_t = df_tipo.iloc[:, 0].nunique()
+                ok_t = df_tipo[df_tipo['ETD_Status_K'] == "OK"].iloc[:, 0].nunique()
                 pend_t = total_t - ok_t
+                crit_t = df_tipo[df_tipo['Critico']].iloc[:, 0].nunique()
                 pct_ok = round((ok_t / total_t * 100)) if total_t > 0 else 0
                 pct_pend = 100 - pct_ok if total_t > 0 else 0
                 color_status = "#00ff88" if ok_t >= pend_t and total_t > 0 else "#ff4b4b"
@@ -711,7 +720,10 @@ try:
                             </div>
                         </div>
                         <p style="font-size: 35px; font-weight: 300; color: #f8fafc; margin-top: 15px; margin-bottom: 5px;">Total: <span style="font-weight:700;">{total_t}</span></p>
-                        <p style="font-size: 14px; color: #94a3b8; font-weight: 600; margin: 0;"><span style="color: #00ff88;">Confirmados: {ok_t}</span> | <span style="color: #ff4b4b;">Pendientes: {pend_t}</span></p>
+                        <p style="font-size: 14px; color: #94a3b8; font-weight: 600; margin: 0;">
+                            <span style="color: #00ff88;">Confirmados: {ok_t}</span> | <span style="color: #ff4b4b;">Pendientes: {pend_t}</span>
+                        </p>
+                        {f'<p style="font-size:13px; color:#ff4b4b; font-weight:700; margin-top:10px;">🚨 CRÍTICOS (>5d): {crit_t}</p>' if crit_t > 0 else ""}
                     </div>""", unsafe_allow_html=True)
             
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
@@ -781,18 +793,8 @@ try:
 
             # --- MONITOR DE GESTIÓN POR FORWARDER (AL PIE) ---
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
-            st.markdown("<div class='custom-card' style='text-align:center; border-color:#00a8ff; box-shadow: 0 0 30px rgba(0,168,255,0.1);'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:4px; margin:0; font-size:22px;'>MONITOR DE GESTIÓN POR FORWARDER</h2></div>", unsafe_allow_html=True)
+            st.markdown("<h2 style='color:#00a8ff; font-weight:800; letter-spacing:4px; margin:20px 0; font-size:22px; text-align:center;'>MONITOR DE GESTIÓN POR FORWARDER</h2>", unsafe_allow_html=True)
             
-            df_fw = df_g[df_g['DT_Inst'].notna()].copy()
-            
-            def safe_float_f(val):
-                try:
-                    if pd.isna(val) or val == '': return 0.0
-                    s = str(val).replace('.', '').replace(',', '.')
-                    num = ''.join(c for c in s if c.isdigit() or c == '.')
-                    return float(num) if num else 0.0
-                except: return 0.0
-                
             if not df_fw.empty:
                 df_fw['Tipo_T'] = df_fw.iloc[:, 5].apply(lambda x: "MARITIMO" if any(m in str(x).upper() for m in ["40", "20", "MARITIMO", "NOR"]) else "AVION / COURIER")
                 t_sel_fw = st.radio("SELECCIONE VÍA PARA FORWARDERS:", ["MARITIMO", "AVION / COURIER"], horizontal=True, key="ag_radio_res")
@@ -800,40 +802,58 @@ try:
 
                 df_fwd['DT_ETD'] = pd.to_datetime(df_fwd.iloc[:, 11], dayfirst=True, errors='coerce')
                 df_fwd['M3_Num'] = df_fwd.iloc[:, 24].apply(safe_float_f)
-                df_fwd['CNTR_Num'] = df_fwd.iloc[:, 1].apply(safe_float_f)
                 
-                df_fwd['Gestion'] = (df_fwd['DT_ETD'] - df_fwd['DT_Inst']).dt.days
-                df_fwd['Espera'] = (pd.to_datetime('today') - df_fwd['DT_Inst']).dt.days
+                # Totales para la vía
+                tot_m3_via = df_fwd['M3_Num'].sum()
+                tot_emb_via = df_fwd.iloc[:, 0].nunique()
                 
-                # Definir Críticos (Status != OK y Espera > 5)
-                df_fwd['Critico'] = (df_fwd['ETD_Status_K'] != "OK") & (df_fwd['Espera'] > 5)
+                st.markdown(f"""
+                    <div style="background: rgba(0,168,255,0.05); padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #00a8ff;">
+                        <p style="margin:0; font-size:14px; color:#94a3b8;">TOTAL {t_sel_fw}: <b>{int(tot_emb_via)} EMBS</b> | <b>{int(round(tot_m3_via)):,} M3 TOTALES</b></p>
+                    </div>
+                """, unsafe_allow_html=True)
 
+                # Cuadro 1: Performance (Share Carga)
                 res_fw = df_fwd.groupby(df_fwd.columns[6]).agg(
-                    Cant_Emb=(df_fwd.columns[0], 'count'),
-                    Confirmados=('ETD_Status_K', lambda x: (x == "OK").sum()),
-                    Pendientes=('ETD_Status_K', lambda x: (x != "OK").sum()),
-                    Criticos=('Critico', 'sum'),
+                    Cant_Emb=(df_fwd.columns[0], 'nunique'),
                     M3=('M3_Num', 'sum'),
+                    Confirmados=('ETD_Status_K', lambda x: (x == "OK").sum()),
                     Prom_Esp=('Espera', lambda x: x[df_fwd.loc[x.index, 'ETD_Status_K'] != "OK"].mean())
                 ).reset_index()
 
-                res_fw['%_OK'] = (res_fw['Confirmados'] / res_fw['Cant_Emb'] * 100).fillna(0)
-                res_fw = res_fw.sort_values('Cant_Emb', ascending=False)
+                res_fw['Share Carga %'] = (res_fw['M3'] / tot_m3_via * 100).fillna(0) if tot_m3_via > 0 else 0
+                res_fw = res_fw.sort_values('M3', ascending=False)
 
+                st.markdown("<p style='color:#f8fafc; font-weight:700; margin-bottom:10px;'>1. PERFORMANCE Y SHARE DE CARGA</p>", unsafe_allow_html=True)
                 st.dataframe(
                     res_fw,
                     column_config={
                         df_fwd.columns[6]: "Agente Forwarder",
                         "Cant_Emb": "Cant. Embarques",
-                        "Confirmados": "Confirmados (OK)",
-                        "Pendientes": "Pendientes",
-                        "Criticos": st.column_config.NumberColumn("🚨 CRITICOS (>5d)", help="Embarques instruidos hace más de 5 días sin reserva confirmada", format="%d"),
-                        "M3": st.column_config.NumberColumn("Volumen M3", format="%.1f"),
+                        "M3": st.column_config.NumberColumn("M3 Total", format="%.1f"),
+                        "Confirmados": "OK",
+                        "Share Carga %": st.column_config.ProgressColumn("Share %", min_value=0, max_value=100, format="%d%%"),
                         "Prom_Esp": st.column_config.NumberColumn("Espera PEND. (Días)", format="%d"),
-                        "%_OK": st.column_config.ProgressColumn("Efectividad %", min_value=0, max_value=100, format="%d%%")
                     },
                     use_container_width=True, hide_index=True
                 )
+
+                # Cuadro 2: DETALLE DE CASOS CRÍTICOS
+                df_crit = df_fwd[df_fwd['Critico']].copy()
+                if not df_crit.empty:
+                    st.markdown("<br><p style='color:#ff4b4b; font-weight:700; margin-bottom:10px;'>🚨 2. DETALLE DE CASOS CRÍTICOS (>5 DÍAS SIN NOVEDAD)</p>", unsafe_allow_html=True)
+                    # Columnas: Embarque (0), SO (2), Agente (6), Espera
+                    cols_crit = [df_fwd.columns[0], col_so_res, df_fwd.columns[6], 'Espera']
+                    st.dataframe(df_crit[cols_crit].sort_values('Espera', ascending=False), 
+                                 column_config={
+                                     df_fwd.columns[0]: "Embarque",
+                                     col_so_res: "S.O.",
+                                     df_fwd.columns[6]: "Agente",
+                                     "Espera": st.column_config.NumberColumn("Días de Espera", format="%d ⚠️")
+                                 },
+                                 use_container_width=True, hide_index=True)
+                else:
+                    st.success("No hay casos críticos actualmente para esta vía. ✅")
 
         except Exception as e:
             st.error(f"Error en Gestión de Reservas: {e}")
