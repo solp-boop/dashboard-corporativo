@@ -17,7 +17,20 @@ html, body, [class*="css"] {
     font-family: 'Outfit', sans-serif !important;
 }
 .block-container { padding: 2rem 3rem; }
-.main { background-color: #020617; color: #f8fafc; }
+.main { background-color: #020617;    color: #00ff88;
+}
+
+/* BOTONES COMPACTOS INDICADORES */
+div[data-testid="stColumn"] div[data-testid="stButton"] button {
+    height: 28px !important;
+    min-height: 28px !important;
+    padding: 0px 8px !important;
+    font-size: 12px !important;
+    border-radius: 6px !important;
+}
+
+/* DIVIDORES Y ESPACIOS */
+hr { margin: 1rem 0 !important; opacity: 0.1; }
 
 /* ANIMACIONES */
 @keyframes fadeInDown {
@@ -1113,11 +1126,11 @@ try:
                         r1, r2, r3, r4, r5 = st.columns([1.2, 0.8, 1, 1, 0.8])
                         r1.markdown(f"<p style='color:#fff; font-weight:700; margin:2px 0; text-align:center; font-size:14px;'>{rm['Mes_Nombre'].upper()}</p>", unsafe_allow_html=True)
                         r2.markdown(f"<p style='color:#f8fafc; margin:2px 0; text-align:center; font-size:14px;'>{rm[df_hi.columns[0]]}</p>", unsafe_allow_html=True)
-                        r3.markdown(f"<p style='color:{'#00ff88' if is_ok else '#ff4b4b'}; font-weight:700; margin:2px 0; text-align:center; font-size:14px;'>{int(round(avg_d))}d</p>", unsafe_allow_html=True)
-                        r4.markdown(f"<p style='background:{'rgba(0,255,136,0.1)' if is_ok else 'rgba(255,75,75,0.1)'}; color:{'#00ff88' if is_ok else '#ff4b4b'}; border:1px solid {'rgba(0,255,136,0.3)' if is_ok else 'rgba(255,75,75,0.3)'}; border-radius:12px; font-size:10px; font-weight:900; margin:4px 0; text-align:center; padding:2px 0;'>{'CUMPLE' if is_ok else 'FUERA'}</p>", unsafe_allow_html=True)
+                        r3.markdown(f"<p style='color:{'#00ff88' if is_ok else '#ff4b4b'}; font-weight:700; margin:0; text-align:center; font-size:14px;'>{int(round(avg_d))}d</p>", unsafe_allow_html=True)
+                        r4.markdown(f"<p style='background:{'rgba(0,255,136,0.1)' if is_ok else 'rgba(255,75,75,0.1)'}; color:{'#00ff88' if is_ok else '#ff4b4b'}; border:1px solid {'rgba(0,255,136,0.3)' if is_ok else 'rgba(255,75,75,0.3)'}; border-radius:10px; font-size:9px; font-weight:900; margin:2px 0; text-align:center; padding:1px 0;'>{'CUMPLE' if is_ok else 'FUERA'}</p>", unsafe_allow_html=True)
                         with r5: 
                             if st.button("🔍", key=f"btn_m_{rm['Mes']}", use_container_width=True): show_detalle_mes(dm_temp, f"MONO - {rm['Mes_Nombre']}")
-                        st.markdown("<div style='height:1px; background:rgba(255,255,255,0.02); margin:1px 0;'></div>", unsafe_allow_html=True)
+                        st.markdown("<div style='height:1px; background:rgba(255,255,255,0.01); margin:1px 0;'></div>", unsafe_allow_html=True)
                         m_totals.append({"c":rm[df_hi.columns[0]], "d":avg_d})
                     if m_totals:
                         tm_c = sum(x['c'] for x in m_totals); tm_d = sum(x['d'] for x in m_totals)/len(m_totals)
@@ -1142,11 +1155,11 @@ try:
                         r1, r2, r3, r4, r5 = st.columns([1.2, 0.8, 1, 1, 0.8])
                         r1.markdown(f"<p style='color:#fff; font-weight:700; margin:2px 0; text-align:center; font-size:14px;'>{rc['Mes_Nombre'].upper()}</p>", unsafe_allow_html=True)
                         r2.markdown(f"<p style='color:#f8fafc; margin:2px 0; text-align:center; font-size:14px;'>{rc[df_hi.columns[0]]}</p>", unsafe_allow_html=True)
-                        r3.markdown(f"<p style='color:{'#00ff88' if is_ok_c else '#ff4b4b'}; font-weight:700; margin:2px 0; text-align:center; font-size:14px;'>{int(round(avg_c))}d</p>", unsafe_allow_html=True)
-                        r4.markdown(f"<p style='background:{'rgba(0,255,136,0.1)' if is_ok_c else 'rgba(255,75,75,0.1)'}; color:{'#00ff88' if is_ok_c else '#ff4b4b'}; border:1px solid {'rgba(0,255,136,0.3)' if is_ok_c else 'rgba(255,75,75,0.3)'}; border-radius:12px; font-size:10px; font-weight:900; margin:4px 0; text-align:center; padding:2px 0;'>{'CUMPLE' if is_ok_c else 'FUERA'}</p>", unsafe_allow_html=True)
+                        r3.markdown(f"<p style='color:{'#00ff88' if is_ok_c else '#ff4b4b'}; font-weight:700; margin:0; text-align:center; font-size:14px;'>{int(round(avg_c))}d</p>", unsafe_allow_html=True)
+                        r4.markdown(f"<p style='background:{'rgba(0,255,136,0.1)' if is_ok_c else 'rgba(255,75,75,0.1)'}; color:{'#00ff88' if is_ok_c else '#ff4b4b'}; border:1px solid {'rgba(0,255,136,0.3)' if is_ok_c else 'rgba(255,75,75,0.3)'}; border-radius:10px; font-size:9px; font-weight:900; margin:2px 0; text-align:center; padding:1px 0;'>{'CUMPLE' if is_ok_c else 'FUERA'}</p>", unsafe_allow_html=True)
                         with r5: 
                             if st.button("🔍", key=f"btn_c_{rc['Mes']}", use_container_width=True): show_detalle_mes(dc_temp, f"CONS. - {rc['Mes_Nombre']}")
-                        st.markdown("<div style='height:1px; background:rgba(255,255,255,0.02); margin:1px 0;'></div>", unsafe_allow_html=True)
+                        st.markdown("<div style='height:1px; background:rgba(255,255,255,0.01); margin:1px 0;'></div>", unsafe_allow_html=True)
                         c_totals.append({"c":rc[df_hi.columns[0]], "d":avg_c})
                     if c_totals:
                         tc_c = sum(x['c'] for x in c_totals); tc_d = sum(x['d'] for x in c_totals)/len(c_totals)
