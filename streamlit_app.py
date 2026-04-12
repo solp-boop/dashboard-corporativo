@@ -268,7 +268,7 @@ try:
     cant_proveedores_global = df['Proveedor'].nunique() if 'Proveedor' in df.columns else 0
 
     st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><div class='bidcom-subtitle'>Tablero Logístico Corporativo</div></div>", unsafe_allow_html=True)
-    tabs = st.tabs(["ORIGEN", "MERCADERÍA EN PROCESO", "PERFORMANCE DE AGENTES Y ANALISTAS", "FLETES, GASTOS Y CERTIFICACIONES", "COTIZACIÓN FFWW", "ALERTAS ESTRATÉGICAS", "ASK COMEX"])
+    tabs = st.tabs(["ORIGEN", "MERCADERÍA EN PROCESO", "PERFORMANCE DE AGENTES Y ANALISTAS", "FLETES, GASTOS Y CERTIFICACIONES", "COTIZACIÓN FFWW", "INDICADORES", "ALERTAS ESTRATÉGICAS", "ASK COMEX"])
 
     # --- SOLAPA 1: ORIGEN ---
     with tabs[0]:
@@ -851,52 +851,49 @@ try:
                 # --- 1. PERFORMANCE Y SHARE DE CARGA ---
                 st.markdown("<p style='color:#f8fafc; font-weight:700; margin-bottom:10px;'>1. PERFORMANCE Y SHARE DE CARGA (SOLAPA RESERVAS)</p>", unsafe_allow_html=True)
                 
-                p1, p2 = st.columns(2)
-                
-                with p1:
-                    st.markdown("<p style='color:#00ff88; font-size:14px; font-weight:700;'>A. CASOS CONFIRMADOS (ETD OK)</p>", unsafe_allow_html=True)
-                    df_ok = df_fwd[df_fwd['ETD_Status_K'] == "OK"]
-                    if not df_ok.empty:
-                        res_ok = df_ok.groupby(df_ok.columns[6]).agg(
-                            Cant_Emb=(df_ok.columns[0], 'nunique'),
-                            Share_Pct=('M3_Num', lambda x: (x.sum() / tot_m3_via * 100)),
-                            Prom_Resp=('Gestion_Resp', 'mean'),
-                            Prom_ETD=('Gestion_ETD', 'mean')
-                        ).reset_index()
-                        st.dataframe(res_ok.sort_values('Cant_Emb', ascending=False), 
-                                     column_config={
-                                         df_ok.columns[6]: "Agente",
-                                         "Cant_Emb": "Embs",
-                                         "Share_Pct": st.column_config.NumberColumn("Share %", format="%.1f%%"),
-                                         "Prom_Resp": st.column_config.NumberColumn("Respuesta (d)", format="%d"),
-                                         "Prom_ETD": st.column_config.NumberColumn("Instr->ETD (d)", format="%d")
-                                     }, hide_index=True, use_container_width=True)
-                    else: st.info("Sin casos confirmados.")
+                # Expandimos a ancho completo para mejor lectura
+                st.markdown("<p style='color:#00ff88; font-size:14px; font-weight:700;'>A. CASOS CONFIRMADOS (ETD OK)</p>", unsafe_allow_html=True)
+                df_ok = df_fwd[df_fwd['ETD_Status_K'] == "OK"]
+                if not df_ok.empty:
+                    res_ok = df_ok.groupby(df_ok.columns[6]).agg(
+                        Cant_Emb=(df_ok.columns[0], 'nunique'),
+                        Share_Pct=('M3_Num', lambda x: (x.sum() / tot_m3_via * 100)),
+                        Prom_Resp=('Gestion_Resp', 'mean'),
+                        Prom_ETD=('Gestion_ETD', 'mean')
+                    ).reset_index()
+                    st.dataframe(res_ok.sort_values('Cant_Emb', ascending=False), 
+                                 column_config={
+                                     df_ok.columns[6]: "Agente",
+                                     "Cant_Emb": "Embs",
+                                     "Share_Pct": st.column_config.NumberColumn("Share %", format="%.1f%%"),
+                                     "Prom_Resp": st.column_config.NumberColumn("Respuesta (d)", format="%d"),
+                                     "Prom_ETD": st.column_config.NumberColumn("Instr->ETD (d)", format="%d")
+                                 }, hide_index=True, use_container_width=True)
+                else: st.info("Sin casos confirmados.")
 
-                with p2:
-                    st.markdown("<p style='color:#ff4b4b; font-size:14px; font-weight:700;'>B. CASOS PENDIENTES (SIN OK)</p>", unsafe_allow_html=True)
-                    df_pen = df_fwd[df_fwd['ETD_Status_K'] != "OK"]
-                    if not df_pen.empty:
-                        res_pen = df_pen.groupby(df_pen.columns[6]).agg(
-                            Cant_Emb=(df_pen.columns[0], 'nunique'),
-                            Share_Pct=('M3_Num', lambda x: (x.sum() / tot_m3_via * 100)),
-                            Prom_Esp=('Espera', 'mean')
-                        ).reset_index()
-                        st.dataframe(res_pen.sort_values('Prom_Esp', ascending=False), 
-                                     column_config={
-                                         df_pen.columns[6]: "Agente",
-                                         "Cant_Emb": "Embs",
-                                         "Share_Pct": st.column_config.NumberColumn("Share %", format="%.1f%%"),
-                                         "Prom_Esp": st.column_config.NumberColumn("Espera Avg (d)", format="%d")
-                                     }, hide_index=True, use_container_width=True)
-                    else: st.info("Sin casos pendientes.")
+                st.markdown("<br><p style='color:#ff4b4b; font-size:14px; font-weight:700;'>B. CASOS PENDIENTES (SIN OK)</p>", unsafe_allow_html=True)
+                df_pen = df_fwd[df_fwd['ETD_Status_K'] != "OK"]
+                if not df_pen.empty:
+                    res_pen = df_pen.groupby(df_pen.columns[6]).agg(
+                        Cant_Emb=(df_pen.columns[0], 'nunique'),
+                        Share_Pct=('M3_Num', lambda x: (x.sum() / tot_m3_via * 100)),
+                        Prom_Esp=('Espera', 'mean')
+                    ).reset_index()
+                    st.dataframe(res_pen.sort_values('Prom_Esp', ascending=False), 
+                                 column_config={
+                                     df_pen.columns[6]: "Agente",
+                                     "Cant_Emb": "Embs",
+                                     "Share_Pct": st.column_config.NumberColumn("Share %", format="%.1f%%"),
+                                     "Prom_Esp": st.column_config.NumberColumn("Espera Avg (d)", format="%d")
+                                 }, hide_index=True, use_container_width=True)
+                else: st.info("Sin casos pendientes.")
 
         except Exception as e:
             st.error(f"Error en Gestión de Reservas: {e}")
 
         # --- SOLAPA 3: PERFORMANCE DE AGENTES Y ANALISTAS ---
     with tabs[2]:
-        st.markdown("<div class='custom-card' style='text-align:center; border-color:#00a8ff; padding:20px;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:4px; margin:0;'>PERFORMANCE DE AGENTES Y ANALISTAS</h2></div>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align:center; padding: 20px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; margin: 30px 0;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>PERFORMANCE DE AGENTES Y ANALISTAS</h2></div>", unsafe_allow_html=True)
         try:
             u_ag = f"{base_url}/export?format=csv&gid=276804813"
             @st.cache_data(ttl=60)
@@ -984,21 +981,42 @@ try:
                 else: st.info("No hay operaciones marítimas.")
         except Exception as e: st.error(f"Error en Cotización: {e}")
 
-    # --- SOLAPA 6: ALERTAS ESTRATÉGICAS ---
+    # --- SOLAPA 6: INDICADORES (SLA & CONSOLIDACIÓN) ---
     with tabs[5]:
+        st.markdown("<div style='text-align:center; padding: 20px; background: rgba(0, 255, 136, 0.05); border-radius: 20px; margin: 30px 0;'><h2 style='color:#00ff88; font-weight:800; letter-spacing:5px; margin:0;'>INDICADORES DE CONSOLIDACIÓN Y SLA</h2></div>", unsafe_allow_html=True)
         try:
-            st.markdown("<h2 style='color:#ff4b4b; font-weight:800; letter-spacing:4px; margin:20px 0; font-size:24px; text-align:center;'>ALERTAS ESTRATÉGICAS</h2>", unsafe_allow_html=True)
-            # Reutilizamos df_re (Reservas)
+            url_hi = f"{base_url}/export?format=csv&gid=32771816&nocache={time.time()}"
+            @st.cache_data(ttl=60)
+            def load_hi_vfinal(u): return pd.read_csv(u, engine='python')
+            df_hi = load_hi_vfinal(url_hi)
+            df_hi.columns = df_hi.columns.str.strip()
+            df_hi['ETD_DT'] = pd.to_datetime(df_hi.iloc[:, 11], dayfirst=True, errors='coerce')
+            df_ind_f = df_hi[df_hi['ETD_DT'].dt.year == 2026].copy()
+            
+            # Resumen Mensual
+            df_ind_f['Mes'] = df_ind_f['ETD_DT'].dt.month
+            res_m = df_ind_f.groupby('Mes').agg(Embarques=(df_ind_f.columns[0], 'count'), SLA_Avg=(df_hi.columns[32], 'mean')).reset_index()
+            st.dataframe(res_m, use_container_width=True, hide_index=True)
+            st.info("💡 Análisis detallado por Puerto y Tipo de Carga disponible en reportes mensuales.")
+        except Exception as e: st.error(f"Error en Indicadores: {e}")
+
+    # --- SOLAPA 7: ALERTAS ESTRATÉGICAS ---
+    with tabs[6]:
+        try:
+            st.markdown("<div style='text-align:center; padding: 20px; background: rgba(255, 75, 75, 0.05); border-radius: 20px; margin: 30px 0;'><h2 style='color:#ff4b4b; font-weight:800; letter-spacing:5px; margin:0;'>ALERTAS ESTRATÉGICAS</h2></div>", unsafe_allow_html=True)
+            # Reutilizamos df_re (Reservas) para el monitor de críticos en esta vista final
             st.markdown("<p style='color:#ff4b4b; font-weight:700;'>1. MONITOR DE GESTIÓN (CRÍTICOS)</p>", unsafe_allow_html=True)
+            df_re = pd.read_csv(f"{base_url}/export?format=csv&gid=276804813")
+            df_re.columns = df_re.columns.str.strip()
             df_re['Wait'] = (pd.to_datetime('today') - pd.to_datetime(df_re.iloc[:, 7], errors='coerce')).dt.days
-            df_crit = df_re[(df_re.iloc[:, 10].astype(str).str.upper() != "OK") & (df_re['Wait'] > 5)].copy()
-            if not df_crit.empty:
-                st.dataframe(df_crit.iloc[:, [0, 6, 7, 18, 19, -1]].sort_values('Wait', ascending=False), use_container_width=True, hide_index=True)
+            df_cr = df_re[(df_re.iloc[:, 10].astype(str).str.upper() != "OK") & (df_re['Wait'] > 5)].copy()
+            if not df_cr.empty:
+                st.dataframe(df_cr.iloc[:, [0, 6, 7, 18, 19, -1]].sort_values('Wait', ascending=False), use_container_width=True, hide_index=True)
             else: st.success("Sin alertas críticas.")
         except Exception as e: st.error(f"Error en Alertas: {e}")
 
-    # --- SOLAPA 7: ASK COMEX ---
-    with tabs[6]:
+    # --- SOLAPA 8: ASK COMEX ---
+    with tabs[7]:
         st.markdown("<div style='text-align:center; padding: 40px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; border: 2px dashed rgba(0, 168, 255, 0.2);'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:10px;'>ASK COMEX</h2><p style='color:#94a3b8; font-size:18px; margin-top:20px;'>Mapeo de módulo avanzado de consultas con IA.</p></div>", unsafe_allow_html=True)
         st.info("Próximamente: Integración de buscador inteligente de SO/SKU y asistente dinámico Comex.")
 
