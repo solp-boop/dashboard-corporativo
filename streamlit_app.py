@@ -1095,6 +1095,13 @@ try:
             
             df_ni = df[df[c_inst].isna() | (df[c_inst].astype(str).str.strip().isin(['', 'nan', 'SIN INSTRUCCION', 'sin instruccion']))].copy()
             
+            # Filtro 1: Exclusión de Muestras y Repuestos (Col AN / índice 39)
+            keywords_excl = ["MUESTRA COURRIER", "MUESTRAS", "MUESTRA", "REPUESTOS"]
+            df_ni = df_ni[~df_ni.iloc[:, 39].astype(str).str.upper().str.contains('|'.join(keywords_excl), na=False)].copy()
+            
+            # Filtro 2: Por Fecha Prioritaria y Monoproveedor
+            # Mono "No" -> hoy + 10 días
+            # Mono "Si" -> hoy + 25 días
             hoy_ni = pd.Timestamp(datetime.now().date())
             df_ni['Fecha_Prior_DT'] = pd.to_datetime(df.iloc[:, 99], errors='coerce')
             
