@@ -1020,15 +1020,15 @@ try:
 
                 df_mar[col_cons_hi] = df_mar[col_cons_hi].apply(clean_n_hi).fillna(0.0).round(0)
                 
-                st.markdown("<div style='background: linear-gradient(90deg, #001f3f, #003366); padding: 15px; border-radius: 12px; margin-bottom: 20px;'><h3 style='color:#00a8ff; margin:0; text-align:center; letter-spacing:3px;'>RESUMEN MES CERRADO (MARÍTIMOS 2026)</h3></div>", unsafe_allow_html=True)
+                st.markdown("<div style='background: rgba(0, 168, 255, 0.05); padding: 25px; border-radius: 20px; border: 1px solid rgba(0, 168, 255, 0.2); margin: 30px 0;'><h3 style='color:#00a8ff; margin:0; text-align:center; letter-spacing:5px; text-transform:uppercase; font-weight:900;'>RESUMEN MES CERRADO (MARÍTIMOS 2026)</h3></div>", unsafe_allow_html=True)
                 
-                # --- 1. RESUMEN MES CERRADO (FILAS INTERACTIVAS CON LUPA) ---
-                st.markdown("<div style='background: linear-gradient(90deg, #001f3f, #003366); padding: 15px; border-radius: 12px; margin-bottom: 5px;'><h3 style='color:#00a8ff; margin:0; text-align:center; letter-spacing:3px;'>RESUMEN MES CERRADO (MARÍTIMOS 2026)</h3></div>", unsafe_allow_html=True)
-                
-                # Encabezados de Columna (Simulados)
-                thc = st.columns([2, 1, 1, 1, 1])
-                headers = ["MES", "CANT. EMB", "DÍAS", "% MONO", "% CONS"]
-                for i, h in enumerate(headers): thc[i].markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:800; margin:0; text-align:center;'>{h}</p>", unsafe_allow_html=True)
+                # --- 1. RESUMEN MES CERRADO (TABLA PROFESIONAL CON LUPA) ---
+                # Encabezados de Columna
+                thc = st.columns([1.5, 1, 1, 1, 1, 0.5])
+                headers = ["MES ETD", "CANT. EMB", "DÍAS PROMEDIO", "% MONOPROVEEDOR", "% CONSOLIDADO", "LUPA"]
+                for i, h in enumerate(headers): 
+                    thc[i].markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:800; margin:0; text-align:center; letter-spacing:1px;'>{h}</p>", unsafe_allow_html=True)
+                st.markdown("<hr style='border:none; border-top:1px solid rgba(255,255,255,0.1); margin:10px 0 20px 0;'>", unsafe_allow_html=True)
 
                 res_mensual = df_mar.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
                 
@@ -1039,23 +1039,35 @@ try:
                     tot = row[df_hi.columns[0]]
                     p_mono = (count_mono / tot) if tot > 0 else 0
                     
-                    # Fila Expandible (La Lupa)
-                    m_label = f"**{row['Mes_Nombre']}** | {tot} Emb. | {int(round(row[col_cons_hi]))} d | {int(p_mono*100)}% Mono | {int((1-p_mono)*100)}% Cons 🔍"
-                    with st.expander(m_label):
-                        # Detalle por puerto dentro del mes
-                        df_m_det = df_mar[df_mar['Mes_Nombre'] == row['Mes_Nombre']]
-                        res_p = df_m_det.groupby(col_puerto_hi).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
-                        p_rows = []
-                        for _, r in res_p.iterrows():
-                            df_p_t = df_m_det[df_m_det[col_puerto_hi] == r[col_puerto_hi]]
-                            cm_p = len(df_p_t[df_p_t[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)])
-                            tp_p = r[df_hi.columns[0]]
-                            p_rows.append({
-                                "Puerto": r[col_puerto_hi], "Cant": tp_p, "Días": int(round(r[col_cons_hi])), 
-                                "% Mono": f"{int((cm_p/tp_p)*100)}%" if tp_p>0 else "0%",
-                                "% Cons": f"{int((1-(cm_p/tp_p))*100)}%" if tp_p>0 else "0%"
-                            })
-                        st.dataframe(pd.DataFrame(p_rows).sort_values("Cant", ascending=False), use_container_width=True, hide_index=True)
+                    # Fila de la Tabla
+                    tr1, tr2, tr3, tr4, tr5, tr6 = st.columns([1.5, 1, 1, 1, 1, 0.5])
+                    tr1.markdown(f"<p style='font-weight:700; color:#fff; font-size:16px; margin:0; text-align:center;'>{row['Mes_Nombre'].upper()}</p>", unsafe_allow_html=True)
+                    tr2.markdown(f"<p style='color:#f8fafc; font-size:18px; margin:0; text-align:center;'>{tot}</p>", unsafe_allow_html=True)
+                    tr3.markdown(f"<p style='color:#00ff88; font-size:18px; font-weight:700; margin:0; text-align:center;'>{int(round(row[col_cons_hi]))} d</p>", unsafe_allow_html=True)
+                    tr4.markdown(f"<p style='color:#00a8ff; font-size:18px; margin:0; text-align:center;'>{int(p_mono*100)}%</p>", unsafe_allow_html=True)
+                    tr5.markdown(f"<p style='color:#94a3b8; font-size:18px; margin:0; text-align:center;'>{int((1-p_mono)*100)}%</p>", unsafe_allow_html=True)
+                    
+                    # La Lupa (Expander para detalles)
+                    with tr6:
+                        with st.expander("🔍", expanded=False):
+                            st.markdown(f"<p style='color:#00a8ff; font-weight:700; font-size:14px; margin-bottom:15px;'>DETALLE {row['Mes_Nombre'].upper()} POR PUERTO</p>", unsafe_allow_html=True)
+                            df_m_det = df_mar[df_mar['Mes_Nombre'] == row['Mes_Nombre']]
+                            res_p = df_m_det.groupby(col_puerto_hi).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
+                            p_rows = []
+                            for _, r in res_p.iterrows():
+                                df_p_t = df_m_det[df_m_det[col_puerto_hi] == r[col_puerto_hi]]
+                                cm_p = len(df_p_t[df_p_t[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)])
+                                tp_p = r[df_hi.columns[0]]
+                                p_rows.append({
+                                    "Puerto": r[col_puerto_hi], 
+                                    "Embarques": tp_p, 
+                                    "Días Avg": int(round(r[col_cons_hi])), 
+                                    "% Monoprov.": f"{int((cm_p/tp_p)*100)}%" if tp_p>0 else "0%",
+                                    "% Consol.": f"{int((1-(cm_p/tp_p))*100)}%" if tp_p>0 else "0%"
+                                })
+                            st.dataframe(pd.DataFrame(p_rows).sort_values("Embarques", ascending=False), use_container_width=True, hide_index=True)
+                    
+                    st.markdown("<div style='height:1px; background:rgba(255,255,255,0.05); margin:8px 0;'></div>", unsafe_allow_html=True)
                     sum_rows.append({"c":tot, "d":row[col_cons_hi], "pm":p_mono})
 
                 # Gran Total
@@ -1063,7 +1075,16 @@ try:
                     t_c = sum(r['c'] for r in sum_rows)
                     t_d = sum(r['d'] for r in sum_rows)/len(sum_rows)
                     t_pm = sum(r['pm'] for r in sum_rows)/len(sum_rows)
-                    st.markdown(f"<div style='background:rgba(0,168,255,0.1); border:1px solid #00a8ff; border-radius:10px; padding:15px; margin-top:10px;'><p style='color:#00a8ff; font-weight:900; margin:0; text-align:center;'>TOTAL GENERAL 2026: {t_c} Embarques | {int(round(t_d))} d Promedio | {int(t_pm*100)}% Monoproveedor | {int((1-t_pm)*100)}% Consolidado</p></div>", unsafe_allow_html=True)
+                    st.markdown(f"""
+                        <div style='background: linear-gradient(90deg, rgba(0,168,255,0.1), rgba(0,255,136,0.1)); border:1px solid rgba(0,168,255,0.3); border-radius:16px; padding:20px; margin-top:20px; text-align:center;'>
+                            <p style='color:#00a8ff; font-weight:900; margin:0; font-size:18px; letter-spacing:1px;'>
+                                TOTAL ANUAL 2026: <span style='color:#fff;'>{t_c}</span> Embarques | 
+                                <span style='color:#00ff88;'>{int(round(t_d))} d</span> Promedio | 
+                                <span style='color:#00a8ff;'>{int(t_pm*100)}%</span> Mono | 
+                                <span style='color:#94a3b8;'>{int((1-t_pm)*100)}%</span> Cons
+                            </p>
+                        </div>
+                    """, unsafe_allow_html=True)
 
                 st.markdown("<br><hr class='white-divider'><br>", unsafe_allow_html=True)
 
