@@ -615,16 +615,20 @@ try:
             except Exception: df_res = pd.read_csv(url_reserva)
             df_res.columns = df_res.columns.str.strip()
 
-            # Pre-procesamiento de datos para toda la solapa
+            # Pre-procesamiento de datos - GESTIÓN RESERVAS (para Monitor Forwarder)
             df_res['Fecha_Inst_H'] = df_res.iloc[:, 7].astype(str).str.strip()
             df_g = df_res[df_res['Fecha_Inst_H'].apply(lambda x: len(str(x)) > 4)].copy()
             df_g['DT_Inst'] = pd.to_datetime(df_g.iloc[:, 7], dayfirst=True, errors='coerce')
             df_g['ETD_Status_K'] = df_g.iloc[:, 10].astype(str).str.upper().str.strip()
-            
-            # Días de espera para criticidad
             df_g['Espera'] = (pd.to_datetime('today') - df_g['DT_Inst']).dt.days
             df_g['Critico'] = (df_g['ETD_Status_K'] != "OK") & (df_g['Espera'] > 5)
-
+            
+            # Pre-procesamiento de datos - PLANIF CARGAS (para Resumen y Transporte)
+            # Col U (index 20) es Fecha Instrucción
+            df_plan_res = df_inst[df_inst.iloc[:, 20].notna() & (df_inst.iloc[:, 20].astype(str).str.strip() != "")].copy()
+            col_etd_plan = '¿ETD OK FFWW?' if '¿ETD OK FFWW?' in df_plan_res.columns else df_plan_res.columns[97]
+            df_plan_res['Status_P'] = df_plan_res[col_etd_plan].astype(str).str.lower().str.strip()
+            
             def safe_float_f(val):
                 try:
                     if pd.isna(val) or val == '': return 0.0
@@ -641,24 +645,22 @@ try:
             with k3: st.markdown(f"<div class='metric-container'><p>PROVEEDORES</p><p>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
 
-            # OVERALL PERFORMANCE FROM GESTIÓN RESERVAS
-            col_so_res = [c for c in df_g.columns if 'SO' in str(c).upper()][0] if any('SO' in str(c).upper() for c in df_g.columns) else df_g.columns[2]
-            col_prov_res = [c for c in df_g.columns if 'PROVEEDOR' in str(c).upper()][0] if any('PROVEEDOR' in str(c).upper() for c in df_g.columns) else df_g.columns[6]
+            # OVERALL PERFORMANCE FROM PLANIF CARGAS (SEGÚN PEDIDO)
+            # SO: Col A (0), Prov: Col AE (30), M3: Col AY (50), Emb: Col 16 (16)
+            df_p_ok = df_plan_res[df_plan_res['Status_P'] == "ok"]
+            df_p_pend = df_plan_res[df_plan_res['Status_P'] != "ok"]
             
-            df_p_ok = df_g[df_g['ETD_Status_K'] == "OK"]
-            df_p_pend = df_g[df_g['ETD_Status_K'] != "OK"]
+            c_so_ok = df_p_ok.iloc[:, 0].nunique()
+            c_emb_ok = df_p_ok.iloc[:, 16].nunique()
+            prov_ok_p = df_p_ok.iloc[:, 30].nunique()
+            m3_ok_p = df_p_ok.iloc[:, 50].apply(safe_float_f).sum()
             
-            c_so_ok = df_p_ok[col_so_res].nunique()
-            c_emb_ok = df_p_ok.iloc[:, 0].nunique()
-            prov_ok_p = df_p_ok[col_prov_res].nunique()
-            m3_ok_p = df_p_ok.iloc[:, 24].apply(safe_float_f).sum()
+            c_so_pend = df_p_pend.iloc[:, 0].nunique()
+            c_emb_pend = df_p_pend.iloc[:, 16].nunique()
+            prov_pend_p = df_p_pend.iloc[:, 30].nunique()
+            m3_pend_p = df_p_pend.iloc[:, 50].apply(safe_float_f).sum()
             
-            c_so_pend = df_p_pend[col_so_res].nunique()
-            c_emb_pend = df_p_pend.iloc[:, 0].nunique()
-            prov_pend_p = df_p_pend[col_prov_res].nunique()
-            m3_pend_p = df_p_pend.iloc[:, 24].apply(safe_float_f).sum()
-            
-            total_emb_p = df_g.iloc[:, 0].nunique()
+            total_emb_p = df_plan_res.iloc[:, 16].nunique()
             pct_ok_p = round((c_emb_ok / total_emb_p * 100)) if total_emb_p > 0 else 0
             pct_pend_p = 100 - pct_ok_p if total_emb_p > 0 else 0
 
@@ -696,14 +698,17 @@ try:
                 if any(a in x for a in ["AVION", "COURIER", "COURRIER"]): return "AVION / COURIER"
                 return "OTROS"
 
-            df_g['Transporte'] = df_g.iloc[:, 5].apply(clasificar_transporte) 
+            df_plan_res['Transporte'] = df_plan_res.iloc[:, 5].apply(clasificar_transporte) 
             t1, t2 = st.columns(2)
             for i, tipo in enumerate(["MARITIMO", "AVION / COURIER"]):
-                df_tipo = df_g[df_g['Transporte'] == tipo]
-                total_t = df_tipo.iloc[:, 0].nunique()
-                ok_t = df_tipo[df_tipo['ETD_Status_K'] == "OK"].iloc[:, 0].nunique()
+                df_tipo = df_plan_res[df_plan_res['Transporte'] == tipo]
+                total_t = df_tipo.iloc[:, 16].nunique()
+                ok_t = df_tipo[df_tipo['Status_P'] == "ok"].iloc[:, 16].nunique()
                 pend_t = total_t - ok_t
-                crit_t = df_tipo[df_tipo['Critico']].iloc[:, 0].nunique()
+                
+                # Para críticos seguimos usando df_g (que es la de reclamo)
+                df_g['Transporte'] = df_g.iloc[:, 5].apply(clasificar_transporte)
+                crit_t = df_g[(df_g['Transporte'] == tipo) & (df_g['Critico'])].iloc[:, 0].nunique()
                 pct_ok = round((ok_t / total_t * 100)) if total_t > 0 else 0
                 pct_pend = 100 - pct_ok if total_t > 0 else 0
                 color_status = "#00ff88" if ok_t >= pend_t and total_t > 0 else "#ff4b4b"
@@ -795,6 +800,7 @@ try:
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
             st.markdown("<h2 style='color:#00a8ff; font-weight:800; letter-spacing:4px; margin:20px 0; font-size:22px; text-align:center;'>MONITOR DE GESTIÓN POR FORWARDER</h2>", unsafe_allow_html=True)
             
+            df_fw = df_g.copy()
             if not df_fw.empty:
                 df_fw['Tipo_T'] = df_fw.iloc[:, 5].apply(lambda x: "MARITIMO" if any(m in str(x).upper() for m in ["40", "20", "MARITIMO", "NOR"]) else "AVION / COURIER")
                 t_sel_fw = st.radio("SELECCIONE VÍA PARA FORWARDERS:", ["MARITIMO", "AVION / COURIER"], horizontal=True, key="ag_radio_res")
