@@ -357,8 +357,8 @@ try:
                         <div class="grid-2">
                             <div>
                                 <p class="minicard-title" style="color:#00a8ff;">ESTRUCTURA DE CARGA</p>
-                                <p style="font-size:12px; margin:5px 0;">MONO: <b>{df_inst[df_inst['Tipo_Carga']=='MONOPROVEEDOR']['SO'].nunique()} SO</b> ({int(round(df_inst[df_inst['Tipo_Carga']=='MONOPROVEEDOR']['M3 Total'].sum()))} m3)</p>
-                                <p style="font-size:12px; margin:5px 0;">CONSOL: <b>{df_inst[df_inst['Tipo_Carga']=='CONSOLIDADO']['SO'].nunique()} SO</b> ({int(round(df_inst[df_inst['Tipo_Carga']=='CONSOLIDADO']['M3 Total'].sum()))} m3)</p>
+                                <p style="font-size:12px; margin:5px 0;">MONOPROVEEDOR: <b>{df_inst[df_inst['Tipo_Carga']=='MONOPROVEEDOR']['SO'].nunique()} SO</b> ({int(round(df_inst[df_inst['Tipo_Carga']=='MONOPROVEEDOR']['M3 Total'].sum()))} m3)</p>
+                                <p style="font-size:12px; margin:5px 0;">CONSOLIDADOS: <b>{df_inst[df_inst['Tipo_Carga']=='CONSOLIDADO']['SO'].nunique()} SO</b> ({int(round(df_inst[df_inst['Tipo_Carga']=='CONSOLIDADO']['M3 Total'].sum()))} m3)</p>
                             </div>
                             <div>
                                 <p class="minicard-title" style="color:#ffaa00;">TIPO DE INGRESO</p>
@@ -404,18 +404,16 @@ try:
 
             # --- BOTONES SECUNDARIOS ---
             st.markdown("<br>", unsafe_allow_html=True)
-            c_inf1, c_inf2, c_inf3 = st.columns(3)
-            with c_inf1:
-                if st.button("TOP 100 RANKING", key="btn_rank_new", use_container_width=True):
+            c_sec1, c_sec2 = st.columns(2)
+            with c_sec1:
+                st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
+                if st.button("🏆 TOP 100 RANKING", key="btn_rank_new", use_container_width=True):
                     st.session_state.f = 'rank' if filtro_actual != 'rank' else None
                     st.rerun()
-            with c_inf2:
-                if st.button("ESTRUCTURA DE CARGA", key="btn_estr_new", use_container_width=True):
+            with c_sec2:
+                st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
+                if st.button("🏗️ ESTRUCTURA DE CARGA", key="btn_estr_new", use_container_width=True):
                     st.session_state.f = 'estr' if filtro_actual != 'estr' else None
-                    st.rerun()
-            with c_inf3:
-                if st.button("VER TODO (SIN FILTROS)", key="btn_all_new", use_container_width=True):
-                    st.session_state.f = None
                     st.rerun()
 
             # --- VISOR DEL FILTRO ---
@@ -428,7 +426,7 @@ try:
                     elif f == "px25": titulo, dff, color = "PROXIMA A INSTRUIR (PANEADO ACCIÓN)", df_accionar, "#ffaa00"
                     elif f == "rest": titulo, dff, color = "MERCADERIA PROGRAMADA (FUTURA)", df_futura, "#94a3b8"
 
-                    cant_so_f = len(dff)
+                    cant_so_f = dff['SO'].nunique()
                     m3_f = int(round(dff['M3 Total'].sum()))
 
                     st.markdown(f"""
@@ -440,9 +438,11 @@ try:
                             </div>
                         </div>
                     """, unsafe_allow_html=True)
-                    cols_to_show = ['SO', col_rank, 'Proveedor', 'M3 Total', 'Fecha de Instruccion' if f=='inst' else df.columns[99]]
+                    
+                    col_puerto = df.columns[41]
+                    cols_to_show = ['SO', col_rank, 'Proveedor', col_puerto, 'M3 Total', 'Fecha de Instruccion' if f=='inst' else df.columns[99]]
                     if 'Repuestos' in df.columns:
-                        cols_to_show.insert(3, 'Repuestos')
+                        cols_to_show.insert(4, 'Repuestos')
                     st.dataframe(dff[cols_to_show], use_container_width=True)
 
                 elif f == "rank":
@@ -489,19 +489,19 @@ try:
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
 
             # --- BLOQUE 4: PARTICIPACIÓN POR PAÍS ---
-            st.markdown("<p style='color:#00a8ff; font-weight:700; letter-spacing:4px; font-size:18px; margin-bottom:25px;'>DISTRIBUCIÓN GEOGRÁFICA</p>", unsafe_allow_html=True)
+            st.markdown("<p style='color:#00a8ff; font-weight:700; letter-spacing:4px; font-size:16px; margin-bottom:20px; text-align:center;'>DISTRIBUCIÓN GEOGRÁFICA</p>", unsafe_allow_html=True)
 
             df['Pais Destino'] = df['Pais Destino'].fillna('SIN DEFINIR').replace('', 'SIN DEFINIR')
             res_p = df.groupby('Pais Destino').agg({'SO': 'nunique', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT_SO', 'M3 Total': 'M3'}).sort_values(by='M3', ascending=False)
             total_so_p = res_p['CANT_SO'].sum()
             total_m3_p = res_p['M3'].sum()
 
-            h1, h2, h3, h4 = st.columns([1.5, 1, 1, 0.8])
-            h1.markdown("<p style='color:#94a3b8; font-size:12px; letter-spacing:1px; font-weight:700;'>PAÍS DE DESTINO</p>", unsafe_allow_html=True)
-            h2.markdown("<p style='color:#94a3b8; font-size:12px; letter-spacing:1px; font-weight:700; text-align:center;'>VOLUMEN (M3)</p>", unsafe_allow_html=True)
-            h3.markdown("<p style='color:#94a3b8; font-size:12px; letter-spacing:1px; font-weight:700; text-align:center;'>CANTIDAD SO</p>", unsafe_allow_html=True)
-            h4.markdown("<p style='color:#94a3b8; font-size:12px; letter-spacing:1px; font-weight:700; text-align:right;'>SHARE %</p>", unsafe_allow_html=True)
-            st.markdown("<hr style='margin:0; border: none; border-top: 2px solid rgba(255,255,255,0.4);'>", unsafe_allow_html=True)
+            hp1, hp2, hp3, hp4 = st.columns([1.5, 1, 1, 0.8])
+            hp1.markdown("<p style='color:#94a3b8; font-size:11px; letter-spacing:1px; font-weight:700;'>DESTINO</p>", unsafe_allow_html=True)
+            hp2.markdown("<p style='color:#94a3b8; font-size:11px; letter-spacing:1px; font-weight:700; text-align:center;'>M3</p>", unsafe_allow_html=True)
+            hp3.markdown("<p style='color:#94a3b8; font-size:11px; letter-spacing:1px; font-weight:700; text-align:center;'>SO</p>", unsafe_allow_html=True)
+            hp4.markdown("<p style='color:#94a3b8; font-size:11px; letter-spacing:1px; font-weight:700; text-align:right;'>%</p>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin:0 0 10px 0; border: none; border-top: 1px solid rgba(255,255,255,0.2);'>", unsafe_allow_html=True)
 
             for pais, row in res_p.iterrows():
                 m3_v = int(round(row['M3']))
@@ -509,18 +509,18 @@ try:
                 pct_v = int(round((m3_v / total_m3_p * 100))) if total_m3_p > 0 else 0
                 color_texto = "#ffffff" if pais != "SIN DEFINIR" else "#64748b"
 
-                c1, c2, c3, c4 = st.columns([1.5, 1, 1, 0.8])
-                c1.markdown(f"<p style='color:{color_texto}; font-weight:600; letter-spacing:2px; font-size:18px; margin:15px 0;'>{pais.upper()}</p>", unsafe_allow_html=True)
-                c2.markdown(f"<p style='color:#00a8ff; font-weight:300; font-size:24px; text-align:center; margin:10px 0;'>{m3_v:,}</p>", unsafe_allow_html=True)
-                c3.markdown(f"<p style='color:{color_texto}; font-weight:300; font-size:24px; text-align:center; margin:10px 0;'>{so_v}</p>", unsafe_allow_html=True)
-                c4.markdown(f"<p style='color:#00ff88; font-weight:700; font-size:20px; text-align:right; margin:12px 0;'>{pct_v}%</p>", unsafe_allow_html=True)
-                st.markdown("<hr class='white-divider'>", unsafe_allow_html=True)
+                cp1, cp2, cp3, cp4 = st.columns([1.5, 1, 1, 0.8])
+                cp1.markdown(f"<p style='color:{color_texto}; font-weight:600; font-size:14px; margin:5px 0;'>{pais.upper()}</p>", unsafe_allow_html=True)
+                cp2.markdown(f"<p style='color:#00a8ff; font-weight:400; font-size:16px; text-align:center; margin:5px 0;'>{m3_v:,}</p>", unsafe_allow_html=True)
+                cp3.markdown(f"<p style='color:{color_texto}; font-weight:400; font-size:16px; text-align:center; margin:5px 0;'>{so_v}</p>", unsafe_allow_html=True)
+                cp4.markdown(f"<p style='color:#00ff88; font-weight:700; font-size:14px; text-align:right; margin:5px 0;'>{pct_v}%</p>", unsafe_allow_html=True)
 
-            t1, t2, t3, t4 = st.columns([1.5, 1, 1, 0.8])
-            t1.markdown("<p style='color:#f8fafc; font-weight:900; letter-spacing:2px; font-size:20px; margin:15px 0;'>TOTAL GENERAL</p>", unsafe_allow_html=True)
-            t2.markdown(f"<p style='color:#00a8ff; font-weight:800; font-size:28px; text-align:center; margin:10px 0; text-shadow:0 0 10px rgba(0,168,255,0.5);'>{int(round(total_m3_p)):,}</p>", unsafe_allow_html=True)
-            t3.markdown(f"<p style='color:#f8fafc; font-weight:800; font-size:28px; text-align:center; margin:10px 0;'>{int(total_so_p)}</p>", unsafe_allow_html=True)
-            t4.markdown("<p style='color:#00ff88; font-weight:900; font-size:24px; text-align:right; margin:12px 0;'>100%</p>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin:10px 0; border: none; border-top: 1px solid rgba(255,255,255,0.4);'>", unsafe_allow_html=True)
+            tp1, tp2, tp3, tp4 = st.columns([1.5, 1, 1, 0.8])
+            tp1.markdown("<p style='color:#f8fafc; font-weight:800; font-size:15px;'>TOTAL</p>", unsafe_allow_html=True)
+            tp2.markdown(f"<p style='color:#00a8ff; font-weight:800; font-size:18px; text-align:center;'>{int(round(total_m3_p)):,}</p>", unsafe_allow_html=True)
+            tp3.markdown(f"<p style='color:#f8fafc; font-weight:800; font-size:18px; text-align:center;'>{int(total_so_p)}</p>", unsafe_allow_html=True)
+            tp4.markdown("<p style='color:#00ff88; font-weight:900; font-size:16px; text-align:right;'>100%</p>", unsafe_allow_html=True)
 
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
 
