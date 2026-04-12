@@ -989,15 +989,32 @@ try:
             @st.cache_data(ttl=60)
             def load_hi_vfinal(u): return pd.read_csv(u, engine='python')
             df_hi = load_hi_vfinal(url_hi)
-            df_hi.columns = df_hi.columns.str.strip()
-            df_hi['ETD_DT'] = pd.to_datetime(df_hi.iloc[:, 11], dayfirst=True, errors='coerce')
-            df_ind_f = df_hi[df_hi['ETD_DT'].dt.year == 2026].copy()
+            df_hi.columns = [str(c).strip() for c in df_hi.columns]
             
-            # Resumen Mensual
-            df_ind_f['Mes'] = df_ind_f['ETD_DT'].dt.month
-            res_m = df_ind_f.groupby('Mes').agg(Embarques=(df_ind_f.columns[0], 'count'), SLA_Avg=(df_hi.columns[32], 'mean')).reset_index()
-            st.dataframe(res_m, use_container_width=True, hide_index=True)
-            st.info("💡 Análisis detallado por Puerto y Tipo de Carga disponible en reportes mensuales.")
+            # Filtro Año 2026 (Col Z / index 25)
+            df_hi['ETD_DT'] = pd.to_datetime(df_hi.iloc[:, 11], dayfirst=True, errors='coerce') # ETD Real
+            df_2026 = df_hi[df_hi.iloc[:, 25].astype(str).str.contains("2026")].copy()
+            
+            if not df_2026.empty:
+                df_2026['Mes'] = df_2026['ETD_DT'].dt.month
+                # Identificamos Columna de Tipo (Monoproveedor vs Consolidado)
+                col_tipo = [c for c in df_hi.columns if 'MONOPROVEEDOR' in c.upper()][0] if any('MONOPROVEEDOR' in c.upper() for c in df_hi.columns) else df_hi.columns[31]
+                col_sla_val = df_hi.columns[32] # Tiempo total de consolidacion
+                
+                st.markdown("<p style='color:#00ff88; font-weight:700;'>RESUMEN MENSUAL POR TIPO DE CARGA (2026)</p>", unsafe_allow_html=True)
+                
+                res_hi = df_2026.groupby(['Mes', col_tipo]).agg({
+                    df_hi.columns[0]: 'count',
+                    col_sla_val: 'mean'
+                }).reset_index()
+                res_hi.columns = ["Mes", "Tipo de Carga", "Cant. Embarques", "Promedio Consolidación (d)"]
+                
+                st.dataframe(res_hi.sort_values(["Mes", "Promedio Consolidación (d)"]), use_container_width=True, hide_index=True,
+                             column_config={"Promedio Consolidación (d)": st.column_config.NumberColumn(format="%.1f d")})
+                
+                with st.expander("🔍 VER DETALLE HISTÓRICO 2026"):
+                    st.dataframe(df_2026[[df_hi.columns[0], df_hi.columns[1], 'ETD_DT', col_tipo, col_sla_val]], use_container_width=True, hide_index=True)
+            else: st.warning("No se encontraron registros históricos para el año 2026.")
         except Exception as e: st.error(f"Error en Indicadores: {e}")
 
     # --- SOLAPA 7: ALERTAS ESTRATÉGICAS ---
@@ -1011,6 +1028,40 @@ try:
             def load_res_alt_v4(u): return pd.read_csv(u, engine='python')
             df_re = load_res_alt_v4(url_r_alt)
             df_re.columns = [str(c).strip() for c in df_re.columns]
+
+            # --- NUEVA SECCIÓN: ALERTA DE TIEMPOS DE CONSOLIDACIÓN (SLA) ---
+            st.markdown("<p style='color:#00ff88; font-weight:700; font-size:18px; letter-spacing:2px;'>ALERTA DE TIEMPOS DE CONSOLIDACIÓN (FUERA DE SLA)</p>", unsafe_allow_html=True)
+            
+            # Detectamos columnas necesarias
+            col_mono = [c for c in df_re.columns if 'MONOPROVEEDOR' in c.upper()][0] if any('MONOPROVEEDOR' in c.upper() for c in df_re.columns) else df_re.columns[31]
+            df_re['P_Min'] = pd.to_datetime(df_re.iloc[:, 18], dayfirst=True, errors='coerce')
+            df_re['P_Max'] = pd.to_datetime(df_re.iloc[:, 19], dayfirst=True, errors='coerce')
+            df_re['T_Consol'] = (df_re['P_Max'] - df_re['P_Min']).dt.days
+            df_re['DT_ETD_M'] = pd.to_datetime(df_re.iloc[:, 12], dayfirst=True, errors='coerce')
+            
+            # Definimos SLA inteligente
+            def get_sla(row):
+                if "SÍ" in str(row[col_mono]).upper() or "SI" in str(row[col_mono]).upper() or "MONO" in str(row[col_mono]).upper():
+                    return 7
+                return 25
+            
+            df_re['SLA_Limit'] = df_re.apply(get_sla, axis=1)
+            df_sla_alert = df_re[df_re['T_Consol'] > df_re['SLA_Limit']].copy()
+            
+            if not df_sla_alert.empty:
+                col_resp_sla = [c for c in df_re.columns if 'ANALISTA' in c.upper() or 'RESPONSABLE' in c.upper()]
+                col_r_sla = col_resp_sla[0] if col_resp_sla else df_re.columns[6]
+                
+                df_sla_table = df_sla_alert[[df_sla_alert.columns[0], df_sla_alert.columns[1], 'DT_ETD_M', 'T_Consol', col_r_sla, col_mono]].copy()
+                df_sla_table['DT_ETD_M'] = df_sla_table['DT_ETD_M'].dt.strftime('%d/%m/%Y')
+                df_sla_table.columns = ["Embarque", "Puerto/Aero", "ETD", "Días Consol.", "Responsable", "¿Mono?"]
+                
+                # Ordenamos por ETD (Col M / index 12 original) descrita por el usuario como orden cronológico
+                st.dataframe(df_sla_table.sort_values("ETD", ascending=True), use_container_width=True, hide_index=True)
+                st.info("💡 Los casos anteriores superan los 7 días (Monoproveedor) o 25 días (Consolidado).")
+            else: st.success("Todos los tiempos de consolidación están dentro de los límites de SLA.")
+
+            st.markdown("<br><hr class='white-divider'><br>", unsafe_allow_html=True)
 
             # --- MONITOR 1: AGRUPAMIENTO DE MERCADERÍA (>7 DÍAS VENTANA) ---
             st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:18px; letter-spacing:2px;'>1. MONITOR DE AGRUPAMIENTO (>7 DÍAS VENTANA)</p>", unsafe_allow_html=True)
