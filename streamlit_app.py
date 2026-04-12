@@ -997,13 +997,17 @@ try:
             
             if not df_2026.empty:
                 df_2026['Mes'] = df_2026['ETD_DT'].dt.month
-                # Identificamos Columnas Clave
+                
+                # --- FILTRO MARÍTIMO (EXCLUYE AVION Y COURRIER) ---
+                col_tipo_carga_hi = df_hi.columns[5] # Col F
+                df_mar = df_2026[~df_2026[col_tipo_carga_hi].astype(str).str.upper().str.contains('AVION|COURRIER', na=False)].copy()
+                
                 # Mapeo de Meses a Nombres
                 meses_dict = {1:"Enero", 2:"Febrero", 3:"Marzo", 4:"Abril", 5:"Mayo", 6:"Junio", 7:"Julio", 8:"Agosto", 9:"Septiembre", 10:"Octubre", 11:"Noviembre", 12:"Diciembre"}
                 df_mar['Mes_Nombre'] = df_mar['Mes'].map(meses_dict)
                 
                 # Identificamos Columnas Clave
-                col_mono_hi = df_hi.columns[24] # Col Y (Solicitado por el usuario)
+                col_mono_hi = df_hi.columns[24] # Col Y
                 col_puerto_hi = df_hi.columns[4] # Col E
                 col_cons_hi = df_hi.columns[32] # Col AG
                 
