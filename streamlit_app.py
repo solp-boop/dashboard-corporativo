@@ -972,17 +972,21 @@ try:
                         df_mes = df_ffww[df_ffww['Mes_ETD_Full'] == sel_mes].copy()
 
                         if not df_mes.empty:
-                            df_mes['Semana_Num'] = df_mes['ETD_DT'].dt.isocalendar().week.astype(int)
-                            df_mes['ETD_Str'] = df_mes['ETD_DT'].dt.strftime('%d/%m/%Y')
+                            df_mes['Semana_Num'] = df_mes['ETD_DT'].dt.isocalendar().week
+                            # handle NaT: set as 999 (sin asignar)
+                            df_mes['Semana_Num'] = df_mes['Semana_Num'].fillna(999).astype(int)
+                            df_mes['ETD_Str'] = df_mes['ETD_DT'].dt.strftime('%d/%m/%Y').fillna('—')
+                            df_mes['Semana_Label'] = df_mes['Semana_Num'].apply(
+                                lambda s: f"Semana {s}" if s != 999 else "📋 SIN ETD ASIGNADO"
+                            )
 
                             # Agrupación por semana / ETD / puerto
-                            res_ffww = df_mes.groupby(['Semana_Num', 'ETD_Str', col_puerto]).agg({'M3 Total': 'sum'}).reset_index()
+                            res_ffww = df_mes.groupby(['Semana_Num', 'Semana_Label', 'ETD_Str', col_puerto]).agg({'M3 Total': 'sum'}).reset_index()
                             res_ffww['Contenedores'] = (res_ffww['M3 Total'] / 60).round().astype(int)
                             res_ffww['M3 Total'] = res_ffww['M3 Total'].round().astype(int)
-                            res_ffww['Semana'] = "Semana " + res_ffww['Semana_Num'].astype(str)
 
-                            # Subtotales por semana
-                            subtot_ffww = res_ffww.groupby(['Semana_Num', 'Semana']).agg({'Contenedores': 'sum', 'M3 Total': 'sum'}).reset_index()
+                            # Subtotales por semana (incluyendo SIN ETD)
+                            subtot_ffww = res_ffww.groupby(['Semana_Num', 'Semana_Label']).agg({'Contenedores': 'sum', 'M3 Total': 'sum'}).reset_index()
                             subtot_ffww['ETD_Str'] = ""
                             subtot_ffww[col_puerto] = "📌 SUBTOTAL SEMANA"
 
@@ -990,10 +994,13 @@ try:
                             subtot_ffww['IsTotal'] = True
 
                             final_ffww = pd.concat([res_ffww, subtot_ffww], ignore_index=True)
-                            final_ffww = final_ffww.sort_values(by=['Semana_Num', 'IsTotal', 'Contenedores'], ascending=[True, True, False])
+                            final_ffww = final_ffww.sort_values(
+                                by=['Semana_Num', 'IsTotal', 'Contenedores'],
+                                ascending=[True, True, False]
+                            )
 
-                            final_ffww = final_ffww[['Semana', 'ETD_Str', col_puerto, 'Contenedores', 'M3 Total']]
-                            final_ffww.columns = ['Semana (ISO)', 'ETD', 'Puerto de Salida', 'Cant. Contenedores', 'Total M3']
+                            final_ffww = final_ffww[['Semana_Label', 'ETD_Str', col_puerto, 'Contenedores', 'M3 Total']]
+                            final_ffww.columns = ['Semana', 'ETD', 'Puerto de Salida', 'Cant. Contenedores', 'Total M3']
 
                             st.dataframe(final_ffww, use_container_width=True, hide_index=True,
                                 column_config={
@@ -1001,13 +1008,19 @@ try:
                                     'Cant. Contenedores': st.column_config.NumberColumn(format="%d CNTR")
                                 })
 
+                            # Alerta si hay embarques sin ETD
+                            sin_etd = (df_mes['Semana_Num'] == 999).sum()
+                            if sin_etd > 0:
+                                st.warning(f"⚠️ **{sin_etd} embarque(s)** no tienen ETD asignado en el sistema y aparecen en '📋 SIN ETD ASIGNADO'.")
+
                             st.markdown("<div style='height:15px;'></div>", unsafe_allow_html=True)
                             cc1, cc2, cc3, _ = st.columns([1, 1, 1, 1])
-                            cc1.metric("CONTENEDORES (MES)", res_ffww['Contenedores'].sum())
+                            cc1.metric("CONTENEDORES (MES)", res_ffww[res_ffww['Semana_Num'] != 999]['Contenedores'].sum())
                             cc2.metric("VOLUMEN TOTAL (MES)", f"{res_ffww['M3 Total'].sum():,} M3")
                             cc3.metric("EMBARQUES (MES)", len(df_mes))
                         else:
                             st.info("No hay proyecciones para este mes.")
+
                     else:
                         st.info("No hay meses futuros disponibles.")
                 else:
