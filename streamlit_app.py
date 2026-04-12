@@ -615,8 +615,11 @@ try:
             except Exception: df_res = pd.read_csv(url_reserva)
             df_res.columns = df_res.columns.str.strip()
 
+            # Pre-procesamiento de datos para toda la solapa
             df_res['Fecha_Inst_H'] = df_res.iloc[:, 7].astype(str).str.strip()
             df_g = df_res[df_res['Fecha_Inst_H'].apply(lambda x: len(str(x)) > 4)].copy()
+            df_g['DT_Inst'] = pd.to_datetime(df_g.iloc[:, 7], dayfirst=True, errors='coerce')
+            df_g['ETD_Status_K'] = df_g.iloc[:, 10].astype(str).str.upper().str.strip()
 
             # KPIs MASIVOS
             st.markdown("<br>", unsafe_allow_html=True)
@@ -780,8 +783,6 @@ try:
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
             st.markdown("<div class='custom-card' style='text-align:center; border-color:#00a8ff; box-shadow: 0 0 30px rgba(0,168,255,0.1);'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:4px; margin:0; font-size:22px;'>MONITOR DE GESTIÓN POR FORWARDER</h2></div>", unsafe_allow_html=True)
             
-            df_g['DT_Inst'] = pd.to_datetime(df_g.iloc[:, 7], dayfirst=True, errors='coerce')
-            df_g['ETD_Status_K'] = df_g.iloc[:, 10].astype(str).str.upper().str.strip()
             df_fw = df_g[df_g['DT_Inst'].notna()].copy()
             
             def safe_float_f(val):
