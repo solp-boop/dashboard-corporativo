@@ -1020,41 +1020,54 @@ try:
 
                 df_mar[col_cons_hi] = df_mar[col_cons_hi].apply(clean_n_hi).fillna(0.0).round(0)
                 
-                st.markdown("<div style='background: rgba(0, 168, 255, 0.05); padding: 25px; border-radius: 20px; border: 1px solid rgba(0, 168, 255, 0.2); margin: 30px 0;'><h3 style='color:#00a8ff; margin:0; text-align:center; letter-spacing:5px; text-transform:uppercase; font-weight:900;'>RESUMEN MES CERRADO (MARÍTIMOS 2026)</h3></div>", unsafe_allow_html=True)
+                st.markdown("<div style='background: rgba(0, 168, 255, 0.05); padding: 15px 25px; border-radius: 20px; border: 1px solid rgba(0, 168, 255, 0.2); margin: 15px 0;'><h3 style='color:#00a8ff; margin:0; text-align:center; letter-spacing:5px; text-transform:uppercase; font-weight:900;'>RESUMEN MES CERRADO (MARÍTIMOS 2026)</h3></div>", unsafe_allow_html=True)
                 
-                # --- DEFINICIÓN DEL MODAL DE DETALLE (REFRESHED) ---
-                @st.dialog("🚢 DETALLE DE EMBARQUES POR PUERTO", width="large")
+                # --- DEFINICIÓN DEL MODAL DE DETALLE (REFRESHED + SLA) ---
+                @st.dialog("🚢 DETALLE POR PUERTO Y SLA", width="large")
                 def show_detalle_mes(df_sub, mes_lbl):
-                    st.markdown(f"<h2 style='color:#00a8ff; letter-spacing:2px;'>ANÁLISIS {mes_lbl.upper()}</h2>", unsafe_allow_html=True)
-                    st.markdown("<hr style='margin:10px 0; border-color:rgba(0,168,255,0.2);'>", unsafe_allow_html=True)
+                    st.markdown(f"### Análisis {mes_lbl.upper()}")
+                    st.markdown("<p style='color:#94a3b8; font-size:12px; margin-top:-10px;'>Cálculo: Desde Instrucción hasta ETD.</p>", unsafe_allow_html=True)
+                    st.markdown("<hr style='margin:10px 0; border-color:rgba(255,255,255,0.1);'>", unsafe_allow_html=True)
                     
-                    # Agrupación por Puerto
                     res_p = df_sub.groupby(col_puerto_hi).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
                     p_rows = []
                     for _, r in res_p.iterrows():
-                        df_p_t = df_sub[df_sub[col_puerto_hi] == r[col_puerto_hi]]
+                        df_p_t = df_sub[df_sub[col_puerto_hi] == r[col_puerto_hi]].copy()
                         tp_p = r[df_hi.columns[0]]
                         
-                        # % Mono / Cons per port
-                        df_p_mono = df_p_t[df_p_t[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)]
-                        p_mono_p = (len(df_p_mono) / tp_p * 100) if tp_p > 0 else 0
+                        # Cálculo SLA Detallado
+                        def check_sla(row):
+                            days = row[col_cons_hi]
+                            is_mono = "SÍ" in str(row[col_mono_hi]).upper() or "SI" in str(row[col_mono_hi]).upper()
+                            if is_mono: limit = 15 if row['Mes'] <= 2 else 7
+                            else: limit = 25
+                            return days <= limit
+                        
+                        df_p_t['SLA_OK'] = df_p_t.apply(check_sla, axis=1)
+                        count_ok = len(df_p_t[df_p_t['SLA_OK']])
+                        pct_sla = int((count_ok / tp_p) * 100) if tp_p > 0 else 0
+                        
+                        # % Mono / Cons
+                        cm_p = len(df_p_t[df_p_t[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)])
                         
                         p_rows.append({
                             "Puerto": r[col_puerto_hi], 
                             "Embs": tp_p, 
                             "Días Avg": int(round(r[col_cons_hi])), 
-                            "% Monoprov.": f"{int(p_mono_p)}%",
-                            "% Consol.": f"{int(100 - p_mono_p)}%"
+                            "Cumple SLA": f"{pct_sla}%",
+                            "% Mono": f"{int((cm_p/tp_p)*100)}%",
+                            "% Cons": f"{int((1-(cm_p/tp_p))*100)}%"
                         })
                     
                     st.dataframe(pd.DataFrame(p_rows).sort_values("Embs", ascending=False), use_container_width=True, hide_index=True)
+                    st.markdown("<p style='font-size:11px; color:#64748b;'>* SLA Mono: 15d (Ene/Feb) / 7d (Mar+). SLA Consolidado: 25d.</p>", unsafe_allow_html=True)
 
                 # --- 1. TABLA SIMPLIFICADA MES CERRADO ---
                 thc = st.columns([1.5, 1, 1.2, 1, 1, 0.8])
                 headers = ["MES ETD", "EMBS", "DIAS AVG", "% MONO", "% CONS", "DETALLE"]
                 for i, h in enumerate(headers): 
                     thc[i].markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:800; margin:0; text-align:center; letter-spacing:1px;'>{h}</p>", unsafe_allow_html=True)
-                st.markdown("<hr style='border:none; border-top:1px solid rgba(255,255,255,0.1); margin:10px 0 20px 0;'>", unsafe_allow_html=True)
+                st.markdown("<hr style='border:none; border-top:1px solid rgba(255,255,255,0.1); margin:8px 0;'>", unsafe_allow_html=True)
 
                 res_mensual = df_mar.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
                 
@@ -1062,87 +1075,74 @@ try:
                 for _, row in res_mensual.iterrows():
                     df_m_temp = df_mar[df_mar['Mes'] == row['Mes']].copy()
                     df_m_mono = df_m_temp[df_m_temp[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)].copy()
+                    tot = len(df_m_temp); p_mono = (len(df_m_mono) / tot) if tot > 0 else 0
                     
-                    tot = len(df_m_temp)
-                    p_mono = (len(df_m_mono) / tot) if tot > 0 else 0
-                    
-                    # Fila de la Tabla
                     tr1, tr2, tr3, tr4, tr5, tr6 = st.columns([1.5, 1, 1.2, 1, 1, 0.8])
-                    tr1.markdown(f"<p style='font-weight:700; color:#fff; font-size:15px; margin:10px 0; text-align:center;'>{row['Mes_Nombre'].upper()}</p>", unsafe_allow_html=True)
-                    tr2.markdown(f"<p style='color:#f8fafc; font-size:18px; margin:10px 0; text-align:center;'>{tot}</p>", unsafe_allow_html=True)
-                    tr3.markdown(f"<p style='color:#00ff88; font-size:18px; font-weight:700; margin:10px 0; text-align:center;'>{int(round(row[col_cons_hi]))}d</p>", unsafe_allow_html=True)
-                    tr4.markdown(f"<p style='color:#00a8ff; font-size:16px; margin:10px 0; text-align:center;'>{int(p_mono*100)}%</p>", unsafe_allow_html=True)
-                    tr5.markdown(f"<p style='color:#94a3b8; font-size:16px; margin:10px 0; text-align:center;'>{int((1-p_mono)*100)}%</p>", unsafe_allow_html=True)
-                    
-                    # Botón Modal (LUPA)
+                    tr1.markdown(f"<p style='font-weight:700; color:#fff; font-size:15px; margin:4px 0; text-align:center;'>{row['Mes_Nombre'].upper()}</p>", unsafe_allow_html=True)
+                    tr2.markdown(f"<p style='color:#f8fafc; font-size:16px; margin:4px 0; text-align:center;'>{tot}</p>", unsafe_allow_html=True)
+                    tr3.markdown(f"<p style='color:#00ff88; font-size:16px; font-weight:700; margin:4px 0; text-align:center;'>{int(round(row[col_cons_hi]))}d</p>", unsafe_allow_html=True)
+                    tr4.markdown(f"<p style='color:#00a8ff; font-size:14px; margin:4px 0; text-align:center;'>{int(p_mono*100)}%</p>", unsafe_allow_html=True)
+                    tr5.markdown(f"<p style='color:#94a3b8; font-size:14px; margin:4px 0; text-align:center;'>{int((1-p_mono)*100)}%</p>", unsafe_allow_html=True)
                     with tr6:
-                        st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-                        if st.button("🔍 VER", key=f"btn_det_{row['Mes']}", use_container_width=True):
-                            show_detalle_mes(df_m_temp, row['Mes_Nombre'])
+                        if st.button("🔍 VER", key=f"btn_det_{row['Mes']}", use_container_width=True): show_detalle_mes(df_m_temp, row['Mes_Nombre'])
                     
-                    st.markdown("<div style='height:1px; background:rgba(255,255,255,0.05); margin:4px 0;'></div>", unsafe_allow_html=True)
+                    st.markdown("<div style='height:1px; background:rgba(255,255,255,0.03); margin:2px 0;'></div>", unsafe_allow_html=True)
                     sum_rows.append({"c":tot, "d":row[col_cons_hi], "pm":p_mono})
 
-                # Gran Total Card
                 if sum_rows:
-                    t_c = sum(r['c'] for r in sum_rows)
-                    t_d = sum(r['d'] for r in sum_rows)/len(sum_rows)
-                    t_pm = sum(r['pm'] for r in sum_rows)/len(sum_rows)
-                    st.markdown(f"""
-                        <div style='background: linear-gradient(90deg, rgba(0,168,255,0.1), rgba(255,255,255,0.02)); border:1px solid rgba(0,168,255,0.2); border-radius:16px; padding:20px; margin-top:20px; text-align:center;'>
-                            <p style='color:#00a8ff; font-weight:900; margin:0; font-size:18px; letter-spacing:1px;'>
-                                TOTAL ACUMULADO 2026: <span style='color:#fff;'>{t_c}</span> EMBS | 
-                                <span style='color:#00ff88;'>{int(round(t_d))}d</span> PROM. CONSOLIDACIÓN | 
-                                <span style='color:#fff;'>{int(t_pm*100)}%</span> MONO
-                            </p>
-                        </div>
-                    """, unsafe_allow_html=True)
+                    t_c = sum(r['c'] for r in sum_rows); t_d = sum(r['d'] for r in sum_rows)/len(sum_rows); t_pm = sum(r['pm'] for r in sum_rows)/len(sum_rows)
+                    st.markdown(f"""<div style='background: linear-gradient(90deg, rgba(0,168,255,0.1), rgba(255,255,255,0.02)); border:1px solid rgba(0,168,255,0.2); border-radius:12px; padding:12px; margin-top:10px; text-align:center;'><p style='color:#00a8ff; font-weight:900; margin:0; font-size:15px; letter-spacing:1px;'>TOTAL ACUMULADO 2026: <span style='color:#fff;'>{t_c}</span> EMBS | <span style='color:#00ff88;'>{int(round(t_d))}d</span> PROM. | <span style='color:#fff;'>{int(t_pm*100)}%</span> MONO</p></div>""", unsafe_allow_html=True)
 
-                st.markdown("<br><br>", unsafe_allow_html=True)
+                st.markdown("<div style='height:20px;'></div>", unsafe_allow_html=True)
 
-                # --- 2. SOLAMENTE MONOPROVEEDOR (TABLA DEDICADA) ---
-                st.markdown("<div style='background: rgba(0, 168, 255, 0.05); padding: 15px; border-radius: 12px; border-left: 5px solid #00a8ff; margin-bottom: 20px;'><h4 style='color:#00a8ff; margin:0; letter-spacing:2px;'>1. SOLAMENTE MONOPROVEEDOR (MARÍTIMOS 2026)</h4></div>", unsafe_allow_html=True)
-                
+                # --- 2. SOLAMENTE MONOPROVEEDOR ---
+                st.markdown("<div style='background: rgba(0, 168, 255, 0.05); padding: 8px 15px; border-radius: 8px; border-left: 5px solid #00a8ff; margin-bottom: 10px;'><h4 style='color:#00a8ff; margin:0; letter-spacing:2px; font-size:14px;'>1. SOLAMENTE MONOPROVEEDOR (MARÍTIMOS 2026)</h4></div>", unsafe_allow_html=True)
                 df_mono_only = df_mar[df_mar[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)].copy()
                 if not df_mono_only.empty:
                     thc_m = st.columns([1.5, 1, 1.2, 0.8])
-                    h_m = ["MES ETD", "CANT. EMB", "DÍAS PROMEDIO", "DETALLE"]
-                    for i, h in enumerate(h_m): thc_m[i].markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:800; margin:0; text-align:center;'>{h}</p>", unsafe_allow_html=True)
-                    st.markdown("<hr style='border:none; border-top:1px solid rgba(255,255,255,0.05); margin:10px 0;'>", unsafe_allow_html=True)
-                    
+                    for i, h in enumerate(["MES ETD", "CANT. EMB", "DÍAS PROMEDIO", "DETALLE"]): thc_m[i].markdown(f"<p style='color:#94a3b8; font-size:10px; font-weight:800; margin:0; text-align:center;'>{h}</p>", unsafe_allow_html=True)
+                    st.markdown("<hr style='border:none; border-top:1px solid rgba(255,255,255,0.05); margin:5px 0;'>", unsafe_allow_html=True)
                     res_m = df_mono_only.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
+                    m_totals = []
                     for _, rm in res_m.iterrows():
                         dm_temp = df_mono_only[df_mono_only['Mes'] == rm['Mes']].copy()
                         r1, r2, r3, r4 = st.columns([1.5, 1, 1.2, 0.8])
-                        r1.markdown(f"<p style='color:#fff; font-weight:700; margin:5px 0; text-align:center;'>{rm['Mes_Nombre'].upper()}</p>", unsafe_allow_html=True)
-                        r2.markdown(f"<p style='color:#f8fafc; margin:5px 0; text-align:center;'>{rm[df_hi.columns[0]]}</p>", unsafe_allow_html=True)
-                        r3.markdown(f"<p style='color:#00a8ff; font-weight:700; margin:5px 0; text-align:center;'>{int(round(rm[col_cons_hi]))}d</p>", unsafe_allow_html=True)
+                        r1.markdown(f"<p style='color:#fff; font-weight:700; margin:2px 0; text-align:center; font-size:14px;'>{rm['Mes_Nombre'].upper()}</p>", unsafe_allow_html=True)
+                        r2.markdown(f"<p style='color:#f8fafc; margin:2px 0; text-align:center; font-size:14px;'>{rm[df_hi.columns[0]]}</p>", unsafe_allow_html=True)
+                        r3.markdown(f"<p style='color:#00a8ff; font-weight:700; margin:2px 0; text-align:center; font-size:14px;'>{int(round(rm[col_cons_hi]))}d</p>", unsafe_allow_html=True)
                         with r4: 
-                            if st.button("🔍", key=f"btn_m_{rm['Mes']}"): show_detalle_mes(dm_temp, f"MONO - {rm['Mes_Nombre']}")
-                        st.markdown("<div style='height:1px; background:rgba(255,255,255,0.05); margin:4px 0;'></div>", unsafe_allow_html=True)
-                
-                st.markdown("<br><br>", unsafe_allow_html=True)
+                            if st.button("🔍", key=f"btn_m_{rm['Mes']}", use_container_width=True): show_detalle_mes(dm_temp, f"MONO - {rm['Mes_Nombre']}")
+                        st.markdown("<div style='height:1px; background:rgba(255,255,255,0.02); margin:1px 0;'></div>", unsafe_allow_html=True)
+                        m_totals.append({"c":rm[df_hi.columns[0]], "d":rm[col_cons_hi]})
+                    if m_totals:
+                        tm_c = sum(x['c'] for x in m_totals); tm_d = sum(x['d'] for x in m_totals)/len(m_totals)
+                        st.markdown(f"<div style='background:rgba(0,168,255,0.05); padding:10px; border-radius:8px; text-align:center; margin-top:5px;'><p style='color:#00a8ff; font-weight:800; margin:0; font-size:13px;'>TOTAL ACUMULADO MONO: {tm_c} EMBS | {int(round(tm_d))}d PROM.</p></div>", unsafe_allow_html=True)
 
-                # --- 3. SOLAMENTE CONSOLIDADO (TABLA DEDICADA) ---
-                st.markdown("<div style='background: rgba(0, 255, 136, 0.05); padding: 15px; border-radius: 12px; border-left: 5px solid #00ff88; margin-bottom: 20px;'><h4 style='color:#00ff88; margin:0; letter-spacing:2px;'>2. SOLAMENTE CONSOLIDADO (MARÍTIMOS 2026)</h4></div>", unsafe_allow_html=True)
-                
+                st.markdown("<div style='height:20px;'></div>", unsafe_allow_html=True)
+
+                # --- 3. SOLAMENTE CONSOLIDADO ---
+                st.markdown("<div style='background: rgba(0, 255, 136, 0.05); padding: 8px 15px; border-radius: 8px; border-left: 5px solid #00ff88; margin-bottom: 10px;'><h4 style='color:#00ff88; margin:0; letter-spacing:2px; font-size:14px;'>2. SOLAMENTE CONSOLIDADO (MARÍTIMOS 2026)</h4></div>", unsafe_allow_html=True)
                 df_cons_only = df_mar[~df_mar[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)].copy()
                 if not df_cons_only.empty:
                     thc_c = st.columns([1.5, 1, 1.2, 0.8])
-                    h_c = ["MES ETD", "CANT. EMB", "DÍAS PROMEDIO", "DETALLE"]
-                    for i, h in enumerate(h_c): thc_c[i].markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:800; margin:0; text-align:center;'>{h}</p>", unsafe_allow_html=True)
-                    st.markdown("<hr style='border:none; border-top:1px solid rgba(255,255,255,0.05); margin:10px 0;'>", unsafe_allow_html=True)
-                    
+                    for i, h in enumerate(["MES ETD", "CANT. EMB", "DÍAS PROMEDIO", "DETALLE"]): thc_c[i].markdown(f"<p style='color:#94a3b8; font-size:10px; font-weight:800; margin:0; text-align:center;'>{h}</p>", unsafe_allow_html=True)
+                    st.markdown("<hr style='border:none; border-top:1px solid rgba(255,255,255,0.05); margin:5px 0;'>", unsafe_allow_html=True)
                     res_c = df_cons_only.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
+                    c_totals = []
                     for _, rc in res_c.iterrows():
                         dc_temp = df_cons_only[df_cons_only['Mes'] == rc['Mes']].copy()
                         r1, r2, r3, r4 = st.columns([1.5, 1, 1.2, 0.8])
-                        r1.markdown(f"<p style='color:#fff; font-weight:700; margin:5px 0; text-align:center;'>{rc['Mes_Nombre'].upper()}</p>", unsafe_allow_html=True)
-                        r2.markdown(f"<p style='color:#f8fafc; margin:5px 0; text-align:center;'>{rc[df_hi.columns[0]]}</p>", unsafe_allow_html=True)
-                        r3.markdown(f"<p style='color:#00ff88; font-weight:700; margin:5px 0; text-align:center;'>{int(round(rc[col_cons_hi]))}d</p>", unsafe_allow_html=True)
+                        r1.markdown(f"<p style='color:#fff; font-weight:700; margin:2px 0; text-align:center; font-size:14px;'>{rc['Mes_Nombre'].upper()}</p>", unsafe_allow_html=True)
+                        r2.markdown(f"<p style='color:#f8fafc; margin:2px 0; text-align:center; font-size:14px;'>{rc[df_hi.columns[0]]}</p>", unsafe_allow_html=True)
+                        r3.markdown(f"<p style='color:#00ff88; font-weight:700; margin:2px 0; text-align:center; font-size:14px;'>{int(round(rc[col_cons_hi]))}d</p>", unsafe_allow_html=True)
                         with r4: 
-                            if st.button("🔍", key=f"btn_c_{rc['Mes']}"): show_detalle_mes(dc_temp, f"CONS. - {rc['Mes_Nombre']}")
-                        st.markdown("<div style='height:1px; background:rgba(255,255,255,0.05); margin:4px 0;'></div>", unsafe_allow_html=True)
+                            if st.button("🔍", key=f"btn_c_{rc['Mes']}", use_container_width=True): show_detalle_mes(dc_temp, f"CONS. - {rc['Mes_Nombre']}")
+                        st.markdown("<div style='height:1px; background:rgba(255,255,255,0.02); margin:1px 0;'></div>", unsafe_allow_html=True)
+                        c_totals.append({"c":rc[df_hi.columns[0]], "d":rc[col_cons_hi]})
+                    if c_totals:
+                        tc_c = sum(x['c'] for x in c_totals); tc_d = sum(x['d'] for x in c_totals)/len(c_totals)
+                        st.markdown(f"<div style='background:rgba(0,255,136,0.05); padding:10px; border-radius:8px; text-align:center; margin-top:5px;'><p style='color:#00ff88; font-weight:800; margin:0; font-size:13px;'>TOTAL ACUMULADO CONS: {tc_c} EMBS | {int(round(tc_d))}d PROM.</p></div>", unsafe_allow_html=True)
+
 
 
 
