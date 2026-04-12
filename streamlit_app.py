@@ -1098,6 +1098,53 @@ try:
                         </div>
                     """, unsafe_allow_html=True)
 
+                st.markdown("<br><br>", unsafe_allow_html=True)
+
+                # --- 2. SOLAMENTE MONOPROVEEDOR (TABLA DEDICADA) ---
+                st.markdown("<div style='background: rgba(0, 168, 255, 0.05); padding: 15px; border-radius: 12px; border-left: 5px solid #00a8ff; margin-bottom: 20px;'><h4 style='color:#00a8ff; margin:0; letter-spacing:2px;'>1. SOLAMENTE MONOPROVEEDOR (MARÍTIMOS 2026)</h4></div>", unsafe_allow_html=True)
+                
+                df_mono_only = df_mar[df_mar[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)].copy()
+                if not df_mono_only.empty:
+                    thc_m = st.columns([1.5, 1, 1.2, 0.8])
+                    h_m = ["MES ETD", "CANT. EMB", "DÍAS PROMEDIO", "DETALLE"]
+                    for i, h in enumerate(h_m): thc_m[i].markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:800; margin:0; text-align:center;'>{h}</p>", unsafe_allow_html=True)
+                    st.markdown("<hr style='border:none; border-top:1px solid rgba(255,255,255,0.05); margin:10px 0;'>", unsafe_allow_html=True)
+                    
+                    res_m = df_mono_only.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
+                    for _, rm in res_m.iterrows():
+                        dm_temp = df_mono_only[df_mono_only['Mes'] == rm['Mes']].copy()
+                        r1, r2, r3, r4 = st.columns([1.5, 1, 1.2, 0.8])
+                        r1.markdown(f"<p style='color:#fff; font-weight:700; margin:5px 0; text-align:center;'>{rm['Mes_Nombre'].upper()}</p>", unsafe_allow_html=True)
+                        r2.markdown(f"<p style='color:#f8fafc; margin:5px 0; text-align:center;'>{rm[df_hi.columns[0]]}</p>", unsafe_allow_html=True)
+                        r3.markdown(f"<p style='color:#00a8ff; font-weight:700; margin:5px 0; text-align:center;'>{int(round(rm[col_cons_hi]))}d</p>", unsafe_allow_html=True)
+                        with r4: 
+                            if st.button("🔍", key=f"btn_m_{rm['Mes']}"): show_detalle_mes(dm_temp, f"MONO - {rm['Mes_Nombre']}")
+                        st.markdown("<div style='height:1px; background:rgba(255,255,255,0.05); margin:4px 0;'></div>", unsafe_allow_html=True)
+                
+                st.markdown("<br><br>", unsafe_allow_html=True)
+
+                # --- 3. SOLAMENTE CONSOLIDADO (TABLA DEDICADA) ---
+                st.markdown("<div style='background: rgba(0, 255, 136, 0.05); padding: 15px; border-radius: 12px; border-left: 5px solid #00ff88; margin-bottom: 20px;'><h4 style='color:#00ff88; margin:0; letter-spacing:2px;'>2. SOLAMENTE CONSOLIDADO (MARÍTIMOS 2026)</h4></div>", unsafe_allow_html=True)
+                
+                df_cons_only = df_mar[~df_mar[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)].copy()
+                if not df_cons_only.empty:
+                    thc_c = st.columns([1.5, 1, 1.2, 0.8])
+                    h_c = ["MES ETD", "CANT. EMB", "DÍAS PROMEDIO", "DETALLE"]
+                    for i, h in enumerate(h_c): thc_c[i].markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:800; margin:0; text-align:center;'>{h}</p>", unsafe_allow_html=True)
+                    st.markdown("<hr style='border:none; border-top:1px solid rgba(255,255,255,0.05); margin:10px 0;'>", unsafe_allow_html=True)
+                    
+                    res_c = df_cons_only.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
+                    for _, rc in res_c.iterrows():
+                        dc_temp = df_cons_only[df_cons_only['Mes'] == rc['Mes']].copy()
+                        r1, r2, r3, r4 = st.columns([1.5, 1, 1.2, 0.8])
+                        r1.markdown(f"<p style='color:#fff; font-weight:700; margin:5px 0; text-align:center;'>{rc['Mes_Nombre'].upper()}</p>", unsafe_allow_html=True)
+                        r2.markdown(f"<p style='color:#f8fafc; margin:5px 0; text-align:center;'>{rc[df_hi.columns[0]]}</p>", unsafe_allow_html=True)
+                        r3.markdown(f"<p style='color:#00ff88; font-weight:700; margin:5px 0; text-align:center;'>{int(round(rc[col_cons_hi]))}d</p>", unsafe_allow_html=True)
+                        with r4: 
+                            if st.button("🔍", key=f"btn_c_{rc['Mes']}"): show_detalle_mes(dc_temp, f"CONS. - {rc['Mes_Nombre']}")
+                        st.markdown("<div style='height:1px; background:rgba(255,255,255,0.05); margin:4px 0;'></div>", unsafe_allow_html=True)
+
+
 
 
             else: st.warning("No se encontraron registros marítimos para el año 2026.")
