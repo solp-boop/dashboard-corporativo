@@ -633,18 +633,24 @@ try:
             df_plan_res['Status_P'] = df_plan_res[col_etd_plan].astype(str).str.lower().str.strip()
             
             def safe_float_f(val):
+                if isinstance(val, (int, float)): return float(val)
+                if pd.isna(val) or str(val).strip() in ['', 'nan']: return 0.0
                 try:
-                    if pd.isna(val) or val == '': return 0.0
-                    s = str(val).replace('.', '').replace(',', '.')
-                    num = ''.join(c for c in s if c.isdigit() or c == '.')
-                    return float(num) if num else 0.0
+                    s = str(val).strip()
+                    if ',' in s and '.' in s:
+                        if s.find('.') < s.find(','): s = s.replace('.', '').replace(',', '.')
+                        else: s = s.replace(',', '')
+                    elif ',' in s: s = s.replace(',', '.')
+                    return float(s)
                 except: return 0.0
 
             # KPIs MASIVOS
             st.markdown("<br>", unsafe_allow_html=True)
             k1, k2, k3 = st.columns(3)
+            # Asegurar limpieza para el KPI masivo también por si acaso
+            m3_total_clean = df_inst['M3 Total'].apply(safe_float_f).sum()
             with k1: st.markdown(f"<div class='metric-container'><p>SO INSTRUIDAS</p><p>{int(df_inst['SO'].nunique())}</p></div>", unsafe_allow_html=True)
-            with k2: st.markdown(f"<div class='metric-container'><p>VOLUMEN (M3)</p><p>{int(round(df_inst['M3 Total'].sum())):,}</p></div>", unsafe_allow_html=True)
+            with k2: st.markdown(f"<div class='metric-container'><p>VOLUMEN (M3)</p><p>{int(round(m3_total_clean)):,}</p></div>", unsafe_allow_html=True)
             with k3: st.markdown(f"<div class='metric-container'><p>PROVEEDORES</p><p>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
 
