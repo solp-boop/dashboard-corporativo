@@ -615,15 +615,18 @@ try:
             except Exception: df_res = pd.read_csv(url_reserva)
             df_res.columns = df_res.columns.str.strip()
 
-            # Pre-procesamiento de datos - GESTIÓN RESERVAS (para Monitor Forwarder)
+            # --- INICIALIZACIÓN Y SCOPE (GESTIÓN RESERVAS) ---
             df_res['Fecha_Inst_H'] = df_res.iloc[:, 7].astype(str).str.strip()
             df_g = df_res[df_res['Fecha_Inst_H'].apply(lambda x: len(str(x)) > 4)].copy()
             df_g['DT_Inst'] = pd.to_datetime(df_g.iloc[:, 7], dayfirst=True, errors='coerce')
             df_g['ETD_Status_K'] = df_g.iloc[:, 10].astype(str).str.upper().str.strip()
             df_g['Espera'] = (pd.to_datetime('today') - df_g['DT_Inst']).dt.days
             df_g['Critico'] = (df_g['ETD_Status_K'] != "OK") & (df_g['Espera'] > 5)
+
+            # Columnas Automáticas para Reservas (para evitar NameError)
+            col_so_res = [c for c in df_g.columns if 'SO' in str(c).upper()][0] if any('SO' in str(c).upper() for c in df_g.columns) else df_g.columns[2]
             
-            # Pre-procesamiento de datos - PLANIF CARGAS (para Resumen y Transporte)
+            # --- PLANIF CARGAS (Resumen Superior) ---
             # Col U (index 20) es Fecha Instrucción
             df_plan_res = df_inst[df_inst.iloc[:, 20].notna() & (df_inst.iloc[:, 20].astype(str).str.strip() != "")].copy()
             col_etd_plan = '¿ETD OK FFWW?' if '¿ETD OK FFWW?' in df_plan_res.columns else df_plan_res.columns[97]
@@ -645,20 +648,20 @@ try:
             with k3: st.markdown(f"<div class='metric-container'><p>PROVEEDORES</p><p>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
 
-            # OVERALL PERFORMANCE FROM PLANIF CARGAS (SEGÚN PEDIDO)
-            # SO: Col A (0), Prov: Col AE (30), M3: Col AY (50), Emb: Col 16 (16)
+            # OVERALL PERFORMANCE FROM PLANIF CARGAS
+            # SO: Col A (0), Prov: Col AE (30), M3: Col AY (50) - Confirmado: 'M3 Total'
             df_p_ok = df_plan_res[df_plan_res['Status_P'] == "ok"]
             df_p_pend = df_plan_res[df_plan_res['Status_P'] != "ok"]
             
             c_so_ok = df_p_ok.iloc[:, 0].nunique()
             c_emb_ok = df_p_ok.iloc[:, 16].nunique()
             prov_ok_p = df_p_ok.iloc[:, 30].nunique()
-            m3_ok_p = df_p_ok.iloc[:, 50].apply(safe_float_f).sum()
+            m3_ok_p = df_p_ok['M3 Total'].apply(safe_float_f).sum()
             
             c_so_pend = df_p_pend.iloc[:, 0].nunique()
             c_emb_pend = df_p_pend.iloc[:, 16].nunique()
             prov_pend_p = df_p_pend.iloc[:, 30].nunique()
-            m3_pend_p = df_p_pend.iloc[:, 50].apply(safe_float_f).sum()
+            m3_pend_p = df_p_pend['M3 Total'].apply(safe_float_f).sum()
             
             total_emb_p = df_plan_res.iloc[:, 16].nunique()
             pct_ok_p = round((c_emb_ok / total_emb_p * 100)) if total_emb_p > 0 else 0
@@ -806,40 +809,46 @@ try:
                 t_sel_fw = st.radio("SELECCIONE VÍA PARA FORWARDERS:", ["MARITIMO", "AVION / COURIER"], horizontal=True, key="ag_radio_res")
                 df_fwd = df_fw[df_fw['Tipo_T'] == t_sel_fw].copy()
 
-                df_fwd['DT_ETD'] = pd.to_datetime(df_fwd.iloc[:, 11], dayfirst=True, errors='coerce')
+                # Datos de Reservas: Embarque (0), Contenedores (1), Agente (6), Instr (7), Status (10), Confirma (11), M3 (24)
+                df_fwd['DT_Conf'] = pd.to_datetime(df_fwd.iloc[:, 11], dayfirst=True, errors='coerce')
                 df_fwd['M3_Num'] = df_fwd.iloc[:, 24].apply(safe_float_f)
+                df_fwd['CNTR_Num'] = df_fwd.iloc[:, 1].apply(safe_float_f)
                 
-                # Totales para la vía
+                # Gestión: Días desde Instrucción hasta Confirmación
+                df_fwd['Gestion_D'] = (df_fwd['DT_Conf'] - df_fwd['DT_Inst']).dt.days
+                
                 tot_m3_via = df_fwd['M3_Num'].sum()
                 tot_emb_via = df_fwd.iloc[:, 0].nunique()
                 
                 st.markdown(f"""
                     <div style="background: rgba(0,168,255,0.05); padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #00a8ff;">
-                        <p style="margin:0; font-size:14px; color:#94a3b8;">TOTAL {t_sel_fw}: <b>{int(tot_emb_via)} EMBS</b> | <b>{int(round(tot_m3_via)):,} M3 TOTALES</b></p>
+                        <p style="margin:0; font-size:14px; color:#94a3b8;">DETALLE {t_sel_fw}: <b>{int(tot_emb_via)} EMBS</b> | <b>{int(round(tot_m3_via)):,} M3 ACTUALES EN ESTA VÍA</b></p>
                     </div>
                 """, unsafe_allow_html=True)
 
-                # Cuadro 1: Performance (Share Carga)
+                # Cuadro 1: PERFORMANCE (SEGÚN PEDIDO)
                 res_fw = df_fwd.groupby(df_fwd.columns[6]).agg(
                     Cant_Emb=(df_fwd.columns[0], 'nunique'),
+                    Cant_CNTR=('CNTR_Num', 'sum'),
                     M3=('M3_Num', 'sum'),
-                    Confirmados=('ETD_Status_K', lambda x: (x == "OK").sum()),
+                    Prom_Gest=('Gestion_D', 'mean'),
                     Prom_Esp=('Espera', lambda x: x[df_fwd.loc[x.index, 'ETD_Status_K'] != "OK"].mean())
                 ).reset_index()
 
-                res_fw['Share Carga %'] = (res_fw['M3'] / tot_m3_via * 100).fillna(0) if tot_m3_via > 0 else 0
+                res_fw['Share %'] = (res_fw['M3'] / tot_m3_via * 100).fillna(0) if tot_m3_via > 0 else 0
                 res_fw = res_fw.sort_values('M3', ascending=False)
 
-                st.markdown("<p style='color:#f8fafc; font-weight:700; margin-bottom:10px;'>1. PERFORMANCE Y SHARE DE CARGA</p>", unsafe_allow_html=True)
+                st.markdown("<p style='color:#f8fafc; font-weight:700; margin-bottom:10px;'>1. PERFORMANCE Y SHARE DE CARGA (SOLAPA RESERVAS)</p>", unsafe_allow_html=True)
                 st.dataframe(
                     res_fw,
                     column_config={
                         df_fwd.columns[6]: "Agente Forwarder",
                         "Cant_Emb": "Cant. Embarques",
+                        "Cant_CNTR": "Cant. CTNRS",
                         "M3": st.column_config.NumberColumn("M3 Total", format="%.1f"),
-                        "Confirmados": "OK",
-                        "Share Carga %": st.column_config.ProgressColumn("Share %", min_value=0, max_value=100, format="%d%%"),
+                        "Prom_Gest": st.column_config.NumberColumn("Prom. Respuesta (Días)", format="%d"),
                         "Prom_Esp": st.column_config.NumberColumn("Espera PEND. (Días)", format="%d"),
+                        "Share %": st.column_config.NumberColumn("Share %", format="%.1f%%"),
                     },
                     use_container_width=True, hide_index=True
                 )
@@ -848,7 +857,6 @@ try:
                 df_crit = df_fwd[df_fwd['Critico']].copy()
                 if not df_crit.empty:
                     st.markdown("<br><p style='color:#ff4b4b; font-weight:700; margin-bottom:10px;'>🚨 2. DETALLE DE CASOS CRÍTICOS (>5 DÍAS SIN NOVEDAD)</p>", unsafe_allow_html=True)
-                    # Columnas: Embarque (0), SO (2), Agente (6), Espera
                     cols_crit = [df_fwd.columns[0], col_so_res, df_fwd.columns[6], 'Espera']
                     st.dataframe(df_crit[cols_crit].sort_values('Espera', ascending=False), 
                                  column_config={
