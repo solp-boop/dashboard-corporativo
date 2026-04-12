@@ -1037,7 +1037,7 @@ try:
                 
                 # --- DEFINICIÓN DEL MODAL DE DETALLE (REFRESHED + SLA) ---
                 @st.dialog("🚢 DETALLE POR PUERTO Y SLA", width="large")
-                def show_detalle_mes(df_sub, mes_lbl):
+                def show_detalle_mes(df_sub, mes_lbl, mode="mixed"):
                     st.markdown(f"### Análisis {mes_lbl.upper()}")
                     st.markdown("<p style='color:#94a3b8; font-size:12px; margin-top:-10px;'>Cálculo: Desde Instrucción hasta ETD.</p>", unsafe_allow_html=True)
                     st.markdown("<hr style='margin:10px 0; border-color:rgba(255,255,255,0.1);'>", unsafe_allow_html=True)
@@ -1060,17 +1060,22 @@ try:
                         count_ok = len(df_p_t[df_p_t['SLA_OK']])
                         pct_sla = int((count_ok / tp_p) * 100) if tp_p > 0 else 0
                         
-                        # % Mono / Cons
-                        cm_p = len(df_p_t[df_p_t[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)])
-                        
-                        p_rows.append({
+                        row_data = {
                             "Puerto": r[col_puerto_hi], 
                             "Embs": tp_p, 
-                            "Días Avg": int(round(r[col_cons_hi])), 
-                            "Cumple SLA": f"{pct_sla}%",
-                            "% Mono": f"{int((cm_p/tp_p)*100)}%",
-                            "% Cons": f"{int((1-(cm_p/tp_p))*100)}%"
-                        })
+                            "Días Avg": int(round(r[col_cons_hi])),
+                            "Cumple SLA": f"{pct_sla}%"
+                        }
+                        
+                        if mode == "mixed":
+                            cm_p = len(df_p_t[df_p_t[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)])
+                            row_data["% Mono"] = f"{int((cm_p/tp_p)*100)}%"
+                            row_data["% Cons"] = f"{int((1-(cm_p/tp_p))*100)}%"
+                        else:
+                            row_data["% SLA OK"] = f"{pct_sla}%"
+                            row_data["% SLA FUERA"] = f"{100 - pct_sla}%"
+                        
+                        p_rows.append(row_data)
                     
                     st.dataframe(pd.DataFrame(p_rows).sort_values("Embs", ascending=False), use_container_width=True, hide_index=True)
                     st.markdown("<p style='font-size:11px; color:#64748b;'>* SLA Mono: 15d (Ene/Feb) / 7d (Mar+). SLA Consolidado: 25d.</p>", unsafe_allow_html=True)
@@ -1097,7 +1102,7 @@ try:
                     tr4.markdown(f"<p style='color:#00a8ff; font-size:14px; margin:4px 0; text-align:center;'>{int(p_mono*100)}%</p>", unsafe_allow_html=True)
                     tr5.markdown(f"<p style='color:#94a3b8; font-size:14px; margin:4px 0; text-align:center;'>{int((1-p_mono)*100)}%</p>", unsafe_allow_html=True)
                     with tr6:
-                        if st.button("🔍 VER", key=f"btn_det_{row['Mes']}", use_container_width=True): show_detalle_mes(df_m_temp, row['Mes_Nombre'])
+                        if st.button("🔍 VER", key=f"btn_det_{row['Mes']}", use_container_width=True): show_detalle_mes(df_m_temp, row['Mes_Nombre'], mode="mixed")
                     
                     st.markdown("<div style='height:1px; background:rgba(255,255,255,0.03); margin:2px 0;'></div>", unsafe_allow_html=True)
                     sum_rows.append({"c":tot, "d":row[col_cons_hi], "pm":p_mono})
@@ -1129,7 +1134,7 @@ try:
                         r3.markdown(f"<p style='color:{'#00ff88' if is_ok else '#ff4b4b'}; font-weight:700; margin:0; text-align:center; font-size:14px;'>{int(round(avg_d))}d</p>", unsafe_allow_html=True)
                         r4.markdown(f"<p style='background:{'rgba(0,255,136,0.1)' if is_ok else 'rgba(255,75,75,0.1)'}; color:{'#00ff88' if is_ok else '#ff4b4b'}; border:1px solid {'rgba(0,255,136,0.3)' if is_ok else 'rgba(255,75,75,0.3)'}; border-radius:10px; font-size:9px; font-weight:900; margin:2px 0; text-align:center; padding:1px 0;'>{'CUMPLE' if is_ok else 'FUERA'}</p>", unsafe_allow_html=True)
                         with r5: 
-                            if st.button("🔍", key=f"btn_m_{rm['Mes']}", use_container_width=True): show_detalle_mes(dm_temp, f"MONO - {rm['Mes_Nombre']}")
+                            if st.button("🔍", key=f"btn_m_{rm['Mes']}", use_container_width=True): show_detalle_mes(dm_temp, f"MONO - {rm['Mes_Nombre']}", mode="specific")
                         st.markdown("<div style='height:1px; background:rgba(255,255,255,0.01); margin:1px 0;'></div>", unsafe_allow_html=True)
                         m_totals.append({"c":rm[df_hi.columns[0]], "d":avg_d})
                     if m_totals:
@@ -1158,7 +1163,7 @@ try:
                         r3.markdown(f"<p style='color:{'#00ff88' if is_ok_c else '#ff4b4b'}; font-weight:700; margin:0; text-align:center; font-size:14px;'>{int(round(avg_c))}d</p>", unsafe_allow_html=True)
                         r4.markdown(f"<p style='background:{'rgba(0,255,136,0.1)' if is_ok_c else 'rgba(255,75,75,0.1)'}; color:{'#00ff88' if is_ok_c else '#ff4b4b'}; border:1px solid {'rgba(0,255,136,0.3)' if is_ok_c else 'rgba(255,75,75,0.3)'}; border-radius:10px; font-size:9px; font-weight:900; margin:2px 0; text-align:center; padding:1px 0;'>{'CUMPLE' if is_ok_c else 'FUERA'}</p>", unsafe_allow_html=True)
                         with r5: 
-                            if st.button("🔍", key=f"btn_c_{rc['Mes']}", use_container_width=True): show_detalle_mes(dc_temp, f"CONS. - {rc['Mes_Nombre']}")
+                            if st.button("🔍", key=f"btn_c_{rc['Mes']}", use_container_width=True): show_detalle_mes(dc_temp, f"CONS. - {rc['Mes_Nombre']}", mode="specific")
                         st.markdown("<div style='height:1px; background:rgba(255,255,255,0.01); margin:1px 0;'></div>", unsafe_allow_html=True)
                         c_totals.append({"c":rc[df_hi.columns[0]], "d":avg_c})
                     if c_totals:
