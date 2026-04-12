@@ -279,143 +279,144 @@ try:
             df['Rank_Num'] = df[col_rank].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
             df['Rank_Num'] = pd.to_numeric(df['Rank_Num'], errors='coerce').fillna(999999)
 
+            # --- CÁLCULOS PREVIOS DE STATUS ---
+            col_cp = df.columns[93] # ES MONOPROVEEDOR?
+            df['Tipo_Carga'] = df[col_cp].apply(lambda x: 'MONOPROVEEDOR' if str(x).upper() == 'SI' else 'CONSOLIDADO')
+            
+            # Tipo Repuesto (Gadnic, Muestras, Marcas)
+            def get_tipo_repuesto(val):
+                val_str = str(val).strip().lower()
+                if val_str in ['', 'nan', 'none'] or pd.isna(val) or val_str == 'nan': return "Gadnic"
+                if "muestra" in val_str: return "Muestras"
+                if "sin planeamiento" in val_str: return "Marcas"
+                return "Gadnic"
+            df['Tipo_Repuesto'] = df['Repuestos'].apply(get_tipo_repuesto) if 'Repuestos' in df.columns else 'Gadnic'
+
+            # Condiciones de Status
             cond_instruido = df['Fecha_Inst_DT'].notna() & ~(df['Fecha de Instruccion'].astype(str).str.upper().str.contains("SIN INSTRUCCION", na=False))
-            cond_vencida = (~cond_instruido) & (df['Fecha_Prior_DT'] < hoy)
-            cond_prox_25 = (~cond_instruido) & (df['Fecha_Prior_DT'] >= hoy) & (df['Fecha_Prior_DT'] <= hoy + timedelta(days=25))
-            cond_resto = (~cond_instruido) & (~cond_vencida) & (~cond_prox_25)
+            cond_pendiente = ~cond_instruido
+            
+            # Nivel 1: Urgente (Vencida)
+            cond_urgente = cond_pendiente & (df['Fecha_Prior_DT'] < hoy)
+            
+            # Nivel 2: Accionar (Próxima) - Lógica específica por Tipo de Carga
+            cond_pd_futura = cond_pendiente & (df['Fecha_Prior_DT'] >= hoy)
+            cond_acc_mono = cond_pd_futura & (df['Tipo_Carga'] == 'MONOPROVEEDOR') & (df['Fecha_Prior_DT'] <= hoy + timedelta(days=25))
+            cond_acc_consol = cond_pd_futura & (df['Tipo_Carga'] == 'CONSOLIDADO') & (df['Fecha_Prior_DT'] <= hoy + timedelta(days=10))
+            cond_accionar = cond_acc_mono | cond_acc_consol
+            
+            # Nivel 3: Programada (Futura)
+            cond_futura = cond_pendiente & (~cond_urgente) & (~cond_accionar)
 
+            # Dataframes de Status
             df_inst = df[cond_instruido].sort_values(by='Rank_Num').copy()
-            df_vencida = df[cond_vencida].sort_values(by='Rank_Num').copy()
-            df_prox_25 = df[cond_prox_25].sort_values(by='Rank_Num').copy()
-            df_resto = df[cond_resto].sort_values(by='Rank_Num').copy()
+            df_urgente = df[cond_urgente].sort_values(by='Rank_Num').copy()
+            df_accionar = df[cond_accionar].sort_values(by='Rank_Num').copy()
+            df_futura = df[cond_futura].sort_values(by='Rank_Num').copy()
 
+            # Métricas
             m3_inst = df_inst['M3 Total'].sum()
-            m3_vencida = df_vencida['M3 Total'].sum()
-            m3_prox_25 = df_prox_25['M3 Total'].sum()
-            m3_resto = df_resto['M3 Total'].sum()
+            m3_urgente = df_urgente['M3 Total'].sum()
+            m3_accionar = df_accionar['M3 Total'].sum()
+            m3_futura = df_futura['M3 Total'].sum()
+            m3_pend_total = m3_urgente + m3_accionar + m3_futura
 
             p_inst_val = int(round(m3_inst / m3_totales_global * 100)) if m3_totales_global > 0 else 0
-            p_vencida_val = int(round(m3_vencida / m3_totales_global * 100)) if m3_totales_global > 0 else 0
-            p_prox_25_val = int(round(m3_prox_25 / m3_totales_global * 100)) if m3_totales_global > 0 else 0
-            p_resto_val = int(round(m3_resto / m3_totales_global * 100)) if m3_totales_global > 0 else 0
+            p_pend_val = 100 - p_inst_val
             
             fob_total_global = df['Fob total Origen'].sum()
 
-            # --- BLOQUE 1: KPIs ULTRA MASIVOS ---
-            st.markdown("<br>", unsafe_allow_html=True)
-            o1, o2, o3, o4 = st.columns(4)
-            with o1: st.markdown(f"<div class='metric-container'><p>CANTIDAD DE SO</p><p>{int(cant_so_global)}</p></div>", unsafe_allow_html=True)
-            with o2: st.markdown(f"<div class='metric-container'><p>VOLUMEN TOTAL (M3)</p><p>{int(round(m3_totales_global)):,}</p></div>", unsafe_allow_html=True)
-            with o3: st.markdown(f"<div class='metric-container'><p>PROVEEDORES</p><p>{int(cant_proveedores_global)}</p></div>", unsafe_allow_html=True)
-            with o4: st.markdown(f"<div class='metric-container'><p>FOB TOTAL (USD)</p><p>${int(round(fob_total_global)):,}</p></div>", unsafe_allow_html=True)
-
-            st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
-
-            # --- NUEVO BLOQUE: DESGLOSE POR TIPO DE INGRESO (REPUESTOS) ---
-            st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:16px; letter-spacing:4px; margin-top:10px; margin-bottom: 20px; text-transform:uppercase; text-align:center;'>DESGLOSE OPERATIVO (REPUESTOS / MUESTRAS)</p>", unsafe_allow_html=True)
+            # --- NUEVO PANEL DE CONTROL: STATUS DE MERCADERÍA ---
+            st.markdown("<div style='text-align:center; padding: 20px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; margin-bottom: 30px;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>CONTROL DE STATUS DE MERCADERÍA</h2></div>", unsafe_allow_html=True)
             
-            if 'Repuestos' in df.columns and 'Fob total Origen' in df.columns:
-                def get_tipo_repuesto(val):
-                    val_str = str(val).strip().lower()
-                    if val_str in ['', 'nan', 'none'] or pd.isna(val): return "Gadnic"
-                    elif "muestra" in val_str: return "Muestras"
-                    elif "sin planeamiento" in val_str: return "Marcas"
-                    return "Gadnic"
-                
-                df['Tipo_Repuesto'] = df['Repuestos'].apply(get_tipo_repuesto)
-                res_rep = df.groupby('Tipo_Repuesto').agg({'SO': 'nunique', 'M3 Total': 'sum', 'Fob total Origen': 'sum'})
-                
-                cat_colors = {"Gadnic": "#00a8ff", "Muestras": "#ffaa00", "Marcas": "#00ff88"}
-                rc1, rc2, rc3 = st.columns(3)
-                
-                for idx, cat in enumerate(["Gadnic", "Muestras", "Marcas"]):
-                    if cat in res_rep.index:
-                        c_so = int(res_rep.loc[cat, 'SO'])
-                        c_m3 = int(round(res_rep.loc[cat, 'M3 Total']))
-                        c_fob = float(res_rep.loc[cat, 'Fob total Origen'])
-                    else:
-                        c_so = c_m3 = c_fob = 0
-                    
-                    pct_fob = (c_fob / fob_total_global * 100) if fob_total_global > 0 else 0
-                    
-                    color = cat_colors.get(cat, "#f8fafc")
-                    with [rc1, rc2, rc3][idx]:
-                        st.markdown(f"""
-                            <div class="custom-card" style="padding: 20px; border-top: 4px solid {color}; margin-bottom: 20px; background: rgba(255,255,255,0.02);">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                                    <p class="custom-card-title" style="color:{color}; font-size:15px; margin:0;">{cat.upper()} <span style="font-size:12px; color:#94a3b8;">({int(round(pct_fob))}% FOB)</span></p>
-                                    <p style="color:#ffffff; font-weight:800; font-size:20px; margin:0;">{c_so} <span style="font-size:11px; color:#94a3b8; font-weight:600;">SOs</span></p>
-                                </div>
-                                <div class="grid-2" style="margin-bottom: 10px;">
-                                    <div><p class="minicard-title">M3 TOTAL</p><p class="minicard-value" style="font-size:22px; color:#f8fafc;">{c_m3:,}</p></div>
-                                    <div><p class="minicard-title">FOB TOTAL</p><p class="minicard-value" style="font-size:20px; color:#f8fafc;"><span style="font-size:12px; color:#94a3b8;">USD</span> {c_fob:,.0f}</p></div>
-                                </div>
-                            </div>
-                        """, unsafe_allow_html=True)
-
-            st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
-
-            # --- BLOQUE 2: BOTONES DE FILTRADO CON RESALTADO DINÁMICO ---
-            c_sup1, c_sup2, c_sup3, c_sup4 = st.columns(4)
-            c_inf1, c_inf2, c_inf3, c_inf4 = st.columns(4)
+            s1, s2 = st.columns([1.2, 1])
             filtro_actual = st.session_state.get('f')
-
-            def get_btn_style(target):
-                if filtro_actual == target:
-                    return "border: 2px solid #00a8ff; background: rgba(0, 168, 255, 0.15); box-shadow: 0 0 20px rgba(0,168,255,0.4);"
-                return "background: transparent;"
-
-            with c_sup1:
-                st.markdown(f"<div style='{get_btn_style('inst')} border-radius:16px; transition: all 0.3s ease;'>", unsafe_allow_html=True)
-                if st.button(f"MERCADERÍA \n INSTRUIDA {p_inst_val}%", key="btn_inst_o", use_container_width=True):
+            
+            with s1: # BLOQUE IZQUIERDO: LOGRADO / INSTRUIDA
+                st.markdown(f"""
+                    <div class="custom-card" style="border-top: 5px solid #00ff88; background: rgba(0,255,136,0.02);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                            <p class="custom-card-title" style="color:#00ff88; font-size:18px;">MERCADERÍA INSTRUIDA (LOGRADO)</p>
+                            <p style="color:#00ff88; font-weight:900; font-size:32px; margin:0;">{p_inst_val}% <span style="font-size:14px; color:#94a3b8; font-weight:400;">M3</span></p>
+                        </div>
+                        <div class="grid-2">
+                            <div><p class="minicard-title">CANTIDAD SO</p><p class="minicard-value" style="color:#00ff88;">{df_inst['SO'].nunique()}</p></div>
+                            <div><p class="minicard-title">VOLUMEN TOTAL</p><p class="minicard-value">{int(round(m3_inst)):,} M3</p></div>
+                        </div>
+                        <hr style="border:none; border-top:1px solid rgba(255,255,255,0.08); margin:20px 0;">
+                        <div class="grid-2">
+                            <div>
+                                <p class="minicard-title" style="color:#00a8ff;">ESTRUCTURA DE CARGA</p>
+                                <p style="font-size:12px; margin:5px 0;">MONO: <b>{df_inst[df_inst['Tipo_Carga']=='MONOPROVEEDOR']['SO'].nunique()} SO</b> ({int(round(df_inst[df_inst['Tipo_Carga']=='MONOPROVEEDOR']['M3 Total'].sum()))} m3)</p>
+                                <p style="font-size:12px; margin:5px 0;">CONSOL: <b>{df_inst[df_inst['Tipo_Carga']=='CONSOLIDADO']['SO'].nunique()} SO</b> ({int(round(df_inst[df_inst['Tipo_Carga']=='CONSOLIDADO']['M3 Total'].sum()))} m3)</p>
+                            </div>
+                            <div>
+                                <p class="minicard-title" style="color:#ffaa00;">TIPO DE INGRESO</p>
+                                <p style="font-size:12px; margin:5px 0;">GADNIC: <b>{df_inst[df_inst['Tipo_Repuesto']=='Gadnic']['SO'].nunique()} SO</b></p>
+                                <p style="font-size:12px; margin:5px 0;">MUESTRAS: <b>{df_inst[df_inst['Tipo_Repuesto']=='Muestras']['SO'].nunique()} SO</b></p>
+                            </div>
+                        </div>
+                """, unsafe_allow_html=True)
+                if st.button("VER DETALLE INSTRUIDO", key="btn_inst_new", use_container_width=True):
                     st.session_state.f = 'inst' if filtro_actual != 'inst' else None
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 
-            with c_sup2:
-                st.markdown(f"<div style='{get_btn_style('venc')} border-radius:16px; transition: all 0.3s ease;'>", unsafe_allow_html=True)
-                if st.button(f"MERCADERÍA \n VENCIDA {p_vencida_val}%", key="btn_venc_o", use_container_width=True):
+            with s2: # BLOQUE DERECHO: PENDIENTE / ACCIONABLE
+                df_pend_view = df[cond_pendiente]
+                st.markdown(f"""
+                    <div class="custom-card" style="border-top: 5px solid #94a3b8;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                            <p class="custom-card-title" style="color:#f8fafc; font-size:18px;">MERCADERÍA PENDIENTE</p>
+                            <p style="color:#f8fafc; font-weight:900; font-size:32px; margin:0;">{p_pend_val}% <span style="font-size:14px; color:#94a3b8; font-weight:400;">M3</span></p>
+                        </div>
+                        <div class="grid-2" style="margin-bottom:20px;">
+                            <div><p class="minicard-title">CANTIDAD SO</p><p class="minicard-value">{df_pend_view['SO'].nunique()}</p></div>
+                            <div><p class="minicard-title">VOLUMEN TOTAL</p><p class="minicard-value">{int(round(m3_pend_total)):,} M3</p></div>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                # NIVEL 1: URGENTE
+                if st.button(f"🔴 NIVEL 1: VENCIDA (URGENTE) - {int(df_urgente['SO'].nunique())} SO", key="btn_urg_new", use_container_width=True):
                     st.session_state.f = 'venc' if filtro_actual != 'venc' else None
                     st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
 
-            with c_sup3:
-                st.markdown(f"<div style='{get_btn_style('px25')} border-radius:16px; transition: all 0.3s ease;'>", unsafe_allow_html=True)
-                if st.button(f"MERCADERÍA \n PRÓX. (≤25D) {p_prox_25_val}%", key="btn_px25_o", use_container_width=True):
+                # NIVEL 2: ACCIONAR
+                if st.button(f"🟠 NIVEL 2: ACCIONAR (PRÓXIMA) - {int(df_accionar['SO'].nunique())} SO", key="btn_acc_new", use_container_width=True):
                     st.session_state.f = 'px25' if filtro_actual != 'px25' else None
                     st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
 
-            with c_sup4:
-                st.markdown(f"<div style='{get_btn_style('rest')} border-radius:16px; transition: all 0.3s ease;'>", unsafe_allow_html=True)
-                if st.button(f"MERCADERÍA \n PRÓX. (+30D) {p_resto_val}%", key="btn_rest_o", use_container_width=True):
+                # NIVEL 3: PROGRAMADA
+                if st.button(f"🔵 NIVEL 3: PROGRAMADA (FUTURA) - {int(df_futura['SO'].nunique())} SO", key="btn_rest_new", use_container_width=True):
                     st.session_state.f = 'rest' if filtro_actual != 'rest' else None
                     st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
 
+            # --- BOTONES SECUNDARIOS ---
+            st.markdown("<br>", unsafe_allow_html=True)
+            c_inf1, c_inf2, c_inf3 = st.columns(3)
             with c_inf1:
-                st.markdown(f"<div style='{get_btn_style('rank')} border-radius:16px; transition: all 0.3s ease; margin-top:20px;'>", unsafe_allow_html=True)
-                if st.button("TOP 100 \n RANKING", key="btn_rank_o", use_container_width=True):
+                if st.button("TOP 100 RANKING", key="btn_rank_new", use_container_width=True):
                     st.session_state.f = 'rank' if filtro_actual != 'rank' else None
                     st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
-
             with c_inf2:
-                st.markdown(f"<div style='{get_btn_style('estr')} border-radius:16px; transition: all 0.3s ease; margin-top:20px;'>", unsafe_allow_html=True)
-                if st.button("ESTRUCTURA \n CARGA", key="btn_estr_o", use_container_width=True):
+                if st.button("ESTRUCTURA DE CARGA", key="btn_estr_new", use_container_width=True):
                     st.session_state.f = 'estr' if filtro_actual != 'estr' else None
                     st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
+            with c_inf3:
+                if st.button("VER TODO (SIN FILTROS)", key="btn_all_new", use_container_width=True):
+                    st.session_state.f = None
+                    st.rerun()
 
             # --- VISOR DEL FILTRO ---
             f = st.session_state.get('f')
             if f:
                 st.markdown("<br>", unsafe_allow_html=True)
                 if f in ["inst", "venc", "px25", "rest"]:
-                    if f == "inst": titulo, dff, color = "MERCADERIA INSTRUIDA", df_inst, "#00a8ff"
-                    elif f == "venc": titulo, dff, color = "MERCADERIA VENCIDA A INSTRUIR", df_vencida, "#ff4b4b"
-                    elif f == "px25": titulo, dff, color = "PROXIMA A INSTRUIR (≤ 25 DÍAS)", df_prox_25, "#ffaa00"
-                    elif f == "rest": titulo, dff, color = "PROXIMA A INSTRUIR (+ 30 DÍAS)", df_resto, "#94a3b8"
+                    if f == "inst": titulo, dff, color = "MERCADERIA INSTRUIDA", df_inst, "#00ff88"
+                    elif f == "venc": titulo, dff, color = "MERCADERIA VENCIDA A INSTRUIR (URGENTE)", df_urgente, "#ff4b4b"
+                    elif f == "px25": titulo, dff, color = "PROXIMA A INSTRUIR (PANEADO ACCIÓN)", df_accionar, "#ffaa00"
+                    elif f == "rest": titulo, dff, color = "MERCADERIA PROGRAMADA (FUTURA)", df_futura, "#94a3b8"
 
                     cant_so_f = len(dff)
                     m3_f = int(round(dff['M3 Total'].sum()))
