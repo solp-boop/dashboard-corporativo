@@ -262,7 +262,7 @@ try:
     orden_final_eta = ["PASADO/REALIZADO"] + meses_eta_ordenados + ["SIN FECHA"]
     df['Mes_ETA_Full'] = pd.Categorical(df['Mes_ETA_Full'], categories=orden_final_eta, ordered=True)
 
-    df = df[df['SO'].astype(str).str.strip() != ""]
+    df = df[df['SO'].notna() & (df['SO'].astype(str).str.strip() != "") & (df['SO'].astype(str).str.strip().str.lower() != "nan")]
     m3_totales_global = round(df['M3 Total'].sum())
     cant_so_global = len(df)
     cant_proveedores_global = df['Proveedor'].nunique() if 'Proveedor' in df.columns else 0
