@@ -1022,92 +1022,92 @@ try:
                 
                 st.markdown("<div style='background: linear-gradient(90deg, #001f3f, #003366); padding: 15px; border-radius: 12px; margin-bottom: 20px;'><h3 style='color:#00a8ff; margin:0; text-align:center; letter-spacing:3px;'>RESUMEN MES CERRADO (MARÍTIMOS 2026)</h3></div>", unsafe_allow_html=True)
                 
-                # Resumen Mensual General
-                res_mensual = df_mar.groupby(['Mes', 'Mes_Nombre']).agg({
-                    df_hi.columns[0]: 'count',
-                    col_cons_hi: 'mean'
-                }).reset_index()
+                # --- 1. RESUMEN MES CERRADO (FILAS INTERACTIVAS CON LUPA) ---
+                st.markdown("<div style='background: linear-gradient(90deg, #001f3f, #003366); padding: 15px; border-radius: 12px; margin-bottom: 5px;'><h3 style='color:#00a8ff; margin:0; text-align:center; letter-spacing:3px;'>RESUMEN MES CERRADO (MARÍTIMOS 2026)</h3></div>", unsafe_allow_html=True)
                 
-                # Cálculo de Porcentajes Mensuales
-                rows_calc = []
-                for idx, row in res_mensual.iterrows():
+                # Encabezados de Columna (Simulados)
+                thc = st.columns([2, 1, 1, 1, 1])
+                headers = ["MES", "CANT. EMB", "DÍAS", "% MONO", "% CONS"]
+                for i, h in enumerate(headers): thc[i].markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:800; margin:0; text-align:center;'>{h}</p>", unsafe_allow_html=True)
+
+                res_mensual = df_mar.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
+                
+                sum_rows = []
+                for _, row in res_mensual.iterrows():
                     df_m_temp = df_mar[df_mar['Mes'] == row['Mes']]
                     count_mono = len(df_m_temp[df_m_temp[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)])
                     tot = row[df_hi.columns[0]]
                     p_mono = (count_mono / tot) if tot > 0 else 0
-                    rows_calc.append({
-                        "Mes": row['Mes_Nombre'], 
-                        "Cant. Embarques": tot, 
-                        "Días Consolidación": round(row[col_cons_hi]),
-                        "% Mono": p_mono, 
-                        "% Cons": 1 - p_mono
-                    })
-                
-                df_res_fin = pd.DataFrame(rows_calc)
-                
-                # Fila de TOTALES
-                total_emb = df_res_fin["Cant. Embarques"].sum()
-                avg_cons = df_res_fin["Días Consolidación"].mean()
-                avg_mono = df_res_fin["% Mono"].mean()
-                df_res_fin.loc[len(df_res_fin)] = ["TOTAL GENERAL", total_emb, round(avg_cons), avg_mono, 1 - avg_mono]
-
-                st.dataframe(df_res_fin, use_container_width=True, hide_index=True,
-                             column_config={
-                                 "Días Consolidación": st.column_config.NumberColumn(format="%d d"),
-                                 "% Mono": st.column_config.NumberColumn(format="%.1%"),
-                                 "% Cons": st.column_config.NumberColumn(format="%.1%")
-                             })
-                
-                # Integración de la Lupa (Detalle por Puerto dentro del resumen)
-                with st.expander("🔍 VER DESGLOSE POR PUERTO (LA LUPA)"):
-                    mes_sel = st.selectbox("📅 SELECCIONAR MES PARA ANALIZAR ORIGEN:", df_res_fin["Mes"].unique().tolist()[:-1])
-                    if mes_sel:
-                        df_mes_sel = df_mar[df_mar['Mes_Nombre'] == mes_sel]
-                        res_p = df_mes_sel.groupby(col_puerto_hi).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
+                    
+                    # Fila Expandible (La Lupa)
+                    m_label = f"**{row['Mes_Nombre']}** | {tot} Emb. | {int(round(row[col_cons_hi]))} d | {int(p_mono*100)}% Mono | {int((1-p_mono)*100)}% Cons 🔍"
+                    with st.expander(m_label):
+                        # Detalle por puerto dentro del mes
+                        df_m_det = df_mar[df_mar['Mes_Nombre'] == row['Mes_Nombre']]
+                        res_p = df_m_det.groupby(col_puerto_hi).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
                         p_rows = []
-                        for i, r in res_p.iterrows():
-                            df_pt = df_mes_sel[df_mes_sel[col_puerto_hi] == r[col_puerto_hi]]
-                            cm = len(df_pt[df_pt[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)])
-                            tp = r[df_hi.columns[0]]
-                            pm = (cm / tp) if tp > 0 else 0
-                            p_rows.append({"Puerto": r[col_puerto_hi], "Cant": tp, "Días": round(r[col_cons_hi]), "% Mono": pm, "% Cons": 1-pm})
-                        st.dataframe(pd.DataFrame(p_rows).sort_values("Cant", ascending=False), use_container_width=True, hide_index=True,
-                                     column_config={"Días": st.column_config.NumberColumn(format="%d d"), "% Mono": st.column_config.NumberColumn(format="%.1%"), "% Cons": st.column_config.NumberColumn(format="%.1%")})
+                        for _, r in res_p.iterrows():
+                            df_p_t = df_m_det[df_m_det[col_puerto_hi] == r[col_puerto_hi]]
+                            cm_p = len(df_p_t[df_p_t[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)])
+                            tp_p = r[df_hi.columns[0]]
+                            p_rows.append({
+                                "Puerto": r[col_puerto_hi], "Cant": tp_p, "Días": int(round(r[col_cons_hi])), 
+                                "% Mono": f"{int((cm_p/tp_p)*100)}%" if tp_p>0 else "0%",
+                                "% Cons": f"{int((1-(cm_p/tp_p))*100)}%" if tp_p>0 else "0%"
+                            })
+                        st.dataframe(pd.DataFrame(p_rows).sort_values("Cant", ascending=False), use_container_width=True, hide_index=True)
+                    sum_rows.append({"c":tot, "d":row[col_cons_hi], "pm":p_mono})
+
+                # Gran Total
+                if sum_rows:
+                    t_c = sum(r['c'] for r in sum_rows)
+                    t_d = sum(r['d'] for r in sum_rows)/len(sum_rows)
+                    t_pm = sum(r['pm'] for r in sum_rows)/len(sum_rows)
+                    st.markdown(f"<div style='background:rgba(0,168,255,0.1); border:1px solid #00a8ff; border-radius:10px; padding:15px; margin-top:10px;'><p style='color:#00a8ff; font-weight:900; margin:0; text-align:center;'>TOTAL GENERAL 2026: {t_c} Embarques | {int(round(t_d))} d Promedio | {int(t_pm*100)}% Monoproveedor | {int((1-t_pm)*100)}% Consolidado</p></div>", unsafe_allow_html=True)
 
                 st.markdown("<br><hr class='white-divider'><br>", unsafe_allow_html=True)
 
-                # --- DASHBOARDS DE SLA ---
-                c1, c2 = st.columns(2)
+                # --- 2. DASHBOARD MONOPROVEEDOR ( SLA GERENCIAL ) ---
+                st.markdown("<div style='background:rgba(0, 168, 255, 0.1); padding:15px; border-radius:12px; border-left:8px solid #00a8ff; margin-bottom:10px;'><h3 style='color:#00a8ff; margin:0;'>HISTORIAL MONOPROVEEDOR ( SLA )</h3></div>", unsafe_allow_html=True)
+                df_m_mono = df_mar[df_mar[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)].copy()
                 
-                with c1:
-                    st.markdown("<div style='background:rgba(0, 168, 255, 0.1); padding:15px; border-radius:15px; border-left:5px solid #00a8ff;'><h4 style='color:#00a8ff; margin:0;'>MONOPROVEEDOR ( SLA )</h4></div>", unsafe_allow_html=True)
-                    df_m_mono = df_mar[df_mar[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)].copy()
-                    
-                    def check_sla_mono(row):
-                        threshold = 15 if row['Mes'] <= 2 else 7
-                        return "CUMPLE" if row[col_cons_hi] <= threshold else "FUERA SLA"
-                    
-                    df_m_mono['SLA_Status'] = df_m_mono.apply(check_sla_mono, axis=1)
-                    
-                    sla_m_res = df_m_mono.groupby('Mes_Nombre').agg({col_cons_hi: 'mean'}).reset_index()
-                    sla_m_res[col_cons_hi] = sla_m_res[col_cons_hi].round(0)
-                    st.dataframe(sla_m_res, use_container_width=True, hide_index=True, column_config={col_cons_hi: st.column_config.NumberColumn("Promedio Días")})
-                    
-                    with st.expander("🔍 Lupa Mono"):
-                        st.dataframe(df_m_mono[[df_m_mono.columns[0], col_puerto_hi, 'Mes_Nombre', col_cons_hi, 'SLA_Status']], hide_index=True)
+                if not df_m_mono.empty:
+                    df_m_mono['Is_SLA'] = df_m_mono.apply(lambda r: True if r[col_cons_hi] <= (15 if r['Mes'] <= 2 else 7) else False, axis=1)
+                    sla_m_gr = df_m_mono.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
+                    for _, smr in sla_m_gr.iterrows():
+                        df_s_mono = df_m_mono[df_m_mono['Mes'] == smr['Mes']]
+                        c_ok = len(df_s_mono[df_s_mono['Is_SLA']])
+                        total_m = len(df_s_mono)
+                        pct_ok = int((c_ok/total_m)*100) if total_m>0 else 0
+                        
+                        m_sla_label = f"**{smr['Mes_Nombre']}** | {total_m} Emb. | {int(round(smr[col_cons_hi]))} d | CUMPLE: {pct_ok}% | FUERA: {100-pct_ok}% 🔍"
+                        with st.expander(m_sla_label):
+                            st.markdown(f"<p style='color:{'#00ff88' if pct_ok >=80 else '#ff4b4b'}; font-weight:700;'>Objetivo Monoproveedor: {pct_ok}% Cumplido</p>", unsafe_allow_html=True)
+                            df_sub_m = df_s_mono[[df_hi.columns[0], col_puerto_hi, col_cons_hi, 'Is_SLA']].copy()
+                            df_sub_m.columns = ["Embarque", "Puerto", "Días", "¿Cumple SLA?"]
+                            st.dataframe(df_sub_m, use_container_width=True, hide_index=True)
+                
+                st.markdown("<br>", unsafe_allow_html=True)
 
-                with c2:
-                    st.markdown("<div style='background:rgba(0, 255, 136, 0.1); padding:15px; border-radius:15px; border-left:5px solid #00ff88;'><h4 style='color:#00ff88; margin:0;'>CONSOLIDADOS ( SLA )</h4></div>", unsafe_allow_html=True)
-                    df_m_cons = df_mar[~df_mar[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)].copy()
-                    
-                    df_m_cons['SLA_Status'] = df_m_cons[col_cons_hi].apply(lambda x: "CUMPLE" if x <= 25 else "FUERA SLA")
-                    
-                    sla_c_res = df_m_cons.groupby('Mes_Nombre').agg({col_cons_hi: 'mean'}).reset_index()
-                    sla_c_res[col_cons_hi] = sla_c_res[col_cons_hi].round(0)
-                    st.dataframe(sla_c_res, use_container_width=True, hide_index=True, column_config={col_cons_hi: st.column_config.NumberColumn("Promedio Días")})
-                    
-                    with st.expander("🔍 Lupa Consolidado"):
-                        st.dataframe(df_m_cons[[df_m_cons.columns[0], col_puerto_hi, 'Mes_Nombre', col_cons_hi, 'SLA_Status']], hide_index=True)
+                # --- 3. DASHBOARD CONSOLIDADOS ( SLA GERENCIAL ) ---
+                st.markdown("<div style='background:rgba(0, 255, 136, 0.1); padding:15px; border-radius:12px; border-left:8px solid #00ff88; margin-bottom:10px;'><h3 style='color:#00ff88; margin:0;'>HISTORIAL CONSOLIDADOS ( SLA )</h3></div>", unsafe_allow_html=True)
+                df_m_cons = df_mar[~df_mar[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)].copy()
+                
+                if not df_m_cons.empty:
+                    df_m_cons['Is_SLA'] = df_m_cons[col_cons_hi] <= 25
+                    sla_c_gr = df_m_cons.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
+                    for _, scr in sla_c_gr.iterrows():
+                        df_s_cons = df_m_cons[df_m_cons['Mes'] == scr['Mes']]
+                        c_ok_c = len(df_s_cons[df_s_cons['Is_SLA']])
+                        total_c = len(df_s_cons)
+                        pct_ok_c = int((c_ok_c/total_c)*100) if total_c>0 else 0
+                        
+                        c_sla_label = f"**{scr['Mes_Nombre']}** | {total_c} Emb. | {int(round(scr[col_cons_hi]))} d | CUMPLE: {pct_ok_c}% | FUERA: {100-pct_ok_c}% 🔍"
+                        with st.expander(c_sla_label):
+                            st.markdown(f"<p style='color:{'#00ff88' if pct_ok_c >=80 else '#ff4b4b'}; font-weight:700;'>Objetivo Consolidado (25d): {pct_ok_c}% Cumplido</p>", unsafe_allow_html=True)
+                            df_sub_c = df_s_cons[[df_hi.columns[0], col_puerto_hi, col_cons_hi, 'Is_SLA']].copy()
+                            df_sub_c.columns = ["Embarque", "Puerto", "Días", "¿Cumple SLA?"]
+                            st.dataframe(df_sub_c, use_container_width=True, hide_index=True)
 
             else: st.warning("No se encontraron registros marítimos para el año 2026.")
         except Exception as e: st.error(f"Error en Indicadores: {e}")
