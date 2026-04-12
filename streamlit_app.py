@@ -1114,11 +1114,12 @@ try:
                 col_r_sla = col_resp_sla[0] if col_resp_sla else df_re.columns[6]
                 
                 analistas_sla = sorted(df_sla_alert[col_r_sla].astype(str).unique().tolist())
-                sel_an_sla = st.selectbox("🎯 FILTRAR POR RESPONSABLE (SLA):", ["TODOS"] + analistas_sla, key="sel_sla_an")
+                sel_an_sla = st.selectbox("🎯 FILTRAR POR RESPONSABLE (SLA):", ["TODOS"] + analistas_sla, key="sel_sla_an_vfinal")
                 
                 df_sla_f = df_sla_alert if sel_an_sla == "TODOS" else df_sla_alert[df_sla_alert[col_r_sla] == sel_an_sla]
                 
-                df_sla_table = df_sla_f[[df_sla_f.columns[0], df_sla_f.columns[1], 'DT_ETD_M', 'T_Consol', col_r_sla, col_mono]].copy()
+                # Usamos Columna E (índice 4) para Puerto/Aero
+                df_sla_table = df_sla_f[[df_sla_f.columns[0], df_sla_f.columns[4], 'DT_ETD_M', 'T_Consol', col_r_sla, col_mono]].copy()
                 df_sla_table['DT_ETD_M'] = df_sla_table['DT_ETD_M'].dt.strftime('%d/%m/%Y')
                 df_sla_table.columns = ["Embarque", "Puerto/Aero", "ETD", "Días Consol.", "Responsable", "¿Mono?"]
                 
@@ -1165,28 +1166,44 @@ try:
             st.markdown("<br><hr class='white-divider'><br>", unsafe_allow_html=True)
             st.markdown("<p style='color:#ffaa00; font-weight:700; font-size:18px; letter-spacing:2px;'>2. MERCADERÍA SIN INSTRUIR (CONSOLIDACIONES PENDIENTES)</p>", unsafe_allow_html=True)
             
-            # Buscamos la columna de instrucción de forma robusta
+            # Monitor 2: Lógica refinada
             col_inst_idx = 20
             col_inst_name = [c for c in df.columns if 'INSTRUCCION' in c.upper()]
-            if col_inst_name:
-                df_no_inst = df[df[col_inst_name[0]].isna() | (df[col_inst_name[0]].astype(str).str.strip().isin(['', 'nan', 'sin instruccion']))].copy()
-            else:
-                df_no_inst = df[df.iloc[:, col_inst_idx].isna() | (df.iloc[:, col_inst_idx].astype(str).str.strip().isin(['', 'nan', 'sin instruccion']))].copy()
+            col_mono_plan = [c for c in df.columns if 'MONOPROVEEDOR' in c.upper()]
+            
+            c_inst = col_inst_name[0] if col_inst_name else df.columns[col_inst_idx]
+            c_mono_p = col_mono_plan[0] if col_mono_plan else df.columns[31]
+            
+            df_ni = df[df[c_inst].isna() | (df[c_inst].astype(str).str.strip().isin(['', 'nan', 'SIN INSTRUCCION', 'sin instruccion']))].copy()
+            
+            # Filtro por Fecha Prioritaria y Monoproveedor
+            # Mono "No" -> hoy + 10 días
+            # Mono "Si" -> hoy + 25 días
+            hoy_ni = pd.Timestamp(datetime.now().date())
+            df_ni['Fecha_Prior_DT'] = pd.to_datetime(df.iloc[:, 99], errors='coerce')
+            
+            def filter_ni(row):
+                is_mono = "SÍ" in str(row[c_mono_p]).upper() or "SI" in str(row[c_mono_p]).upper()
+                limite = hoy_ni + timedelta(days=25 if is_mono else 10)
+                return row['Fecha_Prior_DT'] <= limite
+
+            df_no_inst = df_ni[df_ni.apply(filter_ni, axis=1)].copy()
             
             if not df_no_inst.empty:
                 col_puerto = df.columns[41]
                 puertos_disp = sorted(df_no_inst[col_puerto].astype(str).unique().tolist())
-                sel_ptr = st.selectbox("🚢 FILTRAR POR PUERTO DE SALIDA:", ["TODOS"] + puertos_disp, key="sel_ptr_noinst_v4")
+                sel_ptr = st.selectbox("🚢 FILTRAR POR PUERTO DE SALIDA (PENDIENTES):", ["TODOS"] + puertos_disp, key="sel_ptr_noinst_vfinal")
                 
                 df_no_inst_f = df_no_inst if sel_ptr == "TODOS" else df_no_inst[df_no_inst[col_puerto] == sel_ptr]
                 
                 col_invoice = [c for c in df.columns if 'INVOICE' in c.upper()][0] if any('INVOICE' in c.upper() for c in df.columns) else "Invoice"
                 col_prior = df.columns[99]
                 
-                st.dataframe(df_no_inst_f[[col_invoice, 'SO', col_prior, 'M3 Total']].sort_values(col_prior), 
+                st.dataframe(df_no_inst_f[[col_invoice, 'SO', col_prior, 'M3 Total', c_mono_p]].sort_values(col_prior), 
                              column_config={col_prior: st.column_config.DateColumn("Fecha Prioritaria"), 'M3 Total': st.column_config.NumberColumn("M3", format="%.1f")},
                              use_container_width=True, hide_index=True)
-            else: st.info("Sin SOs pendientes de instrucción según Planif Cargas.")
+                st.info(f"💡 Mostrando SOs sin instruir con prioridad <= {hoy_ni.strftime('%d/%m')} (+10d No Mono / +25d Mono).")
+            else: st.info("Sin SOs pendientes de instrucción para el rango de fechas actual.")
 
             # --- MONITOR 3: ALERTA CARGA NO MOVILIZADA (PENDIENTE TRÁNSITO) ---
             st.markdown("<br><hr class='white-divider'><br>", unsafe_allow_html=True)
