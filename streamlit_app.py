@@ -268,7 +268,7 @@ try:
     cant_proveedores_global = df['Proveedor'].nunique() if 'Proveedor' in df.columns else 0
 
     st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><div class='bidcom-subtitle'>Tablero Logístico Corporativo</div></div>", unsafe_allow_html=True)
-    tabs = st.tabs(["ORIGEN", "CONTROL GESTIÓN RESERVAS", "INDICADORES", "AGENTES", "ANALISTAS", "FLETES", "COTIZACIÓN FFWW"])
+    tabs = st.tabs(["PANEL EJECUTIVO (ORIGEN)", "CONTROL GESTIÓN RESERVAS", "ALERTAS ESTRATÉGICAS", "INDICADORES", "AGENTES", "ANALISTAS", "FLETES", "COTIZACIÓN FFWW"])
 
     # --- SOLAPA 1: ORIGEN ---
     with tabs[0]:
@@ -884,36 +884,82 @@ try:
                                      }, hide_index=True, use_container_width=True)
                     else: st.info("Sin casos pendientes.")
 
-                # --- 🚨 2. DETALLE DE CASOS CRÍTICOS ---
-                st.markdown("<br>", unsafe_allow_html=True)
-                df_crit = df_fwd[df_fwd['Critico']].copy()
-                if not df_crit.empty:
-                    st.markdown("<p style='color:#ff4b4b; font-weight:700; margin-bottom:10px;'>🚨 2. DETALLE DE CASOS CRÍTICOS (>5 DÍAS SIN NOVEDAD)</p>", unsafe_allow_html=True)
-                    
-                    agentes_crit = sorted(df_crit.iloc[:, 6].unique().tolist())
-                    sel_ag = st.selectbox("FILTRAR POR AGENTE CRÍTICO:", ["TODOS"] + agentes_crit, key="ag_crit_sel")
-                    
-                    df_crit_show = df_crit if sel_ag == "TODOS" else df_crit[df_crit.iloc[:, 6] == sel_ag]
-                    
-                    # Columnas: Embarque (0), Fecha Instruccion (7), Packeo Min (18), Packeo Max (19), Espera
-                    cols_show = [df_crit.columns[0], df_crit.columns[7], df_crit.columns[18], df_crit.columns[19], 'Espera']
-                    # Renombrar columnas para visualizacion
-                    df_crit_disp = df_crit_show[cols_show].copy()
-                    df_crit_disp.columns = ["Embarque", "Fecha Instrucción", "F. Packeo Min", "F. Packeo Max", "Días de Espera"]
-                    
-                    st.dataframe(df_crit_disp.sort_values('Días de Espera', ascending=False), 
-                                 column_config={
-                                     "Días de Espera": st.column_config.NumberColumn("Días de Espera", format="%d ⚠️")
-                                 },
-                                 use_container_width=True, hide_index=True)
-                else:
-                    st.success("No hay casos críticos actualmente para esta vía. ✅")
-
         except Exception as e:
             st.error(f"Error en Gestión de Reservas: {e}")
 
-    # --- SOLAPA 3: INDICADORES (SLA & CONSOLIDACIÓN) ---
+    # --- SOLAPA 3: ALERTAS ESTRATÉGICAS ---
     with tabs[2]:
+        try:
+            st.markdown("<h2 style='color:#00a8ff; font-weight:800; letter-spacing:4px; margin:20px 0; font-size:24px; text-align:center;'>ALERTAS ESTRATÉGICAS</h2>", unsafe_allow_html=True)
+            
+            # Recargamos Reservas para asegurar datos frescos
+            url_reserva = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
+            try: df_res_alt = load_reserva_data(url_reserva)
+            except: df_res_alt = pd.read_csv(url_reserva)
+            df_res_alt.columns = df_res_alt.columns.str.strip()
+
+            # 1. MONITOR DE GESTIÓN POR FORWARDER (CRÍTICOS MOVILIZADOS)
+            st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
+            st.markdown("<p style='color:#ff4b4b; font-weight:700; letter-spacing:2px; font-size:18px;'>1. MONITOR DE GESTIÓN POR FORWARDER (CRÍTICOS)</p>", unsafe_allow_html=True)
+            
+            df_res_alt['DT_Inst'] = pd.to_datetime(df_res_alt.iloc[:, 7], dayfirst=True, errors='coerce')
+            df_res_alt['ETD_Status_K'] = df_res_alt.iloc[:, 10].astype(str).str.upper().str.strip()
+            df_res_alt['Espera'] = (pd.to_datetime('today') - df_res_alt['DT_Inst']).dt.days
+            df_res_alt['Critico'] = (df_res_alt['ETD_Status_K'] != "OK") & (df_res_alt['Espera'] > 5)
+            
+            df_crit = df_res_alt[df_res_alt['Critico']].copy()
+            if not df_crit.empty:
+                agentes_crit = sorted(df_crit.iloc[:, 6].unique().tolist())
+                sel_ag = st.selectbox("FILTRAR POR AGENTE (CASOS CRÍTICOS):", ["TODOS"] + agentes_crit, key="ag_crit_tab3")
+                df_crit_show = df_crit if sel_ag == "TODOS" else df_crit[df_crit.iloc[:, 6] == sel_ag]
+                
+                # Columnas: Embarque (0), Fecha Instruccion (7), Packeo Min (18), Packeo Max (19), Espera
+                cols_show = [df_crit.columns[0], df_crit.columns[7], df_crit.columns[18], df_crit.columns[19], 'Espera']
+                df_crit_disp = df_crit_show[cols_show].copy()
+                df_crit_disp.columns = ["Embarque", "Fecha Instrucción", "F. Packeo Min", "F. Packeo Max", "Días de Espera"]
+                
+                st.dataframe(df_crit_disp.sort_values('Días de Espera', ascending=False), 
+                             column_config={"Días de Espera": st.column_config.NumberColumn("Wait", format="%d ⚠️")},
+                             use_container_width=True, hide_index=True)
+            else:
+                st.success("No hay alertas de gestión pendientes. ✅")
+
+            # 2. MONITOR DE AGRUPAMIENTO DE MERCADERÍA
+            st.markdown("<br><hr class='glow-divider'>", unsafe_allow_html=True)
+            st.markdown("<p style='color:#00a8ff; font-weight:700; letter-spacing:2px; font-size:18px;'>2. MONITOR DE AGRUPAMIENTO DE MERCADERÍA</p>", unsafe_allow_html=True)
+            
+            df_res_alt['P_Min'] = pd.to_datetime(df_res_alt.iloc[:, 18], dayfirst=True, errors='coerce')
+            df_res_alt['P_Max'] = pd.to_datetime(df_res_alt.iloc[:, 19], dayfirst=True, errors='coerce')
+            df_res_alt['Rango_Dias'] = (df_res_alt['P_Max'] - df_res_alt['P_Min']).dt.days
+            
+            # Alertamos si el rango es > 7 días
+            df_alert_g = df_res_alt[df_res_alt['Rango_Dias'] > 7].copy()
+            
+            if not df_alert_g.empty:
+                st.warning(f"Se han detectado {len(df_alert_g.iloc[:, 0].unique())} embarques con ventanas de producción extendidas (>7 días).")
+                
+                # Agrupamos por embarque para ver el rango real
+                df_g_table = df_alert_g.groupby(df_alert_g.columns[0]).agg({
+                    df_alert_g.columns[6]: 'first', # Agente
+                    'P_Min': 'min',
+                    'P_Max': 'max',
+                    'Rango_Dias': 'max'
+                }).reset_index()
+                
+                df_g_table.columns = ["Embarque", "Agente", "Fecha Min Packeo", "Fecha Max Packeo", "Días de Rango"]
+                st.dataframe(df_g_table.sort_values('Días de Rango', ascending=False),
+                             column_config={"Días de Rango": st.column_config.NumberColumn("Rango", format="%d ⚡")},
+                             use_container_width=True, hide_index=True)
+                
+                st.info("💡 Un rango elevado indica que la mercadería está tardando mucho en consolidarse para este embarque.")
+            else:
+                st.success("El agrupamiento de mercadería es eficiente para todos los embarques (Rango <= 7 días).")
+
+        except Exception as e:
+            st.error(f"Error en Solapa Alertas: {e}")
+
+    # --- SOLAPA 4: INDICADORES (SLA & CONSOLIDACIÓN) ---
+    with tabs[3]:
         st.markdown("""
             <style>
             .stTabs [data-testid="stVerticalBlock"] div[data-testid="stColumn"] button {
@@ -946,9 +992,8 @@ try:
             .table-row-hover:hover {
                 background: rgba(255,255,255,0.03);
             }
-            </style>
-        """, unsafe_allow_html=True)
-
+    # --- SOLAPA 4: INDICADORES ---
+    with tabs[3]:
         try:
             url_hist = f"{base_url}/export?format=csv&gid=32771816&nocache={time.time()}"
             @st.cache_data(ttl=60)
@@ -1052,8 +1097,8 @@ try:
         except Exception as e:
             st.error(f"Error en Indicadores: {e}")
 
-    # --- SOLAPA 4: AGENTES ---
-    with tabs[3]:
+    # --- SOLAPA 5: AGENTES ---
+    with tabs[4]:
         st.markdown("<div class='custom-card' style='text-align:center; border-color:#00a8ff; box-shadow: 0 0 50px rgba(0,168,255,0.1);'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:6px; text-shadow: 0 0 20px rgba(0,168,255,0.4); margin:0;'>MONITOR DE GESTIÓN POR FORWARDER</h2></div>", unsafe_allow_html=True)
         try:
             u_ag = f"{base_url}/export?format=csv&gid=276804813"
@@ -1103,11 +1148,11 @@ try:
                 )
         except Exception as e: st.error(f"Error en Solapa Agentes: {e}")
 
-    with tabs[4]: st.info("Módulo Analistas en desarrollo.")
-    with tabs[5]: st.info("Módulo Fletes en desarrollo.")
+    with tabs[5]: st.info("Módulo Analistas en desarrollo.")
+    with tabs[6]: st.info("Módulo Fletes en desarrollo.")
 
-    # --- SOLAPA 7: COTIZACIÓN FFWW ---
-    with tabs[6]:
+    # --- SOLAPA 8: COTIZACIÓN FFWW ---
+    with tabs[7]:
         try:
             st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:20px; letter-spacing:4px; text-transform:uppercase;'>Cotización Forwarders (Proyección Marítima)</p>", unsafe_allow_html=True)
             st.markdown("<p style='color:#94a3b8; font-size:14px; margin-bottom:30px;'>Módulo exclusivo para consultar volumen semanal (M3) y cantidad de contenedores requeridos por puerto.</p>", unsafe_allow_html=True)
