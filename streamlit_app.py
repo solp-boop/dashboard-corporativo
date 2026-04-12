@@ -1003,17 +1003,91 @@ try:
     # --- SOLAPA 7: ALERTAS ESTRATÉGICAS ---
     with tabs[6]:
         try:
-            st.markdown("<div style='text-align:center; padding: 20px; background: rgba(255, 75, 75, 0.05); border-radius: 20px; margin: 30px 0;'><h2 style='color:#ff4b4b; font-weight:800; letter-spacing:5px; margin:0;'>ALERTAS ESTRATÉGICAS</h2></div>", unsafe_allow_html=True)
-            # Reutilizamos df_re (Reservas) para el monitor de críticos en esta vista final
-            st.markdown("<p style='color:#ff4b4b; font-weight:700;'>1. MONITOR DE GESTIÓN (CRÍTICOS)</p>", unsafe_allow_html=True)
-            df_re = pd.read_csv(f"{base_url}/export?format=csv&gid=276804813")
-            df_re.columns = df_re.columns.str.strip()
-            df_re['Wait'] = (pd.to_datetime('today') - pd.to_datetime(df_re.iloc[:, 7], errors='coerce')).dt.days
-            df_cr = df_re[(df_re.iloc[:, 10].astype(str).str.upper() != "OK") & (df_re['Wait'] > 5)].copy()
-            if not df_cr.empty:
-                st.dataframe(df_cr.iloc[:, [0, 6, 7, 18, 19, -1]].sort_values('Wait', ascending=False), use_container_width=True, hide_index=True)
-            else: st.success("Sin alertas críticas.")
-        except Exception as e: st.error(f"Error en Alertas: {e}")
+            st.markdown("<div style='text-align:center; padding: 20px; background: rgba(255, 75, 75, 0.05); border-radius: 20px; margin-bottom: 30px;'><h2 style='color:#ff4b4b; font-weight:800; letter-spacing:5px; margin:0;'>ALERTAS ESTRATÉGICAS</h2></div>", unsafe_allow_html=True)
+            
+            # Recargamos Reservas para asegurar datos frescos para las alertas
+            url_r_alt = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
+            @st.cache_data(ttl=60)
+            def load_res_alt(u): return pd.read_csv(u, engine='python')
+            df_re = load_res_alt(url_r_alt)
+            df_re.columns = [str(c).strip() for c in df_re.columns]
+
+            # --- MONITOR 1: AGRUPAMIENTO DE MERCADERÍA (>7 DÍAS VENTANA) ---
+            st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:18px; letter-spacing:2px;'>1. MONITOR DE AGRUPAMIENTO (>7 DÍAS VENTANA)</p>", unsafe_allow_html=True)
+            df_re['P_Min'] = pd.to_datetime(df_re.iloc[:, 18], dayfirst=True, errors='coerce')
+            df_re['P_Max'] = pd.to_datetime(df_re.iloc[:, 19], dayfirst=True, errors='coerce')
+            df_re['Rango_Dias'] = (df_re['P_Max'] - df_re['P_Min']).dt.days
+            
+            df_alert_g = df_re[df_re['Rango_Dias'] > 7].copy()
+            if not df_alert_g.empty:
+                # Buscamos columna de Analista (dinámico o por índice probable)
+                col_analista = [c for c in df_re.columns if 'ANALISTA' in c.upper() or 'RESPONSABLE' in c.upper()]
+                col_an = col_analista[0] if col_analista else df_re.columns[6] # Default Agente si no hay analista explícito
+                
+                df_g_table = df_alert_g.groupby(df_re.columns[0]).agg({
+                    col_an: 'first',
+                    'P_Min': 'min',
+                    'P_Max': 'max',
+                    'Rango_Dias': 'max'
+                }).reset_index()
+                df_g_table.columns = ["Embarque", "Analista Responsable", "F. Min Packeo", "F. Max Packeo", "Días Rango"]
+                st.dataframe(df_g_table.sort_values('Días Rango', ascending=False), 
+                             column_config={"Días Rango": st.column_config.NumberColumn("⚡ Rango", format="%d d")},
+                             use_container_width=True, hide_index=True)
+            else: st.success("Agrupamientos eficientes (<= 7 días).")
+
+            # --- MONITOR 2: MERCADERÍA SIN INSTRUIR (CONSOLIDACIÓN) ---
+            st.markdown("<br><hr class='white-divider'><br>", unsafe_allow_html=True)
+            st.markdown("<p style='color:#ffaa00; font-weight:700; font-size:18px; letter-spacing:2px;'>2. MERCADERÍA SIN INSTRUIR (CONSOLIDACIONES PENDIENTES)</p>", unsafe_allow_html=True)
+            
+            # Filtramos del df general las que no están en df_inst (sin fecha de instrucción en Col 20)
+            df_no_inst = df[df.iloc[:, 20].isna() | (df.iloc[:, 20].astype(str).str.strip() == "")].copy()
+            
+            if not df_no_inst.empty:
+                col_puerto = df.columns[41]
+                col_rank = df.columns[1]
+                col_prior = df.columns[99]
+                col_invoice = [c for c in df.columns if 'INVOICE' in c.upper()][0] if any('INVOICE' in c.upper() for c in df.columns) else "Invoice"
+                
+                # Resumen Agrupado para ver potencial de consolidación
+                res_cons = df_no_inst.groupby([col_puerto, 'Fecha_Prior_DT']).agg({
+                    'SO': 'count',
+                    'M3 Total': 'sum'
+                }).reset_index()
+                
+                st.info("💡 Agrupamiento sugerido por Puerto y Fecha Prioritaria para armar nuevos consolidados.")
+                st.dataframe(res_cons.sort_values(['M3 Total', col_puerto], ascending=[False, True]), 
+                             column_config={
+                                 'Fecha_Prior_DT': st.column_config.DateColumn("Fecha Prioritaria"),
+                                 'M3 Total': st.column_config.NumberColumn("Total M3", format="%.1f")
+                             }, use_container_width=True, hide_index=True)
+                
+                with st.expander("🔍 VER DETALLE DE MERCADERÍA SIN INSTRUIR"):
+                    st.dataframe(df_no_inst[['SO', col_rank, col_prior, col_invoice, 'M3 Total', col_puerto]].sort_values(col_rank), 
+                                 use_container_width=True, hide_index=True)
+            else: st.info("Toda la mercadería planificada ya se encuentra instruida.")
+
+            # --- MONITOR 3: ALERTA CARGA NO MOVILIZADA (>5 DÍAS ETD OK) ---
+            st.markdown("<br><hr class='white-divider'><br>", unsafe_allow_html=True)
+            st.markdown("<p style='color:#ff4b4b; font-weight:700; font-size:18px; letter-spacing:2px;'>3. ALERTA CARGA NO MOVILIZADA (>5 DÍAS ETD OK)</p>", unsafe_allow_html=True)
+            
+            df_re['DT_ETD'] = pd.to_datetime(df_re.iloc[:, 9], dayfirst=True, errors='coerce')
+            df_re['Status_OK'] = df_re.iloc[:, 10].astype(str).str.lower().str.strip() == "ok"
+            df_re['Dias_Pasados'] = (pd.to_datetime('today') - df_re['DT_ETD']).dt.days
+            
+            df_no_mov = df_re[df_re['Status_OK'] & (df_re['Dias_Pasados'] > 5)].copy()
+            if not df_no_mov.empty:
+                col_resp = [c for c in df_re.columns if 'ANALISTA' in c.upper() or 'RESPONSABLE' in c.upper()]
+                col_r = col_resp[0] if col_resp else df_re.columns[6]
+                
+                df_no_mov_view = df_no_mov[[df_no_mov.columns[0], df_no_mov.columns[9], 'Dias_Pasados', col_r]].copy()
+                df_no_mov_view.columns = ["Embarque", "ETD", "Días desde ETD", "Responsable"]
+                st.dataframe(df_no_mov_view.sort_values('Días desde ETD', ascending=False),
+                             column_config={"Días desde ETD": st.column_config.NumberColumn("⏳ Demora", format="%d d")},
+                             use_container_width=True, hide_index=True)
+            else: st.success("No hay cargas con ETD cumplido pendientes de movilizar.")
+
+        except Exception as e: st.error(f"Error en Alertas Estratégicas: {e}")
 
     # --- SOLAPA 8: ASK COMEX ---
     with tabs[7]:
