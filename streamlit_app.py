@@ -326,6 +326,16 @@ try:
             
             fob_total_global = df['Fob total Origen'].sum()
 
+            # --- BLOQUE: RESUMEN GENERAL ORIGEN ---
+            st.markdown("<br>", unsafe_allow_html=True)
+            o1, o2, o3, o4 = st.columns(4)
+            with o1: st.markdown(f"<div class='metric-container'><p>CANTIDAD DE SO</p><p>{int(cant_so_global)}</p></div>", unsafe_allow_html=True)
+            with o2: st.markdown(f"<div class='metric-container'><p>VOLUMEN TOTAL (M3)</p><p>{int(round(m3_totales_global)):,}</p></div>", unsafe_allow_html=True)
+            with o3: st.markdown(f"<div class='metric-container'><p>PROVEEDORES</p><p>{int(cant_proveedores_global)}</p></div>", unsafe_allow_html=True)
+            with o4: st.markdown(f"<div class='metric-container'><p>FOB TOTAL (USD)</p><p>${int(round(fob_total_global)):,}</p></div>", unsafe_allow_html=True)
+
+            st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
+
             # --- NUEVO PANEL DE CONTROL: STATUS DE MERCADERÍA ---
             st.markdown("<div style='text-align:center; padding: 20px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; margin-bottom: 30px;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>CONTROL DE STATUS DE MERCADERÍA</h2></div>", unsafe_allow_html=True)
             
