@@ -822,13 +822,15 @@ try:
                 t_sel_fw = st.radio("SELECCIONE VÍA PARA FORWARDERS:", ["MARITIMO", "AVION / COURIER"], horizontal=True, key="ag_radio_res")
                 df_fwd = df_fw[df_fw['Tipo_T'] == t_sel_fw].copy()
 
-                # Datos de Reservas: Embarque (0), Contenedores (1), Agente (6), Instr (7), Status (10), Confirma (11), M3 (24)
+                # Datos de Reservas: Embarque (0), Contenedores (1), Agente (6), Instr (7), ETD (9), Status (10), Confirma (11), M3 (24)
                 df_fwd['DT_Conf'] = pd.to_datetime(df_fwd.iloc[:, 11], dayfirst=True, errors='coerce')
+                df_fwd['DT_ETD'] = pd.to_datetime(df_fwd.iloc[:, 9], dayfirst=True, errors='coerce')
                 df_fwd['M3_Num'] = df_fwd.iloc[:, 24].apply(safe_float_f)
                 df_fwd['CNTR_Num'] = df_fwd.iloc[:, 1].apply(safe_float_f)
                 
-                # Gestión: Días desde Instrucción hasta Confirmación
-                df_fwd['Gestion_D'] = (df_fwd['DT_Conf'] - df_fwd['DT_Inst']).dt.days
+                # Métricas de Tiempo
+                df_fwd['Gestion_Resp'] = (df_fwd['DT_Conf'] - df_fwd['DT_Inst']).dt.days # Respuesta Agente
+                df_fwd['Gestion_ETD'] = (df_fwd['DT_ETD'] - df_fwd['DT_Inst']).dt.days # Instruccion -> ETD
                 
                 tot_m3_via = df_fwd['M3_Num'].sum()
                 tot_emb_via = df_fwd.iloc[:, 0].nunique()
@@ -839,44 +841,69 @@ try:
                     </div>
                 """, unsafe_allow_html=True)
 
-                # Cuadro 1: PERFORMANCE (SEGÚN PEDIDO)
-                res_fw = df_fwd.groupby(df_fwd.columns[6]).agg(
-                    Cant_Emb=(df_fwd.columns[0], 'nunique'),
-                    Cant_CNTR=('CNTR_Num', 'sum'),
-                    M3=('M3_Num', 'sum'),
-                    Prom_Gest=('Gestion_D', 'mean'),
-                    Prom_Esp=('Espera', lambda x: x[df_fwd.loc[x.index, 'ETD_Status_K'] != "OK"].mean())
-                ).reset_index()
-
-                res_fw['Share %'] = (res_fw['M3'] / tot_m3_via * 100).fillna(0) if tot_m3_via > 0 else 0
-                res_fw = res_fw.sort_values('M3', ascending=False)
-
+                # --- 1. PERFORMANCE Y SHARE DE CARGA ---
                 st.markdown("<p style='color:#f8fafc; font-weight:700; margin-bottom:10px;'>1. PERFORMANCE Y SHARE DE CARGA (SOLAPA RESERVAS)</p>", unsafe_allow_html=True)
-                st.dataframe(
-                    res_fw,
-                    column_config={
-                        df_fwd.columns[6]: "Agente Forwarder",
-                        "Cant_Emb": "Cant. Embarques",
-                        "Cant_CNTR": "Cant. CTNRS",
-                        "M3": st.column_config.NumberColumn("M3 Total", format="%.1f"),
-                        "Prom_Gest": st.column_config.NumberColumn("Prom. Respuesta (Días)", format="%d"),
-                        "Prom_Esp": st.column_config.NumberColumn("Espera PEND. (Días)", format="%d"),
-                        "Share %": st.column_config.NumberColumn("Share %", format="%.1f%%"),
-                    },
-                    use_container_width=True, hide_index=True
-                )
+                
+                p1, p2 = st.columns(2)
+                
+                with p1:
+                    st.markdown("<p style='color:#00ff88; font-size:14px; font-weight:700;'>A. CASOS CONFIRMADOS (ETD OK)</p>", unsafe_allow_html=True)
+                    df_ok = df_fwd[df_fwd['ETD_Status_K'] == "OK"]
+                    if not df_ok.empty:
+                        res_ok = df_ok.groupby(df_ok.columns[6]).agg(
+                            Cant_Emb=(df_ok.columns[0], 'nunique'),
+                            Share_Pct=('M3_Num', lambda x: (x.sum() / tot_m3_via * 100)),
+                            Prom_Resp=('Gestion_Resp', 'mean'),
+                            Prom_ETD=('Gestion_ETD', 'mean')
+                        ).reset_index()
+                        st.dataframe(res_ok.sort_values('Cant_Emb', ascending=False), 
+                                     column_config={
+                                         df_ok.columns[6]: "Agente",
+                                         "Cant_Emb": "Embs",
+                                         "Share_Pct": st.column_config.NumberColumn("Share %", format="%.1f%%"),
+                                         "Prom_Resp": st.column_config.NumberColumn("Respuesta (d)", format="%d"),
+                                         "Prom_ETD": st.column_config.NumberColumn("Instr->ETD (d)", format="%d")
+                                     }, hide_index=True, use_container_width=True)
+                    else: st.info("Sin casos confirmados.")
 
-                # Cuadro 2: DETALLE DE CASOS CRÍTICOS
+                with p2:
+                    st.markdown("<p style='color:#ff4b4b; font-size:14px; font-weight:700;'>B. CASOS PENDIENTES (SIN OK)</p>", unsafe_allow_html=True)
+                    df_pen = df_fwd[df_fwd['ETD_Status_K'] != "OK"]
+                    if not df_pen.empty:
+                        res_pen = df_pen.groupby(df_pen.columns[6]).agg(
+                            Cant_Emb=(df_pen.columns[0], 'nunique'),
+                            Share_Pct=('M3_Num', lambda x: (x.sum() / tot_m3_via * 100)),
+                            Prom_Esp=('Espera', 'mean')
+                        ).reset_index()
+                        st.dataframe(res_pen.sort_values('Prom_Esp', ascending=False), 
+                                     column_config={
+                                         df_pen.columns[6]: "Agente",
+                                         "Cant_Emb": "Embs",
+                                         "Share_Pct": st.column_config.NumberColumn("Share %", format="%.1f%%"),
+                                         "Prom_Esp": st.column_config.NumberColumn("Espera Avg (d)", format="%d")
+                                     }, hide_index=True, use_container_width=True)
+                    else: st.info("Sin casos pendientes.")
+
+                # --- 🚨 2. DETALLE DE CASOS CRÍTICOS ---
+                st.markdown("<br>", unsafe_allow_html=True)
                 df_crit = df_fwd[df_fwd['Critico']].copy()
                 if not df_crit.empty:
-                    st.markdown("<br><p style='color:#ff4b4b; font-weight:700; margin-bottom:10px;'>🚨 2. DETALLE DE CASOS CRÍTICOS (>5 DÍAS SIN NOVEDAD)</p>", unsafe_allow_html=True)
-                    cols_crit = [df_fwd.columns[0], col_so_res, df_fwd.columns[6], 'Espera']
-                    st.dataframe(df_crit[cols_crit].sort_values('Espera', ascending=False), 
+                    st.markdown("<p style='color:#ff4b4b; font-weight:700; margin-bottom:10px;'>🚨 2. DETALLE DE CASOS CRÍTICOS (>5 DÍAS SIN NOVEDAD)</p>", unsafe_allow_html=True)
+                    
+                    agentes_crit = sorted(df_crit.iloc[:, 6].unique().tolist())
+                    sel_ag = st.selectbox("FILTRAR POR AGENTE CRÍTICO:", ["TODOS"] + agentes_crit, key="ag_crit_sel")
+                    
+                    df_crit_show = df_crit if sel_ag == "TODOS" else df_crit[df_crit.iloc[:, 6] == sel_ag]
+                    
+                    # Columnas: Embarque (0), Fecha Instruccion (7), Espera
+                    cols_show = [df_crit.columns[0], df_crit.columns[7], 'Espera']
+                    # Renombrar columnas para visualizacion
+                    df_crit_disp = df_crit_show[cols_show].copy()
+                    df_crit_disp.columns = ["Embarque", "Fecha Instrucción", "Días de Espera"]
+                    
+                    st.dataframe(df_crit_disp.sort_values('Días de Espera', ascending=False), 
                                  column_config={
-                                     df_fwd.columns[0]: "Embarque",
-                                     col_so_res: "S.O.",
-                                     df_fwd.columns[6]: "Agente",
-                                     "Espera": st.column_config.NumberColumn("Días de Espera", format="%d ⚠️")
+                                     "Días de Espera": st.column_config.NumberColumn("Días de Espera", format="%d ⚠️")
                                  },
                                  use_container_width=True, hide_index=True)
                 else:
