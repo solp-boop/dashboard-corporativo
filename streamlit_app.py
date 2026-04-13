@@ -253,9 +253,9 @@ try:
     # Procesamiento Fechas Origen
     df.iloc[:, 23] = df.iloc[:, 23].astype(str).str.strip()
     df.iloc[:, 24] = df.iloc[:, 24].astype(str).str.strip()
-    df['ETD_DT'] = pd.to_datetime(df.iloc[:, 23], errors='coerce')
-    df['ETA_DT'] = pd.to_datetime(df.iloc[:, 24], errors='coerce')
-    df['Fecha_Prior_DT'] = pd.to_datetime(df.iloc[:, 99], errors='coerce') 
+    df['ETD_DT'] = pd.to_datetime(df.iloc[:, 23], dayfirst=True, errors='coerce')
+    df['ETA_DT'] = pd.to_datetime(df.iloc[:, 24], dayfirst=True, errors='coerce')
+    df['Fecha_Prior_DT'] = pd.to_datetime(df.iloc[:, 99], dayfirst=True, errors='coerce') 
 
     hoy = pd.Timestamp(datetime.now().date())
     inicio_mes = hoy.replace(day=1)
@@ -286,7 +286,7 @@ try:
     # --- SOLAPA 1: ORIGEN ---
     with tabs[0]:
         try:
-            df['Fecha_Inst_DT'] = pd.to_datetime(df['Fecha de Instruccion'], errors='coerce')
+            df['Fecha_Inst_DT'] = pd.to_datetime(df['Fecha de Instruccion'], dayfirst=True, errors='coerce')
             col_rank = df.columns[1]
             # Limpiar Ranking (manejo de puntos de miles y comas decimales)
             df['Rank_Num'] = df[col_rank].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
@@ -966,7 +966,7 @@ try:
 
                 if not df_ffww.empty:
                     # ETD = Columna X = índice 23
-                    df_ffww['ETD_DT'] = pd.to_datetime(df_ffww.iloc[:, 23], errors='coerce')
+                    df_ffww['ETD_DT'] = pd.to_datetime(df_ffww.iloc[:, 23], dayfirst=True, errors='coerce')
                     df_ffww['Mes_ETD_Full'] = df_ffww['ETD_DT'].apply(lambda x: label_proyeccion(x, inicio_mes))
 
                     meses_disp = [m for m in df_ffww['Mes_ETD_Full'].unique() if m not in ["PASADO/REALIZADO", "SIN FECHA"]]
@@ -987,12 +987,23 @@ try:
                         if not df_mes.empty:
                             # Semana dentro del mes (1-5) basada en el día del ETD
                             def semana_del_mes(dt):
-                                if pd.isnull(dt): return 0  # Sin ETD → grupo 0
-                                return ((dt.day - 1) // 7) + 1
+                                if pd.isnull(dt): return 0
+                                day = dt.day
+                                month = dt.month
+                                year = dt.year
+                                # Determinar el rango de la semana para el label
+                                if day <= 7: return 1, "01-07"
+                                elif day <= 14: return 2, "08-14"
+                                elif day <= 21: return 3, "15-21"
+                                else: return 4, f"22-{pd.Period(dt, freq='M').days_in_month}"
 
-                            df_mes['Sem_Mes'] = df_mes['ETD_DT'].apply(semana_del_mes)
-                            df_mes['Semana_Label'] = df_mes['Sem_Mes'].apply(
-                                lambda s: f"Semana {s} — {sel_mes}" if s > 0 else "📋 SIN ETD ASIGNADO"
+                            df_mes[['Sem_Mes', 'Sem_Rango']] = df_mes['ETD_DT'].apply(
+                                lambda x: pd.Series(semana_del_mes(x)) if pd.notnull(x) else pd.Series([0, ""])
+                            )
+                            
+                            df_mes['Semana_Label'] = df_mes.apply(
+                                lambda r: f"Semana {int(r['Sem_Mes'])} ({r['Sem_Rango']}) — {sel_mes}" if r['Sem_Mes'] > 0 else "📋 SIN ETD ASIGNADO",
+                                axis=1
                             )
 
                             # Agrupación por semana del mes y puerto
@@ -1008,6 +1019,8 @@ try:
                             subtot_ffww['IsTotal'] = True
 
                             final_ffww = pd.concat([res_ffww, subtot_ffww], ignore_index=True)
+                            
+                            # Forzar mostrar todas las semanas aunque no tengan datos (Opcional, pero aquí simplemente ordenamos)
                             final_ffww = final_ffww.sort_values(
                                 by=['Sem_Mes', 'IsTotal', 'Contenedores'],
                                 ascending=[True, True, False]
@@ -1029,8 +1042,9 @@ try:
 
                             st.markdown("<div style='height:15px;'></div>", unsafe_allow_html=True)
                             cc1, cc2, cc3, _ = st.columns([1, 1, 1, 1])
-                            cc1.metric("CONTENEDORES (MES)", res_ffww[res_ffww['Sem_Mes'] > 0]['Contenedores'].sum())
-                            cc2.metric("VOLUMEN TOTAL (MES)", f"{res_ffww['M3 Total'].sum():,} M3")
+                            # Filtro Sem_Mes > 0 para excluir sin ETD de la suma de contenedores si se prefiere, pero aquí sumamos todo lo visible
+                            cc1.metric("CONTENEDORES (MES)", int(res_ffww['Contenedores'].sum()))
+                            cc2.metric("VOLUMEN TOTAL (MES)", f"{int(res_ffww['M3 Total'].sum()):,} M3")
                             cc3.metric("EMBARQUES (MES)", len(df_mes))
                         else:
                             st.info("No hay proyecciones para este mes.")
@@ -1262,7 +1276,7 @@ try:
             # Mono "No" -> hoy + 10 días
             # Mono "Si" -> hoy + 25 días
             hoy_ni = pd.Timestamp(datetime.now().date())
-            df_ni['Fecha_Prior_DT'] = pd.to_datetime(df.iloc[:, 99], errors='coerce')
+            df_ni['Fecha_Prior_DT'] = pd.to_datetime(df.iloc[:, 99], dayfirst=True, errors='coerce')
             
             def filter_ni(row):
                 is_mono = "SÍ" in str(row[c_mono_p]).upper() or "SI" in str(row[c_mono_p]).upper()
