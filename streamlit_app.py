@@ -305,6 +305,13 @@ try:
                 return "Gadnic"
             df['Tipo_Repuesto'] = df['Repuestos'].apply(get_tipo_repuesto) if 'Repuestos' in df.columns else 'Gadnic'
 
+            # --- NORMALIZACIÓN Y CONDICIONES BASE ---
+            df['Pais Destino'] = df['Pais Destino'].fillna('SIN DEFINIR').astype(str).str.strip()
+            df['Repuestos'] = df['Repuestos'].fillna('').astype(str).str.strip()
+            
+            # Condición de Prioridad Principal (Argentina y Producto Terminado/Gadnic)
+            cond_prioridad = (df['Pais Destino'].str.upper() == 'ARGENTINA') & (df['Tipo_Repuesto'] == 'Gadnic')
+            
             # Condiciones de Status
             cond_instruido = df['Fecha_Inst_DT'].notna() & ~(df['Fecha de Instruccion'].astype(str).str.upper().str.contains("SIN INSTRUCCION", na=False))
             cond_pendiente = ~cond_instruido
@@ -321,11 +328,21 @@ try:
             # Nivel 3: Programada (Futura)
             cond_futura = cond_pendiente & (~cond_urgente) & (~cond_accionar)
 
-            # Dataframes de Status
-            df_inst = df[cond_instruido].sort_values(by='Rank_Num').copy()
-            df_urgente = df[cond_urgente].sort_values(by='Rank_Num').copy()
-            df_accionar = df[cond_accionar].sort_values(by='Rank_Num').copy()
-            df_futura = df[cond_futura].sort_values(by='Rank_Num').copy()
+            # Dataframes de Status (SOLO PRIORIDAD PRINCIPAL)
+            df_inst = df[cond_instruido & cond_prioridad].sort_values(by='Rank_Num').copy()
+            df_urgente = df[cond_urgente & cond_prioridad].sort_values(by='Rank_Num').copy()
+            df_accionar = df[cond_accionar & cond_prioridad].sort_values(by='Rank_Num').copy()
+            df_futura = df[cond_futura & cond_prioridad].sort_values(by='Rank_Num').copy()
+
+            # Dataframes de Seguimiento Complementario (Otros Países / Repuestos)
+            cond_complementario = cond_pendiente & (~cond_prioridad)
+            df_complem = df[cond_complementario].sort_values(by=['Fecha_Prior_DT', 'Rank_Num']).copy()
+            
+            df_otros_p = df_complem[df_complem['Pais Destino'].str.upper() != 'ARGENTINA'].copy()
+            df_repuestos = df_complem[df_complem['Tipo_Repuesto'] != 'Gadnic'].copy()
+            
+            # SOs Demoradas en seguimiento complementario
+            cant_demorados_comp = df_complem[df_complem['Fecha_Prior_DT'] < hoy]['SO'].nunique()
 
             # Métricas
             m3_inst = df_inst['M3 Total'].sum()
@@ -415,15 +432,19 @@ try:
                     st.session_state.f = 'rest' if filtro_actual != 'rest' else None
                     st.rerun()
 
-            # --- BOTONES SECUNDARIOS ---
             st.markdown("<br>", unsafe_allow_html=True)
-            c_sec1, c_sec2 = st.columns(2)
+            c_sec1, c_sec2, c_sec3 = st.columns(3)
             with c_sec1:
                 st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
                 if st.button("🏆 TOP 100 RANKING", key="btn_rank_new", use_container_width=True):
                     st.session_state.f = 'rank' if filtro_actual != 'rank' else None
                     st.rerun()
             with c_sec2:
+                st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
+                if st.button(f"🔎 SEGUIMIENTO COMPLEMENTARIO ({df_complem['SO'].nunique()})", key="btn_comp_new", use_container_width=True):
+                    st.session_state.f = 'comp' if filtro_actual != 'comp' else None
+                    st.rerun()
+            with c_sec3:
                 st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
                 if st.button("🏗️ ESTRUCTURA DE CARGA", key="btn_estr_new", use_container_width=True):
                     st.session_state.f = 'estr' if filtro_actual != 'estr' else None
@@ -433,27 +454,47 @@ try:
             f = st.session_state.get('f')
             if f:
                 st.markdown("<br>", unsafe_allow_html=True)
-                if f in ["inst", "venc", "px25", "rest"]:
-                    if f == "inst": titulo, dff, color = "MERCADERIA INSTRUIDA", df_inst, "#00ff88"
-                    elif f == "venc": titulo, dff, color = "MERCADERIA VENCIDA A INSTRUIR (URGENTE)", df_urgente, "#ff4b4b"
-                    elif f == "px25": titulo, dff, color = "PROXIMA A INSTRUIR (PANEADO ACCIÓN)", df_accionar, "#ffaa00"
+                if f in ["inst", "venc", "px25", "rest", "comp"]:
+                    if f == "inst": titulo, dff, color = "MERCADERIA INSTRUIDA (PRIORIDAD)", df_inst, "#00ff88"
+                    elif f == "venc": titulo, dff, color = "MERCADERIA VENCIDA (URGENTE)", df_urgente, "#ff4b4b"
+                    elif f == "px25": titulo, dff, color = "PROXIMA A INSTRUIR (ACCIÓN)", df_accionar, "#ffaa00"
                     elif f == "rest": titulo, dff, color = "MERCADERIA PROGRAMADA (FUTURA)", df_futura, "#94a3b8"
+                    elif f == "comp": titulo, dff, color = "SEGUIMIENTO ESPECIAL (OTROS PAÍSES / REPUESTOS)", df_complem, "#00a8ff"
 
                     cant_so_f = dff['SO'].nunique()
                     m3_f = int(round(dff['M3 Total'].sum()))
-
-                    st.markdown(f"""
-                        <div class="custom-card" style="border-left: 5px solid {color};">
-                            <p class="custom-card-title" style="color:{color};">{titulo} ({int(round(m3_f/m3_totales_global*100)) if m3_totales_global > 0 else 0}%)</p>
-                            <div class="grid-2">
-                                <div><p class="minicard-title">CANTIDAD SO</p><p class="minicard-value">{cant_so_f}</p></div>
-                                <div><p class="minicard-title">VOLUMEN TOTAL</p><p class="minicard-value">{m3_f:,} M3</p></div>
+                    
+                    if f == "comp":
+                        msg_extra = f"<p style='color:#ff4b4b; font-size:14px; font-weight:700;'>🚨 {cant_demorados_comp} SO DEMORADAS EN SEGUIMIENTO</p>"
+                        st.markdown(f"""
+                            <div class="custom-card" style="border-left: 5px solid {color};">
+                                <p class="custom-card-title" style="color:{color};">{titulo}</p>
+                                {msg_extra}
+                                <div class="grid-2">
+                                    <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:10px;">
+                                        <p class="minicard-title">DESTINOS EXTERNOS</p>
+                                        <p style="font-size:20px; font-weight:700; color:#fff; margin:0;">{df_otros_p['SO'].nunique()} SO | {int(round(df_otros_p['M3 Total'].sum()))} M3</p>
+                                    </div>
+                                    <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:10px;">
+                                        <p class="minicard-title">REPUESTOS / MUESTRAS</p>
+                                        <p style="font-size:20px; font-weight:700; color:#fff; margin:0;">{df_repuestos['SO'].nunique()} SO | {int(round(df_repuestos['M3 Total'].sum()))} M3</p>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    """, unsafe_allow_html=True)
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"""
+                            <div class="custom-card" style="border-left: 5px solid {color};">
+                                <p class="custom-card-title" style="color:{color};">{titulo} ({int(round(m3_f/m3_totales_global*100)) if m3_totales_global > 0 else 0}%)</p>
+                                <div class="grid-2">
+                                    <div><p class="minicard-title">CANTIDAD SO</p><p class="minicard-value">{cant_so_f}</p></div>
+                                    <div><p class="minicard-title">VOLUMEN TOTAL</p><p class="minicard-value">{m3_f:,} M3</p></div>
+                                </div>
+                            </div>
+                        """, unsafe_allow_html=True)
                     
                     col_puerto = df.columns[41]
-                    cols_to_show = ['SO', col_rank, 'Proveedor', col_puerto, 'M3 Total', 'Fecha de Instruccion' if f=='inst' else df.columns[99]]
+                    cols_to_show = ['SO', col_rank, 'Proveedor', col_puerto, 'Pais Destino', 'M3 Total', 'Fecha de Instruccion' if f=='inst' else df.columns[99]]
                     if 'Repuestos' in df.columns:
                         cols_to_show.insert(4, 'Repuestos')
                     st.dataframe(dff[cols_to_show], use_container_width=True)
@@ -473,7 +514,8 @@ try:
                             </div>
                         </div>
                     """, unsafe_allow_html=True)
-                    cols_rank = ['SO', col_rank, 'Proveedor', col_prior, 'M3 Total', 'Status']
+                    col_puerto = df.columns[41]
+                    cols_rank = ['SO', col_rank, 'Proveedor', col_puerto, 'Pais Destino', col_prior, 'M3 Total', 'Status']
                     if 'Repuestos' in df.columns: cols_rank.insert(3, 'Repuestos')
                     st.dataframe(df_rank[cols_rank], use_container_width=True)
 
@@ -504,7 +546,7 @@ try:
             # --- BLOQUE 4: PARTICIPACIÓN POR PAÍS ---
             st.markdown("<p style='color:#00a8ff; font-weight:700; letter-spacing:4px; font-size:18px; margin-bottom:25px; text-align:center;'>DISTRIBUCIÓN GEOGRÁFICA</p>", unsafe_allow_html=True)
 
-            df['Pais Destino'] = df['Pais Destino'].fillna('SIN DEFINIR').replace('', 'SIN DEFINIR')
+            # Participación por País
             res_p = df.groupby('Pais Destino').agg({'SO': 'nunique', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT_SO', 'M3 Total': 'M3'}).sort_values(by='M3', ascending=False)
             total_so_p = res_p['CANT_SO'].sum()
             total_m3_p = res_p['M3'].sum()
