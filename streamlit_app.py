@@ -283,7 +283,7 @@ try:
     st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><div class='bidcom-subtitle'>Tablero Logístico Corporativo</div></div>", unsafe_allow_html=True)
     tabs = st.tabs(["ORIGEN", "MERCADERÍA EN PROCESO", "PERFORMANCE DE AGENTES Y ANALISTAS", "FLETES, GASTOS Y CERTIFICACIONES", "COTIZACIÓN FFWW", "INDICADORES", "ALERTAS ESTRATÉGICAS", "ASK COMEX"])
 
-    # --- SOLAPA 1: ORIGEN ---
+     # --- SOLAPA 1: ORIGEN ---
     with tabs[0]:
         try:
             df['Fecha_Inst_DT'] = pd.to_datetime(df['Fecha de Instruccion'], dayfirst=True, errors='coerce')
@@ -494,7 +494,9 @@ try:
                         """, unsafe_allow_html=True)
                     
                     col_puerto = df.columns[41]
-                    cols_to_show = ['SO', col_rank, 'Proveedor', col_puerto, 'Pais Destino', 'M3 Total', 'Fecha de Instruccion' if f=='inst' else df.columns[99]]
+                    # Aquí está la modificación requerida:
+                    cols_to_show = ['SO', col_rank, 'Proveedor', col_puerto, 'Pais Destino', 'M3 Total', df.columns[99], 'Fecha de Instruccion']
+                    
                     if 'Repuestos' in df.columns:
                         cols_to_show.insert(4, 'Repuestos')
                     st.dataframe(dff[cols_to_show], use_container_width=True)
