@@ -1460,7 +1460,7 @@ try:
 
         except Exception as e: st.error(f"Error en Alertas: {e}")
 
-     # --- SOLAPA 8: ASK COMEX ---
+    # --- SOLAPA 8: ASK COMEX ---
     with tabs[7]:
         st.markdown("<div style='text-align:center; padding: 40px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; border: 2px dashed rgba(0, 168, 255, 0.2);'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:10px;'>ASK COMEX</h2><p style='color:#94a3b8; font-size:18px; margin-top:20px;'>Inteligencia Operativa en Tiempo Real.</p></div>", unsafe_allow_html=True)
         
@@ -1469,6 +1469,7 @@ try:
         def load_ask_comex_data():
             url_reserva = f"{base_url}/export?format=csv&gid=276804813"
             url_hist = f"{base_url}/export?format=csv&gid=32771816"
+            url_emb_hist = "https://docs.google.com/spreadsheets/d/1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI/export?format=csv&gid=50628730"
             try:
                 res = pd.read_csv(url_reserva, engine='python', on_bad_lines='skip')
             except:
@@ -1477,9 +1478,13 @@ try:
                 hi = pd.read_csv(url_hist, engine='python', on_bad_lines='skip')
             except:
                 hi = pd.DataFrame()
-            return res, hi
+            try:
+                emb_hi = pd.read_csv(url_emb_hist, engine='python', on_bad_lines='skip')
+            except:
+                emb_hi = pd.DataFrame()
+            return res, hi, emb_hi
 
-        df_res_ask, df_hi_ask = load_ask_comex_data()
+        df_res_ask, df_hi_ask, df_emb_hi_ask = load_ask_comex_data()
         
         st.markdown("<br>", unsafe_allow_html=True)
         query = st.text_input("🔍 INGRESE SO, INVOICE O SKU (CÓDIGO):", placeholder="Ej: SO-12345, INV-999, SKU-XYZ...")
@@ -1497,115 +1502,174 @@ try:
             mask_sku = df[col_sku].astype(str).str.upper().str.contains(query, na=False)
             
             df_found = df[mask_so | mask_inv | mask_sku]
+            is_historical = False
+            
+            # Busqueda en cascada: si no hay en activo, buscamos en historico
+            if df_found.empty and not df_emb_hi_ask.empty:
+                col_embhi_so = df_emb_hi_ask.columns[0] if len(df_emb_hi_ask.columns) > 0 else None
+                col_embhi_inv = df_emb_hi_ask.columns[19] if len(df_emb_hi_ask.columns) > 19 else None
+                col_embhi_sku = df_emb_hi_ask.columns[5] if len(df_emb_hi_ask.columns) > 5 else None
+                
+                if col_embhi_so and col_embhi_inv and col_embhi_sku:
+                    m_so = df_emb_hi_ask[col_embhi_so].astype(str).str.upper().str.contains(query, na=False)
+                    m_inv = df_emb_hi_ask[col_embhi_inv].astype(str).str.upper().str.contains(query, na=False)
+                    m_sku = df_emb_hi_ask[col_embhi_sku].astype(str).str.upper().str.contains(query, na=False)
+                    df_found = df_emb_hi_ask[m_so | m_inv | m_sku]
+                    if not df_found.empty:
+                        is_historical = True
             
             if df_found.empty:
-                st.warning(f"No se encontraron registros activos para '{query}' en GSO v4.")
+                st.warning(f"No se encontraron registros para '{query}' en GSO v4 ni en Embarques Históricos.")
             else:
-                st.success(f"✅ ¡Registro encontrado! ({len(df_found)} coincidencias en GSO v4)")
+                origen = "Embarques Históricos" if is_historical else "GSO v4 (Planif Cargas)"
+                st.success(f"✅ ¡Registro encontrado! ({len(df_found)} coincidencias en {origen})")
                 
                 if len(df_found) > 50:
-                    st.warning(f"⚠️ Se encontraron {len(df_found)} resultados. Procesando los primeros 50 para agrupar (evita sobrecarga visual).")
+                    st.warning(f"⚠️ Se encontraron {len(df_found)} resultados. Procesando los primeros 50 para agrupar.")
                     df_found = df_found.head(50)
                 
-                # Primero calculamos todos los datos para cada fila encontrada
                 resultados_procesados = []
                 
                 for i, row in df_found.iterrows():
-                    val_so = str(row[col_so])
-                    val_inv = str(row[col_inv])
-                    val_sku = str(row[col_sku])
-                    
-                    col_prov = [c for c in df.columns if 'PROVEEDOR' in c.upper()][0] if any('PROVEEDOR' in c.upper() for c in df.columns) else df.columns[30]
-                    val_prov = str(row[col_prov])
-                    
-                    col_emb = [c for c in df.columns if 'EMBARQUE' in c.upper()][0] if any('EMBARQUE' in c.upper() for c in df.columns) else df.columns[16]
-                    val_emb = str(row[col_emb]).strip()
-                    if val_emb.lower() == 'nan': val_emb = "Sin Asignar"
-                    
-                    col_inst = [c for c in df.columns if 'INSTRUCCION' in c.upper() or 'INSTRUCCIÓN' in c.upper()][0] if any('INSTRUCCION' in c.upper() or 'INSTRUCCIÓN' in c.upper() for c in df.columns) else df.columns[20]
-                    val_inst = str(row[col_inst]).strip()
-                    
-                    # Nuevos campos solicitados
-                    col_fin_prod = [c for c in df.columns if 'FIN PRODUCCIÓN REAL' in c.upper() or 'FIN PRODUCCION REAL' in c.upper()][0] if any('FIN PRODUCCI' in c.upper() and 'REAL' in c.upper() for c in df.columns) else df.columns[4]
-                    val_fin_prod = str(row[col_fin_prod]).strip()
-                    if val_fin_prod.lower() == 'nan' or val_fin_prod == '': val_fin_prod = "Sin Info"
-                    
-                    val_fecha_inst = val_inst if (val_inst != "" and val_inst.lower() != "nan" and "sin instruccion" not in val_inst.lower()) else "Pendiente"
-                    
-                    col_eta = [c for c in df.columns if 'ETA' in c.upper()][0] if any('ETA' in c.upper() for c in df.columns) else df.columns[24]
-                    val_eta_gso = str(row[col_eta]).strip()
-                    
-                    col_etd = [c for c in df.columns if 'ETD' in c.upper()][0] if any('ETD' in c.upper() for c in df.columns) else df.columns[23]
-                    val_etd_gso = str(row[col_etd]).strip()
-                    
-                    # Logica de Cantidad a Embarcar
-                    col_cant_pend = [c for c in df.columns if 'CANTIDAD PENDIENTE DE EMBARCAR' in c.upper()][0] if any('CANTIDAD PENDIENTE DE EMBARCAR' in c.upper() for c in df.columns) else df.columns[21]
-                    col_cant_emb = [c for c in df.columns if 'CANTIDAD EMB' in c.upper() and 'PREVENTA' not in c.upper()][0] if any('CANTIDAD EMB' in c.upper() and 'PREVENTA' not in c.upper() for c in df.columns) else df.columns[60]
-                    
-                    try: val_cant_pend = float(str(row[col_cant_pend]).replace(',', '.').strip())
-                    except: val_cant_pend = 0.0
-                    try: val_cant_emb = float(str(row[col_cant_emb]).replace(',', '.').strip())
-                    except: val_cant_emb = 0.0
-                    
-                    if val_cant_pend == 0:
+                    if is_historical:
+                        # Extraer datos con indices historicos
+                        val_so = str(row.iloc[0])
+                        val_inv = str(row.iloc[19])
+                        val_sku = str(row.iloc[5])
+                        val_emb = str(row.iloc[4]).strip()
+                        if val_emb.lower() == 'nan': val_emb = "Sin Asignar"
+                        val_prov = str(row.iloc[18])
+                        
+                        val_etd_gso = str(row.iloc[6]).strip()
+                        val_eta_gso = str(row.iloc[7]).strip()
+                        val_fin_prod = str(row.iloc[2]).strip()
+                        if val_fin_prod.lower() == 'nan' or val_fin_prod == '': val_fin_prod = "Sin Info"
+                        
+                        try: val_cant_emb = float(str(row.iloc[9]).replace(',', '.').strip())
+                        except: val_cant_emb = 0.0
                         cantidad_mostrar = int(val_cant_emb)
                         label_cant = "CANTIDAD EMB"
-                    else:
-                        cantidad_mostrar = int(val_cant_pend)
-                        label_cant = "CANT. PENDIENTE"
-                    
-                    estadio = 1
-                    desc_estadio = "PENDIENTE DE INSTRUCCIÓN"
-                    color_estadio = "#94a3b8"
-                    info_extra = "La carga no ha sido instruida. Se encuentra en origen sin gestión iniciada."
-                    
-                    tiene_inst = val_fecha_inst != "Pendiente"
-                    
-                    if tiene_inst:
-                        estadio = 2
-                        desc_estadio = "INSTRUIDA / EN GESTIÓN"
-                        color_estadio = "#ffaa00"
-                        info_extra = f"Instruida el {val_inst}. Esperando confirmación de Booking en Reservas."
                         
-                        df_res_ask.columns = df_res_ask.columns.str.strip()
-                        col_res_emb = df_res_ask.columns[0] if not df_res_ask.empty else None
-                        
-                        status_res = ""
-                        if col_res_emb:
-                            res_match = df_res_ask[df_res_ask[col_res_emb].astype(str).str.strip().str.upper() == val_emb.upper()]
-                            if not res_match.empty:
-                                r_row = res_match.iloc[0]
-                                status_res = str(r_row.iloc[10]).upper().strip() if len(r_row) > 10 else ""
-                        
-                        hoy = datetime.now().date()
-                        try: dt_eta_gso = pd.to_datetime(val_eta_gso, dayfirst=True).date()
-                        except: dt_eta_gso = None
-                        try: dt_etd_gso = pd.to_datetime(val_etd_gso, dayfirst=True).date()
-                        except: dt_etd_gso = None
-                        
-                        in_historical = False
-                        if not df_hi_ask.empty:
-                            df_hi_ask.columns = df_hi_ask.columns.str.strip()
+                        # Buscar Fecha Instruccion en Reservas Historicas (col H = index 7) por Embarque (col A = index 0)
+                        val_fecha_inst = "Pendiente"
+                        if not df_hi_ask.empty and len(df_hi_ask.columns) > 7:
                             col_hi_emb = df_hi_ask.columns[0]
                             hi_match = df_hi_ask[df_hi_ask[col_hi_emb].astype(str).str.strip().str.upper() == val_emb.upper()]
                             if not hi_match.empty:
-                                in_historical = True
+                                val_f = str(hi_match.iloc[0].iloc[7]).strip()
+                                if val_f.lower() != 'nan' and val_f != '':
+                                    val_fecha_inst = val_f
                         
-                        if in_historical or (dt_eta_gso and dt_eta_gso <= hoy):
+                        hoy = datetime.now().date()
+                        try: dt_eta = pd.to_datetime(val_eta_gso, dayfirst=True).date()
+                        except: dt_eta = None
+                        
+                        if dt_eta and dt_eta < hoy:
                             estadio = 5
-                            desc_estadio = "ARRIBADO"
+                            desc_estadio = "ARRIBADO (HISTÓRICO)"
                             color_estadio = "#00ff88"
-                            info_extra = f"La carga ha llegado a destino. (ETA GSO: {val_eta_gso})"
-                        elif dt_etd_gso and dt_etd_gso <= hoy:
+                            info_extra = f"La carga finalizó su ciclo y se encuentra en archivo histórico. (ETA: {val_eta_gso})"
+                        else:
                             estadio = 4
-                            desc_estadio = "EN TRÁNSITO"
+                            desc_estadio = "EN TRÁNSITO (HISTÓRICO)"
                             color_estadio = "#00a8ff"
-                            info_extra = f"La carga está navegando/volando hacia destino. (ETD: {dt_etd_gso.strftime('%d/%m/%Y')} | ETA: {val_eta_gso})"
-                        elif status_res == "OK" or (dt_etd_gso and dt_etd_gso > hoy):
-                            estadio = 3
-                            desc_estadio = "BOOKING CONFIRMADO"
-                            color_estadio = "#a855f7"
-                            info_extra = f"Espacio confirmado. Esperando zarpada. (ETD aprox: {dt_etd_gso.strftime('%d/%m/%Y') if dt_etd_gso else 'No def'})"
+                            info_extra = f"La carga figura despachada en registros históricos pero su ETA es futura. (ETA: {val_eta_gso})"
+                            
+                    else:
+                        # Extraer datos de GSO v4
+                        val_so = str(row[col_so])
+                        val_inv = str(row[col_inv])
+                        val_sku = str(row[col_sku])
+                        
+                        col_prov = [c for c in df.columns if 'PROVEEDOR' in c.upper()][0] if any('PROVEEDOR' in c.upper() for c in df.columns) else df.columns[30]
+                        val_prov = str(row[col_prov])
+                        
+                        col_emb = [c for c in df.columns if 'EMBARQUE' in c.upper()][0] if any('EMBARQUE' in c.upper() for c in df.columns) else df.columns[16]
+                        val_emb = str(row[col_emb]).strip()
+                        if val_emb.lower() == 'nan': val_emb = "Sin Asignar"
+                        
+                        col_inst = [c for c in df.columns if 'INSTRUCCION' in c.upper() or 'INSTRUCCIÓN' in c.upper()][0] if any('INSTRUCCION' in c.upper() or 'INSTRUCCIÓN' in c.upper() for c in df.columns) else df.columns[20]
+                        val_inst = str(row[col_inst]).strip()
+                        
+                        col_fin_prod = [c for c in df.columns if 'FIN PRODUCCIÓN REAL' in c.upper() or 'FIN PRODUCCION REAL' in c.upper()][0] if any('FIN PRODUCCI' in c.upper() and 'REAL' in c.upper() for c in df.columns) else df.columns[4]
+                        val_fin_prod = str(row[col_fin_prod]).strip()
+                        if val_fin_prod.lower() == 'nan' or val_fin_prod == '': val_fin_prod = "Sin Info"
+                        
+                        val_fecha_inst = val_inst if (val_inst != "" and val_inst.lower() != "nan" and "sin instruccion" not in val_inst.lower()) else "Pendiente"
+                        
+                        col_eta = [c for c in df.columns if 'ETA' in c.upper()][0] if any('ETA' in c.upper() for c in df.columns) else df.columns[24]
+                        val_eta_gso = str(row[col_eta]).strip()
+                        
+                        col_etd = [c for c in df.columns if 'ETD' in c.upper()][0] if any('ETD' in c.upper() for c in df.columns) else df.columns[23]
+                        val_etd_gso = str(row[col_etd]).strip()
+                        
+                        col_cant_pend = [c for c in df.columns if 'CANTIDAD PENDIENTE DE EMBARCAR' in c.upper()][0] if any('CANTIDAD PENDIENTE DE EMBARCAR' in c.upper() for c in df.columns) else df.columns[21]
+                        col_cant_emb = [c for c in df.columns if 'CANTIDAD EMB' in c.upper() and 'PREVENTA' not in c.upper()][0] if any('CANTIDAD EMB' in c.upper() and 'PREVENTA' not in c.upper() for c in df.columns) else df.columns[60]
+                        
+                        try: val_cant_pend = float(str(row[col_cant_pend]).replace(',', '.').strip())
+                        except: val_cant_pend = 0.0
+                        try: val_cant_emb = float(str(row[col_cant_emb]).replace(',', '.').strip())
+                        except: val_cant_emb = 0.0
+                        
+                        if val_cant_pend == 0:
+                            cantidad_mostrar = int(val_cant_emb)
+                            label_cant = "CANTIDAD EMB"
+                        else:
+                            cantidad_mostrar = int(val_cant_pend)
+                            label_cant = "CANT. PENDIENTE"
+                        
+                        estadio = 1
+                        desc_estadio = "PENDIENTE DE INSTRUCCIÓN"
+                        color_estadio = "#94a3b8"
+                        info_extra = "La carga no ha sido instruida. Se encuentra en origen sin gestión iniciada."
+                        
+                        tiene_inst = val_fecha_inst != "Pendiente"
+                        
+                        if tiene_inst:
+                            estadio = 2
+                            desc_estadio = "INSTRUIDA / EN GESTIÓN"
+                            color_estadio = "#ffaa00"
+                            info_extra = f"Instruida el {val_inst}. Esperando confirmación de Booking en Reservas."
+                            
+                            df_res_ask.columns = df_res_ask.columns.str.strip()
+                            col_res_emb = df_res_ask.columns[0] if not df_res_ask.empty else None
+                            
+                            status_res = ""
+                            if col_res_emb:
+                                res_match = df_res_ask[df_res_ask[col_res_emb].astype(str).str.strip().str.upper() == val_emb.upper()]
+                                if not res_match.empty:
+                                    r_row = res_match.iloc[0]
+                                    status_res = str(r_row.iloc[10]).upper().strip() if len(r_row) > 10 else ""
+                            
+                            hoy = datetime.now().date()
+                            try: dt_eta_gso = pd.to_datetime(val_eta_gso, dayfirst=True).date()
+                            except: dt_eta_gso = None
+                            try: dt_etd_gso = pd.to_datetime(val_etd_gso, dayfirst=True).date()
+                            except: dt_etd_gso = None
+                            
+                            in_historical = False
+                            if not df_hi_ask.empty:
+                                df_hi_ask.columns = df_hi_ask.columns.str.strip()
+                                col_hi_emb = df_hi_ask.columns[0]
+                                hi_match = df_hi_ask[df_hi_ask[col_hi_emb].astype(str).str.strip().str.upper() == val_emb.upper()]
+                                if not hi_match.empty:
+                                    in_historical = True
+                            
+                            if in_historical or (dt_eta_gso and dt_eta_gso <= hoy):
+                                estadio = 5
+                                desc_estadio = "ARRIBADO"
+                                color_estadio = "#00ff88"
+                                info_extra = f"La carga ha llegado a destino. (ETA GSO: {val_eta_gso})"
+                            elif dt_etd_gso and dt_etd_gso <= hoy:
+                                estadio = 4
+                                desc_estadio = "EN TRÁNSITO"
+                                color_estadio = "#00a8ff"
+                                info_extra = f"La carga está navegando/volando hacia destino. (ETD: {dt_etd_gso.strftime('%d/%m/%Y')} | ETA: {val_eta_gso})"
+                            elif status_res == "OK" or (dt_etd_gso and dt_etd_gso > hoy):
+                                estadio = 3
+                                desc_estadio = "BOOKING CONFIRMADO"
+                                color_estadio = "#a855f7"
+                                info_extra = f"Espacio confirmado. Esperando zarpada. (ETD aprox: {dt_etd_gso.strftime('%d/%m/%Y') if dt_etd_gso else 'No def'})"
 
                     resultados_procesados.append({
                         "estadio": estadio,
