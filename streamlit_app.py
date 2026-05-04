@@ -1460,13 +1460,159 @@ try:
 
         except Exception as e: st.error(f"Error en Alertas: {e}")
 
-    # --- SOLAPA 8: ASK COMEX ---
+      # --- SOLAPA 8: ASK COMEX ---
     with tabs[7]:
-        st.markdown("<div style='text-align:center; padding: 40px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; border: 2px dashed rgba(0, 168, 255, 0.2);'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:10px;'>ASK COMEX</h2><p style='color:#94a3b8; font-size:18px; margin-top:20px;'>Mapeo de módulo avanzado de consultas con IA.</p></div>", unsafe_allow_html=True)
-        st.info("Próximamente: Integración de buscador inteligente de SO/SKU y asistente dinámico Comex.")
+        st.markdown("<div style='text-align:center; padding: 40px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; border: 2px dashed rgba(0, 168, 255, 0.2);'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:10px;'>ASK COMEX</h2><p style='color:#94a3b8; font-size:18px; margin-top:20px;'>Inteligencia Operativa en Tiempo Real.</p></div>", unsafe_allow_html=True)
+        
+        # Carga de datos secundaria para búsquedas
+        @st.cache_data(ttl=60)
+        def load_ask_comex_data():
+            url_reserva = f"{base_url}/export?format=csv&gid=276804813"
+            url_hist = f"{base_url}/export?format=csv&gid=32771816"
+            try:
+                res = pd.read_csv(url_reserva, engine='python', on_bad_lines='skip')
+            except:
+                res = pd.DataFrame()
+            try:
+                hi = pd.read_csv(url_hist, engine='python', on_bad_lines='skip')
+            except:
+                hi = pd.DataFrame()
+            return res, hi
 
-except Exception as e:
-    st.error(f"Error crítico en el Tablero: {e}")
+        df_res_ask, df_hi_ask = load_ask_comex_data()
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        query = st.text_input("🔍 INGRESE SO, INVOICE O SKU (CÓDIGO):", placeholder="Ej: SO-12345, INV-999, SKU-XYZ...")
+        
+        if query:
+            query = str(query).strip().upper()
+            
+            # Aseguramos columnas GSO
+            col_so = [c for c in df.columns if 'SO' in c.upper()][0] if any('SO' in c.upper() for c in df.columns) else df.columns[0]
+            col_inv = [c for c in df.columns if 'INVOICE' in c.upper()][0] if any('INVOICE' in c.upper() for c in df.columns) else df.columns[29]
+            col_sku = [c for c in df.columns if 'CODIGO' in c.upper() or 'CÓDIGO' in c.upper()][0] if any('CODIGO' in c.upper() or 'CÓDIGO' in c.upper() for c in df.columns) else df.columns[32]
+            
+            mask_so = df[col_so].astype(str).str.upper().str.contains(query, na=False)
+            mask_inv = df[col_inv].astype(str).str.upper().str.contains(query, na=False)
+            mask_sku = df[col_sku].astype(str).str.upper().str.contains(query, na=False)
+            
+            df_found = df[mask_so | mask_inv | mask_sku]
+            
+            if df_found.empty:
+                st.warning(f"No se encontraron registros activos para '{query}' en GSO v4.")
+            else:
+                st.success(f"✅ ¡Registro encontrado! ({len(df_found)} coincidencias en GSO v4)")
+                
+                if len(df_found) > 10:
+                    st.warning(f"⚠️ Se encontraron {len(df_found)} resultados. Mostrando los primeros 10 para evitar sobrecarga visual.")
+                    df_found = df_found.head(10)
+                
+                for i, row in df_found.iterrows():
+                    val_so = str(row[col_so])
+                    val_inv = str(row[col_inv])
+                    val_sku = str(row[col_sku])
+                    
+                    col_prov = [c for c in df.columns if 'PROVEEDOR' in c.upper()][0] if any('PROVEEDOR' in c.upper() for c in df.columns) else df.columns[30]
+                    val_prov = str(row[col_prov])
+                    
+                    col_emb = [c for c in df.columns if 'EMBARQUE' in c.upper()][0] if any('EMBARQUE' in c.upper() for c in df.columns) else df.columns[16]
+                    val_emb = str(row[col_emb]).strip()
+                    
+                    col_inst = [c for c in df.columns if 'INSTRUCCION' in c.upper() or 'INSTRUCCIÓN' in c.upper()][0] if any('INSTRUCCION' in c.upper() or 'INSTRUCCIÓN' in c.upper() for c in df.columns) else df.columns[20]
+                    val_inst = str(row[col_inst]).strip()
+                    
+                    col_eta = [c for c in df.columns if 'ETA' in c.upper()][0] if any('ETA' in c.upper() for c in df.columns) else df.columns[24]
+                    val_eta_gso = str(row[col_eta]).strip()
+                    
+                    col_etd = [c for c in df.columns if 'ETD' in c.upper()][0] if any('ETD' in c.upper() for c in df.columns) else df.columns[23]
+                    val_etd_gso = str(row[col_etd]).strip()
+                    
+                    estadio = 1
+                    desc_estadio = "PENDIENTE DE INSTRUCCIÓN"
+                    color_estadio = "#94a3b8"
+                    info_extra = "La carga no ha sido instruida. Se encuentra en origen sin gestión iniciada."
+                    
+                    tiene_inst = (val_inst != "" and val_inst.lower() != "nan" and "sin instruccion" not in val_inst.lower())
+                    
+                    if tiene_inst:
+                        estadio = 2
+                        desc_estadio = "INSTRUIDA / EN GESTIÓN"
+                        color_estadio = "#ffaa00"
+                        info_extra = f"Instruida el {val_inst}. Esperando confirmación de Booking en Reservas."
+                        
+                        df_res_ask.columns = df_res_ask.columns.str.strip()
+                        col_res_emb = df_res_ask.columns[0] if not df_res_ask.empty else None
+                        
+                        status_res = ""
+                        if col_res_emb:
+                            res_match = df_res_ask[df_res_ask[col_res_emb].astype(str).str.strip().str.upper() == val_emb.upper()]
+                            if not res_match.empty:
+                                r_row = res_match.iloc[0]
+                                status_res = str(r_row.iloc[10]).upper().strip() if len(r_row) > 10 else ""
+                        
+                        hoy = datetime.now().date()
+                        try: dt_eta_gso = pd.to_datetime(val_eta_gso, dayfirst=True).date()
+                        except: dt_eta_gso = None
+                        try: dt_etd_gso = pd.to_datetime(val_etd_gso, dayfirst=True).date()
+                        except: dt_etd_gso = None
+                        
+                        in_historical = False
+                        if not df_hi_ask.empty:
+                            df_hi_ask.columns = df_hi_ask.columns.str.strip()
+                            col_hi_emb = df_hi_ask.columns[0]
+                            hi_match = df_hi_ask[df_hi_ask[col_hi_emb].astype(str).str.strip().str.upper() == val_emb.upper()]
+                            if not hi_match.empty:
+                                in_historical = True
+                        
+                        if in_historical or (dt_eta_gso and dt_eta_gso <= hoy):
+                            estadio = 5
+                            desc_estadio = "ARRIBADO"
+                            color_estadio = "#00ff88"
+                            info_extra = f"La carga ha llegado a destino. (ETA GSO: {val_eta_gso})"
+                        elif dt_etd_gso and dt_etd_gso <= hoy:
+                            estadio = 4
+                            desc_estadio = "EN TRÁNSITO"
+                            color_estadio = "#00a8ff"
+                            info_extra = f"La carga está navegando/volando hacia destino. (ETD: {dt_etd_gso.strftime('%d/%m/%Y')} | ETA: {val_eta_gso})"
+                        elif status_res == "OK" or (dt_etd_gso and dt_etd_gso > hoy):
+                            estadio = 3
+                            desc_estadio = "BOOKING CONFIRMADO"
+                            color_estadio = "#a855f7"
+                            info_extra = f"Espacio confirmado. Esperando zarpada. (ETD aprox: {dt_etd_gso.strftime('%d/%m/%Y') if dt_etd_gso else 'No def'})"
+                    
+                    st.markdown(f"""
+                        <div class="custom-card" style="border-top: 5px solid {color_estadio};">
+                            <h3 style="color:{color_estadio}; text-transform:uppercase; letter-spacing:2px; margin-bottom: 10px;">ESTADIO {estadio}: {desc_estadio}</h3>
+                            <p style="color:#f8fafc; font-size:16px;">{info_extra}</p>
+                            <hr style="border:none; border-top:1px solid rgba(255,255,255,0.1); margin:20px 0;">
+                            <div class="grid-4">
+                                <div><p class="minicard-title">SO</p><p class="minicard-value" style="font-size:20px;">{val_so}</p></div>
+                                <div><p class="minicard-title">INVOICE</p><p class="minicard-value" style="font-size:20px;">{val_inv}</p></div>
+                                <div><p class="minicard-title">SKU / CÓDIGO</p><p class="minicard-value" style="font-size:20px;">{val_sku}</p></div>
+                                <div><p class="minicard-title">EMBARQUE</p><p class="minicard-value" style="font-size:20px; color:#00a8ff;">{val_emb}</p></div>
+                            </div>
+                            <div style="margin-top:20px;">
+                                <p class="minicard-title">PROVEEDOR</p>
+                                <p style="font-size:16px; color:#f8fafc; font-weight:600;">{val_prov}</p>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+                    pct_progreso = estadio * 20
+                    st.markdown(f"""
+                        <div style="width: 100%; background-color: rgba(255,255,255,0.1); border-radius: 10px; margin-top:20px; height: 10px;">
+                            <div style="width: {pct_progreso}%; background-color: {color_estadio}; height: 10px; border-radius: 10px; transition: width 0.5s;"></div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-top: 10px; padding: 0 5px;">
+                            <span style="font-size: 11px; font-weight:700; color: {'#fff' if estadio >= 1 else '#64748b'};">1. PENDIENTE</span>
+                            <span style="font-size: 11px; font-weight:700; color: {'#fff' if estadio >= 2 else '#64748b'};">2. INSTRUIDO</span>
+                            <span style="font-size: 11px; font-weight:700; color: {'#fff' if estadio >= 3 else '#64748b'};">3. BOOKING</span>
+                            <span style="font-size: 11px; font-weight:700; color: {'#fff' if estadio >= 4 else '#64748b'};">4. TRÁNSITO</span>
+                            <span style="font-size: 11px; font-weight:700; color: {'#fff' if estadio >= 5 else '#64748b'};">5. ARRIBADO</span>
+                        </div>
+                        <br><br>
+                    """, unsafe_allow_html=True)
+
 
     # --- SOLAPA 6: ALERTAS ESTRATÉGICAS ---
     with tabs[5]:
