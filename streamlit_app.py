@@ -1460,7 +1460,7 @@ try:
 
         except Exception as e: st.error(f"Error en Alertas: {e}")
 
-    # --- SOLAPA 8: ASK COMEX ---
+     # --- SOLAPA 8: ASK COMEX ---
     with tabs[7]:
         st.markdown("<div style='text-align:center; padding: 40px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; border: 2px dashed rgba(0, 168, 255, 0.2);'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:10px;'>ASK COMEX</h2><p style='color:#94a3b8; font-size:18px; margin-top:20px;'>Inteligencia Operativa en Tiempo Real.</p></div>", unsafe_allow_html=True)
         
@@ -1666,54 +1666,54 @@ try:
                     div_sos = f"<div style='max-height:80px; overflow-y:auto; padding-right:5px;'>{sos_str}</div>" if len(grp['sos']) > 2 else sos_str
                     div_skus = f"<div style='max-height:80px; overflow-y:auto; padding-right:5px;'>{skus_str}</div>" if len(grp['skus']) > 2 else skus_str
                     
-                    st.markdown(f"""
-                        <div class="custom-card" style="border-top: 5px solid {grp['color_estadio']};">
-                            <h3 style="color:{grp['color_estadio']}; text-transform:uppercase; letter-spacing:2px; margin-bottom: 10px;">ESTADIO {grp['estadio']}: {grp['desc_estadio']}</h3>
-                            <p style="color:#f8fafc; font-size:16px;">{grp['info_extra']}</p>
-                            <hr style="border:none; border-top:1px solid rgba(255,255,255,0.1); margin:20px 0;">
-                            
-                            <div class="grid-4" style="align-items: start;">
-                                <div><p class="minicard-title">SO ({len(grp['sos'])})</p><p class="minicard-value" style="font-size:16px;">{div_sos}</p></div>
-                                <div><p class="minicard-title">INVOICE</p><p class="minicard-value" style="font-size:20px;">{grp['inv']}</p></div>
-                                <div><p class="minicard-title">SKU / CÓDIGO ({len(grp['skus'])})</p><p class="minicard-value" style="font-size:16px;">{div_skus}</p></div>
-                                <div><p class="minicard-title">EMBARQUE</p><p class="minicard-value" style="font-size:20px; color:#00a8ff;">{grp['emb']}</p></div>
-                            </div>
-                            
-                            <div class="grid-4" style="margin-top:20px; align-items: center; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 15px;">
-                                <div style="grid-column: span 1;">
-                                    <p class="minicard-title">F. INSTRUCCIÓN</p>
-                                    <p style="font-size:16px; color:#f8fafc;">{f_inst_str}</p>
-                                </div>
-                                <div style="grid-column: span 1;">
-                                    <p class="minicard-title">FIN PRODUCCIÓN</p>
-                                    <p style="font-size:16px; color:#f8fafc;">{f_prod_str}</p>
-                                </div>
-                                <div style="grid-column: span 1;">
-                                    <p class="minicard-title">PROVEEDOR</p>
-                                    <p style="font-size:16px; color:#f8fafc; font-weight:600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" title="{grp['prov']}">{grp['prov']}</p>
-                                </div>
-                                <div style="text-align: right;">
-                                    <p class="minicard-title">TOTAL {grp['label_cant']}</p>
-                                    <p style="font-size:28px; color:#00ff88; font-weight:900; margin:0;">{grp['total_cant']}</p>
-                                </div>
-                            </div>
-                        </div>
-                    """, unsafe_allow_html=True)
+                    html_card = f"""
+<div class="custom-card" style="border-top: 5px solid {grp['color_estadio']};">
+    <h3 style="color:{grp['color_estadio']}; text-transform:uppercase; letter-spacing:2px; margin-bottom: 10px;">ESTADIO {grp['estadio']}: {grp['desc_estadio']}</h3>
+    <p style="color:#f8fafc; font-size:16px;">{grp['info_extra']}</p>
+    <hr style="border:none; border-top:1px solid rgba(255,255,255,0.1); margin:20px 0;">
+    <div class="grid-4" style="align-items: start;">
+        <div><p class="minicard-title">SO ({len(grp['sos'])})</p><p class="minicard-value" style="font-size:16px;">{div_sos}</p></div>
+        <div><p class="minicard-title">INVOICE</p><p class="minicard-value" style="font-size:20px;">{grp['inv']}</p></div>
+        <div><p class="minicard-title">SKU / CÓDIGO ({len(grp['skus'])})</p><p class="minicard-value" style="font-size:16px;">{div_skus}</p></div>
+        <div><p class="minicard-title">EMBARQUE</p><p class="minicard-value" style="font-size:20px; color:#00a8ff;">{grp['emb']}</p></div>
+    </div>
+    <div class="grid-4" style="margin-top:20px; align-items: center; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 15px;">
+        <div style="grid-column: span 1;">
+            <p class="minicard-title">F. INSTRUCCIÓN</p>
+            <p style="font-size:16px; color:#f8fafc;">{f_inst_str}</p>
+        </div>
+        <div style="grid-column: span 1;">
+            <p class="minicard-title">FIN PRODUCCIÓN</p>
+            <p style="font-size:16px; color:#f8fafc;">{f_prod_str}</p>
+        </div>
+        <div style="grid-column: span 1;">
+            <p class="minicard-title">PROVEEDOR</p>
+            <p style="font-size:16px; color:#f8fafc; font-weight:600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" title="{grp['prov']}">{grp['prov']}</p>
+        </div>
+        <div style="text-align: right;">
+            <p class="minicard-title">TOTAL {grp['label_cant']}</p>
+            <p style="font-size:28px; color:#00ff88; font-weight:900; margin:0;">{grp['total_cant']}</p>
+        </div>
+    </div>
+</div>
+"""
+                    st.markdown(html_card, unsafe_allow_html=True)
                     
                     pct_progreso = grp['estadio'] * 20
-                    st.markdown(f"""
-                        <div style="width: 100%; background-color: rgba(255,255,255,0.1); border-radius: 10px; margin-top:20px; height: 10px;">
-                            <div style="width: {pct_progreso}%; background-color: {grp['color_estadio']}; height: 10px; border-radius: 10px; transition: width 0.5s;"></div>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; margin-top: 10px; padding: 0 5px;">
-                            <span style="font-size: 11px; font-weight:700; color: {'#fff' if grp['estadio'] >= 1 else '#64748b'};">1. PENDIENTE</span>
-                            <span style="font-size: 11px; font-weight:700; color: {'#fff' if grp['estadio'] >= 2 else '#64748b'};">2. INSTRUIDO</span>
-                            <span style="font-size: 11px; font-weight:700; color: {'#fff' if grp['estadio'] >= 3 else '#64748b'};">3. BOOKING</span>
-                            <span style="font-size: 11px; font-weight:700; color: {'#fff' if grp['estadio'] >= 4 else '#64748b'};">4. TRÁNSITO</span>
-                            <span style="font-size: 11px; font-weight:700; color: {'#fff' if grp['estadio'] >= 5 else '#64748b'};">5. ARRIBADO</span>
-                        </div>
-                        <br><br>
-                    """, unsafe_allow_html=True)
+                    html_progress = f"""
+<div style="width: 100%; background-color: rgba(255,255,255,0.1); border-radius: 10px; margin-top:20px; height: 10px;">
+    <div style="width: {pct_progreso}%; background-color: {grp['color_estadio']}; height: 10px; border-radius: 10px; transition: width 0.5s;"></div>
+</div>
+<div style="display: flex; justify-content: space-between; margin-top: 10px; padding: 0 5px;">
+    <span style="font-size: 11px; font-weight:700; color: {'#fff' if grp['estadio'] >= 1 else '#64748b'};">1. PENDIENTE</span>
+    <span style="font-size: 11px; font-weight:700; color: {'#fff' if grp['estadio'] >= 2 else '#64748b'};">2. INSTRUIDO</span>
+    <span style="font-size: 11px; font-weight:700; color: {'#fff' if grp['estadio'] >= 3 else '#64748b'};">3. BOOKING</span>
+    <span style="font-size: 11px; font-weight:700; color: {'#fff' if grp['estadio'] >= 4 else '#64748b'};">4. TRÁNSITO</span>
+    <span style="font-size: 11px; font-weight:700; color: {'#fff' if grp['estadio'] >= 5 else '#64748b'};">5. ARRIBADO</span>
+</div>
+<br><br>
+"""
+                    st.markdown(html_progress, unsafe_allow_html=True)
 
 
     # --- SOLAPA 6: ALERTAS ESTRATÉGICAS ---
