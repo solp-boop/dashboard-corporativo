@@ -1460,7 +1460,7 @@ try:
 
         except Exception as e: st.error(f"Error en Alertas: {e}")
 
-      # --- SOLAPA 8: ASK COMEX ---
+       # --- SOLAPA 8: ASK COMEX ---
     with tabs[7]:
         st.markdown("<div style='text-align:center; padding: 40px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; border: 2px dashed rgba(0, 168, 255, 0.2);'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:10px;'>ASK COMEX</h2><p style='color:#94a3b8; font-size:18px; margin-top:20px;'>Inteligencia Operativa en Tiempo Real.</p></div>", unsafe_allow_html=True)
         
@@ -1503,9 +1503,12 @@ try:
             else:
                 st.success(f"✅ ¡Registro encontrado! ({len(df_found)} coincidencias en GSO v4)")
                 
-                if len(df_found) > 10:
-                    st.warning(f"⚠️ Se encontraron {len(df_found)} resultados. Mostrando los primeros 10 para evitar sobrecarga visual.")
-                    df_found = df_found.head(10)
+                if len(df_found) > 50:
+                    st.warning(f"⚠️ Se encontraron {len(df_found)} resultados. Procesando los primeros 50 para agrupar (evita sobrecarga visual).")
+                    df_found = df_found.head(50)
+                
+                # Primero calculamos todos los datos para cada fila encontrada
+                resultados_procesados = []
                 
                 for i, row in df_found.iterrows():
                     val_so = str(row[col_so])
@@ -1517,9 +1520,17 @@ try:
                     
                     col_emb = [c for c in df.columns if 'EMBARQUE' in c.upper()][0] if any('EMBARQUE' in c.upper() for c in df.columns) else df.columns[16]
                     val_emb = str(row[col_emb]).strip()
+                    if val_emb.lower() == 'nan': val_emb = "Sin Asignar"
                     
                     col_inst = [c for c in df.columns if 'INSTRUCCION' in c.upper() or 'INSTRUCCIÓN' in c.upper()][0] if any('INSTRUCCION' in c.upper() or 'INSTRUCCIÓN' in c.upper() for c in df.columns) else df.columns[20]
                     val_inst = str(row[col_inst]).strip()
+                    
+                    # Nuevos campos solicitados
+                    col_fin_prod = [c for c in df.columns if 'FIN PRODUCCIÓN REAL' in c.upper() or 'FIN PRODUCCION REAL' in c.upper()][0] if any('FIN PRODUCCI' in c.upper() and 'REAL' in c.upper() for c in df.columns) else df.columns[4]
+                    val_fin_prod = str(row[col_fin_prod]).strip()
+                    if val_fin_prod.lower() == 'nan' or val_fin_prod == '': val_fin_prod = "Sin Info"
+                    
+                    val_fecha_inst = val_inst if (val_inst != "" and val_inst.lower() != "nan" and "sin instruccion" not in val_inst.lower()) else "Pendiente"
                     
                     col_eta = [c for c in df.columns if 'ETA' in c.upper()][0] if any('ETA' in c.upper() for c in df.columns) else df.columns[24]
                     val_eta_gso = str(row[col_eta]).strip()
@@ -1548,7 +1559,7 @@ try:
                     color_estadio = "#94a3b8"
                     info_extra = "La carga no ha sido instruida. Se encuentra en origen sin gestión iniciada."
                     
-                    tiene_inst = (val_inst != "" and val_inst.lower() != "nan" and "sin instruccion" not in val_inst.lower())
+                    tiene_inst = val_fecha_inst != "Pendiente"
                     
                     if tiene_inst:
                         estadio = 2
@@ -1595,36 +1606,111 @@ try:
                             desc_estadio = "BOOKING CONFIRMADO"
                             color_estadio = "#a855f7"
                             info_extra = f"Espacio confirmado. Esperando zarpada. (ETD aprox: {dt_etd_gso.strftime('%d/%m/%Y') if dt_etd_gso else 'No def'})"
+
+                    resultados_procesados.append({
+                        "estadio": estadio,
+                        "desc_estadio": desc_estadio,
+                        "color_estadio": color_estadio,
+                        "info_extra": info_extra,
+                        "so": val_so,
+                        "inv": val_inv,
+                        "sku": val_sku,
+                        "emb": val_emb,
+                        "prov": val_prov,
+                        "cant": cantidad_mostrar,
+                        "label_cant": label_cant,
+                        "fecha_inst": val_fecha_inst,
+                        "fin_prod": val_fin_prod
+                    })
+
+                # AGRUPACIÓN DE RESULTADOS
+                agrupados = {}
+                for r in resultados_procesados:
+                    key = (r['estadio'], r['inv'], r['emb'])
+                    if key not in agrupados:
+                        agrupados[key] = {
+                            "estadio": r['estadio'],
+                            "desc_estadio": r['desc_estadio'],
+                            "color_estadio": r['color_estadio'],
+                            "info_extra": r['info_extra'],
+                            "inv": r['inv'],
+                            "emb": r['emb'],
+                            "prov": r['prov'],
+                            "sos": [],
+                            "skus": [],
+                            "total_cant": 0,
+                            "label_cant": r['label_cant'],
+                            "fechas_inst": set(),
+                            "fines_prod": set()
+                        }
+                    
+                    if r['so'] not in agrupados[key]['sos']:
+                        agrupados[key]['sos'].append(r['so'])
+                    if r['sku'] not in agrupados[key]['skus']:
+                        agrupados[key]['skus'].append(r['sku'])
+                    
+                    agrupados[key]['total_cant'] += r['cant']
+                    agrupados[key]['fechas_inst'].add(r['fecha_inst'])
+                    agrupados[key]['fines_prod'].add(r['fin_prod'])
+
+                # MOSTRAR TARJETAS AGRUPADAS
+                st.success(f"📌 Mostrando {len(agrupados)} agrupaciones de cargas consolidadas.")
+                
+                for key, grp in agrupados.items():
+                    sos_str = "<br>".join(grp['sos'])
+                    skus_str = "<br>".join(grp['skus'])
+                    f_inst_str = "<br>".join(sorted(list(grp['fechas_inst'])))
+                    f_prod_str = "<br>".join(sorted(list(grp['fines_prod'])))
+                    
+                    # Scroll interno si hay muchos elementos en la lista
+                    div_sos = f"<div style='max-height:80px; overflow-y:auto; padding-right:5px;'>{sos_str}</div>" if len(grp['sos']) > 2 else sos_str
+                    div_skus = f"<div style='max-height:80px; overflow-y:auto; padding-right:5px;'>{skus_str}</div>" if len(grp['skus']) > 2 else skus_str
                     
                     st.markdown(f"""
-                        <div class="custom-card" style="border-top: 5px solid {color_estadio};">
-                            <h3 style="color:{color_estadio}; text-transform:uppercase; letter-spacing:2px; margin-bottom: 10px;">ESTADIO {estadio}: {desc_estadio}</h3>
-                            <p style="color:#f8fafc; font-size:16px;">{info_extra}</p>
+                        <div class="custom-card" style="border-top: 5px solid {grp['color_estadio']};">
+                            <h3 style="color:{grp['color_estadio']}; text-transform:uppercase; letter-spacing:2px; margin-bottom: 10px;">ESTADIO {grp['estadio']}: {grp['desc_estadio']}</h3>
+                            <p style="color:#f8fafc; font-size:16px;">{grp['info_extra']}</p>
                             <hr style="border:none; border-top:1px solid rgba(255,255,255,0.1); margin:20px 0;">
-                            <div class="grid-4">
-                                <div><p class="minicard-title">SO</p><p class="minicard-value" style="font-size:20px;">{val_so}</p></div>
-                                <div><p class="minicard-title">INVOICE</p><p class="minicard-value" style="font-size:20px;">{val_inv}</p></div>
-                                <div><p class="minicard-title">SKU / CÓDIGO</p><p class="minicard-value" style="font-size:20px;">{val_sku}</p></div>
-                                <div><p class="minicard-title">EMBARQUE</p><p class="minicard-value" style="font-size:20px; color:#00a8ff;">{val_emb}</p></div>
+                            
+                            <div class="grid-4" style="align-items: start;">
+                                <div><p class="minicard-title">SO ({len(grp['sos'])})</p><p class="minicard-value" style="font-size:16px;">{div_sos}</p></div>
+                                <div><p class="minicard-title">INVOICE</p><p class="minicard-value" style="font-size:20px;">{grp['inv']}</p></div>
+                                <div><p class="minicard-title">SKU / CÓDIGO ({len(grp['skus'])})</p><p class="minicard-value" style="font-size:16px;">{div_skus}</p></div>
+                                <div><p class="minicard-title">EMBARQUE</p><p class="minicard-value" style="font-size:20px; color:#00a8ff;">{grp['emb']}</p></div>
                             </div>
-                            <div class="grid-4" style="margin-top:20px;">
-                                <div style="grid-column: span 3;"><p class="minicard-title">PROVEEDOR</p><p style="font-size:16px; color:#f8fafc; font-weight:600;">{val_prov}</p></div>
-                                <div><p class="minicard-title">{label_cant}</p><p style="font-size:24px; color:#00ff88; font-weight:800; margin:0;">{cantidad_mostrar}</p></div>
+                            
+                            <div class="grid-4" style="margin-top:20px; align-items: center; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 15px;">
+                                <div style="grid-column: span 1;">
+                                    <p class="minicard-title">F. INSTRUCCIÓN</p>
+                                    <p style="font-size:16px; color:#f8fafc;">{f_inst_str}</p>
+                                </div>
+                                <div style="grid-column: span 1;">
+                                    <p class="minicard-title">FIN PRODUCCIÓN</p>
+                                    <p style="font-size:16px; color:#f8fafc;">{f_prod_str}</p>
+                                </div>
+                                <div style="grid-column: span 1;">
+                                    <p class="minicard-title">PROVEEDOR</p>
+                                    <p style="font-size:16px; color:#f8fafc; font-weight:600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" title="{grp['prov']}">{grp['prov']}</p>
+                                </div>
+                                <div style="text-align: right;">
+                                    <p class="minicard-title">TOTAL {grp['label_cant']}</p>
+                                    <p style="font-size:28px; color:#00ff88; font-weight:900; margin:0;">{grp['total_cant']}</p>
+                                </div>
                             </div>
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    pct_progreso = estadio * 20
+                    pct_progreso = grp['estadio'] * 20
                     st.markdown(f"""
                         <div style="width: 100%; background-color: rgba(255,255,255,0.1); border-radius: 10px; margin-top:20px; height: 10px;">
-                            <div style="width: {pct_progreso}%; background-color: {color_estadio}; height: 10px; border-radius: 10px; transition: width 0.5s;"></div>
+                            <div style="width: {pct_progreso}%; background-color: {grp['color_estadio']}; height: 10px; border-radius: 10px; transition: width 0.5s;"></div>
                         </div>
                         <div style="display: flex; justify-content: space-between; margin-top: 10px; padding: 0 5px;">
-                            <span style="font-size: 11px; font-weight:700; color: {'#fff' if estadio >= 1 else '#64748b'};">1. PENDIENTE</span>
-                            <span style="font-size: 11px; font-weight:700; color: {'#fff' if estadio >= 2 else '#64748b'};">2. INSTRUIDO</span>
-                            <span style="font-size: 11px; font-weight:700; color: {'#fff' if estadio >= 3 else '#64748b'};">3. BOOKING</span>
-                            <span style="font-size: 11px; font-weight:700; color: {'#fff' if estadio >= 4 else '#64748b'};">4. TRÁNSITO</span>
-                            <span style="font-size: 11px; font-weight:700; color: {'#fff' if estadio >= 5 else '#64748b'};">5. ARRIBADO</span>
+                            <span style="font-size: 11px; font-weight:700; color: {'#fff' if grp['estadio'] >= 1 else '#64748b'};">1. PENDIENTE</span>
+                            <span style="font-size: 11px; font-weight:700; color: {'#fff' if grp['estadio'] >= 2 else '#64748b'};">2. INSTRUIDO</span>
+                            <span style="font-size: 11px; font-weight:700; color: {'#fff' if grp['estadio'] >= 3 else '#64748b'};">3. BOOKING</span>
+                            <span style="font-size: 11px; font-weight:700; color: {'#fff' if grp['estadio'] >= 4 else '#64748b'};">4. TRÁNSITO</span>
+                            <span style="font-size: 11px; font-weight:700; color: {'#fff' if grp['estadio'] >= 5 else '#64748b'};">5. ARRIBADO</span>
                         </div>
                         <br><br>
                     """, unsafe_allow_html=True)
