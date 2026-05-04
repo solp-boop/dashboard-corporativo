@@ -1489,8 +1489,8 @@ try:
             
             # Aseguramos columnas GSO
             col_so = [c for c in df.columns if 'SO' in c.upper()][0] if any('SO' in c.upper() for c in df.columns) else df.columns[0]
-            col_inv = [c for c in df.columns if 'INVOICE' in c.upper()][0] if any('INVOICE' in c.upper() for c in df.columns) else df.columns[29]
-            col_sku = [c for c in df.columns if 'CODIGO' in c.upper() or 'CÓDIGO' in c.upper()][0] if any('CODIGO' in c.upper() or 'CÓDIGO' in c.upper() for c in df.columns) else df.columns[32]
+            col_inv = [c for c in df.columns if 'N INVOICE' in c.upper() or 'N° INVOICE' in c.upper()][0] if any('N INVOICE' in c.upper() or 'N° INVOICE' in c.upper() for c in df.columns) else df.columns[29]
+            col_sku = [c for c in df.columns if c.strip().upper() == 'CODIGO' or c.strip().upper() == 'CÓDIGO'][0] if any(c.strip().upper() in ['CODIGO', 'CÓDIGO'] for c in df.columns) else df.columns[32]
             
             mask_so = df[col_so].astype(str).str.upper().str.contains(query, na=False)
             mask_inv = df[col_inv].astype(str).str.upper().str.contains(query, na=False)
@@ -1526,6 +1526,22 @@ try:
                     
                     col_etd = [c for c in df.columns if 'ETD' in c.upper()][0] if any('ETD' in c.upper() for c in df.columns) else df.columns[23]
                     val_etd_gso = str(row[col_etd]).strip()
+                    
+                    # Logica de Cantidad a Embarcar
+                    col_cant_pend = [c for c in df.columns if 'CANTIDAD PENDIENTE DE EMBARCAR' in c.upper()][0] if any('CANTIDAD PENDIENTE DE EMBARCAR' in c.upper() for c in df.columns) else df.columns[21]
+                    col_cant_emb = [c for c in df.columns if 'CANTIDAD EMB' in c.upper() and 'PREVENTA' not in c.upper()][0] if any('CANTIDAD EMB' in c.upper() and 'PREVENTA' not in c.upper() for c in df.columns) else df.columns[60]
+                    
+                    try: val_cant_pend = float(str(row[col_cant_pend]).replace(',', '.').strip())
+                    except: val_cant_pend = 0.0
+                    try: val_cant_emb = float(str(row[col_cant_emb]).replace(',', '.').strip())
+                    except: val_cant_emb = 0.0
+                    
+                    if val_cant_pend == 0:
+                        cantidad_mostrar = int(val_cant_emb)
+                        label_cant = "CANTIDAD EMB"
+                    else:
+                        cantidad_mostrar = int(val_cant_pend)
+                        label_cant = "CANT. PENDIENTE"
                     
                     estadio = 1
                     desc_estadio = "PENDIENTE DE INSTRUCCIÓN"
@@ -1591,9 +1607,9 @@ try:
                                 <div><p class="minicard-title">SKU / CÓDIGO</p><p class="minicard-value" style="font-size:20px;">{val_sku}</p></div>
                                 <div><p class="minicard-title">EMBARQUE</p><p class="minicard-value" style="font-size:20px; color:#00a8ff;">{val_emb}</p></div>
                             </div>
-                            <div style="margin-top:20px;">
-                                <p class="minicard-title">PROVEEDOR</p>
-                                <p style="font-size:16px; color:#f8fafc; font-weight:600;">{val_prov}</p>
+                            <div class="grid-4" style="margin-top:20px;">
+                                <div style="grid-column: span 3;"><p class="minicard-title">PROVEEDOR</p><p style="font-size:16px; color:#f8fafc; font-weight:600;">{val_prov}</p></div>
+                                <div><p class="minicard-title">{label_cant}</p><p style="font-size:24px; color:#00ff88; font-weight:800; margin:0;">{cantidad_mostrar}</p></div>
                             </div>
                         </div>
                     """, unsafe_allow_html=True)
@@ -1612,7 +1628,6 @@ try:
                         </div>
                         <br><br>
                     """, unsafe_allow_html=True)
-
 
     # --- SOLAPA 6: ALERTAS ESTRATÉGICAS ---
     with tabs[5]:
