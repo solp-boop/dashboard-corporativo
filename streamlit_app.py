@@ -1500,7 +1500,8 @@ try:
                             # --- CONEXIÓN A GEMINI ---
                             try:
                                 import google.generativeai as genai
-                                api_key = st.secrets.get("GEMINI_API_KEY")
+                                # Llave ingresada directamente para pruebas rápidas
+                                api_key = "AIzaSyD-U3LuAqHWDJzsYJrjUcX9l6YXh6tmdNI"
                                 
                                 if not api_key:
                                     respuesta_ia = "⚠️ Falla: No encontré la GEMINI_API_KEY en los secretos de Streamlit."
@@ -1857,7 +1858,6 @@ No inventes datos. Si te preguntan algo que no está en el contexto, indícalo a
 <br><br>
 """
                     st.markdown(html_progress, unsafe_allow_html=True)
-
 
 
     # --- SOLAPA 6: ALERTAS ESTRATÉGICAS ---
