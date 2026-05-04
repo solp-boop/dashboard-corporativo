@@ -1497,24 +1497,24 @@ try:
                             resp_placeholder = st.empty()
                             resp_placeholder.markdown("Pensando... ⏳")
                             
-                            # --- CONEXIÓN A GEMINI ---
+                                                   # --- CONEXIÓN A GEMINI ---
                             try:
                                 import google.generativeai as genai
-                                # Llave ingresada directamente para pruebas rápidas
                                 api_key = "AIzaSyD-U3LuAqHWDJzsYJrjUcX9l6YXh6tmdNI"
                                 
                                 if not api_key:
-                                    respuesta_ia = "⚠️ Falla: No encontré la GEMINI_API_KEY en los secretos de Streamlit."
+                                    respuesta_ia = "⚠️ Falla: No encontré la GEMINI_API_KEY."
                                 else:
                                     genai.configure(api_key=api_key)
+                                    
+                                    # Usamos gemini-pro que es el más universal y estable
+                                    model = genai.GenerativeModel('gemini-pro')
                                     
                                     # Personalidad de la IA
                                     system_prompt = """Eres 'Capitán Comex', un asistente ejecutivo experto en comercio exterior y logística internacional de la empresa Bidcom. 
 Tu trabajo es analizar los datos de los embarques en pantalla y responder a las consultas del usuario de manera clara, proactiva y muy profesional. 
-Usa emojis sutiles. Si te preguntan por riesgos operativos, evalúa las fechas (Fin de Producción, Instrucción, ETD, ETA) y las cantidades para detectar alertas (ej: demoras excesivas, consolidaciones lentas).
+Usa emojis sutiles. Si te preguntan por riesgos operativos, evalúa las fechas (Fin de Producción, Instrucción, ETD, ETA) y las cantidades para detectar alertas (ej: demoras excesivas).
 No inventes datos. Si te preguntan algo que no está en el contexto, indícalo amablemente."""
-                                    
-                                    model = genai.GenerativeModel('gemini-1.5-flash', system_instruction=system_prompt)
                                     
                                     # Armar contexto basado en la última búsqueda del usuario
                                     contexto = "Datos actuales de la búsqueda en pantalla:\n"
@@ -1524,22 +1524,15 @@ No inventes datos. Si te preguntan algo que no está en el contexto, indícalo a
                                     else:
                                         contexto += "El usuario no tiene ningún embarque filtrado en pantalla en este momento."
                                     
-                                    # Prompt unificado
-                                    prompt_final = f"CONTEXTO INVISIBLE DE LA PANTALLA ACTUAL:\n{contexto}\n\nPREGUNTA DEL USUARIO:\n{prompt}"
+                                    # Prompt unificado (Reglas + Contexto + Pregunta)
+                                    prompt_final = f"{system_prompt}\n\nCONTEXTO INVISIBLE DE LA PANTALLA ACTUAL:\n{contexto}\n\nPREGUNTA DEL USUARIO:\n{prompt}"
                                     
                                     # Generar respuesta
                                     response = model.generate_content(prompt_final)
                                     respuesta_ia = response.text
                             except Exception as e:
                                 respuesta_ia = f"Hubo un error de conexión con la IA: {str(e)}"
-                            
-                            resp_placeholder.markdown(respuesta_ia)
-                            st.session_state.chat_history.append({"role": "assistant", "content": respuesta_ia})
-                            
-        except AttributeError:
-            st.error("⚠️ Para usar este chat flotante, necesitamos actualizar Streamlit. (Requiere versión 1.33 o superior).")
-            
-        st.markdown("<hr class='white-divider'>", unsafe_allow_html=True)
+
         
         # Carga de datos secundaria para búsquedas
         @st.cache_data(ttl=60)
