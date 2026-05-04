@@ -1460,7 +1460,7 @@ try:
 
         except Exception as e: st.error(f"Error en Alertas: {e}")
 
-       # --- SOLAPA 8: ASK COMEX ---
+    # --- SOLAPA 8: ASK COMEX ---
     with tabs[7]:
         st.markdown("<div style='text-align:center; padding: 40px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; border: 2px dashed rgba(0, 168, 255, 0.2);'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:10px;'>ASK COMEX</h2><p style='color:#94a3b8; font-size:18px; margin-top:20px;'>Inteligencia Operativa en Tiempo Real.</p></div>", unsafe_allow_html=True)
         
@@ -1714,6 +1714,7 @@ try:
                         </div>
                         <br><br>
                     """, unsafe_allow_html=True)
+
 
     # --- SOLAPA 6: ALERTAS ESTRATÉGICAS ---
     with tabs[5]:
