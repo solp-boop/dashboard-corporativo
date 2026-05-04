@@ -1460,9 +1460,53 @@ try:
 
         except Exception as e: st.error(f"Error en Alertas: {e}")
 
-    # --- SOLAPA 8: ASK COMEX ---
+     # --- SOLAPA 8: ASK COMEX ---
     with tabs[7]:
         st.markdown("<div style='text-align:center; padding: 40px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; border: 2px dashed rgba(0, 168, 255, 0.2);'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:10px;'>ASK COMEX</h2><p style='color:#94a3b8; font-size:18px; margin-top:20px;'>Inteligencia Operativa en Tiempo Real.</p></div>", unsafe_allow_html=True)
+        
+        # --- CHAT FLOTANTE IA (CAPITÁN COMEX) ---
+        st.markdown("<br>", unsafe_allow_html=True)
+        try:
+            # El botón emergente (Popover)
+            with st.popover("💬 Hablar con Capitán Comex (IA)", use_container_width=False):
+                st.markdown("<h4 style='color:#00ff88; margin-bottom:0;'>🚢 Capitán Comex</h4>", unsafe_allow_html=True)
+                st.caption("Asistente Logístico con IA (Google Gemini)")
+                
+                # Inicializar historial de chat si no existe
+                if "chat_history" not in st.session_state:
+                    st.session_state.chat_history = [{"role": "assistant", "content": "¡Hola! Soy Capitán Comex. ¿Qué embarque buscamos o qué duda operativa tienes?"}]
+                
+                # Contenedor con altura máxima para el chat
+                chat_container = st.container(height=400)
+                
+                # Mostrar mensajes previos
+                with chat_container:
+                    for msg in st.session_state.chat_history:
+                        avatar = "🚢" if msg["role"] == "assistant" else "👤"
+                        with st.chat_message(msg["role"], avatar=avatar):
+                            st.markdown(msg["content"])
+                
+                # Caja de texto para que el usuario pregunte
+                if prompt := st.chat_input("Hazle una pregunta a la IA..."):
+                    st.session_state.chat_history.append({"role": "user", "content": prompt})
+                    with chat_container:
+                        with st.chat_message("user", avatar="👤"):
+                            st.markdown(prompt)
+                        
+                        with st.chat_message("assistant", avatar="🚢"):
+                            resp_placeholder = st.empty()
+                            resp_placeholder.markdown("Pensando... ⏳")
+                            
+                            # AQUÍ CONECTAREMOS GEMINI PRONTO
+                            respuesta_ia = f"Todavía no tengo mi 'cerebro' (API Key de Gemini) conectado para responderte sobre: '{prompt}'. ¡Pronto lo configuraremos!"
+                            
+                            resp_placeholder.markdown(respuesta_ia)
+                            st.session_state.chat_history.append({"role": "assistant", "content": respuesta_ia})
+                            
+        except AttributeError:
+            st.error("⚠️ Para usar este chat flotante, necesitamos actualizar Streamlit. (Requiere versión 1.33 o superior).")
+            
+        st.markdown("<hr class='white-divider'>", unsafe_allow_html=True)
         
         # Carga de datos secundaria para búsquedas
         @st.cache_data(ttl=60)
