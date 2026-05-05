@@ -1108,15 +1108,12 @@ try:
     with tabs[5]:
         st.markdown("<div style='text-align:center; padding: 20px; background: rgba(0, 255, 136, 0.05); border-radius: 20px; margin: 30px 0;'><h2 style='color:#00ff88; font-weight:800; letter-spacing:5px; margin:0;'>INDICADORES DE CONSOLIDACIÓN Y SLA</h2></div>", unsafe_allow_html=True)
         try:
-            # Carga de datos históricos (Gid 32771816)
             url_hi = f"{base_url}/export?format=csv&gid=32771816&nocache={time.time()}"
             @st.cache_data(ttl=60)
             def load_hi_vfinal(u): return pd.read_csv(u, engine='python')
             
             df_hi = load_hi_vfinal(url_hi)
             df_hi.columns = [str(c).strip() for c in df_hi.columns]
-            
-            # Filtro para año 2026 y Marítimos
             df_hi['ETD_DT'] = pd.to_datetime(df_hi.iloc[:, 11], dayfirst=True, errors='coerce') 
             df_2026 = df_hi[df_hi.iloc[:, 25].astype(str).str.contains("2026")].copy()
             
@@ -1124,14 +1121,10 @@ try:
                 df_2026['Mes'] = df_2026['ETD_DT'].dt.month
                 col_tipo_carga_hi = df_hi.columns[5] 
                 df_mar = df_2026[~df_2026[col_tipo_carga_hi].astype(str).str.upper().str.contains('AVION|COURRIER', na=False)].copy()
-                
                 meses_dict = {1:"Enero", 2:"Febrero", 3:"Marzo", 4:"Abril", 5:"Mayo", 6:"Junio", 7:"Julio", 8:"Agosto", 9:"Septiembre", 10:"Octubre", 11:"Noviembre", 12:"Diciembre"}
                 df_mar['Mes_Nombre'] = df_mar['Mes'].map(meses_dict)
                 
-                # Identificación de columnas críticas
-                col_mono_hi = df_hi.columns[24]    # ¿Es Monoproveedor?
-                col_puerto_hi = df_hi.columns[4]   # Puerto
-                col_cons_hi = df_hi.columns[32]    # Días Consolidación
+                col_mono_hi = df_hi.columns[24]; col_puerto_hi = df_hi.columns[4]; col_cons_hi = df_hi.columns[32]
                 
                 def clean_n_hi(val):
                     if pd.isna(val) or str(val).strip() in ['', 'nan']: return 0.0
@@ -1139,63 +1132,41 @@ try:
                         s = str(val).replace(',', '.').replace(' ', '').strip()
                         return pd.to_numeric(s, errors='coerce')
                     except: return 0.0
-
                 df_mar[col_cons_hi] = df_mar[col_cons_hi].apply(clean_n_hi).fillna(0.0).round(0)
-                
-                st.markdown("<div style='background: rgba(0, 168, 255, 0.05); padding: 15px 25px; border-radius: 20px; border: 1px solid rgba(0, 168, 255, 0.2); margin: 15px 0;'><h3 style='color:#00a8ff; margin:0; text-align:center; letter-spacing:5px; text-transform:uppercase; font-weight:900;'>RESUMEN MES CERRADO (MARÍTIMOS 2026)</h3></div>", unsafe_allow_html=True)
-                
-                # --- DIALOG DE DETALLE (CORREGIDO) ---
+
+                # --- DIALOG DE DETALLE ---
                 @st.dialog("🚢 DETALLE POR PUERTO Y SLA", width="large")
                 def show_detalle_mes(df_sub, mes_lbl, mode="mixed"):
-                    st.markdown(f"### Análisis de Cumplimiento: {mes_lbl.upper()}")
+                    st.markdown(f"### Análisis {mes_lbl.upper()}")
                     res_p = df_sub.groupby(col_puerto_hi).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
-                    
                     p_rows = []
                     for _, r in res_p.iterrows():
                         df_p_t = df_sub[df_sub[col_puerto_hi] == r[col_puerto_hi]].copy()
                         tp_p = r[df_hi.columns[0]]
-                        
                         def check_sla(row):
-                            days = row[col_cons_hi]
-                            is_mono = "SÍ" in str(row[col_mono_hi]).upper() or "SI" in str(row[col_mono_hi]).upper()
+                            days = row[col_cons_hi]; is_mono = "SÍ" in str(row[col_mono_hi]).upper() or "SI" in str(row[col_mono_hi]).upper()
                             limit = (15 if row['Mes'] <= 2 else 7) if is_mono else 25
                             return days <= limit
-                        
                         df_p_t['SLA_OK'] = df_p_t.apply(check_sla, axis=1)
                         pct_sla = int((len(df_p_t[df_p_t['SLA_OK']]) / tp_p) * 100) if tp_p > 0 else 0
-                        
-                        row_data = {
-                            "Puerto": r[col_puerto_hi], 
-                            "Embs": tp_p, 
-                            "Días Avg": int(round(r[col_cons_hi])),
-                            "% Cumple SLA": f"{pct_sla}%",
-                            "% Fuera SLA": f"{100 - pct_sla}%",
-                            "TOTAL": "100%"
-                        }
-                        
+                        row_data = {"Puerto": r[col_puerto_hi], "Embs": tp_p, "Días Avg": int(round(r[col_cons_hi])), "% Cumple SLA": f"{pct_sla}%", "% Fuera SLA": f"{100 - pct_sla}%", "TOTAL": "100%"}
                         if mode == "mixed":
                             cm_p = len(df_p_t[df_p_t[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)])
-                            row_data["% Mono"] = f"{int((cm_p/tp_p)*100)}%"
-                            row_data["% Cons"] = f"{int((1-(cm_p/tp_p))*100)}%"
-                        
+                            row_data["% Mono"] = f"{int((cm_p/tp_p)*100)}%"; row_data["% Cons"] = f"{int((1-(cm_p/tp_p))*100)}%"
                         p_rows.append(row_data)
-                    
                     st.dataframe(pd.DataFrame(p_rows).sort_values("Embs", ascending=False), use_container_width=True, hide_index=True)
 
-                # --- RENDER DE TABLA MENSUAL ---
+                # --- 1. RESUMEN MES CERRADO ---
+                st.markdown("<div style='background: rgba(0, 168, 255, 0.05); padding: 15px 25px; border-radius: 20px; border: 1px solid rgba(0, 168, 255, 0.2); margin: 15px 0;'><h3 style='color:#00a8ff; margin:0; text-align:center; letter-spacing:5px; text-transform:uppercase; font-weight:900;'>RESUMEN MES CERRADO (MARÍTIMOS 2026)</h3></div>", unsafe_allow_html=True)
                 thc = st.columns([1.5, 1, 1.2, 1, 1, 0.8])
                 headers = ["MES ETD", "EMBS", "DIAS AVG", "% MONO", "% CONS", "DETALLE"]
-                for i, h in enumerate(headers):
-                    thc[i].markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:800; text-align:center;'>{h}</p>", unsafe_allow_html=True)
+                for i, h in enumerate(headers): thc[i].markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:800; text-align:center;'>{h}</p>", unsafe_allow_html=True)
                 
                 res_mensual = df_mar.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
-                
                 for _, row in res_mensual.iterrows():
                     df_m_temp = df_mar[df_mar['Mes'] == row['Mes']].copy()
-                    df_m_mono = df_m_temp[df_m_temp[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)]
-                    tot_m = len(df_m_temp)
+                    tot_m = len(df_m_temp); df_m_mono = df_m_temp[df_m_temp[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)]
                     p_mono = (len(df_m_mono) / tot_m) if tot_m > 0 else 0
-                    
                     tr1, tr2, tr3, tr4, tr5, tr6 = st.columns([1.5, 1, 1.2, 1, 1, 0.8])
                     tr1.markdown(f"<p style='font-weight:700; color:#fff; text-align:center; margin-top:5px;'>{row['Mes_Nombre'].upper()}</p>", unsafe_allow_html=True)
                     tr2.markdown(f"<p style='text-align:center; margin-top:5px;'>{tot_m}</p>", unsafe_allow_html=True)
@@ -1203,50 +1174,46 @@ try:
                     tr4.markdown(f"<p style='color:#00a8ff; text-align:center; margin-top:5px;'>{int(p_mono*100)}%</p>", unsafe_allow_html=True)
                     tr5.markdown(f"<p style='color:#94a3b8; text-align:center; margin-top:5px;'>{int((1-p_mono)*100)}%</p>", unsafe_allow_html=True)
                     with tr6:
-                        if st.button("🔍 VER", key=f"btn_det_v4_{row['Mes']}", use_container_width=True):
-                            show_detalle_mes(df_m_temp, row['Mes_Nombre'], mode="mixed")
+                        if st.button("🔍 VER", key=f"btn_res_{row['Mes']}", use_container_width=True): show_detalle_mes(df_m_temp, row['Mes_Nombre'], mode="mixed")
 
-                # --- SECCIONES DE APERTURA (MONO / CONSOLIDADO) ---
-                st.markdown("<br>", unsafe_allow_html=True)
-                
-                # 1. MONOPROVEEDOR
-                st.markdown("<div style='background: rgba(0, 168, 255, 0.05); padding: 8px 15px; border-radius: 8px; border-left: 5px solid #00a8ff; text-align:center;'><h4 style='color:#00a8ff; margin:0; font-size:14px;'>1. SOLAMENTE MONOPROVEEDOR (MARÍTIMOS 2026)</h4></div>", unsafe_allow_html=True)
+                # --- 2. SOLAMENTE MONOPROVEEDOR ---
+                st.markdown("<br><div style='background: rgba(0, 168, 255, 0.05); padding: 15px; border-radius: 12px; border-left: 5px solid #00a8ff; margin-bottom:15px;'><h4 style='color:#00a8ff; margin:0; letter-spacing:2px; font-size:16px;'>1. SOLAMENTE MONOPROVEEDOR (MARÍTIMOS 2026)</h4></div>", unsafe_allow_html=True)
                 df_mono_v4 = df_mar[df_mar[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)].copy()
                 if not df_mono_v4.empty:
+                    mhc = st.columns([1.5, 1, 1.2, 2, 0.8])
+                    for i, h in enumerate(["MES ETD", "EMBS", "DIAS AVG", "CUMPLIMIENTO SLA", "DETALLE"]): mhc[i].markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:800; text-align:center;'>{h}</p>", unsafe_allow_html=True)
                     res_m = df_mono_v4.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
                     for _, rm in res_m.iterrows():
-                        st.markdown("<div style='padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.02);'>", unsafe_allow_html=True)
-                        m1, m2, m3, m4 = st.columns([2, 1, 1, 1])
-                        m1.write(f"**{rm['Mes_Nombre']}**")
-                        m2.write(f"{int(rm.iloc[2])} embs")
-                        m3.write(f"Avg: **{int(round(rm.iloc[3]))}d**")
-                        with m4:
-                            if st.button("DETALLE", key=f"btn_m_{rm['Mes']}", use_container_width=True):
-                                show_detalle_mes(df_mono_v4[df_mono_v4['Mes']==rm['Mes']], f"MONO - {rm['Mes_Nombre']}", mode="specific")
-                        st.markdown("</div>", unsafe_allow_html=True)
+                        df_sub_m = df_mono_v4[df_mono_v4['Mes'] == rm['Mes']].copy()
+                        lim_m = 15 if rm['Mes'] <= 2 else 7
+                        pct_m = int((len(df_sub_m[df_sub_m[col_cons_hi] <= lim_m]) / len(df_sub_m)) * 100)
+                        mr1, mr2, mr3, mr4, mr5 = st.columns([1.5, 1, 1.2, 2, 0.8])
+                        mr1.markdown(f"<p style='font-weight:700; color:#fff; text-align:center;'>{rm['Mes_Nombre'].upper()}</p>", unsafe_allow_html=True)
+                        mr2.markdown(f"<p style='text-align:center;'>{int(rm.iloc[2])}</p>", unsafe_allow_html=True)
+                        mr3.markdown(f"<p style='color:#00ff88; font-weight:700; text-align:center;'>{int(round(rm.iloc[3]))}d</p>", unsafe_allow_html=True)
+                        mr4.markdown(f"<div style='background:rgba(0,168,255,0.1); border-radius:10px; text-align:center; padding:2px; border:1px solid rgba(0,168,255,0.2);'><span style='color:#00a8ff; font-weight:800; font-size:12px;'>SLA {pct_m}%</span></div>", unsafe_allow_html=True)
+                        with mr5:
+                            if st.button("🔍 VER", key=f"btn_m_v4_{rm['Mes']}", use_container_width=True): show_detalle_mes(df_sub_m, f"MONO - {rm['Mes_Nombre']}", mode="specific")
 
-                st.markdown("<br>", unsafe_allow_html=True)
-                
-                # 2. CONSOLIDADO
-                st.markdown("<div style='background: rgba(0, 255, 136, 0.05); padding: 8px 15px; border-radius: 8px; border-left: 5px solid #00ff88; text-align:center;'><h4 style='color:#00ff88; margin:0; font-size:14px;'>2. SOLAMENTE CONSOLIDADO (MARÍTIMOS 2026)</h4></div>", unsafe_allow_html=True)
+                # --- 3. SOLAMENTE CONSOLIDADO ---
+                st.markdown("<br><div style='background: rgba(0, 255, 136, 0.05); padding: 15px; border-radius: 12px; border-left: 5px solid #00ff88; margin-bottom:15px;'><h4 style='color:#00ff88; margin:0; letter-spacing:2px; font-size:16px;'>2. SOLAMENTE CONSOLIDADO (MARÍTIMOS 2026)</h4></div>", unsafe_allow_html=True)
                 df_cons_v4 = df_mar[~df_mar[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)].copy()
                 if not df_cons_v4.empty:
+                    chc = st.columns([1.5, 1, 1.2, 2, 0.8])
+                    for i, h in enumerate(["MES ETD", "EMBS", "DIAS AVG", "CUMPLIMIENTO SLA", "DETALLE"]): chc[i].markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:800; text-align:center;'>{h}</p>", unsafe_allow_html=True)
                     res_c = df_cons_v4.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
                     for _, rc in res_c.iterrows():
-                        st.markdown("<div style='padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.02);'>", unsafe_allow_html=True)
-                        c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
-                        c1.write(f"**{rc['Mes_Nombre']}**")
-                        c2.write(f"{int(rc.iloc[2])} embs")
-                        c3.write(f"Avg: **{int(round(rc.iloc[3]))}d**")
-                        with c4:
-                            if st.button("DETALLE", key=f"btn_c_{rc['Mes']}", use_container_width=True):
-                                show_detalle_mes(df_cons_v4[df_cons_v4['Mes']==rc['Mes']], f"CONS - {rc['Mes_Nombre']}", mode="specific")
-                        st.markdown("</div>", unsafe_allow_html=True)
-            else:
-                st.warning("No se encontraron registros marítimos para el año 2026.")
-        except Exception as e:
-            st.error(f"Error en Indicadores: {e}")
-
+                        df_sub_c = df_cons_v4[df_cons_v4['Mes'] == rc['Mes']].copy()
+                        pct_c = int((len(df_sub_c[df_sub_c[col_cons_hi] <= 25]) / len(df_sub_c)) * 100)
+                        cr1, cr2, cr3, cr4, cr5 = st.columns([1.5, 1, 1.2, 2, 0.8])
+                        cr1.markdown(f"<p style='font-weight:700; color:#fff; text-align:center;'>{rc['Mes_Nombre'].upper()}</p>", unsafe_allow_html=True)
+                        cr2.markdown(f"<p style='text-align:center;'>{int(rc.iloc[2])}</p>", unsafe_allow_html=True)
+                        cr3.markdown(f"<p style='color:#00ff88; font-weight:700; text-align:center;'>{int(round(rc.iloc[3]))}d</p>", unsafe_allow_html=True)
+                        cr4.markdown(f"<div style='background:rgba(0,255,136,0.1); border-radius:10px; text-align:center; padding:2px; border:1px solid rgba(0,255,136,0.2);'><span style='color:#00ff88; font-weight:800; font-size:12px;'>SLA {pct_c}%</span></div>", unsafe_allow_html=True)
+                        with cr5:
+                            if st.button("🔍 VER", key=f"btn_c_v4_{rc['Mes']}", use_container_width=True): show_detalle_mes(df_sub_c, f"CONS - {rc['Mes_Nombre']}", mode="specific")
+            else: st.warning("No se encontraron registros marítimos para el año 2026.")
+        except Exception as e: st.error(f"Error en Indicadores: {e}")
 
     # --- SOLAPA 7: ALERTAS ESTRATÉGICAS ---
     with tabs[6]:
