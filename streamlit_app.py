@@ -1497,13 +1497,14 @@ try:
                             resp_placeholder = st.empty()
                             resp_placeholder.markdown("Pensando... ⏳")
                             
-                                                   # --- CONEXIÓN A GEMINI ---
+                            # --- CONEXIÓN A GEMINI ---
                             try:
                                 import google.generativeai as genai
+                                # Llave ingresada directamente para pruebas rápidas
                                 api_key = "AIzaSyD-U3LuAqHWDJzsYJrjUcX9l6YXh6tmdNI"
                                 
                                 if not api_key:
-                                    respuesta_ia = "⚠️ Falla: No encontré la GEMINI_API_KEY."
+                                    respuesta_ia = "⚠️ Falla: No encontré la GEMINI_API_KEY en los secretos de Streamlit."
                                 else:
                                     genai.configure(api_key=api_key)
                                     
@@ -1513,7 +1514,7 @@ try:
                                     # Personalidad de la IA
                                     system_prompt = """Eres 'Capitán Comex', un asistente ejecutivo experto en comercio exterior y logística internacional de la empresa Bidcom. 
 Tu trabajo es analizar los datos de los embarques en pantalla y responder a las consultas del usuario de manera clara, proactiva y muy profesional. 
-Usa emojis sutiles. Si te preguntan por riesgos operativos, evalúa las fechas (Fin de Producción, Instrucción, ETD, ETA) y las cantidades para detectar alertas (ej: demoras excesivas).
+Usa emojis sutiles. Si te preguntan por riesgos operativos, evalúa las fechas (Fin de Producción, Instrucción, ETD, ETA) y las cantidades para detectar alertas (ej: demoras excesivas, consolidaciones lentas).
 No inventes datos. Si te preguntan algo que no está en el contexto, indícalo amablemente."""
                                     
                                     # Armar contexto basado en la última búsqueda del usuario
@@ -1524,7 +1525,7 @@ No inventes datos. Si te preguntan algo que no está en el contexto, indícalo a
                                     else:
                                         contexto += "El usuario no tiene ningún embarque filtrado en pantalla en este momento."
                                     
-                                    # Prompt unificado (Reglas + Contexto + Pregunta)
+                                    # Prompt unificado
                                     prompt_final = f"{system_prompt}\n\nCONTEXTO INVISIBLE DE LA PANTALLA ACTUAL:\n{contexto}\n\nPREGUNTA DEL USUARIO:\n{prompt}"
                                     
                                     # Generar respuesta
@@ -1532,7 +1533,14 @@ No inventes datos. Si te preguntan algo que no está en el contexto, indícalo a
                                     respuesta_ia = response.text
                             except Exception as e:
                                 respuesta_ia = f"Hubo un error de conexión con la IA: {str(e)}"
-
+                            
+                            resp_placeholder.markdown(respuesta_ia)
+                            st.session_state.chat_history.append({"role": "assistant", "content": respuesta_ia})
+                            
+        except AttributeError:
+            st.error("⚠️ Para usar este chat flotante, necesitamos actualizar Streamlit. (Requiere versión 1.33 o superior).")
+            
+        st.markdown("<hr class='white-divider'>", unsafe_allow_html=True)
         
         # Carga de datos secundaria para búsquedas
         @st.cache_data(ttl=60)
@@ -1851,6 +1859,7 @@ No inventes datos. Si te preguntan algo que no está en el contexto, indícalo a
 <br><br>
 """
                     st.markdown(html_progress, unsafe_allow_html=True)
+
 
 
     # --- SOLAPA 6: ALERTAS ESTRATÉGICAS ---
