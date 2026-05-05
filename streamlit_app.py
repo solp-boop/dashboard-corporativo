@@ -1114,25 +1114,21 @@ try:
             df_hi = load_hi_vfinal(url_hi)
             df_hi.columns = [str(c).strip() for c in df_hi.columns]
             
-            # Filtro Año 2026 (Col Z / index 25)
-            df_hi['ETD_DT'] = pd.to_datetime(df_hi.iloc[:, 11], dayfirst=True, errors='coerce') # ETD Real
+            # Filtro Año 2026
+            df_hi['ETD_DT'] = pd.to_datetime(df_hi.iloc[:, 11], dayfirst=True, errors='coerce') 
             df_2026 = df_hi[df_hi.iloc[:, 25].astype(str).str.contains("2026")].copy()
             
             if not df_2026.empty:
                 df_2026['Mes'] = df_2026['ETD_DT'].dt.month
-                
-                # --- FILTRO MARÍTIMO (EXCLUYE AVION Y COURRIER) ---
-                col_tipo_carga_hi = df_hi.columns[5] # Col F
+                col_tipo_carga_hi = df_hi.columns[5] 
                 df_mar = df_2026[~df_2026[col_tipo_carga_hi].astype(str).str.upper().str.contains('AVION|COURRIER', na=False)].copy()
                 
-                # Mapeo de Meses a Nombres
                 meses_dict = {1:"Enero", 2:"Febrero", 3:"Marzo", 4:"Abril", 5:"Mayo", 6:"Junio", 7:"Julio", 8:"Agosto", 9:"Septiembre", 10:"Octubre", 11:"Noviembre", 12:"Diciembre"}
                 df_mar['Mes_Nombre'] = df_mar['Mes'].map(meses_dict)
                 
-                # Identificamos Columnas Clave
-                col_mono_hi = df_hi.columns[24] # Col Y
-                col_puerto_hi = df_hi.columns[4] # Col E
-                col_cons_hi = df_hi.columns[32] # Col AG
+                col_mono_hi = df_hi.columns[24] 
+                col_puerto_hi = df_hi.columns[4] 
+                col_cons_hi = df_hi.columns[32] 
                 
                 def clean_n_hi(val):
                     if pd.isna(val) or str(val).strip() in ['', 'nan']: return 0.0
@@ -1145,7 +1141,6 @@ try:
                 
                 st.markdown("<div style='background: rgba(0, 168, 255, 0.05); padding: 15px 25px; border-radius: 20px; border: 1px solid rgba(0, 168, 255, 0.2); margin: 15px 0;'><h3 style='color:#00a8ff; margin:0; text-align:center; letter-spacing:5px; text-transform:uppercase; font-weight:900;'>RESUMEN MES CERRADO (MARÍTIMOS 2026)</h3></div>", unsafe_allow_html=True)
                 
-                # --- DEFINICIÓN DEL MODAL DE DETALLE (REFRESHED + SLA) ---
                 @st.dialog("🚢 DETALLE POR PUERTO Y SLA", width="large")
                 def show_detalle_mes(df_sub, mes_lbl, mode="mixed"):
                     st.markdown(f"### Análisis {mes_lbl.upper()}")
@@ -1158,7 +1153,6 @@ try:
                         df_p_t = df_sub[df_sub[col_puerto_hi] == r[col_puerto_hi]].copy()
                         tp_p = r[df_hi.columns[0]]
                         
-                        # Cálculo SLA Detallado
                         def check_sla(row):
                             days = row[col_cons_hi]
                             is_mono = "SÍ" in str(row[col_mono_hi]).upper() or "SI" in str(row[col_mono_hi]).upper()
@@ -1174,119 +1168,44 @@ try:
                             "Puerto": r[col_puerto_hi], 
                             "Embs": tp_p, 
                             "Días Avg": int(round(r[col_cons_hi])),
-                            "Cumple SLA": f"{pct_sla}%"
+                            "% Cumple SLA": f"{pct_sla}%",
+                            "% Fuera SLA": f"{100 - pct_sla}%",
+                            "TOTAL": "100%"
                         }
                         
                         if mode == "mixed":
                             cm_p = len(df_p_t[df_p_t[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)])
                             row_data["% Mono"] = f"{int((cm_p/tp_p)*100)}%"
                             row_data["% Cons"] = f"{int((1-(cm_p/tp_p))*100)}%"
-                        else:
-                            row_data["% SLA OK"] = f"{pct_sla}%"
-                            row_data["% SLA FUERA"] = f"{100 - pct_sla}%"
                         
                         p_rows.append(row_data)
                     
                     st.dataframe(pd.DataFrame(p_rows).sort_values("Embs", ascending=False), use_container_width=True, hide_index=True)
                     st.markdown("<p style='font-size:11px; color:#64748b;'>* SLA Mono: 15d (Ene/Feb) / 7d (Mar+). SLA Consolidado: 25d.</p>", unsafe_allow_html=True)
 
-                # --- 1. TABLA SIMPLIFICADA MES CERRADO ---
+                # --- TABLA MENSUAL ---
                 thc = st.columns([1.5, 1, 1.2, 1, 1, 0.8])
                 headers = ["MES ETD", "EMBS", "DIAS AVG", "% MONO", "% CONS", "DETALLE"]
                 for i, h in enumerate(headers): 
-                    thc[i].markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:800; margin:0; text-align:center; letter-spacing:1px;'>{h}</p>", unsafe_allow_html=True)
-                st.markdown("<hr style='border:none; border-top:1px solid rgba(255,255,255,0.1); margin:8px 0;'>", unsafe_allow_html=True)
-
-                res_mensual = df_mar.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
+                    thc[i].markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:800; margin:0; text-align:center;'>{h}</p>", unsafe_allow_html=True)
                 
-                sum_rows = []
+                res_mensual = df_mar.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
                 for _, row in res_mensual.iterrows():
                     df_m_temp = df_mar[df_mar['Mes'] == row['Mes']].copy()
                     df_m_mono = df_m_temp[df_m_temp[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)].copy()
                     tot = len(df_m_temp); p_mono = (len(df_m_mono) / tot) if tot > 0 else 0
                     
                     tr1, tr2, tr3, tr4, tr5, tr6 = st.columns([1.5, 1, 1.2, 1, 1, 0.8])
-                    tr1.markdown(f"<p style='font-weight:700; color:#fff; font-size:15px; margin:4px 0; text-align:center;'>{row['Mes_Nombre'].upper()}</p>", unsafe_allow_html=True)
-                    tr2.markdown(f"<p style='color:#f8fafc; font-size:16px; margin:4px 0; text-align:center;'>{tot}</p>", unsafe_allow_html=True)
-                    tr3.markdown(f"<p style='color:#00ff88; font-size:16px; font-weight:700; margin:4px 0; text-align:center;'>{int(round(row[col_cons_hi]))}d</p>", unsafe_allow_html=True)
-                    tr4.markdown(f"<p style='color:#00a8ff; font-size:14px; margin:4px 0; text-align:center;'>{int(p_mono*100)}%</p>", unsafe_allow_html=True)
-                    tr5.markdown(f"<p style='color:#94a3b8; font-size:14px; margin:4px 0; text-align:center;'>{int((1-p_mono)*100)}%</p>", unsafe_allow_html=True)
+                    tr1.markdown(f"<p style='font-weight:700; color:#fff; text-align:center;'>{row['Mes_Nombre'].upper()}</p>", unsafe_allow_html=True)
+                    tr2.markdown(f"<p style='text-align:center;'>{tot}</p>", unsafe_allow_html=True)
+                    tr3.markdown(f"<p style='color:#00ff88; font-weight:700; text-align:center;'>{int(round(row[col_cons_hi]))}d</p>", unsafe_allow_html=True)
+                    tr4.markdown(f"<p style='color:#00a8ff; text-align:center;'>{int(p_mono*100)}%</p>", unsafe_allow_html=True)
+                    tr5.markdown(f"<p style='color:#94a3b8; text-align:center;'>{int((1-p_mono)*100)}%</p>", unsafe_allow_html=True)
                     with tr6:
                         if st.button("🔍 VER", key=f"btn_det_{row['Mes']}", use_container_width=True): show_detalle_mes(df_m_temp, row['Mes_Nombre'], mode="mixed")
-                    
-                    st.markdown("<div style='height:1px; background:rgba(255,255,255,0.03); margin:2px 0;'></div>", unsafe_allow_html=True)
-                    sum_rows.append({"c":tot, "d":row[col_cons_hi], "pm":p_mono})
 
-                if sum_rows:
-                    t_c = sum(r['c'] for r in sum_rows); t_d = sum(r['d'] for r in sum_rows)/len(sum_rows); t_pm = sum(r['pm'] for r in sum_rows)/len(sum_rows)
-                    st.markdown(f"""<div style='background: linear-gradient(90deg, rgba(0,168,255,0.1), rgba(255,255,255,0.02)); border:1px solid rgba(0,168,255,0.2); border-radius:12px; padding:12px; margin-top:10px; text-align:center;'><p style='color:#00a8ff; font-weight:900; margin:0; font-size:15px; letter-spacing:1px;'>TOTAL ACUMULADO 2026: <span style='color:#fff;'>{t_c}</span> EMBS | <span style='color:#00ff88;'>{int(round(t_d))}d</span> PROM. | <span style='color:#fff;'>{int(t_pm*100)}%</span> MONO</p></div>""", unsafe_allow_html=True)
-
-                st.markdown("<div style='height:20px;'></div>", unsafe_allow_html=True)
-
-                # --- 2. SOLAMENTE MONOPROVEEDOR ---
-                st.markdown("<div style='background: rgba(0, 168, 255, 0.05); padding: 8px 15px; border-radius: 8px; border-left: 5px solid #00a8ff; margin-bottom: 10px; text-align:center;'><h4 style='color:#00a8ff; margin:0; letter-spacing:2px; font-size:14px;'>1. SOLAMENTE MONOPROVEEDOR (MARÍTIMOS 2026)</h4></div>", unsafe_allow_html=True)
-                df_mono_only = df_mar[df_mar[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)].copy()
-                if not df_mono_only.empty:
-                    thc_m = st.columns([1.2, 0.8, 1, 1, 0.8])
-                    for i, h in enumerate(["MES ETD", "CANT. EMB", "DÍAS PROMEDIO", "SLA STATUS", "DETALLE"]): thc_m[i].markdown(f"<p style='color:#94a3b8; font-size:10px; font-weight:800; margin:0; text-align:center;'>{h}</p>", unsafe_allow_html=True)
-                    st.markdown("<hr style='border:none; border-top:1px solid rgba(255,255,255,0.05); margin:5px 0;'>", unsafe_allow_html=True)
-                    res_m = df_mono_only.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
-                    m_totals = []
-                    for _, rm in res_m.iterrows():
-                        dm_temp = df_mono_only[df_mono_only['Mes'] == rm['Mes']].copy()
-                        avg_d = rm[col_cons_hi]
-                        mon_limit = 15 if rm['Mes'] <= 2 else 7
-                        is_ok = avg_d <= mon_limit
-                        
-                        r1, r2, r3, r4, r5 = st.columns([1.2, 0.8, 1, 1, 0.8])
-                        r1.markdown(f"<p style='color:#fff; font-weight:700; margin:2px 0; text-align:center; font-size:14px;'>{rm['Mes_Nombre'].upper()}</p>", unsafe_allow_html=True)
-                        r2.markdown(f"<p style='color:#f8fafc; margin:2px 0; text-align:center; font-size:14px;'>{rm[df_hi.columns[0]]}</p>", unsafe_allow_html=True)
-                        r3.markdown(f"<p style='color:{'#00ff88' if is_ok else '#ff4b4b'}; font-weight:700; margin:0; text-align:center; font-size:14px;'>{int(round(avg_d))}d</p>", unsafe_allow_html=True)
-                        r4.markdown(f"<p style='background:{'rgba(0,255,136,0.1)' if is_ok else 'rgba(255,75,75,0.1)'}; color:{'#00ff88' if is_ok else '#ff4b4b'}; border:1px solid {'rgba(0,255,136,0.3)' if is_ok else 'rgba(255,75,75,0.3)'}; border-radius:10px; font-size:9px; font-weight:900; margin:2px 0; text-align:center; padding:1px 0;'>{'CUMPLE' if is_ok else 'FUERA'}</p>", unsafe_allow_html=True)
-                        with r5: 
-                            if st.button("🔍", key=f"btn_m_{rm['Mes']}", use_container_width=True): show_detalle_mes(dm_temp, f"MONO - {rm['Mes_Nombre']}", mode="specific")
-                        st.markdown("<div style='height:1px; background:rgba(255,255,255,0.01); margin:1px 0;'></div>", unsafe_allow_html=True)
-                        m_totals.append({"c":rm[df_hi.columns[0]], "d":avg_d})
-                    if m_totals:
-                        tm_c = sum(x['c'] for x in m_totals); tm_d = sum(x['d'] for x in m_totals)/len(m_totals)
-                        st.markdown(f"<div style='background:rgba(0,168,255,0.05); padding:10px; border-radius:8px; text-align:center; margin-top:5px;'><p style='color:#00a8ff; font-weight:800; margin:0; font-size:13px;'>TOTAL ACUMULADO MONO: {tm_c} EMBS | {int(round(tm_d))}d PROM.</p></div>", unsafe_allow_html=True)
-
-                st.markdown("<div style='height:20px;'></div>", unsafe_allow_html=True)
-
-                # --- 3. SOLAMENTE CONSOLIDADO ---
-                st.markdown("<div style='background: rgba(0, 255, 136, 0.05); padding: 8px 15px; border-radius: 8px; border-left: 5px solid #00ff88; margin-bottom: 10px; text-align:center;'><h4 style='color:#00ff88; margin:0; letter-spacing:2px; font-size:14px;'>2. SOLAMENTE CONSOLIDADO (MARÍTIMOS 2026)</h4></div>", unsafe_allow_html=True)
-                df_cons_only = df_mar[~df_mar[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)].copy()
-                if not df_cons_only.empty:
-                    thc_c = st.columns([1.2, 0.8, 1, 1, 0.8])
-                    for i, h in enumerate(["MES ETD", "CANT. EMB", "DÍAS PROMEDIO", "SLA STATUS", "DETALLE"]): thc_c[i].markdown(f"<p style='color:#94a3b8; font-size:10px; font-weight:800; margin:0; text-align:center;'>{h}</p>", unsafe_allow_html=True)
-                    st.markdown("<hr style='border:none; border-top:1px solid rgba(255,255,255,0.05); margin:5px 0;'>", unsafe_allow_html=True)
-                    res_c = df_cons_only.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
-                    c_totals = []
-                    for _, rc in res_c.iterrows():
-                        dc_temp = df_cons_only[df_cons_only['Mes'] == rc['Mes']].copy()
-                        avg_c = rc[col_cons_hi]
-                        is_ok_c = avg_c <= 25
-                        
-                        r1, r2, r3, r4, r5 = st.columns([1.2, 0.8, 1, 1, 0.8])
-                        r1.markdown(f"<p style='color:#fff; font-weight:700; margin:2px 0; text-align:center; font-size:14px;'>{rc['Mes_Nombre'].upper()}</p>", unsafe_allow_html=True)
-                        r2.markdown(f"<p style='color:#f8fafc; margin:2px 0; text-align:center; font-size:14px;'>{rc[df_hi.columns[0]]}</p>", unsafe_allow_html=True)
-                        r3.markdown(f"<p style='color:{'#00ff88' if is_ok_c else '#ff4b4b'}; font-weight:700; margin:0; text-align:center; font-size:14px;'>{int(round(avg_c))}d</p>", unsafe_allow_html=True)
-                        r4.markdown(f"<p style='background:{'rgba(0,255,136,0.1)' if is_ok_c else 'rgba(255,75,75,0.1)'}; color:{'#00ff88' if is_ok_c else '#ff4b4b'}; border:1px solid {'rgba(0,255,136,0.3)' if is_ok_c else 'rgba(255,75,75,0.3)'}; border-radius:10px; font-size:9px; font-weight:900; margin:2px 0; text-align:center; padding:1px 0;'>{'CUMPLE' if is_ok_c else 'FUERA'}</p>", unsafe_allow_html=True)
-                        with r5: 
-                            if st.button("🔍", key=f"btn_c_{rc['Mes']}", use_container_width=True): show_detalle_mes(dc_temp, f"CONS. - {rc['Mes_Nombre']}", mode="specific")
-                        st.markdown("<div style='height:1px; background:rgba(255,255,255,0.01); margin:1px 0;'></div>", unsafe_allow_html=True)
-                        c_totals.append({"c":rc[df_hi.columns[0]], "d":avg_c})
-                    if c_totals:
-                        tc_c = sum(x['c'] for x in c_totals); tc_d = sum(x['d'] for x in c_totals)/len(c_totals)
-                        st.markdown(f"<div style='background:rgba(0,255,136,0.05); padding:10px; border-radius:8px; text-align:center; margin-top:5px;'><p style='color:#00ff88; font-weight:800; margin:0; font-size:13px;'>TOTAL ACUMULADO CONS: {tc_c} EMBS | {int(round(tc_d))}d PROM.</p></div>", unsafe_allow_html=True)
-
-
-
-
-
-
-            else: st.warning("No se encontraron registros marítimos para el año 2026.")
         except Exception as e: st.error(f"Error en Indicadores: {e}")
+
 
     # --- SOLAPA 7: ALERTAS ESTRATÉGICAS ---
     with tabs[6]:
