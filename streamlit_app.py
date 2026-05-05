@@ -1460,106 +1460,85 @@ try:
 
         except Exception as e: st.error(f"Error en Alertas: {e}")
 
-    # --- SOLAPA 8: ASK COMEX ---
+      # --- SOLAPA 8: ASK COMEX ---
     with tabs[7]:
         st.markdown("<div style='text-align:center; padding: 40px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; border: 2px dashed rgba(0, 168, 255, 0.2);'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:10px;'>ASK COMEX</h2><p style='color:#94a3b8; font-size:18px; margin-top:20px;'>Inteligencia Operativa en Tiempo Real.</p></div>", unsafe_allow_html=True)
         
-        # --- ASISTENTE ANALÍTICO (CAPITÁN COMEX) ---
+        # --- CHAT FLOTANTE IA (CAPITÁN COMEX) ---
         st.markdown("<br>", unsafe_allow_html=True)
         try:
             # El botón emergente (Popover)
-            with st.popover("📊 Consultar Asistente Analítico", use_container_width=False):
-                st.markdown("<h4 style='color:#00ff88; margin-bottom:0;'>🤖 Capitán Comex (Modo Analítico)</h4>", unsafe_allow_html=True)
-                st.caption("Analiza toda tu base de GSO en tiempo real.")
+            with st.popover("💬 Hablar con Capitán Comex (IA)", use_container_width=False):
+                st.markdown("<h4 style='color:#00ff88; margin-bottom:0;'>🚢 Capitán Comex</h4>", unsafe_allow_html=True)
+                st.caption("Asistente Logístico con IA (Google Gemini)")
                 
-                opcion = st.selectbox("¿Qué información rápida necesitas?", [
-                    "Selecciona una consulta...",
-                    "📅 ¿Cuántas cargas están proyectadas a salir (ETD) este mes?",
-                    "🚢 ¿Cuántas cargas arriban (ETA) este mes?",
-                    "⚠️ ¿Cuántos registros están pendientes de instrucción?",
-                    "🚨 Riesgo: Cargas con ETD vencido y sin embarque asignado"
-                ])
+                # Inicializar historial de chat si no existe
+                if "chat_history" not in st.session_state:
+                    st.session_state.chat_history = [{"role": "assistant", "content": "¡Hola! Soy Capitán Comex. ¿Qué embarque buscamos o qué duda operativa tienes?"}]
                 
-                if opcion != "Selecciona una consulta...":
-                    st.markdown("<hr style='border-top: 1px solid rgba(255,255,255,0.1); margin: 10px 0;'>", unsafe_allow_html=True)
-                    
-                    hoy = datetime.now()
-                    mes_actual = hoy.month
-                    anio_actual = hoy.year
-                    
-                    # Funciones seguras para buscar columnas
-                    col_etd = [c for c in df.columns if 'ETD' in c.upper()][0] if any('ETD' in c.upper() for c in df.columns) else (df.columns[23] if len(df.columns)>23 else None)
-                    col_eta = [c for c in df.columns if 'ETA' in c.upper()][0] if any('ETA' in c.upper() for c in df.columns) else (df.columns[24] if len(df.columns)>24 else None)
-                    col_emb = [c for c in df.columns if 'EMBARQUE' in c.upper()][0] if any('EMBARQUE' in c.upper() for c in df.columns) else (df.columns[16] if len(df.columns)>16 else None)
-                    col_inst = [c for c in df.columns if 'INSTRUCCION' in c.upper() or 'INSTRUCCIÓN' in c.upper()][0] if any('INSTRUCCION' in c.upper() or 'INSTRUCCIÓN' in c.upper() for c in df.columns) else (df.columns[20] if len(df.columns)>20 else None)
-                    col_so = [c for c in df.columns if 'SO' in c.upper()][0] if any('SO' in c.upper() for c in df.columns) else df.columns[0]
-
-                    with st.spinner("Calculando datos..."):
-                        if "ETD" in opcion and "este mes" in opcion:
-                            if col_etd and col_emb:
-                                df_temp = df.copy()
-                                df_temp['ETD_DT'] = pd.to_datetime(df_temp[col_etd], dayfirst=True, errors='coerce')
-                                mask = (df_temp['ETD_DT'].dt.month == mes_actual) & (df_temp['ETD_DT'].dt.year == anio_actual)
-                                df_mes = df_temp[mask]
+                # Contenedor con altura máxima para el chat
+                chat_container = st.container(height=400)
+                
+                # Mostrar mensajes previos
+                with chat_container:
+                    for msg in st.session_state.chat_history:
+                        avatar = "🚢" if msg["role"] == "assistant" else "👤"
+                        with st.chat_message(msg["role"], avatar=avatar):
+                            st.markdown(msg["content"])
+                
+                # Caja de texto para que el usuario pregunte
+                if prompt := st.chat_input("Hazle una pregunta a la IA..."):
+                    st.session_state.chat_history.append({"role": "user", "content": prompt})
+                    with chat_container:
+                        with st.chat_message("user", avatar="👤"):
+                            st.markdown(prompt)
+                        
+                        with st.chat_message("assistant", avatar="🚢"):
+                            resp_placeholder = st.empty()
+                            resp_placeholder.markdown("Pensando... ⏳")
+                            
+                            # --- CONEXIÓN A GEMINI ---
+                            try:
+                                import google.generativeai as genai
+                                # Llave ingresada directamente para pruebas rápidas
+                                api_key = "AIzaSyD-U3LuAqHWDJzsYJrjUcX9l6YXh6tmdNI"
                                 
-                                cant_reg = len(df_mes)
-                                df_con_emb = df_mes[~df_mes[col_emb].astype(str).str.strip().str.lower().isin(['nan', '', 'none'])]
-                                cant_emb_unicos = df_con_emb[col_emb].nunique()
-                                
-                                st.info(f"**Proyección ETD - Mes {mes_actual}/{anio_actual}**")
-                                st.write(f"Tenemos **{cant_reg} registros (SO/Items)** proyectados para salir este mes.")
-                                st.write(f"De esos registros, **{len(df_con_emb)}** ya están consolidados en **{cant_emb_unicos} embarques únicos**.")
-                            else:
-                                st.error("No se encontraron las columnas necesarias (ETD/EMBARQUE).")
-                                
-                        elif "ETA" in opcion and "este mes" in opcion:
-                            if col_eta and col_emb:
-                                df_temp = df.copy()
-                                df_temp['ETA_DT'] = pd.to_datetime(df_temp[col_eta], dayfirst=True, errors='coerce')
-                                mask = (df_temp['ETA_DT'].dt.month == mes_actual) & (df_temp['ETA_DT'].dt.year == anio_actual)
-                                df_mes = df_temp[mask]
-                                
-                                cant_reg = len(df_mes)
-                                df_con_emb = df_mes[~df_mes[col_emb].astype(str).str.strip().str.lower().isin(['nan', '', 'none'])]
-                                cant_emb_unicos = df_con_emb[col_emb].nunique()
-                                
-                                st.success(f"**Proyección ETA - Mes {mes_actual}/{anio_actual}**")
-                                st.write(f"Tenemos **{cant_reg} registros (SO/Items)** que estarían arribando a puerto este mes.")
-                                st.write(f"Se agrupan en **{cant_emb_unicos} embarques** en tránsito/llegando.")
-                            else:
-                                st.error("No se encontraron las columnas necesarias (ETA/EMBARQUE).")
-                                
-                        elif "pendientes" in opcion:
-                            if col_inst:
-                                mask_pend = df[col_inst].astype(str).str.strip().str.lower().isin(['nan', '', 'none', 'sin instruccion'])
-                                df_pend = df[mask_pend]
-                                st.warning(f"**Cargas Pendientes de Gestión**")
-                                st.write(f"Actualmente hay **{len(df_pend)} registros** en GSO v4 sin fecha de instrucción asignada.")
-                                if len(df_pend) > 0:
-                                    with st.expander("Ver primeros 5 SO pendientes"):
-                                        st.dataframe(df_pend[[col_so, col_inst]].head(5), hide_index=True)
-                            else:
-                                st.error("No se encontró la columna de INSTRUCCION.")
-                                
-                        elif "vencido" in opcion:
-                            if col_etd and col_emb:
-                                df_temp = df.copy()
-                                df_temp['ETD_DT'] = pd.to_datetime(df_temp[col_etd], dayfirst=True, errors='coerce')
-                                mask_vencido = (df_temp['ETD_DT'].dt.date < hoy.date())
-                                mask_sin_emb = df_temp[col_emb].astype(str).str.strip().str.lower().isin(['nan', '', 'none'])
-                                
-                                df_alerta = df_temp[mask_vencido & mask_sin_emb]
-                                
-                                st.error(f"**Alerta Operativa Crítica**")
-                                st.write(f"Se detectaron **{len(df_alerta)} registros** cuya fecha de ETD ya pasó, pero que **no tienen ningún embarque asignado** en el sistema.")
-                                if len(df_alerta) > 0:
-                                    with st.expander("Ver detalle de alertas"):
-                                        st.dataframe(df_alerta[[col_so, col_etd, col_emb]].head(10), hide_index=True)
-                            else:
-                                st.error("No se encontraron las columnas necesarias.")
-
+                                if not api_key:
+                                    respuesta_ia = "⚠️ Falla: No encontré la GEMINI_API_KEY en los secretos de Streamlit."
+                                else:
+                                    genai.configure(api_key=api_key)
+                                    
+                                    # Usamos gemini-pro que es el más universal y estable
+                                    model = genai.GenerativeModel('gemini-pro')
+                                    
+                                    # Personalidad de la IA
+                                    system_prompt = """Eres 'Capitán Comex', un asistente ejecutivo experto en comercio exterior y logística internacional de la empresa Bidcom. 
+Tu trabajo es analizar los datos de los embarques en pantalla y responder a las consultas del usuario de manera clara, proactiva y muy profesional. 
+Usa emojis sutiles. Si te preguntan por riesgos operativos, evalúa las fechas (Fin de Producción, Instrucción, ETD, ETA) y las cantidades para detectar alertas (ej: demoras excesivas, consolidaciones lentas).
+No inventes datos. Si te preguntan algo que no está en el contexto, indícalo amablemente."""
+                                    
+                                    # Armar contexto basado en la última búsqueda del usuario
+                                    contexto = "Datos actuales de la búsqueda en pantalla:\n"
+                                    if "ultimos_resultados" in st.session_state and st.session_state.ultimos_resultados:
+                                        for r in st.session_state.ultimos_resultados:
+                                            contexto += f"- Invoice: {r['inv']}, SO: {r['so']}, Embarque: {r['emb']}, Proveedor: {r['prov']}, Estadio: {r['estadio']} ({r['desc_estadio']}), Cantidad Total: {r['cant']}, Fecha Instrucción: {r['fecha_inst']}. {r['info_extra']}\n"
+                                    else:
+                                        contexto += "El usuario no tiene ningún embarque filtrado en pantalla en este momento."
+                                    
+                                    # Prompt unificado
+                                    prompt_final = f"{system_prompt}\n\nCONTEXTO INVISIBLE DE LA PANTALLA ACTUAL:\n{contexto}\n\nPREGUNTA DEL USUARIO:\n{prompt}"
+                                    
+                                    # Generar respuesta
+                                    response = model.generate_content(prompt_final)
+                                    respuesta_ia = response.text
+                            except Exception as e:
+                                respuesta_ia = f"Hubo un error de conexión con la IA: {str(e)}"
+                            
+                            resp_placeholder.markdown(respuesta_ia)
+                            st.session_state.chat_history.append({"role": "assistant", "content": respuesta_ia})
+                            
         except AttributeError:
-            st.error("⚠️ Para usar este popover, necesitamos actualizar Streamlit. (Requiere versión 1.33 o superior).")
+            st.error("⚠️ Para usar este chat flotante, necesitamos actualizar Streamlit. (Requiere versión 1.33 o superior).")
             
         st.markdown("<hr class='white-divider'>", unsafe_allow_html=True)
         
@@ -1786,6 +1765,9 @@ try:
                         "fin_prod": val_fin_prod
                     })
 
+                # Guardar en memoria para que la IA los pueda leer
+                st.session_state.ultimos_resultados = resultados_procesados
+
                 # AGRUPACIÓN DE RESULTADOS
                 agrupados = {}
                 for r in resultados_procesados:
@@ -1877,7 +1859,6 @@ try:
 <br><br>
 """
                     st.markdown(html_progress, unsafe_allow_html=True)
-
 
 
     # --- SOLAPA 6: ALERTAS ESTRATÉGICAS ---
