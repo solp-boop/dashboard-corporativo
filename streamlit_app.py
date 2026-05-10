@@ -2258,49 +2258,59 @@ No inventes datos. Si te preguntan algo que no está en el contexto, indícalo a
             url_reserva = f"{base_url}/export?format=csv&gid=276804813"
             url_hist = f"{base_url}/export?format=csv&gid=32771816"
             url_emb_hist = "https://docs.google.com/spreadsheets/d/1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI/export?format=csv&gid=50628730"
-            url_impo2 = "https://docs.google.com/spreadsheets/d/1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI/export?format=csv&gid=131563120"
+            url_ddp = "https://docs.google.com/spreadsheets/d/1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI/export?format=csv&gid=2050674215"
             try: res = pd.read_csv(url_reserva, engine='python', on_bad_lines='skip')
             except: res = pd.DataFrame()
             try: hi = pd.read_csv(url_hist, engine='python', on_bad_lines='skip')
             except: hi = pd.DataFrame()
             try: emb_hi = pd.read_csv(url_emb_hist, engine='python', on_bad_lines='skip')
             except: emb_hi = pd.DataFrame()
-            try: impo2 = pd.read_csv(url_impo2, engine='python', on_bad_lines='skip')
-            except: impo2 = pd.DataFrame()
-            return res, hi, emb_hi, impo2
+            try: ddp = pd.read_csv(url_ddp, engine='python', on_bad_lines='skip')
+            except: ddp = pd.DataFrame()
+            return res, hi, emb_hi, ddp
 
-        df_res_ask, df_hi_ask, df_emb_hi_ask, df_impo2_ask = load_ask_comex_data()
-        # Preparar Importaciones2 para cruce por embarque
-        # col A(0)=Embarque, col D(3)=Fecha Salida Aduana, col E(4)=Deposito ZFLP, col F(5)=N° Despacho
-        if not df_impo2_ask.empty:
-            df_impo2_ask.columns = [str(c).strip() for c in df_impo2_ask.columns]
-            df_impo2_ask['_emb_key'] = df_impo2_ask.iloc[:, 0].astype(str).str.strip().str.upper()
+        df_res_ask, df_hi_ask, df_emb_hi_ask, df_ddp_ask = load_ask_comex_data()
+        # Preparar Despachos Directo Puerto para cruce por FCL (col F, idx 5)
+        # col A(0)=N Orden WMS, col B(1)=Fecha Retiro, col D(3)=Fecha OFI, col E(4)=N Despacho, col F(5)=FCL
+        if not df_ddp_ask.empty:
+            df_ddp_ask.columns = [str(c).strip() for c in df_ddp_ask.columns]
+            df_ddp_ask['_emb_key'] = df_ddp_ask.iloc[:, 5].astype(str).str.strip().str.upper()
 
         st.markdown("<br>", unsafe_allow_html=True)
         def get_estadio_impo2(emb, eta_str, df_impo2, hoy_d, historico=False):
-            """Determina estadio 5/6/7 cruzando con Importaciones2."""
+            # Determina estadio 5/6/7 cruzando con Despachos Directo Puerto
+            # col A(0)=Orden WMS, col B(1)=Fecha Retiro, col D(3)=Fecha OFI, col E(4)=N Despacho, col F(5)=FCL
             suffix = " (HISTORICO)" if historico else ""
+            def es_vacio(v): return str(v).strip().lower() in ['', 'nan', 'none', '-', 'n/a']
             if df_impo2.empty:
-                return 5, f"ARRIBADO{suffix}", "#00ff88", f"La carga ha llegado a destino. (ETA: {eta_str})"
+                return 5, "EN PROCESO DE NACIONALIZACION" + suffix, "#ffaa00", "Carga arribada. Sin informacion de despacho aun. (ETA: " + str(eta_str) + ")"
             emb_key = str(emb).strip().upper()
             match = df_impo2[df_impo2['_emb_key'] == emb_key]
             if match.empty:
-                return 5, f"ARRIBADO{suffix}", "#00ff88", f"La carga ha llegado a destino. (ETA: {eta_str})"
+                return 5, "EN PROCESO DE NACIONALIZACION" + suffix, "#ffaa00", "Carga arribada. Sin registro en Despachos Directo Puerto aun."
             row_i = match.iloc[0]
-            # col D(3)=Fecha Salida Aduana, col E(4)=Deposito ZFLP, col F(5)=N Despacho
-            val_salida   = str(row_i.iloc[3]).strip() if len(row_i) > 3 else ""
-            val_deposito = str(row_i.iloc[4]).strip() if len(row_i) > 4 else ""
-            val_despacho = str(row_i.iloc[5]).strip() if len(row_i) > 5 else ""
-            def es_vacio(v): return v.lower() in ['', 'nan', 'none', '-', 'n/a']
-            if not es_vacio(val_salida):
-                dep_txt = f" | Depósito: {val_deposito}" if not es_vacio(val_deposito) else ""
-                return 7, "ENTREGADO EN DEPÓSITO", "#00ff88", f"Carga entregada. Salida de aduana: {val_salida}{dep_txt} | Despacho: {val_despacho}"
-            elif not es_vacio(val_despacho):
-                dep_txt = f" | Depósito destino: {val_deposito}" if not es_vacio(val_deposito) else ""
-                return 6, "NACIONALIZADO / COORDINANDO SALIDA", "#a855f7", f"Despacho oficializado: {val_despacho}. Coordinando retiro de aduana.{dep_txt}"
+            val_orden    = str(row_i.iloc[0]).strip() if len(row_i) > 0 else ""
+            val_retiro   = str(row_i.iloc[1]).strip() if len(row_i) > 1 else ""
+            val_ofi      = str(row_i.iloc[3]).strip() if len(row_i) > 3 else ""
+            val_despacho = str(row_i.iloc[4]).strip() if len(row_i) > 4 else ""
+            try:
+                dt_retiro = pd.to_datetime(val_retiro, dayfirst=True).date()
+                retiro_cumplido = dt_retiro <= hoy_d
+            except:
+                dt_retiro = None
+                retiro_cumplido = False
+            orden_txt    = (" | Orden WMS: " + val_orden)     if not es_vacio(val_orden)    else ""
+            despacho_txt = (" | N Despacho: " + val_despacho) if not es_vacio(val_despacho) else ""
+            ofi_txt      = (" | Fecha OFI: " + val_ofi)       if not es_vacio(val_ofi)      else ""
+            retiro_txt   = (" | Retiro: " + val_retiro)        if not es_vacio(val_retiro)   else ""
+            if not es_vacio(val_retiro) and retiro_cumplido:
+                return 7, "ENTREGADO EN DEPOSITO", "#00ff88", "Carga retirada y entregada al deposito." + orden_txt + despacho_txt + ofi_txt + retiro_txt
+            elif not es_vacio(val_retiro) and not retiro_cumplido:
+                return 6, "NACIONALIZADO / RETIRO COORDINADO", "#a855f7", "Despacho oficializado. Retiro coordinado para: " + val_retiro + "." + orden_txt + despacho_txt + ofi_txt
+            elif not es_vacio(val_ofi):
+                return 6, "NACIONALIZADO / COORDINANDO RETIRO", "#a855f7", "Despacho oficializado el " + val_ofi + ". Pendiente coordinar retiro." + orden_txt + despacho_txt
             else:
-                dep_txt = f" | Depósito destino: {val_deposito}" if not es_vacio(val_deposito) else ""
-                return 5, f"EN PROCESO DE NACIONALIZACIÓN{suffix}", "#ffaa00", f"Carga arribada a aduana. Pendiente de oficialización del despacho.{dep_txt}"
+                return 5, "EN PROCESO DE NACIONALIZACION" + suffix, "#ffaa00", "Carga arribada. Pendiente de oficializacion del despacho." + orden_txt
 
         query = st.text_input("🔍 INGRESE SO, INVOICE O SKU (CÓDIGO):", placeholder="Ej: SO-12345, INV-999, SKU-XYZ...")
 
@@ -2361,7 +2371,7 @@ No inventes datos. Si te preguntan algo que no está en el contexto, indícalo a
                         try: dt_eta = pd.to_datetime(val_eta_gso, dayfirst=True).date()
                         except: dt_eta = None
                         if dt_eta and dt_eta < hoy_d:
-                            estadio, desc_estadio, color_estadio, info_extra = get_estadio_impo2(val_emb, val_eta_gso, df_impo2_ask, hoy_d, historico=True)
+                            estadio, desc_estadio, color_estadio, info_extra = get_estadio_impo2(val_emb, val_eta_gso, df_ddp_ask, hoy_d, historico=True)
                         else:
                             estadio = 4; desc_estadio = "EN TRÁNSITO (HISTÓRICO)"; color_estadio = "#00a8ff"
                             info_extra = f"La carga figura despachada en registros históricos pero su ETA es futura. (ETA: {val_eta_gso})"
@@ -2417,7 +2427,7 @@ No inventes datos. Si te preguntan algo que no está en el contexto, indícalo a
                                 hi_match = df_hi_ask[df_hi_ask[col_hi_emb].astype(str).str.strip().str.upper() == val_emb.upper()]
                                 if not hi_match.empty: in_historical = True
                             if in_historical or (dt_eta_gso and dt_eta_gso <= hoy_d):
-                                estadio, desc_estadio, color_estadio, info_extra = get_estadio_impo2(val_emb, val_eta_gso, df_impo2_ask, hoy_d, historico=False)
+                                estadio, desc_estadio, color_estadio, info_extra = get_estadio_impo2(val_emb, val_eta_gso, df_ddp_ask, hoy_d, historico=False)
                             elif dt_etd_gso and dt_etd_gso <= hoy_d:
                                 estadio = 4; desc_estadio = "EN TRÁNSITO"; color_estadio = "#00a8ff"
                                 info_extra = f"La carga está navegando/volando hacia destino. (ETD: {dt_etd_gso.strftime('%d/%m/%Y')} | ETA: {val_eta_gso})"
