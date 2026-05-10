@@ -804,31 +804,196 @@ try:
         except Exception as e:
             st.error(f"Error en Gestión de Reservas: {e}")
 
-    # --- SOLAPA 3: PERFORMANCE DE AGENTES Y ANALISTAS ---
+    # --- SOLAPA 3: PERFORMANCE DE ANALISTAS ---
     with tabs[2]:
-        st.markdown("<div style='text-align:center; padding: 20px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; margin: 30px 0;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>PERFORMANCE DE AGENTES Y ANALISTAS</h2></div>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align:center; padding: 20px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; margin: 30px 0;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>PERFORMANCE DE ANALISTAS</h2><p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>BASADO EN RESERVAS HISTÓRICAS · 2026</p></div>", unsafe_allow_html=True)
         try:
-            u_ag = f"{base_url}/export?format=csv&gid=276804813"
-            @st.cache_data(ttl=60)
-            def load_ag_v_vfinal(u): return pd.read_csv(u, engine='python')
-            df_ag_raw = load_ag_v_vfinal(u_ag)
-            df_ag_raw.columns = [str(c).strip() for c in df_ag_raw.columns]
-            df_ag_raw['DT_Inst'] = pd.to_datetime(df_ag_raw.iloc[:, 7], dayfirst=True, errors='coerce')
-            df_a = df_ag_raw[df_ag_raw['DT_Inst'].notna()].copy()
+            @st.cache_data(ttl=120)
+            def load_perf_data(base):
+                url_res_hi = f"{base}/export?format=csv&gid=32771816"
+                url_emb_hi = f"{base}/export?format=csv&gid=50628730"
+                rh = pd.read_csv(url_res_hi, engine='python', on_bad_lines='skip', header=0)
+                eh = pd.read_csv(url_emb_hi, engine='python', on_bad_lines='skip', header=0)
+                rh.columns = [str(c).strip() for c in rh.columns]
+                eh.columns = [str(c).strip() for c in eh.columns]
+                return rh, eh
 
-            if df_a.empty: st.warning("Esperando datos de instrucción para el análisis.")
+            df_rh, df_eh = load_perf_data(base_url)
+
+            # Columnas Reservas Historicas
+            # col A (0)=Embarque, col O (14)=Responsable, col Y (24)=Monoproveedor, col AG (32)=Tiempo cons
+            col_rh_emb   = df_rh.columns[0]
+            col_rh_resp  = df_rh.columns[14]
+            col_rh_mono  = df_rh.columns[24]
+            col_rh_tcons = df_rh.columns[32]
+
+            # Columnas Embarques Historicos
+            # col A (0)=SO, col E (4)=Embarque, col G (6)=ETD, col S (18)=Proveedor
+            col_eh_so   = df_eh.columns[0]
+            col_eh_emb  = df_eh.columns[4]
+            col_eh_etd  = df_eh.columns[6]
+            col_eh_prov = df_eh.columns[18]
+
+            df_eh['ETD_DT'] = pd.to_datetime(df_eh[col_eh_etd], dayfirst=True, errors='coerce')
+            df_eh_2026 = df_eh[df_eh['ETD_DT'].dt.year == 2026].copy()
+            df_eh_2026['Mes_Num']   = df_eh_2026['ETD_DT'].dt.month
+            df_eh_2026['Mes_Label'] = df_eh_2026['ETD_DT'].dt.strftime('%B %Y').str.upper()
+
+            if df_eh_2026.empty:
+                st.warning("No se encontraron embarques históricos para 2026.")
             else:
-                df_a['Tipo_T'] = df_a.iloc[:, 5].apply(lambda x: "MARITIMO" if any(m in str(x).upper() for m in ["40", "20", "MARITIMO"]) else "AVION / COURIER")
-                t_sel = st.radio("Carga vía:", ["MARITIMO", "AVION / COURIER"], horizontal=True, key="ag_analistas_radio_vfinal_v2")
-                df_f = df_a[df_a['Tipo_T'] == t_sel].copy()
-                res_ag = df_f.groupby(df_f.columns[6]).agg(
-                    SO=(df_f.columns[0], 'count'),
-                    M3=(df_f.columns[24], lambda x: pd.to_numeric(x.astype(str).str.replace(',', '.'), errors='coerce').sum())
-                ).reset_index()
-                st.dataframe(res_ag.sort_values('SO', ascending=False), use_container_width=True, hide_index=True)
-                st.markdown("<hr class='white-divider'>", unsafe_allow_html=True)
-                st.info("💡 Módulo : Próximamente integración de métricas de performance por usuario (Comex/Agentes).")
-        except Exception as e: st.error(f"Error en Performance Agentes: {e}")
+                meses_disp = df_eh_2026.drop_duplicates('Mes_Num').sort_values('Mes_Num')[['Mes_Num','Mes_Label']].values.tolist()
+                opciones_mes = {lbl: num for num, lbl in meses_disp}
+
+                col_sel, _ = st.columns([2, 3])
+                with col_sel:
+                    mes_sel_lbl = st.selectbox("SELECCIONAR MES ETD:", list(opciones_mes.keys()), key="perf_mes_sel")
+                mes_sel_num = opciones_mes[mes_sel_lbl]
+
+                df_eh_mes = df_eh_2026[df_eh_2026['Mes_Num'] == mes_sel_num].copy()
+                embs_mes  = df_eh_mes[col_eh_emb].astype(str).str.strip().str.upper().unique()
+
+                df_rh['_emb_key'] = df_rh[col_rh_emb].astype(str).str.strip().str.upper()
+                df_rh_mes = df_rh[df_rh['_emb_key'].isin(embs_mes)].copy()
+
+                def clean_tcons(val):
+                    try: return float(str(val).replace(',','.').strip())
+                    except: return None
+
+                df_rh_mes['T_Cons_Num'] = df_rh_mes[col_rh_tcons].apply(clean_tcons)
+                df_rh_mes['Tipo_Carga'] = df_rh_mes[col_rh_mono].astype(str).str.strip().str.upper().apply(
+                    lambda x: 'MONOPROVEEDOR' if 'MONO' in x else 'CONSOLIDADO'
+                )
+                df_rh_mes['Responsable'] = df_rh_mes[col_rh_resp].astype(str).str.strip()
+                df_rh_mes = df_rh_mes[~df_rh_mes['Responsable'].isin(['', 'nan', 'NaN', 'None', '-', 'nan'])]
+
+                if df_rh_mes.empty:
+                    st.warning(f"No se encontraron datos para {mes_sel_lbl}.")
+                else:
+                    total_embs_mes  = len(embs_mes)
+                    total_sos_mes   = df_eh_mes[col_eh_so].nunique()
+                    total_provs_mes = df_eh_mes[col_eh_prov].nunique()
+                    total_mono_mes  = (df_rh_mes['Tipo_Carga'] == 'MONOPROVEEDOR').sum()
+                    total_cons_mes  = (df_rh_mes['Tipo_Carga'] == 'CONSOLIDADO').sum()
+                    avg_tcons_mes   = df_rh_mes['T_Cons_Num'].mean()
+
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    k1, k2, k3, k4, k5 = st.columns(5)
+                    with k1: st.markdown(f"<div class='metric-container'><p>EMBARQUES</p><p>{total_embs_mes}</p></div>", unsafe_allow_html=True)
+                    with k2: st.markdown(f"<div class='metric-container'><p>SOs TOTALES</p><p>{total_sos_mes}</p></div>", unsafe_allow_html=True)
+                    with k3: st.markdown(f"<div class='metric-container'><p>PROVEEDORES</p><p>{total_provs_mes}</p></div>", unsafe_allow_html=True)
+                    with k4: st.markdown(f"<div class='metric-container'><p>MONO / CONS</p><p style='font-size:40px !important;'>{total_mono_mes} / {total_cons_mes}</p></div>", unsafe_allow_html=True)
+                    with k5: st.markdown(f"<div class='metric-container'><p>DIAS PROM. CONS.</p><p>{int(round(avg_tcons_mes)) if pd.notna(avg_tcons_mes) else 0}</p></div>", unsafe_allow_html=True)
+
+                    st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
+                    st.markdown("<p style='color:#00a8ff; font-weight:800; letter-spacing:4px; font-size:16px; margin-bottom:20px; text-align:center;'>DESEMPENO POR ANALISTA</p>", unsafe_allow_html=True)
+
+                    rows_analistas = []
+                    for analista, grp_a in df_rh_mes.groupby('Responsable'):
+                        embs_a   = grp_a['_emb_key'].unique()
+                        df_eh_a  = df_eh_mes[df_eh_mes[col_eh_emb].astype(str).str.strip().str.upper().isin(embs_a)]
+                        cant_embs    = len(embs_a)
+                        cant_sos     = df_eh_a[col_eh_so].nunique()
+                        cant_provs   = df_eh_a[col_eh_prov].nunique()
+                        cant_mono    = (grp_a['Tipo_Carga'] == 'MONOPROVEEDOR').sum()
+                        cant_cons    = (grp_a['Tipo_Carga'] == 'CONSOLIDADO').sum()
+                        avg_tcons    = grp_a['T_Cons_Num'].mean()
+                        avg_so_emb   = round(cant_sos / cant_embs, 1) if cant_embs > 0 else 0
+                        prov_por_emb = df_eh_a.groupby(
+                            df_eh_a[col_eh_emb].astype(str).str.strip().str.upper()
+                        )[col_eh_prov].nunique()
+                        avg_prov_emb = round(prov_por_emb.mean(), 1) if not prov_por_emb.empty else 0
+                        rows_analistas.append({
+                            'Analista'         : analista,
+                            'Embarques'        : cant_embs,
+                            'SOs'              : cant_sos,
+                            'Proveedores'      : cant_provs,
+                            'Monoproveedor'    : int(cant_mono),
+                            'Consolidado'      : int(cant_cons),
+                            'Dias Prom. Cons.' : round(avg_tcons, 1) if pd.notna(avg_tcons) else None,
+                            'SO por Embarque'  : avg_so_emb,
+                            'Prov por Embarque': avg_prov_emb,
+                        })
+
+                    df_analistas = pd.DataFrame(rows_analistas).sort_values('Embarques', ascending=False)
+                    st.dataframe(
+                        df_analistas, use_container_width=True, hide_index=True,
+                        column_config={
+                            'Analista'         : st.column_config.TextColumn("Analista"),
+                            'Embarques'        : st.column_config.NumberColumn("Embarques", format="%d"),
+                            'SOs'              : st.column_config.NumberColumn("SOs", format="%d"),
+                            'Proveedores'      : st.column_config.NumberColumn("Proveedores", format="%d"),
+                            'Monoproveedor'    : st.column_config.NumberColumn("Mono", format="%d"),
+                            'Consolidado'      : st.column_config.NumberColumn("Consolidado", format="%d"),
+                            'Dias Prom. Cons.' : st.column_config.NumberColumn("Dias Prom. Cons.", format="%.1f d"),
+                            'SO por Embarque'  : st.column_config.NumberColumn("SO/Emb", format="%.1f"),
+                            'Prov por Embarque': st.column_config.NumberColumn("Prov/Emb", format="%.1f"),
+                        }
+                    )
+
+                    st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
+                    st.markdown("<p style='color:#00ff88; font-weight:800; letter-spacing:4px; font-size:16px; margin-bottom:20px; text-align:center;'>EVOLUCION MES A MES POR ANALISTA</p>", unsafe_allow_html=True)
+
+                    rows_evol = []
+                    for mes_num, mes_lbl in meses_disp:
+                        df_eh_m = df_eh_2026[df_eh_2026['Mes_Num'] == mes_num]
+                        embs_m  = df_eh_m[col_eh_emb].astype(str).str.strip().str.upper().unique()
+                        df_rh_m = df_rh[df_rh['_emb_key'].isin(embs_m)].copy()
+                        df_rh_m['T_Cons_Num'] = df_rh_m[col_rh_tcons].apply(clean_tcons)
+                        df_rh_m['Tipo_Carga'] = df_rh_m[col_rh_mono].astype(str).str.strip().str.upper().apply(
+                            lambda x: 'MONOPROVEEDOR' if 'MONO' in x else 'CONSOLIDADO'
+                        )
+                        df_rh_m['Responsable'] = df_rh_m[col_rh_resp].astype(str).str.strip()
+                        df_rh_m = df_rh_m[~df_rh_m['Responsable'].isin(['', 'nan', 'NaN', 'None', '-', 'nan'])]
+                        for analista, grp_a in df_rh_m.groupby('Responsable'):
+                            embs_a  = grp_a['_emb_key'].unique()
+                            df_eh_a = df_eh_m[df_eh_m[col_eh_emb].astype(str).str.strip().str.upper().isin(embs_a)]
+                            avg_tc  = grp_a['T_Cons_Num'].mean()
+                            rows_evol.append({
+                                'Mes_Num'   : mes_num,
+                                'Mes'       : mes_lbl,
+                                'Analista'  : analista,
+                                'Embarques' : len(embs_a),
+                                'SOs'       : df_eh_a[col_eh_so].nunique(),
+                                'Dias Cons.': round(avg_tc, 1) if pd.notna(avg_tc) else None,
+                            })
+
+                    df_evol = pd.DataFrame(rows_evol)
+                    if not df_evol.empty:
+                        analistas_disp = sorted(df_evol['Analista'].unique())
+                        col_pick, _ = st.columns([2, 3])
+                        with col_pick:
+                            analista_sel = st.selectbox("VER EVOLUCION DE:", analistas_disp, key="perf_analista_sel")
+                        df_evol_a = df_evol[df_evol['Analista'] == analista_sel].sort_values('Mes_Num')
+
+                        ev1, ev2 = st.columns(2)
+                        with ev1:
+                            fig_ev_emb = px.bar(df_evol_a, x='Mes', y='Embarques', text_auto=',.0f', color_discrete_sequence=['#00a8ff'], title=f"Embarques - {analista_sel}")
+                            fig_ev_emb.update_traces(textposition='outside', textfont_color='#f8fafc', marker=dict(cornerradius=5))
+                            fig_ev_emb.update_layout(height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(family='Outfit, sans-serif', color='#94a3b8'), title_font_color='#00a8ff', xaxis=dict(showgrid=False, tickangle=-30), yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)'), margin=dict(l=10,r=10,t=50,b=40))
+                            st.plotly_chart(fig_ev_emb, use_container_width=True)
+                        with ev2:
+                            fig_ev_tc = px.bar(df_evol_a, x='Mes', y='Dias Cons.', text_auto=',.1f', color_discrete_sequence=['#00ff88'], title=f"Dias Prom. Consolidacion - {analista_sel}")
+                            fig_ev_tc.update_traces(textposition='outside', textfont_color='#f8fafc', marker=dict(cornerradius=5))
+                            fig_ev_tc.update_layout(height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(family='Outfit, sans-serif', color='#94a3b8'), title_font_color='#00ff88', xaxis=dict(showgrid=False, tickangle=-30), yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)'), margin=dict(l=10,r=10,t=50,b=40))
+                            st.plotly_chart(fig_ev_tc, use_container_width=True)
+
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        st.dataframe(
+                            df_evol_a[['Mes','Embarques','SOs','Dias Cons.']].reset_index(drop=True),
+                            use_container_width=True, hide_index=True,
+                            column_config={
+                                'Mes'       : st.column_config.TextColumn("Mes ETD"),
+                                'Embarques' : st.column_config.NumberColumn("Embarques", format="%d"),
+                                'SOs'       : st.column_config.NumberColumn("SOs", format="%d"),
+                                'Dias Cons.': st.column_config.NumberColumn("Dias Prom. Cons.", format="%.1f d"),
+                            }
+                        )
+
+        except Exception as e:
+            st.error(f"Error en Performance Analistas: {e}")
+            import traceback
+            st.code(traceback.format_exc())
 
     # --- SOLAPA 4: CONTROL DE FLETES, GASTOS Y CERTIFICACIONES ---
     with tabs[3]:
