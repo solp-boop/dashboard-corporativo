@@ -1428,7 +1428,7 @@ try:
                             try:
                                 import google.generativeai as genai
                                 # Llave ingresada directamente para pruebas rápidas
-                                api_key = "AIzaSyD-U3LuAqHWDJzsYJrjUcX9l6YXh6tmdNI"
+                                api_key = st.secrets.get("GEMINI_API_KEY", "")
                                 
                                 if not api_key:
                                     respuesta_ia = "⚠️ Falla: No encontré la GEMINI_API_KEY en los secretos de Streamlit."
