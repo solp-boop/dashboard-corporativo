@@ -1260,6 +1260,9 @@ try:
             # Col AN idx 39 — PASAR A IMPO2
             col_impo2    = df_re.columns[39] if len(df_re.columns) > 39 else find_col(df_re, ['PASAR A IMPO'], 39)
 
+            # Col AD idx 29 — TIEMPO TOTAL DE CONSOLIDACION
+            col_t_consol = df_re.columns[29] if len(df_re.columns) > 29 else find_col(df_re, ['TIEMPO TOTAL', 'CONSOLIDACION'], 29)
+
             df_re['DT_Inst']       = pd.to_datetime(df_re[col_inst_re],  dayfirst=True, errors='coerce')
             df_re['DT_ETD']        = pd.to_datetime(df_re[col_etd_re],   dayfirst=True, errors='coerce')
             df_re['DT_PMin']       = pd.to_datetime(df_re[col_pack_min], dayfirst=True, errors='coerce')
@@ -1362,6 +1365,39 @@ try:
                     lambda x: "✨ SÍ" if str(x).strip().upper() == 'SI' else "—")
             else:
                 df_a1['SKU Nuevo'] = "—"
+
+            # =====================================================
+            # CÁLCULO ALERTA 1B — TIEMPOS DE CONSOLIDACIÓN FUERA DE SLA
+            # Desde Reservas: ETD OK vacío + tipo carga marítimo + tiempo consol > SLA
+            # =====================================================
+            def clean_num_consol(val):
+                try:
+                    return float(str(val).replace(',', '.').replace(' ', '').strip())
+                except:
+                    return 0.0
+
+            df_re['T_Consol'] = df_re[col_t_consol].apply(clean_num_consol)
+
+            # ETD OK vacío
+            etd_ok_vacio_re = (
+                df_re[col_etd_ok].astype(str).str.strip().str.upper() != 'OK'
+            )
+
+            # Monoproveedor
+            col_mono_re = find_col(df_re, ['MONOPROVEEDOR'], 31)
+            df_re['Es_Mono'] = df_re[col_mono_re].astype(str).str.strip().str.upper().isin(['SI', 'SÍ', 'S', 'MONOPROVEEDOR'])
+
+            # SLA: consolidado > 25 días, monoproveedor > 7 días
+            fuera_sla = (
+                (df_re['Es_Mono'] & (df_re['T_Consol'] > 7)) |
+                (~df_re['Es_Mono'] & (df_re['T_Consol'] > 25))
+            )
+
+            df_a1b = df_mar_re[
+                etd_ok_vacio_re[df_mar_re.index] &
+                fuera_sla[df_mar_re.index] &
+                (df_mar_re['T_Consol'] > 0)
+            ].copy()
 
             # =====================================================
             # CÁLCULO ALERTA 2 — VENTANA PRODUCCIÓN > 7 DÍAS
@@ -1585,6 +1621,32 @@ border-radius:12px; border:1px solid {color}44;'>
                         'ETD OK FFWW' : st.column_config.TextColumn("ETD OK"),
                         'País Destino': st.column_config.TextColumn("País"),
                     })
+
+            # =====================================================
+            # ALERTA 1B — TIEMPOS DE CONSOLIDACIÓN FUERA DE SLA
+            # =====================================================
+            def tabla_a1b():
+                df_show = df_a1b.copy()
+                df_show['F_ETD']   = df_a1b['DT_ETD'].dt.strftime('%d/%m/%Y')
+                df_show['Tipo']    = df_a1b['Es_Mono'].apply(lambda x: 'MONO' if x else 'CONSOLIDADO')
+                df_show['SLA']     = df_a1b['Es_Mono'].apply(lambda x: '7 días' if x else '25 días')
+                df_show['T. Consol (días)'] = df_a1b['T_Consol'].astype(int)
+                df_show = df_show[[col_emb_re, col_resp, 'Tipo', 'F_ETD', 'T. Consol (días)', 'SLA']]
+                df_show = df_show.rename(columns={
+                    col_emb_re: 'Embarque',
+                    col_resp  : 'Responsable',
+                    'F_ETD'   : 'ETD',
+                }).sort_values('T. Consol (días)', ascending=False)
+                st.dataframe(df_show, use_container_width=True, hide_index=True,
+                    column_config={
+                        'T. Consol (días)': st.column_config.NumberColumn(format="%d días ⚠️"),
+                        'SLA'             : st.column_config.TextColumn("SLA Límite"),
+                        'Tipo'            : st.column_config.TextColumn("Tipo Carga"),
+                    })
+
+            render_alerta("a1b", "🔴", "ALERTA 1B — TIEMPOS DE CONSOLIDACIÓN FUERA DE SLA",
+                "Sin ETD OK · Consolidado >25 días / Monoproveedor >7 días · Ordenado por mayor demora",
+                "#ff4b4b", len(df_a1b), tabla_a1b)
 
             render_alerta("a2", "🟠", "ALERTA 2 — VENTANA DE PRODUCCIÓN EXTENDIDA (>7 DÍAS)",
                 "Embarques con más de 7 días entre primer y último packeo · incluye estado ETD y país destino",
