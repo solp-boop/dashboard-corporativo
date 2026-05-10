@@ -1275,11 +1275,7 @@ try:
             # Filtro exacto por Tipo Carga columna F (índice 5)
             TIPOS_MARITIMO = ['20 ST', '40 ST', '40 HQ', '40 NOR']
             col_tipo_carga = find_col(df_re, ['TIPO CARGA', 'TIPO DE CARGA'], 5)
-            df_mar_re = df_re[
-                df_re[col_tipo_carga].astype(str).str.strip().str.upper().isin(
-                    [t.upper() for t in TIPOS_MARITIMO]
-                )
-            ].copy()
+            # df_mar_re se construye después del cálculo de T_Consol y Es_Mono (ver Alerta 1B)
 
             # =====================================================
             # COLUMNAS PLANIF CARGAS
@@ -1376,26 +1372,38 @@ try:
                 except:
                     return 0.0
 
+            # Calcular T_Consol y Es_Mono en df_re ANTES del filtro marítimo
             df_re['T_Consol'] = df_re[col_t_consol].apply(clean_num_consol)
-
-            # ETD OK vacío
-            etd_ok_vacio_re = (
-                df_re[col_etd_ok].astype(str).str.strip().str.upper() != 'OK'
-            )
-
-            # Monoproveedor
             col_mono_re = find_col(df_re, ['MONOPROVEEDOR'], 31)
             df_re['Es_Mono'] = df_re[col_mono_re].astype(str).str.strip().str.upper().isin(['SI', 'SÍ', 'S', 'MONOPROVEEDOR'])
 
-            # SLA: consolidado > 25 días, monoproveedor > 7 días
+            # Reconstruir df_mar_re con las nuevas columnas calculadas
+            df_mar_re = df_re[
+                df_re[col_tipo_carga].astype(str).str.strip().str.upper().isin(
+                    [t.upper() for t in TIPOS_MARITIMO]
+                )
+            ].copy()
+
+            # Reparsear fechas en df_mar_re (ya vienen de df_re)
+            df_mar_re['DT_Inst']       = pd.to_datetime(df_mar_re[col_inst_re],  dayfirst=True, errors='coerce')
+            df_mar_re['DT_ETD']        = pd.to_datetime(df_mar_re[col_etd_re],   dayfirst=True, errors='coerce')
+            df_mar_re['DT_PMin']       = pd.to_datetime(df_mar_re[col_pack_min], dayfirst=True, errors='coerce')
+            df_mar_re['DT_PMax']       = pd.to_datetime(df_mar_re[col_pack_max], dayfirst=True, errors='coerce')
+            df_mar_re['ETD_OK']        = df_mar_re[col_etd_ok].astype(str).str.upper().str.strip() == "OK"
+            df_mar_re['Dias_Esp']      = (hoy - df_mar_re['DT_Inst']).dt.days
+            df_mar_re['Rango_Pack']    = (df_mar_re['DT_PMax'] - df_mar_re['DT_PMin']).dt.days
+            df_mar_re['Dias_ETD_venc'] = (hoy - df_mar_re['DT_ETD']).dt.days
+
+            # ETD OK vacío + fuera de SLA
+            etd_ok_vacio_re = df_mar_re[col_etd_ok].astype(str).str.strip().str.upper() != 'OK'
             fuera_sla = (
-                (df_re['Es_Mono'] & (df_re['T_Consol'] > 7)) |
-                (~df_re['Es_Mono'] & (df_re['T_Consol'] > 25))
+                (df_mar_re['Es_Mono'] & (df_mar_re['T_Consol'] > 7)) |
+                (~df_mar_re['Es_Mono'] & (df_mar_re['T_Consol'] > 25))
             )
 
             df_a1b = df_mar_re[
-                etd_ok_vacio_re[df_mar_re.index] &
-                fuera_sla[df_mar_re.index] &
+                etd_ok_vacio_re &
+                fuera_sla &
                 (df_mar_re['T_Consol'] > 0)
             ].copy()
 
