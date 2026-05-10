@@ -1401,10 +1401,15 @@ try:
                 (~df_mar_re['Es_Mono'] & (df_mar_re['T_Consol'] > 25))
             )
 
+            # Col D idx 3 — Destino, filtrar solo Argentina
+            col_destino_re = df_re.columns[3] if len(df_re.columns) > 3 else find_col(df_re, ['DESTINO', 'PAIS'], 3)
+            solo_argentina = df_mar_re[col_destino_re].astype(str).str.strip().str.upper() == 'ARGENTINA'
+
             df_a1b = df_mar_re[
                 etd_ok_vacio_re &
                 fuera_sla &
-                (df_mar_re['T_Consol'] > 0)
+                (df_mar_re['T_Consol'] > 0) &
+                solo_argentina
             ].copy()
 
             # =====================================================
