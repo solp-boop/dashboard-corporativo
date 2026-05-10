@@ -1726,22 +1726,14 @@ border-radius:12px; border-top:2px solid {color};'>
             df_hi.columns = [str(c).strip() for c in df_hi.columns]
 
             df_hi['ETD_DT'] = pd.to_datetime(df_hi.iloc[:, 11], dayfirst=True, errors='coerce')
-            # Filtrar por año en ETD (más robusto que buscar "2026" en columna de texto)
-            df_2026 = df_hi[df_hi['ETD_DT'].dt.year == 2026].copy()
-            # Fallback: si no hay datos por ETD, intentar con columna 25
-            if df_2026.empty:
-                df_2026 = df_hi[df_hi.iloc[:, 25].astype(str).str.contains("2026", na=False)].copy()
-
-            # Diagnóstico temporal
-            with st.expander("🔍 Diagnóstico de datos (expandí para ver)"):
-                st.write(f"**Total filas en Reservas Históricas:** {len(df_hi)}")
-                st.write(f"**Columna ETD usada (índice 11):** `{df_hi.columns[11]}`")
-                st.write(f"**Valores únicos de ETD_DT (año):** {sorted(df_hi['ETD_DT'].dt.year.dropna().unique().tolist())}")
-                st.write(f"**Filas con ETD en 2026:** {len(df_2026)}")
-                st.write(f"**Meses encontrados en 2026:** {sorted(df_2026['ETD_DT'].dt.month.dropna().unique().tolist()) if not df_2026.empty else 'ninguno'}")
-                st.write(f"**Columna 25 (nombre):** `{df_hi.columns[25] if len(df_hi.columns) > 25 else 'no existe'}`")
-                st.write("**Primeras 5 filas de columna ETD (raw):**")
-                st.write(df_hi.iloc[:5, 11].tolist())
+            # Filtrar 2026: combinamos año en ETD parseado Y columna Z (Año ETD) para máxima cobertura
+            mask_anio_etd = df_hi['ETD_DT'].dt.year == 2026
+            mask_anio_col = df_hi.iloc[:, 25].astype(str).str.strip() == '2026'
+            df_2026 = df_hi[mask_anio_etd | mask_anio_col].copy()
+            # Asegurar que ETD_DT esté completo usando columna Z como respaldo
+            df_2026.loc[df_2026['ETD_DT'].isna(), 'ETD_DT'] = pd.to_datetime(
+                df_2026.loc[df_2026['ETD_DT'].isna(), df_hi.columns[11]], dayfirst=True, errors='coerce'
+            )
 
             if not df_2026.empty:
                 df_2026['Mes'] = df_2026['ETD_DT'].dt.month
