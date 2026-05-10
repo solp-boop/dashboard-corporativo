@@ -1251,12 +1251,13 @@ border-radius:20px; border:1px solid rgba(255,170,0,0.2); margin-bottom:30px;'>
             df_fl['_mes_label']= df_fl['_desde_dt'].dt.strftime('%B %Y').str.upper()
             df_fl['_anio']     = df_fl['_desde_dt'].dt.year
 
-            # Solo 2026 y con flete valido
+            # Solo 2026 y con flete valido, excluir POD Lazaro Cardenas
             df_fl_2026 = df_fl[
                 (df_fl['_anio'] == 2026) &
                 df_fl['_flete'].notna() &
                 (df_fl['_cnt'] != 'NAN') &
-                (df_fl['_cnt'] != '')
+                (df_fl['_cnt'] != '') &
+                ~df_fl[df_fl.columns[8]].astype(str).str.strip().str.upper().str.contains('LAZARO|CARDENAS|CÁRDENAS', na=False)
             ].copy()
 
             TIPOS_CNT  = ['40ST/40HQ', '20ST', '40NOR']
@@ -1513,14 +1514,12 @@ Promedio de mercado, mejor oferta y target -15% por mes y tipo de contenedor</p>
                         yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)', title='USD'),
                         margin=dict(l=20, r=20, t=80, b=40)
                     )
-                    # Marcar mes seleccionado con linea vertical si no es TODOS
+                    # Marcar mes seleccionado con vrect si no es TODOS (vline no funciona con eje categorico)
                     if mes_sel_hist != "TODOS":
-                        fig_evol.add_vline(
-                            x=mes_sel_hist, line_width=1.5,
-                            line_dash="dot", line_color="rgba(255,255,255,0.3)",
-                            annotation_text=mes_sel_hist,
-                            annotation_font_color="#f8fafc",
-                            annotation_position="top"
+                        fig_evol.add_vrect(
+                            x0=mes_sel_hist, x1=mes_sel_hist,
+                            fillcolor="rgba(255,255,255,0.08)",
+                            layer="below", line_width=0,
                         )
                     st.plotly_chart(fig_evol, use_container_width=True)
 
@@ -1730,7 +1729,11 @@ Promedio de mercado, mejor oferta y target -15% por mes y tipo de contenedor</p>
             df_hi.columns = [str(c).strip() for c in df_hi.columns]
 
             df_hi['ETD_DT'] = pd.to_datetime(df_hi.iloc[:, 11], dayfirst=True, errors='coerce')
-            df_2026 = df_hi[df_hi.iloc[:, 25].astype(str).str.contains("2026")].copy()
+            # Filtrar por año en ETD (más robusto que buscar "2026" en columna de texto)
+            df_2026 = df_hi[df_hi['ETD_DT'].dt.year == 2026].copy()
+            # Fallback: si no hay datos por ETD, intentar con columna 25
+            if df_2026.empty:
+                df_2026 = df_hi[df_hi.iloc[:, 25].astype(str).str.contains("2026", na=False)].copy()
 
             if not df_2026.empty:
                 df_2026['Mes'] = df_2026['ETD_DT'].dt.month
