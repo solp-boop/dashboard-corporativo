@@ -2224,28 +2224,9 @@ border-radius:12px; border:1px solid {color}44;'>
                             resp_placeholder = st.empty()
                             resp_placeholder.markdown("Pensando... ⏳")
                             try:
-                                import google.generativeai as genai
-                                api_key = st.secrets.get("GEMINI_API_KEY", "")
-                                if not api_key:
-                                    respuesta_ia = "⚠️ Falla: No encontré la GEMINI_API_KEY en los secretos de Streamlit."
-                                else:
-                                    genai.configure(api_key=api_key)
-                                    model = genai.GenerativeModel('gemini-pro')
-                                    system_prompt = """Eres 'Capitán Comex', un asistente ejecutivo experto en comercio exterior y logística internacional de la empresa Bidcom. 
-Tu trabajo es analizar los datos de los embarques en pantalla y responder a las consultas del usuario de manera clara, proactiva y muy profesional. 
-Usa emojis sutiles. Si te preguntan por riesgos operativos, evalúa las fechas (Fin de Producción, Instrucción, ETD, ETA) y las cantidades para detectar alertas (ej: demoras excesivas, consolidaciones lentas).
-No inventes datos. Si te preguntan algo que no está en el contexto, indícalo amablemente."""
-                                    contexto = "Datos actuales de la búsqueda en pantalla:\n"
-                                    if "ultimos_resultados" in st.session_state and st.session_state.ultimos_resultados:
-                                        for r in st.session_state.ultimos_resultados:
-                                            contexto += f"- Invoice: {r['inv']}, SO: {r['so']}, Embarque: {r['emb']}, Proveedor: {r['prov']}, Estadio: {r['estadio']} ({r['desc_estadio']}), Cantidad Total: {r['cant']}, Fecha Instrucción: {r['fecha_inst']}. {r['info_extra']}\n"
-                                    else:
-                                        contexto += "El usuario no tiene ningún embarque filtrado en pantalla en este momento."
-                                    prompt_final = f"{system_prompt}\n\nCONTEXTO INVISIBLE DE LA PANTALLA ACTUAL:\n{contexto}\n\nPREGUNTA DEL USUARIO:\n{prompt}"
-                                    response = model.generate_content(prompt_final)
-                                    respuesta_ia = response.text
+                                respuesta_ia = "🚧 Estamos trabajando en esta funcionalidad. Volvé a intentarlo pronto."
                             except Exception as e:
-                                respuesta_ia = f"Hubo un error de conexión con la IA: {str(e)}"
+                                respuesta_ia = "🚧 Estamos trabajando en esta funcionalidad. Volvé a intentarlo pronto."
                             resp_placeholder.markdown(respuesta_ia)
                             st.session_state.chat_history.append({"role": "assistant", "content": respuesta_ia})
         except AttributeError:
