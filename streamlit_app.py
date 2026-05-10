@@ -1402,30 +1402,33 @@ try:
                     dt_inst    = grp['DT_Inst_PC'].min()
                     dias_sin_ok = int((hoy - dt_inst).days) if pd.notna(dt_inst) else 0
 
-                    # ETD estimada desde Planif Cargas (col ETD = índice 23)
-                    col_etd_pc = df.columns[23]
-                    etd_val    = grp[col_etd_pc].dropna().iloc[0] if not grp[col_etd_pc].dropna().empty else 'Sin ETD'
-                    try:
-                        etd_fmt = pd.to_datetime(etd_val, dayfirst=True).strftime('%d/%m/%Y')
-                    except:
-                        etd_fmt = str(etd_val)
+                    # FFWW desde Planif Cargas
+                    ffww_val = grp[col_etd_ok_pc].astype(str).str.strip().iloc[0] if not grp.empty else '—'
+                    ffww_fmt = '✅ OK' if ffww_val.upper() == 'OK' else ('—' if ffww_val in ['', 'nan', 'NaN'] else ffww_val)
 
-                    # Responsable: cruzar con Reservas por nombre de embarque
-                    resp = '—'
+                    # F. Packeo Max desde Reservas
+                    pack_max_fmt = '—'
                     if not df_re.empty:
                         match_re = df_re[df_re[col_emb_re].astype(str).str.strip().str.upper() == emb_str]
-                        if not match_re.empty and col_resp in match_re.columns:
+                        if not match_re.empty:
                             resp = str(match_re[col_resp].iloc[0]).strip()
+                            pm   = match_re['DT_PMax'].iloc[0]
+                            pack_max_fmt = pm.strftime('%d/%m/%Y') if pd.notna(pm) else '—'
+                        else:
+                            resp = '—'
+                    else:
+                        resp = '—'
 
                     alerta3_rows.append({
                         'Embarque'        : emb,
                         'Responsable'     : resp,
                         'F. Instrucción'  : dt_inst.strftime('%d/%m/%Y') if pd.notna(dt_inst) else '—',
-                        'ETD Estimada'    : etd_fmt,
+                        'ETD OK FFWW'     : ffww_fmt,
+                        'F. Packeo Max'   : pack_max_fmt,
                         'Días sin OK'     : dias_sin_ok,
                         'Total SOs'       : total_sos,
-                        'SOs Top Ranking' : cant_top,
-                        'SKUs Nuevos'     : cant_nuevo,
+                        'SOs Top Ranking' : str(cant_top) if cant_top > 0 else '—',
+                        'SKUs Nuevos'     : str(cant_nuevo) if cant_nuevo > 0 else '—',
                         'Prod. Críticos'  : flag,
                     })
 
@@ -1557,13 +1560,20 @@ border-radius:12px; border:1px solid {color}44;'>
                 if df_a3.empty:
                     st.success("✅ Sin casos.")
                     return
-                df_show = df_a3.sort_values('Días sin OK', ascending=False)
+                cols_order = [
+                    'Embarque', 'Responsable', 'F. Instrucción',
+                    'ETD OK FFWW', 'F. Packeo Max', 'Días sin OK',
+                    'Total SOs', 'SOs Top Ranking', 'SKUs Nuevos', 'Prod. Críticos'
+                ]
+                df_show = df_a3[[c for c in cols_order if c in df_a3.columns]].sort_values('Días sin OK', ascending=False)
                 st.dataframe(df_show, use_container_width=True, hide_index=True,
                     column_config={
                         'Días sin OK'     : st.column_config.NumberColumn(format="%d días ⚠️"),
-                        'SOs Top Ranking' : st.column_config.NumberColumn(format="%d 🏆"),
-                        'SKUs Nuevos'     : st.column_config.NumberColumn(format="%d ✨"),
+                        'SOs Top Ranking' : st.column_config.TextColumn("SOs Top Ranking 🏆"),
+                        'SKUs Nuevos'     : st.column_config.TextColumn("SKUs Nuevos ✨"),
                         'Total SOs'       : st.column_config.NumberColumn(format="%d"),
+                        'ETD OK FFWW'     : st.column_config.TextColumn("ETD OK FFWW"),
+                        'F. Packeo Max'   : st.column_config.TextColumn("F. Packeo Max"),
                         'Prod. Críticos'  : st.column_config.TextColumn("🚨 Prod. Críticos"),
                     })
                 cant_criticos = (df_a3['Prod. Críticos'] == "🚨 SÍ").sum()
