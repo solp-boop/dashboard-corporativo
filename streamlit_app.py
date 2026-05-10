@@ -1736,7 +1736,17 @@ border-radius:12px; border-top:2px solid {color};'>
             )
 
             if not df_2026.empty:
+                # Asegurar columna Mes para todas las filas
                 df_2026['Mes'] = df_2026['ETD_DT'].dt.month
+                # Para filas sin ETD parseado, intentar extraer mes de columna L directamente
+                mask_sin_mes = df_2026['Mes'].isna()
+                if mask_sin_mes.any():
+                    df_2026.loc[mask_sin_mes, 'ETD_DT'] = pd.to_datetime(
+                        df_2026.loc[mask_sin_mes, df_hi.columns[11]], dayfirst=True, errors='coerce'
+                    )
+                    df_2026.loc[mask_sin_mes, 'Mes'] = df_2026.loc[mask_sin_mes, 'ETD_DT'].dt.month
+                df_2026 = df_2026[df_2026['Mes'].notna()].copy()
+                df_2026['Mes'] = df_2026['Mes'].astype(int)
                 col_tipo_carga_hi = df_hi.columns[5]
                 df_mar = df_2026[~df_2026[col_tipo_carga_hi].astype(str).str.upper().str.contains('AVION|COURRIER', na=False)].copy()
                 meses_dict = {1:"Enero", 2:"Febrero", 3:"Marzo", 4:"Abril", 5:"Mayo", 6:"Junio", 7:"Julio", 8:"Agosto", 9:"Septiembre", 10:"Octubre", 11:"Noviembre", 12:"Diciembre"}
@@ -1766,7 +1776,11 @@ border-radius:12px; border-top:2px solid {color};'>
                         def check_sla(row):
                             days = row[col_cons_hi]
                             is_mono = "SÍ" in str(row[col_mono_hi]).upper() or "SI" in str(row[col_mono_hi]).upper()
-                            limit = (15 if row['Mes'] <= 2 else 7) if is_mono else 25
+                            try:
+                                mes_num = int(row['Mes'])
+                            except:
+                                mes_num = 3  # default a marzo+ si no hay mes
+                            limit = (15 if mes_num <= 2 else 7) if is_mono else 25
                             return days <= limit
                         df_p_t['SLA_OK'] = df_p_t.apply(check_sla, axis=1)
                         pct_sla = int((len(df_p_t[df_p_t['SLA_OK']]) / tp_p) * 100) if tp_p > 0 else 0
