@@ -1353,23 +1353,7 @@ border-radius:20px; border:1px solid rgba(255,75,75,0.2); margin-bottom:30px;'>
 <p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>MARÍTIMO · TIEMPO REAL</p>
 </div>""", unsafe_allow_html=True)
 
-            ka, kb, kc, kd, ke, kf = st.columns(6)
-            def kpi_card(col, numero, label, color, emoji):
-                col.markdown(f"""
-<div style='text-align:center; padding:18px 8px; background:rgba(255,255,255,0.03);
-border-radius:16px; border-top:3px solid {color}; border:1px solid {color}33;'>
-<p style='font-size:11px; color:#94a3b8; letter-spacing:2px; margin:0 0 8px 0; font-weight:700;'>{emoji} {label}</p>
-<p style='font-size:38px; font-weight:900; color:{color}; margin:0; line-height:1;'>{numero}</p>
-</div>""", unsafe_allow_html=True)
 
-            kpi_card(ka, len(df_a1), "SIN INSTRUIR",      "#ff4b4b", "🔴")
-            kpi_card(kb, len(df_a2), "PROD >7 DÍAS",      "#ffaa00", "🟠")
-            kpi_card(kc, len(df_a3), "SIN OK >7 DÍAS",    "#ffaa00", "🟠")
-            kpi_card(kd, len(df_a4), "FLAG IMPORTANTES",  "#ff4b4b", "🚨")
-            kpi_card(ke, len(df_a5), "ETD VENCIDA IMPO2", "#ff4b4b", "🔴")
-            kpi_card(kf, len(df_a6), "SIN DOCS POST-OK",  "#ffaa00", "📋")
-
-            st.markdown("<br>", unsafe_allow_html=True)
 
             # =====================================================
             # HELPER — tarjeta con botón toggle nativo Streamlit
