@@ -1271,8 +1271,12 @@ try:
             col_n_inv_pc  = df.columns[29]   # N Invoice
             col_inst_pc   = find_col(df, ['INSTRUCCION', 'INSTRUCCIÓN'], 20)
             col_mono_pc   = find_col(df, ['MONOPROVEEDOR'], 31)
-            col_nuevo_pc  = [c for c in df.columns if 'SKU NUEVO' in str(c).upper() or 'SKU_NUEVO' in str(c).upper()]
+            col_nuevo_pc  = [c for c in df.columns if 'SKU NUEVO' in str(c).upper() or 'SKU_NUEVO' in str(c).upper() or '¿SKU NUEVO?' in str(c).upper()]
             col_nuevo     = col_nuevo_pc[0] if col_nuevo_pc else None
+            # SKU nuevo: tiene código cuando es nuevo, dice "NO" cuando no lo es
+            def es_sku_nuevo(val):
+                v = str(val).strip().upper()
+                return v not in ['NO', '', 'NAN', 'NONE', '—']
             col_mod_pc    = find_col(df, ['MODALIDAD DE COSTEO', 'MODALIDAD COSTEO'], 68)  # col BQ
             col_pais_pc   = find_col(df, ['PAIS DESTINO', 'PAÍS DESTINO'], 0)
 
@@ -1561,7 +1565,10 @@ border-radius:12px; border:1px solid {color}44;'>
                     'F. Packeo Max', 'Días sin OK',
                     'Total SOs', 'SOs Top Ranking', 'SKUs Nuevos', 'Prod. Críticos'
                 ]
-                df_show = df_a3[[c for c in cols_order if c in df_a3.columns]].sort_values('Días sin OK', ascending=False)
+                df_show = df_a3[[c for c in cols_order if c in df_a3.columns]].copy()
+                # Convertir F. Packeo Max a fecha para ordenar correctamente
+                df_show['_sort_pack'] = pd.to_datetime(df_show['F. Packeo Max'], dayfirst=True, errors='coerce')
+                df_show = df_show.sort_values('_sort_pack', ascending=True).drop(columns=['_sort_pack'])
                 st.dataframe(df_show, use_container_width=True, hide_index=True,
                     column_config={
                         'Días sin OK'     : st.column_config.NumberColumn(format="%d días ⚠️"),
