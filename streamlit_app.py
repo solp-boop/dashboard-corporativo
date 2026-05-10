@@ -575,8 +575,14 @@ try:
                 col_mod_opciones = [c for c in df.columns if 'MODALIDAD' in str(c).upper() and 'COSTEO' in str(c).upper()]
                 col_mod = col_mod_opciones[0] if col_mod_opciones else 'Modalidad de Costeo Reposicion'
                 if col_mod in df.columns:
-                    mask_barco = df[col_mod].astype(str).str.upper().str.startswith("BARCO")
-                    df_c_etd = df[mask_barco].groupby('Mes_ETD_Full').agg({'M3 Total': 'sum'}).reset_index()
+                    # Filtro alineado con Proyección Semanal: Argentina + Barco + Costo Hibrido Puerto ZFLP
+                    mask_arg   = df['Pais Destino'].astype(str).str.strip().str.upper() == 'ARGENTINA'
+                    mask_barco = (
+                        df[col_mod].astype(str).str.upper().str.startswith("BARCO") |
+                        df[col_mod].astype(str).str.upper().str.contains("COSTO HIBRIDO PUERTO ZFLP", na=False)
+                    )
+                    mask_cntr = mask_arg & mask_barco
+                    df_c_etd = df[mask_cntr].groupby('Mes_ETD_Full').agg({'M3 Total': 'sum'}).reset_index()
                     df_c_etd['Contenedores'] = (df_c_etd['M3 Total'] / 60).round().astype(int)
                     tot_cont_etd = df_c_etd['Contenedores'].sum()
                     st.markdown(f"<p style='color:#ffaa00; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:20px;'>PROYECCIÓN CONTENEDORES (ETD)<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL: {int(tot_cont_etd):,} CNTR</span></p>", unsafe_allow_html=True)
@@ -590,8 +596,13 @@ try:
 
             with gd:
                 if col_mod in df.columns:
-                    mask_barco = df[col_mod].astype(str).str.upper().str.startswith("BARCO")
-                    df_c_eta = df[mask_barco].groupby('Mes_ETA_Full', observed=True).agg({'M3 Total': 'sum'}).reset_index()
+                    mask_arg   = df['Pais Destino'].astype(str).str.strip().str.upper() == 'ARGENTINA'
+                    mask_barco = (
+                        df[col_mod].astype(str).str.upper().str.startswith("BARCO") |
+                        df[col_mod].astype(str).str.upper().str.contains("COSTO HIBRIDO PUERTO ZFLP", na=False)
+                    )
+                    mask_cntr = mask_arg & mask_barco
+                    df_c_eta = df[mask_cntr].groupby('Mes_ETA_Full', observed=True).agg({'M3 Total': 'sum'}).reset_index()
                     df_c_eta['Contenedores'] = (df_c_eta['M3 Total'] / 60).round().astype(int)
                     tot_cont_eta = df_c_eta['Contenedores'].sum()
                     st.markdown(f"<p style='color:#ffaa00; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:20px;'>PROYECCIÓN CONTENEDORES (ETA)<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL: {int(tot_cont_eta):,} CNTR</span></p>", unsafe_allow_html=True)
