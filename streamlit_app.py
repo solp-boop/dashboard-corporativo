@@ -2194,6 +2194,14 @@ border-radius:12px; border:1px solid {color}44;'>
                 "ETD OK confirmada · Falta Draft BL y/o Packing List Final en Reservas",
                 "#ffaa00", len(df_a6), tabla_a6)
 
+            # ALERTA AÉREOS — placeholder
+            def tabla_aereos():
+                st.info("✈️ Módulo de alertas para cargas aéreas en desarrollo. Próximamente disponible.")
+
+            render_alerta("aereos", "✈️", "ALERTA 7 — AÉREOS",
+                "Módulo en desarrollo · Próximamente disponible",
+                "#94a3b8", 0, tabla_aereos)
+
         except Exception as e:
             st.error(f"Error en Alertas Estratégicas: {e}")
             import traceback
