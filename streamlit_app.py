@@ -2384,7 +2384,7 @@ No inventes datos. Si te preguntan algo que no está en el contexto, indícalo a
                         if val_emb.lower() == 'nan': val_emb = "Sin Asignar"
                         col_inst = [c for c in df.columns if 'INSTRUCCION' in c.upper() or 'INSTRUCCIÓN' in c.upper()][0] if any('INSTRUCCION' in c.upper() or 'INSTRUCCIÓN' in c.upper() for c in df.columns) else df.columns[20]
                         val_inst = str(row[col_inst]).strip()
-                        col_fin_prod = [c for c in df.columns if 'FIN PRODUCCIÓN REAL' in c.upper() or 'FIN PRODUCCION REAL' in c.upper()][0] if any('FIN PRODUCCI' in c.upper() and 'REAL' in c.upper() for c in df.columns) else df.columns[4]
+                        col_fin_prod = df.columns[99]  # Columna CV: Fecha prioritaria / Fin produccion real
                         val_fin_prod = str(row[col_fin_prod]).strip()
                         if val_fin_prod.lower() == 'nan' or val_fin_prod == '': val_fin_prod = "Sin Info"
                         val_fecha_inst = val_inst if (val_inst != "" and val_inst.lower() != "nan" and "sin instruccion" not in val_inst.lower()) else "Pendiente"
