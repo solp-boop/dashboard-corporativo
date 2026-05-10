@@ -1365,33 +1365,38 @@ try:
             # CÁLCULO ALERTAS 3-6
             # =====================================================
 
-            # A3 — Instruida sin OK > 7 días
-            df_a3 = df_mar_re[
+            # A3 UNIFICADA — Instruida sin ETD OK > 7 días + info ranking/nuevo
+            df['Rank_Num_PC'] = df[col_rank_pc].apply(safe_rank)
+
+            df_sin_ok_base = df_mar_re[
                 (~df_mar_re['ETD_OK']) &
                 (df_mar_re['Dias_Esp'] > 7) &
                 df_mar_re['DT_Inst'].notna()
             ].copy()
 
-            # A4 — Sin ETD OK + top ranking o SKU nuevo
-            df['Rank_Num_PC'] = df[col_rank_pc].apply(safe_rank)
-            alerta4_rows = []
-            for _, row_re in df_mar_re[~df_mar_re['ETD_OK']].iterrows():
+            alerta3_rows = []
+            for _, row_re in df_sin_ok_base.iterrows():
                 emb    = str(row_re[col_emb_re]).strip().upper()
                 df_emb = df[df[col_emb_pc].astype(str).str.strip().str.upper() == emb]
-                if df_emb.empty: continue
-                cant_top   = df_emb[df_emb['Rank_Num_PC'] < 300]['SO'].nunique()
-                cant_nuevo = df_emb[df_emb[col_nuevo].astype(str).str.upper().str.strip() == 'SI']['SO'].nunique() if col_nuevo else 0
-                if cant_top > 0 or cant_nuevo > 0:
-                    alerta4_rows.append({
-                        'Embarque'       : row_re[col_emb_re],
-                        'Responsable'    : row_re[col_resp],
-                        'ETD Estimada'   : row_re['DT_ETD'].strftime('%d/%m/%Y') if pd.notna(row_re['DT_ETD']) else 'Sin ETD',
-                        'SOs Top Ranking': cant_top,
-                        'SKUs Nuevos'    : cant_nuevo,
-                        'Total SOs'      : df_emb['SO'].nunique(),
-                        'Días sin OK'    : int(row_re['Dias_Esp']) if pd.notna(row_re['Dias_Esp']) else 0,
-                    })
-            df_a4 = pd.DataFrame(alerta4_rows)
+
+                cant_top   = df_emb[df_emb['Rank_Num_PC'] < 300]['SO'].nunique() if not df_emb.empty else 0
+                cant_nuevo = df_emb[df_emb[col_nuevo].astype(str).str.upper().str.strip() == 'SI']['SO'].nunique() if (col_nuevo and not df_emb.empty) else 0
+                total_sos  = df_emb['SO'].nunique() if not df_emb.empty else 0
+                flag       = "🚨 SÍ" if (cant_top > 0 or cant_nuevo > 0) else "—"
+
+                alerta3_rows.append({
+                    'Embarque'          : row_re[col_emb_re],
+                    'Responsable'       : row_re[col_resp],
+                    'F. Instrucción'    : row_re['DT_Inst'].strftime('%d/%m/%Y') if pd.notna(row_re['DT_Inst']) else '—',
+                    'ETD Estimada'      : row_re['DT_ETD'].strftime('%d/%m/%Y') if pd.notna(row_re['DT_ETD']) else 'Sin ETD',
+                    'Días sin OK'       : int(row_re['Dias_Esp']) if pd.notna(row_re['Dias_Esp']) else 0,
+                    'Total SOs'         : total_sos,
+                    'SOs Top Ranking'   : cant_top,
+                    'SKUs Nuevos'       : cant_nuevo,
+                    'Prod. Críticos'    : flag,
+                })
+            df_a3 = pd.DataFrame(alerta3_rows)
+            df_a4 = pd.DataFrame()  # unificada en A3
 
             # A5 — ETD vencida > 7 días sin Impo2
             impo2_vacia = (
@@ -1486,7 +1491,7 @@ border-radius:12px; border:1px solid {color}44;'>
                 "#ff4b4b", len(df_a1), tabla_a1)
 
             # =====================================================
-            # ALERTA 2 — EMBARQUES VENTANA PRODUCCIÓN > 7 DÍAS (mejorada)
+            # ALERTA 2 — VENTANA PRODUCCIÓN > 7 DÍAS (mejorada)
             # =====================================================
             def tabla_a2():
                 df_show = df_a2.copy()
@@ -1507,44 +1512,33 @@ border-radius:12px; border:1px solid {color}44;'>
                         'País Destino': st.column_config.TextColumn("País"),
                     })
 
-            render_alerta("a2", "🟠", "ALERTA 2 — EMBARQUES CON VENTANA DE PRODUCCIÓN EXTENDIDA (>7 DÍAS)",
+            render_alerta("a2", "🟠", "ALERTA 2 — VENTANA DE PRODUCCIÓN EXTENDIDA (>7 DÍAS)",
                 "Embarques con más de 7 días entre primer y último packeo · incluye estado ETD y país destino",
                 "#ffaa00", len(df_a2), tabla_a2)
 
             # =====================================================
-            # ALERTA 3 — INSTRUIDA SIN OK > 7 DÍAS
+            # ALERTA 3+4 UNIFICADA — INSTRUIDA SIN ETD OK >7 DÍAS + PROD. CRÍTICOS
             # =====================================================
             def tabla_a3():
-                df_show = df_a3.copy()
-                df_show['F_Inst'] = df_a3['DT_Inst'].dt.strftime('%d/%m/%Y')
-                df_show = df_show[[col_emb_re, col_resp, 'F_Inst', 'Dias_Esp']]
-                df_show = df_show.rename(columns={
-                    col_emb_re: 'Embarque', col_resp: 'Responsable',
-                    'F_Inst': 'F. Instrucción', 'Dias_Esp': 'Días sin OK'
-                }).sort_values('Días sin OK', ascending=False)
-                st.dataframe(df_show, use_container_width=True, hide_index=True,
-                    column_config={'Días sin OK': st.column_config.NumberColumn(format="%d días ⚠️")})
-
-            render_alerta("a3", "🟠", "ALERTA 3 — INSTRUIDA SIN OK DE RESERVA (>7 DÍAS)",
-                "Instruidas hace más de 7 días sin confirmación ETD del forwarder · Acción inmediata",
-                "#ffaa00", len(df_a3), tabla_a3)
-
-            # =====================================================
-            # ALERTA 4 — RED FLAG: PRODUCTOS IMPORTANTES
-            # =====================================================
-            def tabla_a4():
-                df_show = df_a4.sort_values('SOs Top Ranking', ascending=False)
+                if df_a3.empty:
+                    st.success("✅ Sin casos.")
+                    return
+                df_show = df_a3.sort_values('Días sin OK', ascending=False)
                 st.dataframe(df_show, use_container_width=True, hide_index=True,
                     column_config={
-                        'SOs Top Ranking': st.column_config.NumberColumn(format="%d 🏆"),
-                        'SKUs Nuevos'    : st.column_config.NumberColumn(format="%d ✨"),
-                        'Días sin OK'    : st.column_config.NumberColumn(format="%d días"),
+                        'Días sin OK'     : st.column_config.NumberColumn(format="%d días ⚠️"),
+                        'SOs Top Ranking' : st.column_config.NumberColumn(format="%d 🏆"),
+                        'SKUs Nuevos'     : st.column_config.NumberColumn(format="%d ✨"),
+                        'Total SOs'       : st.column_config.NumberColumn(format="%d"),
+                        'Prod. Críticos'  : st.column_config.TextColumn("🚨 Prod. Críticos"),
                     })
-                st.warning("💡 Evaluar reasignación de carga a embarques con ETD OK confirmado.")
+                cant_criticos = (df_a3['Prod. Críticos'] == "🚨 SÍ").sum()
+                if cant_criticos > 0:
+                    st.warning(f"💡 {cant_criticos} embarque(s) contienen productos top ranking o SKUs nuevos. Evaluar reasignación de carga.")
 
-            render_alerta("a4", "🚨", "ALERTA 4 — RED FLAG: EMBARQUES CRÍTICOS SIN ETD OK",
-                "Sin ETD OK · Contienen SOs top ranking (<300) o SKUs nuevos · Evaluar reasignación",
-                "#ff4b4b", len(df_a4), tabla_a4)
+            render_alerta("a3", "🚨", "ALERTA 3 — INSTRUIDAS SIN ETD OK (>7 DÍAS) + PRODUCTOS CRÍTICOS",
+                "Sin confirmación ETD del forwarder · Días contados desde Fecha Instrucción · Incluye flag de productos importantes",
+                "#ff4b4b", len(df_a3), tabla_a3)
 
             # =====================================================
             # ALERTA 5 — ETD VENCIDA > 7 DÍAS SIN IMPO2
