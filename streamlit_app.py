@@ -1775,18 +1775,18 @@ border-radius:12px; border-top:2px solid {color};'>
                         tp_p = r[df_hi.columns[0]]
                         def check_sla(row):
                             days = row[col_cons_hi]
-                            is_mono = "SÍ" in str(row[col_mono_hi]).upper() or "SI" in str(row[col_mono_hi]).upper()
+                            is_mono = "MONOPROVEEDOR" in str(row[col_mono_hi]).upper()
                             try:
                                 mes_num = int(row['Mes'])
                             except:
-                                mes_num = 3  # default a marzo+ si no hay mes
+                                mes_num = 3
                             limit = (15 if mes_num <= 2 else 7) if is_mono else 25
                             return days <= limit
                         df_p_t['SLA_OK'] = df_p_t.apply(check_sla, axis=1)
                         pct_sla = int((len(df_p_t[df_p_t['SLA_OK']]) / tp_p) * 100) if tp_p > 0 else 0
                         row_data = {"Puerto": r[col_puerto_hi], "Embs": tp_p, "Días Avg": int(round(r[col_cons_hi])), "% Cumple SLA": f"{pct_sla}%", "% Fuera SLA": f"{100 - pct_sla}%", "TOTAL": "100%"}
                         if mode == "mixed":
-                            cm_p = len(df_p_t[df_p_t[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)])
+                            cm_p = len(df_p_t[df_p_t[col_mono_hi].astype(str).str.upper().str.contains('MONOPROVEEDOR', na=False)])
                             row_data["% Mono"] = f"{int((cm_p/tp_p)*100)}%"
                             row_data["% Cons"] = f"{int((1-(cm_p/tp_p))*100)}%"
                         p_rows.append(row_data)
@@ -1801,7 +1801,7 @@ border-radius:12px; border-top:2px solid {color};'>
                 for _, row in res_mensual.iterrows():
                     df_m_temp = df_mar[df_mar['Mes'] == row['Mes']].copy()
                     tot_m = len(df_m_temp)
-                    df_m_mono = df_m_temp[df_m_temp[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)]
+                    df_m_mono = df_m_temp[df_m_temp[col_mono_hi].astype(str).str.upper().str.contains('MONOPROVEEDOR', na=False)]
                     p_mono = (len(df_m_mono) / tot_m) if tot_m > 0 else 0
                     tr1, tr2, tr3, tr4, tr5, tr6 = st.columns([1.5, 1, 1.2, 1, 1, 0.8])
                     tr1.markdown(f"<p style='font-weight:700; color:#fff; text-align:center; margin-top:5px;'>{row['Mes_Nombre'].upper()}</p>", unsafe_allow_html=True)
@@ -1814,7 +1814,7 @@ border-radius:12px; border-top:2px solid {color};'>
                             show_detalle_mes(df_m_temp, row['Mes_Nombre'], mode="mixed")
 
                 st.markdown("<br><div style='background: rgba(0, 168, 255, 0.05); padding: 15px; border-radius: 12px; border-left: 5px solid #00a8ff; margin-bottom:15px;'><h4 style='color:#00a8ff; margin:0; letter-spacing:2px; font-size:16px;'>1. SOLAMENTE MONOPROVEEDOR (MARÍTIMOS 2026)</h4></div>", unsafe_allow_html=True)
-                df_mono_v4 = df_mar[df_mar[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)].copy()
+                df_mono_v4 = df_mar[df_mar[col_mono_hi].astype(str).str.upper().str.contains('MONOPROVEEDOR', na=False)].copy()
                 if not df_mono_v4.empty:
                     mhc = st.columns([1.5, 1, 1.2, 2, 0.8])
                     for i, h in enumerate(["MES ETD", "EMBS", "DIAS AVG", "CUMPLIMIENTO SLA", "DETALLE"]):
@@ -1834,7 +1834,7 @@ border-radius:12px; border-top:2px solid {color};'>
                                 show_detalle_mes(df_sub_m, f"MONO - {rm['Mes_Nombre']}", mode="specific")
 
                 st.markdown("<br><div style='background: rgba(0, 255, 136, 0.05); padding: 15px; border-radius: 12px; border-left: 5px solid #00ff88; margin-bottom:15px;'><h4 style='color:#00ff88; margin:0; letter-spacing:2px; font-size:16px;'>2. SOLAMENTE CONSOLIDADO (MARÍTIMOS 2026)</h4></div>", unsafe_allow_html=True)
-                df_cons_v4 = df_mar[~df_mar[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)].copy()
+                df_cons_v4 = df_mar[~df_mar[col_mono_hi].astype(str).str.upper().str.contains('MONOPROVEEDOR', na=False)].copy()
                 if not df_cons_v4.empty:
                     chc = st.columns([1.5, 1, 1.2, 2, 0.8])
                     for i, h in enumerate(["MES ETD", "EMBS", "DIAS AVG", "CUMPLIMIENTO SLA", "DETALLE"]):
