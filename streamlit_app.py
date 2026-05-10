@@ -1414,13 +1414,13 @@ border-left:4px solid #a855f7; margin-bottom:15px;'>
                 return None
 
             col_etd_proy    = find_col_proy(df, ['ETD']) or df.columns[23]
-            col_m3_proy     = find_col_proy(df, ['M3 TOTAL', 'M3TOTAL']) or df.columns[50]
             col_mod_proy    = find_col_proy(df, ['MODALIDAD DE COSTEO', 'MODALIDAD COSTEO']) or df.columns[68]
             col_puerto_proy = find_col_proy(df, ['PUERTO DE SALIDA', 'PUERTO SALIDA', 'PUERTO']) or df.columns[41]
-            # Pais Destino: columna S (índice 18) en Planif Cargas
             col_pais_proy   = df.columns[18]
 
-            # Debug: mostrar valores únicos de pais y modalidad para verificar
+            df_proy = df.copy()
+            df_proy['_m3'] = pd.to_numeric(df_proy['M3 Total'], errors='coerce').fillna(0)
+
             paises_unicos = df_proy[col_pais_proy].astype(str).str.strip().str.upper().unique()
             mods_unicas   = df_proy[col_mod_proy].astype(str).str.strip().str.upper().unique()
 
