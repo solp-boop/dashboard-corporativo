@@ -1420,13 +1420,6 @@ border-left:4px solid #a855f7; margin-bottom:15px;'>
             # Pais Destino: columna S (índice 18) en Planif Cargas
             col_pais_proy   = df.columns[18]
 
-            def clean_m3_proy(val):
-                try: return float(str(val).replace('.','').replace(',','.').strip())
-                except: return 0.0
-
-            df_proy = df.copy()
-            df_proy['_m3'] = df_proy[col_m3_proy].apply(clean_m3_proy)
-
             # Debug: mostrar valores únicos de pais y modalidad para verificar
             paises_unicos = df_proy[col_pais_proy].astype(str).str.strip().str.upper().unique()
             mods_unicas   = df_proy[col_mod_proy].astype(str).str.strip().str.upper().unique()
@@ -1452,15 +1445,13 @@ border-left:4px solid #a855f7; margin-bottom:15px;'>
                     st.write(f"**Columna País Destino usada:** `{col_pais_proy}` (índice 18)")
                     st.write(f"**Columna Modalidad usada:** `{col_mod_proy}`")
                     st.write(f"**Columna ETD usada:** `{col_etd_proy}`")
-                    st.write(f"**Columna M3 usada:** `{col_m3_proy}`")
                     st.write(f"**Columna Puerto usada:** `{col_puerto_proy}`")
+                    st.write(f"**M3 Total: usando columna 'M3 Total' ya limpia del dataframe principal**")
                     st.write("**Valores únicos de País Destino (primeros 15):**")
                     st.write(list(paises_unicos[:15]))
                     st.write("**Valores únicos de Modalidad (primeros 15):**")
                     st.write(list(mods_unicas[:15]))
-                    # Mostrar cuántos pasan cada filtro por separado
                     df_debug = df.copy()
-                    df_debug['_m3'] = df_debug[col_m3_proy].apply(clean_m3_proy)
                     n_pais = (df_debug[col_pais_proy].astype(str).str.strip().str.upper() == 'ARGENTINA').sum()
                     n_mod  = (
                         df_debug[col_mod_proy].astype(str).str.strip().str.upper().str.startswith('BARCO') |
