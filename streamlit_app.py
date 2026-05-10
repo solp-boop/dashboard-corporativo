@@ -1271,12 +1271,22 @@ try:
             col_n_inv_pc  = df.columns[29]   # N Invoice
             col_inst_pc   = find_col(df, ['INSTRUCCION', 'INSTRUCCIÓN'], 20)
             col_mono_pc   = find_col(df, ['MONOPROVEEDOR'], 31)
-            col_nuevo_pc  = [c for c in df.columns if 'SKU NUEVO' in str(c).upper() or 'SKU_NUEVO' in str(c).upper() or '¿SKU NUEVO?' in str(c).upper()]
-            col_nuevo     = col_nuevo_pc[0] if col_nuevo_pc else None
-            # SKU nuevo: tiene código cuando es nuevo, dice "NO" cuando no lo es
+            # Columna DH "¿SKU nuevo?" — buscar por nombre exacto, fallback índice 111
+            def find_sku_nuevo_col(df):
+                for c in df.columns:
+                    limpio = str(c).strip().replace('¿','').replace('?','').upper()
+                    if 'SKU NUEVO' in limpio or 'SKU_NUEVO' in limpio:
+                        return c
+                # fallback por índice DH = 111
+                if len(df.columns) > 111:
+                    return df.columns[111]
+                return None
+            col_nuevo = find_sku_nuevo_col(df)
+
+            # SKU nuevo: tiene un código cuando es nuevo, dice "NO" cuando no lo es
             def es_sku_nuevo(val):
                 v = str(val).strip().upper()
-                return v not in ['NO', '', 'NAN', 'NONE', '—']
+                return v not in ['NO', '', 'NAN', 'NONE', '—', 'NONE']
             col_mod_pc    = find_col(df, ['MODALIDAD DE COSTEO', 'MODALIDAD COSTEO'], 68)  # col BQ
             col_pais_pc   = find_col(df, ['PAIS DESTINO', 'PAÍS DESTINO'], 0)
 
