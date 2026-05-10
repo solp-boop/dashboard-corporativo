@@ -903,6 +903,11 @@ try:
                             df_eh_a[col_eh_emb].astype(str).str.strip().str.upper()
                         )[col_eh_prov].nunique()
                         avg_prov_emb = round(prov_por_emb.mean(), 1) if not prov_por_emb.empty else 0
+
+                        # AZUL: aéreos, sin metodología de consolidación marítima
+                        es_azul = analista.strip().upper() == 'AZUL'
+                        dias_cons_val = "✈️ En preparación" if es_azul else (f"{round(avg_tcons, 1)} d" if pd.notna(avg_tcons) else "—")
+
                         rows_analistas.append({
                             'Analista'         : analista,
                             'Embarques'        : cant_embs,
@@ -910,7 +915,7 @@ try:
                             'Proveedores'      : cant_provs,
                             'Monoproveedor'    : int(cant_mono),
                             'Consolidado'      : int(cant_cons),
-                            'Dias Prom. Cons.' : round(avg_tcons, 1) if pd.notna(avg_tcons) else None,
+                            'Dias Prom. Cons.' : dias_cons_val,
                             'SO por Embarque'  : avg_so_emb,
                             'Prov por Embarque': avg_prov_emb,
                         })
@@ -925,7 +930,7 @@ try:
                             'Proveedores'      : st.column_config.NumberColumn("Proveedores", format="%d"),
                             'Monoproveedor'    : st.column_config.NumberColumn("Mono", format="%d"),
                             'Consolidado'      : st.column_config.NumberColumn("Consolidado", format="%d"),
-                            'Dias Prom. Cons.' : st.column_config.NumberColumn("Dias Prom. Cons.", format="%.1f d"),
+                            'Dias Prom. Cons.' : st.column_config.TextColumn("Dias Prom. Cons."),
                             'SO por Embarque'  : st.column_config.NumberColumn("SO/Emb", format="%.1f"),
                             'Prov por Embarque': st.column_config.NumberColumn("Prov/Emb", format="%.1f"),
                         }
@@ -966,29 +971,58 @@ try:
                             analista_sel = st.selectbox("VER EVOLUCION DE:", analistas_disp, key="perf_analista_sel")
                         df_evol_a = df_evol[df_evol['Analista'] == analista_sel].sort_values('Mes_Num')
 
-                        ev1, ev2 = st.columns(2)
-                        with ev1:
-                            fig_ev_emb = px.bar(df_evol_a, x='Mes', y='Embarques', text_auto=',.0f', color_discrete_sequence=['#00a8ff'], title=f"Embarques - {analista_sel}")
-                            fig_ev_emb.update_traces(textposition='outside', textfont_color='#f8fafc', marker=dict(cornerradius=5))
-                            fig_ev_emb.update_layout(height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(family='Outfit, sans-serif', color='#94a3b8'), title_font_color='#00a8ff', xaxis=dict(showgrid=False, tickangle=-30), yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)'), margin=dict(l=10,r=10,t=50,b=40))
-                            st.plotly_chart(fig_ev_emb, use_container_width=True)
-                        with ev2:
-                            fig_ev_tc = px.bar(df_evol_a, x='Mes', y='Dias Cons.', text_auto=',.1f', color_discrete_sequence=['#00ff88'], title=f"Dias Prom. Consolidacion - {analista_sel}")
-                            fig_ev_tc.update_traces(textposition='outside', textfont_color='#f8fafc', marker=dict(cornerradius=5))
-                            fig_ev_tc.update_layout(height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(family='Outfit, sans-serif', color='#94a3b8'), title_font_color='#00ff88', xaxis=dict(showgrid=False, tickangle=-30), yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)'), margin=dict(l=10,r=10,t=50,b=40))
-                            st.plotly_chart(fig_ev_tc, use_container_width=True)
+                        es_azul_sel = analista_sel.strip().upper() == 'AZUL'
 
-                        st.markdown("<br>", unsafe_allow_html=True)
-                        st.dataframe(
-                            df_evol_a[['Mes','Embarques','SOs','Dias Cons.']].reset_index(drop=True),
-                            use_container_width=True, hide_index=True,
-                            column_config={
-                                'Mes'       : st.column_config.TextColumn("Mes ETD"),
-                                'Embarques' : st.column_config.NumberColumn("Embarques", format="%d"),
-                                'SOs'       : st.column_config.NumberColumn("SOs", format="%d"),
-                                'Dias Cons.': st.column_config.NumberColumn("Dias Prom. Cons.", format="%.1f d"),
-                            }
-                        )
+                        if es_azul_sel:
+                            # AZUL: solo gráfico de embarques, sin consolidación
+                            st.plotly_chart(
+                                px.bar(df_evol_a, x='Mes', y='Embarques', text_auto=',.0f',
+                                       color_discrete_sequence=['#00a8ff'],
+                                       title=f"Embarques - {analista_sel}"
+                                ).update_traces(textposition='outside', textfont_color='#f8fafc', marker=dict(cornerradius=5)
+                                ).update_layout(height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                                font=dict(family='Outfit, sans-serif', color='#94a3b8'),
+                                                title_font_color='#00a8ff',
+                                                xaxis=dict(showgrid=False, tickangle=-30),
+                                                yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)'),
+                                                margin=dict(l=10,r=10,t=50,b=40)),
+                                use_container_width=True
+                            )
+                            st.info("✈️ Azul gestiona cargas aéreas — los tiempos de consolidación marítima no aplican a su metodología.")
+                            st.markdown("<br>", unsafe_allow_html=True)
+                            st.dataframe(
+                                df_evol_a[['Mes','Embarques','SOs']].reset_index(drop=True),
+                                use_container_width=True, hide_index=True,
+                                column_config={
+                                    'Mes'      : st.column_config.TextColumn("Mes ETD"),
+                                    'Embarques': st.column_config.NumberColumn("Embarques", format="%d"),
+                                    'SOs'      : st.column_config.NumberColumn("SOs", format="%d"),
+                                }
+                            )
+                        else:
+                            ev1, ev2 = st.columns(2)
+                            with ev1:
+                                fig_ev_emb = px.bar(df_evol_a, x='Mes', y='Embarques', text_auto=',.0f', color_discrete_sequence=['#00a8ff'], title=f"Embarques - {analista_sel}")
+                                fig_ev_emb.update_traces(textposition='outside', textfont_color='#f8fafc', marker=dict(cornerradius=5))
+                                fig_ev_emb.update_layout(height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(family='Outfit, sans-serif', color='#94a3b8'), title_font_color='#00a8ff', xaxis=dict(showgrid=False, tickangle=-30), yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)'), margin=dict(l=10,r=10,t=50,b=40))
+                                st.plotly_chart(fig_ev_emb, use_container_width=True)
+                            with ev2:
+                                fig_ev_tc = px.bar(df_evol_a, x='Mes', y='Dias Cons.', text_auto=',.1f', color_discrete_sequence=['#00ff88'], title=f"Dias Prom. Consolidacion - {analista_sel}")
+                                fig_ev_tc.update_traces(textposition='outside', textfont_color='#f8fafc', marker=dict(cornerradius=5))
+                                fig_ev_tc.update_layout(height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(family='Outfit, sans-serif', color='#94a3b8'), title_font_color='#00ff88', xaxis=dict(showgrid=False, tickangle=-30), yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)'), margin=dict(l=10,r=10,t=50,b=40))
+                                st.plotly_chart(fig_ev_tc, use_container_width=True)
+
+                            st.markdown("<br>", unsafe_allow_html=True)
+                            st.dataframe(
+                                df_evol_a[['Mes','Embarques','SOs','Dias Cons.']].reset_index(drop=True),
+                                use_container_width=True, hide_index=True,
+                                column_config={
+                                    'Mes'       : st.column_config.TextColumn("Mes ETD"),
+                                    'Embarques' : st.column_config.NumberColumn("Embarques", format="%d"),
+                                    'SOs'       : st.column_config.NumberColumn("SOs", format="%d"),
+                                    'Dias Cons.': st.column_config.NumberColumn("Dias Prom. Cons.", format="%.1f d"),
+                                }
+                            )
 
         except Exception as e:
             st.error(f"Error en Performance Analistas: {e}")
