@@ -1215,7 +1215,7 @@ try:
             else: st.warning("No se encontraron registros marítimos para el año 2026.")
         except Exception as e: st.error(f"Error en Indicadores: {e}")
 
-# --- SOLAPA 7: ALERTAS ESTRATÉGICAS (REDISEÑO COMPLETO) ---
+# --- SOLAPA 7: ALERTAS ESTRATÉGICAS ---
     with tabs[6]:
         try:
             # =====================================================
@@ -1230,7 +1230,6 @@ try:
             df_re = load_alertas_data(url_re)
             df_re.columns = [str(c).strip() for c in df_re.columns]
 
-            # Columnas clave de Reservas
             def find_col(df, keywords, fallback_idx):
                 for kw in keywords:
                     matches = [c for c in df.columns if kw.upper() in str(c).upper()]
@@ -1238,19 +1237,17 @@ try:
                         return matches[0]
                 return df.columns[fallback_idx]
 
-            col_emb_re    = find_col(df_re, ['EMBARQUE'], 0)
-            col_resp      = find_col(df_re, ['RESPONSABLE DE LA CARGA', 'RESPONSABLE'], 33)  # col AH
-            col_inst_re   = find_col(df_re, ['INSTRUCCION', 'INSTRUCCIÓN'], 7)
-            col_etd_ok    = find_col(df_re, ['ETD OK', 'ETD STATUS'], 10)
-            col_etd_re    = find_col(df_re, ['ETD'], 12)
-            col_pack_min  = find_col(df_re, ['PACKEO MIN', 'P MIN', 'MIN PACK'], 18)
-            col_pack_max  = find_col(df_re, ['PACKEO MAX', 'P MAX', 'MAX PACK'], 19)
-            col_mono_re   = find_col(df_re, ['MONOPROVEEDOR'], 31)
-            col_draft_bl  = find_col(df_re, ['DRAFT BL', 'DRAFT'], 35)
-            col_pack_lst  = find_col(df_re, ['PACKING LIST', 'PACKING'], 36)
-            col_impo2     = find_col(df_re, ['PASAR A IMPO', 'IMPO2'], 39)
+            col_emb_re   = find_col(df_re, ['EMBARQUE'], 0)
+            col_resp     = find_col(df_re, ['RESPONSABLE DE LA CARGA', 'RESPONSABLE'], 33)
+            col_inst_re  = find_col(df_re, ['INSTRUCCION', 'INSTRUCCIÓN'], 7)
+            col_etd_ok   = find_col(df_re, ['ETD OK', 'ETD STATUS'], 10)
+            col_etd_re   = find_col(df_re, ['ETD'], 12)
+            col_pack_min = find_col(df_re, ['PACKEO MIN', 'P MIN', 'MIN PACK'], 18)
+            col_pack_max = find_col(df_re, ['PACKEO MAX', 'P MAX', 'MAX PACK'], 19)
+            col_draft_bl = find_col(df_re, ['DRAFT BL', 'DRAFT'], 35)
+            col_pack_lst = find_col(df_re, ['PACKING LIST', 'PACKING'], 36)
+            col_impo2    = find_col(df_re, ['PASAR A IMPO', 'IMPO2'], 39)
 
-            # Parseo de fechas y campos calculados
             df_re['DT_Inst']       = pd.to_datetime(df_re[col_inst_re],  dayfirst=True, errors='coerce')
             df_re['DT_ETD']        = pd.to_datetime(df_re[col_etd_re],   dayfirst=True, errors='coerce')
             df_re['DT_PMin']       = pd.to_datetime(df_re[col_pack_min], dayfirst=True, errors='coerce')
@@ -1260,7 +1257,6 @@ try:
             df_re['Rango_Pack']    = (df_re['DT_PMax'] - df_re['DT_PMin']).dt.days
             df_re['Dias_ETD_venc'] = (hoy - df_re['DT_ETD']).dt.days
 
-            # Solo marítimo
             def es_maritimo(x):
                 return any(m in str(x).upper() for m in ["40", "20", "MARITIMO", "NOR", "HQ", "ST"])
             df_mar_re = df_re[df_re.iloc[:, 5].apply(es_maritimo)].copy()
@@ -1269,7 +1265,7 @@ try:
             # CÁLCULO DE ALERTAS
             # =====================================================
 
-            # ALERTA 1 — Sin instruir
+            # A1 — Sin instruir
             col_inst_pc = [c for c in df.columns if 'INSTRUCCION' in c.upper() or 'INSTRUCCIÓN' in c.upper()]
             col_mono_pc = [c for c in df.columns if 'MONOPROVEEDOR' in c.upper()]
             c_inst_pc   = col_inst_pc[0] if col_inst_pc else df.columns[20]
@@ -1279,53 +1275,43 @@ try:
                 df[c_inst_pc].isna() |
                 df[c_inst_pc].astype(str).str.strip().isin(['', 'nan', 'SIN INSTRUCCION', 'sin instruccion'])
             ].copy()
-            keywords_excl = ["MUESTRA", "MUESTRAS", "MUESTRA COURRIER", "REPUESTOS"]
-            df_ni = df_ni[~df_ni.iloc[:, 39].astype(str).str.upper().str.contains('|'.join(keywords_excl), na=False)]
+            df_ni = df_ni[~df_ni.iloc[:, 39].astype(str).str.upper().str.contains(
+                'MUESTRA|MUESTRAS|REPUESTOS', na=False)]
             df_ni['Fecha_Prior_DT'] = pd.to_datetime(df.iloc[:, 99], dayfirst=True, errors='coerce')
 
             def filter_ni(row):
                 is_mono = "SÍ" in str(row[c_mono_pc]).upper() or "SI" in str(row[c_mono_pc]).upper()
-                limite  = hoy + timedelta(days=25 if is_mono else 10)
-                return row['Fecha_Prior_DT'] <= limite
-
+                return row['Fecha_Prior_DT'] <= hoy + timedelta(days=25 if is_mono else 10)
             df_a1 = df_ni[df_ni.apply(filter_ni, axis=1)].copy()
 
-            # ALERTA 2 — Ventana producción > 7 días
-            df_a2 = df_mar_re[
-                df_mar_re['Rango_Pack'].notna() & (df_mar_re['Rango_Pack'] > 7)
-            ].copy()
+            # A2 — Ventana producción > 7 días
+            df_a2 = df_mar_re[df_mar_re['Rango_Pack'].notna() & (df_mar_re['Rango_Pack'] > 7)].copy()
 
-            # ALERTA 3 — Instruida sin OK > 7 días
+            # A3 — Instruida sin OK > 7 días
             df_a3 = df_mar_re[
                 (~df_mar_re['ETD_OK']) &
                 (df_mar_re['Dias_Esp'] > 7) &
                 df_mar_re['DT_Inst'].notna()
             ].copy()
 
-            # ALERTA 4 — Sin ETD OK + top ranking o SKU nuevo
+            # A4 — Sin ETD OK + top ranking o SKU nuevo
             col_emb_pc   = df.columns[16]
             col_rank_pc  = df.columns[1]
             col_nuevo_pc = [c for c in df.columns if 'SKU NUEVO' in str(c).upper() or 'SKU_NUEVO' in str(c).upper()]
             col_nuevo    = col_nuevo_pc[0] if col_nuevo_pc else None
 
             def safe_rank(val):
-                try:
-                    return float(str(val).replace('.', '').replace(',', '.').strip())
-                except:
-                    return 999999
-
+                try: return float(str(val).replace('.', '').replace(',', '.').strip())
+                except: return 999999
             df['Rank_Num_PC'] = df[col_rank_pc].apply(safe_rank)
-            df_sin_ok = df_mar_re[~df_mar_re['ETD_OK']].copy()
 
             alerta4_rows = []
-            for _, row_re in df_sin_ok.iterrows():
+            for _, row_re in df_mar_re[~df_mar_re['ETD_OK']].iterrows():
                 emb    = str(row_re[col_emb_re]).strip().upper()
                 df_emb = df[df[col_emb_pc].astype(str).str.strip().str.upper() == emb]
                 if df_emb.empty: continue
-                top_rank   = df_emb[df_emb['Rank_Num_PC'] < 300]
-                nuevos     = df_emb[df_emb[col_nuevo].astype(str).str.upper().str.strip() == 'SI'] if col_nuevo else pd.DataFrame()
-                cant_top   = top_rank['SO'].nunique()
-                cant_nuevo = nuevos['SO'].nunique() if not nuevos.empty else 0
+                cant_top   = df_emb[df_emb['Rank_Num_PC'] < 300]['SO'].nunique()
+                cant_nuevo = df_emb[df_emb[col_nuevo].astype(str).str.upper().str.strip() == 'SI']['SO'].nunique() if col_nuevo else 0
                 if cant_top > 0 or cant_nuevo > 0:
                     alerta4_rows.append({
                         'Embarque'       : row_re[col_emb_re],
@@ -1338,7 +1324,7 @@ try:
                     })
             df_a4 = pd.DataFrame(alerta4_rows)
 
-            # ALERTA 5 — ETD vencida > 7 días sin Impo2
+            # A5 — ETD vencida > 7 días sin Impo2
             impo2_vacia = (
                 df_mar_re[col_impo2].isna() |
                 df_mar_re[col_impo2].astype(str).str.strip().isin(['', 'nan', 'NaN'])
@@ -1350,38 +1336,28 @@ try:
                 impo2_vacia
             ].copy()
 
-            # ALERTA 6 — OK sin Draft BL o Packing List
-            draft_vacio = (
-                df_mar_re[col_draft_bl].isna() |
-                df_mar_re[col_draft_bl].astype(str).str.strip().isin(['', 'nan', 'NaN'])
-            )
-            pack_vacio = (
-                df_mar_re[col_pack_lst].isna() |
-                df_mar_re[col_pack_lst].astype(str).str.strip().isin(['', 'nan', 'NaN'])
-            )
+            # A6 — OK sin Draft BL o Packing List
+            draft_vacio = df_mar_re[col_draft_bl].isna() | df_mar_re[col_draft_bl].astype(str).str.strip().isin(['', 'nan', 'NaN'])
+            pack_vacio  = df_mar_re[col_pack_lst].isna() | df_mar_re[col_pack_lst].astype(str).str.strip().isin(['', 'nan', 'NaN'])
             df_a6 = df_mar_re[df_mar_re['ETD_OK'] & (draft_vacio | pack_vacio)].copy()
             df_a6['Falta_Draft'] = draft_vacio[df_a6.index]
             df_a6['Falta_Pack']  = pack_vacio[df_a6.index]
 
             # =====================================================
-            # HEADER
+            # HEADER + SEMÁFORO
             # =====================================================
             st.markdown("""
 <div style='text-align:center; padding:25px; background:linear-gradient(135deg,rgba(255,75,75,0.08),rgba(255,170,0,0.05));
 border-radius:20px; border:1px solid rgba(255,75,75,0.2); margin-bottom:30px;'>
 <h2 style='color:#ff4b4b; font-weight:900; letter-spacing:6px; margin:0; font-size:26px;'>⚡ ALERTAS ESTRATÉGICAS</h2>
-<p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>MARÍTIMO · TIEMPO REAL · Hacé clic en VER DETALLE para desplegar cada alerta</p>
+<p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>MARÍTIMO · TIEMPO REAL</p>
 </div>""", unsafe_allow_html=True)
 
-            # =====================================================
-            # SEMÁFORO EJECUTIVO
-            # =====================================================
             ka, kb, kc, kd, ke, kf = st.columns(6)
-
             def kpi_card(col, numero, label, color, emoji):
                 col.markdown(f"""
 <div style='text-align:center; padding:18px 8px; background:rgba(255,255,255,0.03);
-border-radius:16px; border:1px solid {color}33; border-top:3px solid {color};'>
+border-radius:16px; border-top:3px solid {color}; border:1px solid {color}33;'>
 <p style='font-size:11px; color:#94a3b8; letter-spacing:2px; margin:0 0 8px 0; font-weight:700;'>{emoji} {label}</p>
 <p style='font-size:38px; font-weight:900; color:{color}; margin:0; line-height:1;'>{numero}</p>
 </div>""", unsafe_allow_html=True)
@@ -1396,40 +1372,46 @@ border-radius:16px; border:1px solid {color}33; border-top:3px solid {color};'>
             st.markdown("<br>", unsafe_allow_html=True)
 
             # =====================================================
-            # HELPER: bloque de alerta con botón toggle
+            # HELPER — tarjeta con botón toggle nativo Streamlit
             # =====================================================
             def render_alerta(key, emoji, titulo, subtitulo, color, conteo, tabla_fn):
                 estado_key = f"alerta_open_{key}"
                 if estado_key not in st.session_state:
                     st.session_state[estado_key] = False
 
-                # Fila superior: info + contador + botón
-                st.markdown(f"""
-<div style='padding:16px 22px; background:rgba(255,255,255,0.02); border-radius:14px;
-border-left:5px solid {color}; margin-bottom:6px;'>
-<div style='display:flex; justify-content:space-between; align-items:center;'>
-  <div>
-    <p style='color:{color}; font-weight:800; font-size:15px; letter-spacing:2px; margin:0;'>{emoji} {titulo}</p>
-    <p style='color:#94a3b8; font-size:12px; margin:5px 0 0 0;'>{subtitulo}</p>
-  </div>
-  <p style='color:{color}; font-size:40px; font-weight:900; margin:0 30px;'>{conteo}</p>
-</div>
+                # Tarjeta: columna info | columna número | columna botón
+                c_info, c_num, c_btn = st.columns([6, 1, 1.5])
+
+                with c_info:
+                    st.markdown(f"""
+<div style='padding:14px 18px; background:rgba(255,255,255,0.02);
+border-radius:12px; border-left:4px solid {color}; height:100%;'>
+<p style='color:{color}; font-weight:800; font-size:14px; letter-spacing:2px; margin:0 0 4px 0;'>{emoji} {titulo}</p>
+<p style='color:#94a3b8; font-size:11px; margin:0;'>{subtitulo}</p>
 </div>""", unsafe_allow_html=True)
 
-                # Botón toggle en su propia fila, ancho reducido
-                _, col_b = st.columns([6, 1])
-                with col_b:
-                    label_btn = "🔼 OCULTAR" if st.session_state[estado_key] else "🔽 VER DETALLE"
+                with c_num:
+                    st.markdown(f"""
+<div style='text-align:center; padding:14px 4px; background:rgba(255,255,255,0.03);
+border-radius:12px; border:1px solid {color}44;'>
+<p style='font-size:36px; font-weight:900; color:{color}; margin:0; line-height:1;'>{conteo}</p>
+</div>""", unsafe_allow_html=True)
+
+                with c_btn:
+                    abierto   = st.session_state[estado_key]
+                    label_btn = "🔼 OCULTAR" if abierto else "🔽 VER DETALLE"
                     if st.button(label_btn, key=f"btn_{key}", use_container_width=True):
-                        st.session_state[estado_key] = not st.session_state[estado_key]
+                        st.session_state[estado_key] = not abierto
                         st.rerun()
 
-                # Tabla: solo aparece si el toggle está abierto
+                # Detalle: solo se muestra si está abierto
                 if st.session_state[estado_key]:
+                    st.markdown("<div style='margin-top:8px;'>", unsafe_allow_html=True)
                     if conteo == 0:
                         st.success("✅ Sin casos para esta alerta.")
                     else:
                         tabla_fn()
+                    st.markdown("</div>", unsafe_allow_html=True)
 
                 st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
 
@@ -1449,8 +1431,8 @@ border-left:5px solid {color}; margin-bottom:6px;'>
                 st.dataframe(df_show, use_container_width=True, hide_index=True,
                     column_config={'M3 Total': st.column_config.NumberColumn("M3", format="%.1f")})
 
-            render_alerta("a1", "🔴", "ALERTA 1 — MERCADERÍA SIN INSTRUIR",
-                "Dentro de ventana crítica · Gadnic + Argentina · +10d consolidado / +25d mono",
+            render_alerta("a1", "🔴", "ALERTA 1 — SIN INSTRUIR",
+                "Gadnic + Argentina · +10d consolidado / +25d mono · dentro de ventana crítica",
                 "#ff4b4b", len(df_a1), tabla_a1)
 
             # =====================================================
@@ -1463,7 +1445,8 @@ border-left:5px solid {color}; margin-bottom:6px;'>
                 df_show = df_show[[col_emb_re, col_resp, 'F_Min', 'F_Max', 'Rango_Pack']]
                 df_show = df_show.rename(columns={
                     col_emb_re: 'Embarque', col_resp: 'Responsable',
-                    'F_Min': 'F. Packeo Min', 'F_Max': 'F. Packeo Max', 'Rango_Pack': 'Días Rango'
+                    'F_Min': 'F. Packeo Min', 'F_Max': 'F. Packeo Max',
+                    'Rango_Pack': 'Días Rango'
                 }).sort_values('Días Rango', ascending=False)
                 st.dataframe(df_show, use_container_width=True, hide_index=True,
                     column_config={'Días Rango': st.column_config.NumberColumn(format="%d días ⚡")})
@@ -1494,17 +1477,17 @@ border-left:5px solid {color}; margin-bottom:6px;'>
             # ALERTA 4 — RED FLAG: PRODUCTOS IMPORTANTES
             # =====================================================
             def tabla_a4():
-                df_show = df_a4.copy().sort_values('SOs Top Ranking', ascending=False)
+                df_show = df_a4.sort_values('SOs Top Ranking', ascending=False)
                 st.dataframe(df_show, use_container_width=True, hide_index=True,
                     column_config={
                         'SOs Top Ranking': st.column_config.NumberColumn(format="%d 🏆"),
                         'SKUs Nuevos'    : st.column_config.NumberColumn(format="%d ✨"),
                         'Días sin OK'    : st.column_config.NumberColumn(format="%d días"),
                     })
-                st.warning("💡 Estos embarques contienen productos de alta prioridad sin reserva confirmada. Evaluá si conviene reasignar la carga a otro embarque con ETD OK.")
+                st.warning("💡 Evaluar reasignación de carga a embarques con ETD OK confirmado.")
 
-            render_alerta("a4", "🚨", "ALERTA 4 — 🚨 RED FLAG: EMBARQUES CRÍTICOS SIN ETD OK",
-                "Sin ETD OK · Contienen SOs top ranking (<300) o SKUs nuevos · Evaluar reasignación de carga",
+            render_alerta("a4", "🚨", "ALERTA 4 — RED FLAG: EMBARQUES CRÍTICOS SIN ETD OK",
+                "Sin ETD OK · Contienen SOs top ranking (<300) o SKUs nuevos · Evaluar reasignación",
                 "#ff4b4b", len(df_a4), tabla_a4)
 
             # =====================================================
@@ -1530,13 +1513,11 @@ border-left:5px solid {color}; margin-bottom:6px;'>
             # =====================================================
             def tabla_a6():
                 df_show = df_a6.copy()
-                df_show['F_ETD']           = df_a6['DT_ETD'].dt.strftime('%d/%m/%Y')
-                df_show['Falta Draft BL']  = df_a6['Falta_Draft'].apply(lambda x: "❌ Falta" if x else "✅ OK")
+                df_show['F_ETD']              = df_a6['DT_ETD'].dt.strftime('%d/%m/%Y')
+                df_show['Falta Draft BL']     = df_a6['Falta_Draft'].apply(lambda x: "❌ Falta" if x else "✅ OK")
                 df_show['Falta Packing List'] = df_a6['Falta_Pack'].apply(lambda x: "❌ Falta" if x else "✅ OK")
                 df_show = df_show[[col_emb_re, col_resp, 'F_ETD', 'Falta Draft BL', 'Falta Packing List']]
-                df_show = df_show.rename(columns={
-                    col_emb_re: 'Embarque', col_resp: 'Responsable', 'F_ETD': 'ETD'
-                })
+                df_show = df_show.rename(columns={col_emb_re: 'Embarque', col_resp: 'Responsable', 'F_ETD': 'ETD'})
                 st.dataframe(df_show, use_container_width=True, hide_index=True)
 
             render_alerta("a6", "📋", "ALERTA 6 — RESERVA OK PERO FALTAN DOCUMENTOS",
