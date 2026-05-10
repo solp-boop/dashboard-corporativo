@@ -276,12 +276,10 @@ try:
     cant_so_global = df['SO'].nunique()
     cant_proveedores_global = df['Proveedor'].nunique() if 'Proveedor' in df.columns else 0
 
-    col_header, col_btn = st.columns([5, 1])
-    with col_header:
-        st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><div class='bidcom-subtitle'>Tablero Logística Internacional</div></div>", unsafe_allow_html=True)
-    with col_btn:
-        st.markdown("<div style='height: 60px;'></div>", unsafe_allow_html=True)
-        if st.button("🔄 Actualizar\ndatos", key="btn_refresh", use_container_width=True):
+    st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><div class='bidcom-subtitle'>Tablero Logística Internacional</div></div>", unsafe_allow_html=True)
+    col_ref, _ = st.columns([1, 5])
+    with col_ref:
+        if st.button("🔄 Actualizar datos", key="btn_refresh", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
     tabs = st.tabs(["ORIGEN", "MERCADERÍA EN PROCESO", "PERFORMANCE DE AGENTES Y ANALISTAS", "FLETES, GASTOS Y CERTIFICACIONES", "PROYECCIÓN SEMANAL ETD", "INDICADORES", "ALERTAS ESTRATÉGICAS", "ASK COMEX"])
