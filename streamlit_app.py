@@ -1366,35 +1366,69 @@ try:
             # =====================================================
 
             # A3 UNIFICADA — Instruida sin ETD OK > 7 días + info ranking/nuevo
+            # Base: Planif Cargas (tiene fecha instrucción, ETD OK FFWW, ranking, SKU nuevo)
             df['Rank_Num_PC'] = df[col_rank_pc].apply(safe_rank)
 
-            df_sin_ok_base = df_mar_re[
-                (~df_mar_re['ETD_OK']) &
-                (df_mar_re['Dias_Esp'] > 7) &
-                df_mar_re['DT_Inst'].notna()
+            # Columnas Planif Cargas necesarias
+            col_etd_ok_pc  = find_col(df, ['ETD OK FFWW'], 97)
+            col_fecha_inst = find_col(df, ['FECHA DE INSTRUCCION', 'FECHA INSTRUCCION', 'FECHA DE INSTRUCCIÓN'], 20)
+
+            # Parsear fecha instrucción en Planif Cargas
+            df['DT_Inst_PC']  = pd.to_datetime(df[col_fecha_inst], dayfirst=True, errors='coerce')
+            df['ETD_OK_PC']   = df[col_etd_ok_pc].astype(str).str.upper().str.strip()
+            df['Dias_sin_OK'] = (hoy - df['DT_Inst_PC']).dt.days
+
+            # Filtro: tiene fecha instrucción + ETD OK vacío/no ok + más de 7 días
+            etd_ok_vacio = df['ETD_OK_PC'].isin(['', 'NAN', 'NONE', 'NO', '—']) | df[col_etd_ok_pc].isna()
+            df_a3_base = df[
+                df['DT_Inst_PC'].notna() &
+                etd_ok_vacio &
+                (df['Dias_sin_OK'] > 7)
             ].copy()
 
+            # Agrupar por embarque para tener una fila por embarque
             alerta3_rows = []
-            for _, row_re in df_sin_ok_base.iterrows():
-                emb    = str(row_re[col_emb_re]).strip().upper()
-                df_emb = df[df[col_emb_pc].astype(str).str.strip().str.upper() == emb]
+            if not df_a3_base.empty:
+                for emb, grp in df_a3_base.groupby(col_emb_pc):
+                    emb_str = str(emb).strip().upper()
+                    if emb_str in ['', 'NAN', 'NONE']: continue
 
-                cant_top   = df_emb[df_emb['Rank_Num_PC'] < 300]['SO'].nunique() if not df_emb.empty else 0
-                cant_nuevo = df_emb[df_emb[col_nuevo].astype(str).str.upper().str.strip() == 'SI']['SO'].nunique() if (col_nuevo and not df_emb.empty) else 0
-                total_sos  = df_emb['SO'].nunique() if not df_emb.empty else 0
-                flag       = "🚨 SÍ" if (cant_top > 0 or cant_nuevo > 0) else "—"
+                    cant_top   = grp[grp['Rank_Num_PC'] < 300]['SO'].nunique()
+                    cant_nuevo = grp[grp[col_nuevo].astype(str).str.upper().str.strip() == 'SI']['SO'].nunique() if col_nuevo else 0
+                    total_sos  = grp['SO'].nunique()
+                    flag       = "🚨 SÍ" if (cant_top > 0 or cant_nuevo > 0) else "—"
 
-                alerta3_rows.append({
-                    'Embarque'          : row_re[col_emb_re],
-                    'Responsable'       : row_re[col_resp],
-                    'F. Instrucción'    : row_re['DT_Inst'].strftime('%d/%m/%Y') if pd.notna(row_re['DT_Inst']) else '—',
-                    'ETD Estimada'      : row_re['DT_ETD'].strftime('%d/%m/%Y') if pd.notna(row_re['DT_ETD']) else 'Sin ETD',
-                    'Días sin OK'       : int(row_re['Dias_Esp']) if pd.notna(row_re['Dias_Esp']) else 0,
-                    'Total SOs'         : total_sos,
-                    'SOs Top Ranking'   : cant_top,
-                    'SKUs Nuevos'       : cant_nuevo,
-                    'Prod. Críticos'    : flag,
-                })
+                    # Fecha instrucción y días (tomar la más antigua del grupo)
+                    dt_inst    = grp['DT_Inst_PC'].min()
+                    dias_sin_ok = int((hoy - dt_inst).days) if pd.notna(dt_inst) else 0
+
+                    # ETD estimada desde Planif Cargas (col ETD = índice 23)
+                    col_etd_pc = df.columns[23]
+                    etd_val    = grp[col_etd_pc].dropna().iloc[0] if not grp[col_etd_pc].dropna().empty else 'Sin ETD'
+                    try:
+                        etd_fmt = pd.to_datetime(etd_val, dayfirst=True).strftime('%d/%m/%Y')
+                    except:
+                        etd_fmt = str(etd_val)
+
+                    # Responsable: cruzar con Reservas por nombre de embarque
+                    resp = '—'
+                    if not df_re.empty:
+                        match_re = df_re[df_re[col_emb_re].astype(str).str.strip().str.upper() == emb_str]
+                        if not match_re.empty and col_resp in match_re.columns:
+                            resp = str(match_re[col_resp].iloc[0]).strip()
+
+                    alerta3_rows.append({
+                        'Embarque'        : emb,
+                        'Responsable'     : resp,
+                        'F. Instrucción'  : dt_inst.strftime('%d/%m/%Y') if pd.notna(dt_inst) else '—',
+                        'ETD Estimada'    : etd_fmt,
+                        'Días sin OK'     : dias_sin_ok,
+                        'Total SOs'       : total_sos,
+                        'SOs Top Ranking' : cant_top,
+                        'SKUs Nuevos'     : cant_nuevo,
+                        'Prod. Críticos'  : flag,
+                    })
+
             df_a3 = pd.DataFrame(alerta3_rows)
             df_a4 = pd.DataFrame()  # unificada en A3
 
