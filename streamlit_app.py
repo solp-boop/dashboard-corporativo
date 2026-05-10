@@ -1307,8 +1307,11 @@ border-radius:20px; border:1px solid rgba(255,170,0,0.2); margin-bottom:30px;'>
 
             if df_vig.empty:
                 ultimo = df_a['DT_Desde'].max()
-                df_vig = df_a[df_a['DT_Desde'] == ultimo].copy()
-                st.info(f"ℹ️ Sin cotizaciones para hoy. Período más reciente: {ultimo.strftime('%d/%m/%Y')}")
+                if pd.isna(ultimo):
+                    st.warning("No se encontraron cotizaciones con fechas válidas en la planilla.")
+                else:
+                    df_vig = df_a[df_a['DT_Desde'] == ultimo].copy()
+                    st.info(f"ℹ️ Sin cotizaciones para hoy. Período más reciente: {ultimo.strftime('%d/%m/%Y')}")
 
             st.markdown(f"""
 <div style='padding:14px 20px; background:rgba(255,255,255,0.02); border-radius:12px;
