@@ -1006,15 +1006,14 @@ border-radius:20px; border:1px solid rgba(255,170,0,0.2); margin-bottom:30px;'>
                     if m: return m[0]
                 return df.columns[idx] if len(df.columns) > idx else df.columns[0]
 
-            col_ffww     = find_fl(df_fl, ['FFWW'], 1)
-            col_agente   = find_fl(df_fl, ['AGENTE'], 2)
-            col_flete    = find_fl(df_fl, ['VALOR FLETE', 'PRECIO'], 3)
-            col_pol      = find_fl(df_fl, ['POL'], 4)
-            col_tt       = find_fl(df_fl, ['TT'], 5)
-            col_desde    = find_fl(df_fl, ['VALIDEZ QUINCENA DESDE', 'DESDE'], 10)
-            col_hasta    = find_fl(df_fl, ['VALIDEZ QUINCENA HASTA', 'HASTA'], 11)
-            col_locales  = find_fl(df_fl, ['LOCALES ARG', 'LOCALES'], 14)
-            col_tipo_fl  = find_fl(df_fl, ['TIPO DE TRANSPORTE', 'TIPO'], 0)
+            col_tipo_fl = find_fl(df_fl, ['TIPO DE TRANSPORTE', 'TIPO'], 0)
+            col_ffww    = find_fl(df_fl, ['FFWW'], 1)
+            col_agente  = find_fl(df_fl, ['AGENTE'], 2)
+            col_flete   = find_fl(df_fl, ['VALOR FLETE', 'PRECIO'], 3)
+            col_pol     = find_fl(df_fl, ['POL'], 4)
+            col_desde   = find_fl(df_fl, ['VALIDEZ QUINCENA DESDE', 'DESDE'], 10)
+            col_hasta   = find_fl(df_fl, ['VALIDEZ QUINCENA HASTA', 'HASTA'], 11)
+            col_locales = find_fl(df_fl, ['LOCALES ARG', 'LOCALES'], 14)
 
             def parse_usd(val):
                 try:
@@ -1028,234 +1027,193 @@ border-radius:20px; border:1px solid rgba(255,170,0,0.2); margin-bottom:30px;'>
             df_fl['DT_Desde']    = pd.to_datetime(df_fl[col_desde], dayfirst=True, errors='coerce')
             df_fl['DT_Hasta']    = pd.to_datetime(df_fl[col_hasta], dayfirst=True, errors='coerce')
 
-            # Solo marítimo, precio válido y AÑO 2026
+            # ✅ FILTRO PRINCIPAL: solo marítimo + precio válido + AMBAS fechas en 2026
             df_fl = df_fl[
                 df_fl[col_tipo_fl].astype(str).str.upper().str.contains('MARITIMO|MARÍTIMO', na=False) &
                 df_fl['Precio_Num'].notna() &
-                (df_fl['DT_Desde'].dt.year == 2026)
+                (df_fl['DT_Desde'].dt.year == 2026) &
+                (df_fl['DT_Hasta'].dt.year == 2026)
             ].copy()
 
             df_fl['Mes_Num']   = df_fl['DT_Desde'].dt.month
-            df_fl['Mes_Label'] = df_fl['DT_Desde'].dt.strftime('%b %Y')  # Ene 2026
-            df_fl['Quincena']  = df_fl['DT_Desde'].dt.day.apply(lambda d: '1ra Q' if d <= 15 else '2da Q')
-            df_fl['Periodo']   = df_fl['DT_Desde'].dt.strftime('%m/%Y') + ' ' + df_fl['Quincena']
+            df_fl['Mes_Label'] = df_fl['DT_Desde'].dt.strftime('%b %Y')
 
-            TIPOS_CNTR = sorted(df_fl[col_ffww].dropna().unique().tolist())
-            TARGET_PCT = 0.85  # -15%
+            TIPOS_CNTR = ['20ST', '40ST/40HQ', '40NOR']
+            TARGET_PCT = 0.85
             COLORES    = {'20ST': '#00a8ff', '40ST/40HQ': '#00ff88', '40NOR': '#ffaa00'}
 
+            # Cotizaciones vigentes hoy
+            df_vigente = df_fl[
+                (df_fl['DT_Desde'] <= hoy) & (df_fl['DT_Hasta'] >= hoy)
+            ].copy()
+
+            # Si no hay vigentes hoy, tomar las del período más reciente
+            if df_vigente.empty:
+                ultimo = df_fl['DT_Desde'].max()
+                df_vigente = df_fl[df_fl['DT_Desde'] == ultimo].copy()
+                st.info(f"ℹ️ Mostrando período más reciente disponible: {ultimo.strftime('%d/%m/%Y')}")
+
             # =====================================================
-            # ZONA 1 — HISTÓRICO 2026
+            # ZONA 1 — COTIZACIONES VIGENTES
             # =====================================================
+            st.markdown(f"""
+<div style='padding:14px 20px; background:rgba(255,255,255,0.02); border-radius:12px;
+border-left:4px solid #00ff88; margin-bottom:20px;'>
+<p style='color:#00ff88; font-weight:800; font-size:15px; letter-spacing:3px; margin:0;'>
+⚡ COTIZACIONES VIGENTES — HOY {hoy.strftime('%d/%m/%Y')}</p>
+<p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>Promedio de mercado · Mejor tarifa por tipo · Target -15%</p>
+</div>""", unsafe_allow_html=True)
+
+            # Cabecera de tabla
+            h0, h1, h2, h3, h4, h5 = st.columns([1.2, 1.3, 1.3, 1.3, 1.5, 1])
+            for col_h, txt in zip([h0,h1,h2,h3,h4,h5],
+                ["TIPO CNT","PROM. MERCADO","TARGET -15%","🏆 MENOR TARIFA","AGENTE","VS TARGET"]):
+                col_h.markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:700; letter-spacing:1px; margin:0;'>{txt}</p>",
+                    unsafe_allow_html=True)
+            st.markdown("<hr style='border:none; border-top:1px solid rgba(255,255,255,0.1); margin:6px 0 10px 0;'>", unsafe_allow_html=True)
+
+            for tipo in TIPOS_CNTR:
+                df_t = df_vigente[df_vigente[col_ffww].astype(str).str.upper().str.contains(tipo.replace('/', '|'), na=False)]
+                if df_t.empty:
+                    continue
+                prom_mkt   = df_t['Precio_Num'].mean()
+                target     = prom_mkt * TARGET_PCT
+                min_precio = df_t['Precio_Num'].min()
+                agente_min = df_t.loc[df_t['Precio_Num'].idxmin(), col_agente]
+                diff_pct   = (min_precio - target) / target * 100
+                ok         = min_precio <= target
+                color      = COLORES.get(tipo, '#94a3b8')
+
+                c0,c1,c2,c3,c4,c5 = st.columns([1.2, 1.3, 1.3, 1.3, 1.5, 1])
+                c0.markdown(f"<p style='color:{color}; font-weight:800; font-size:16px; margin:8px 0;'>{tipo}</p>", unsafe_allow_html=True)
+                c1.markdown(f"<p style='color:#f8fafc; font-size:18px; font-weight:600; margin:8px 0;'>USD {prom_mkt:,.0f}</p>", unsafe_allow_html=True)
+                c2.markdown(f"<p style='color:{color}; font-size:18px; font-weight:700; margin:8px 0;'>USD {target:,.0f}</p>", unsafe_allow_html=True)
+                c3.markdown(f"<p style='color:#00ff88; font-size:20px; font-weight:900; margin:8px 0;'>USD {min_precio:,.0f}</p>", unsafe_allow_html=True)
+                c4.markdown(f"<p style='color:#f8fafc; font-size:14px; font-weight:600; margin:8px 0;'>{agente_min}</p>", unsafe_allow_html=True)
+                c5.markdown(f"<p style='color:{'#00ff88' if ok else '#ff4b4b'}; font-size:14px; font-weight:800; margin:8px 0;'>{'✅' if ok else '🔴'} {diff_pct:+.1f}%</p>", unsafe_allow_html=True)
+
+                st.markdown("<hr style='border:none; border-top:1px solid rgba(255,255,255,0.05); margin:2px 0;'>", unsafe_allow_html=True)
+
+            # =====================================================
+            # ZONA 2 — GASTOS LOCALES VIGENTES
+            # =====================================================
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("""
+<div style='padding:14px 20px; background:rgba(255,255,255,0.02); border-radius:12px;
+border-left:4px solid #a855f7; margin-bottom:20px;'>
+<p style='color:#a855f7; font-weight:800; font-size:15px; letter-spacing:3px; margin:0;'>
+🏛️ GASTOS LOCALES ARG — VIGENTES</p>
+<p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>Promedio de cotizaciones activas hoy</p>
+</div>""", unsafe_allow_html=True)
+
+            df_loc_vig = df_vigente[df_vigente['Locales_Num'].notna()].copy()
+
+            if not df_loc_vig.empty:
+                prom_loc   = df_loc_vig['Locales_Num'].mean()
+                min_loc    = df_loc_vig['Locales_Num'].min()
+                agente_loc = df_loc_vig.loc[df_loc_vig['Locales_Num'].idxmin(), col_agente]
+
+                la, lb, lc, _ = st.columns([1, 1, 1.5, 1])
+                la.markdown(f"""
+<div style='text-align:center; padding:16px 8px; background:rgba(168,85,247,0.08);
+border-radius:14px; border:1px solid rgba(168,85,247,0.2);'>
+<p style='color:#94a3b8; font-size:11px; letter-spacing:1px; margin:0;'>PROM. LOCALES</p>
+<p style='color:#a855f7; font-size:28px; font-weight:900; margin:4px 0 0 0;'>USD {prom_loc:,.0f}</p>
+</div>""", unsafe_allow_html=True)
+                lb.markdown(f"""
+<div style='text-align:center; padding:16px 8px; background:rgba(0,255,136,0.06);
+border-radius:14px; border:1px solid rgba(0,255,136,0.2);'>
+<p style='color:#94a3b8; font-size:11px; letter-spacing:1px; margin:0;'>MENOR LOCAL</p>
+<p style='color:#00ff88; font-size:28px; font-weight:900; margin:4px 0 0 0;'>USD {min_loc:,.0f}</p>
+</div>""", unsafe_allow_html=True)
+                lc.markdown(f"""
+<div style='text-align:center; padding:16px 8px; background:rgba(255,255,255,0.02);
+border-radius:14px; border:1px solid rgba(255,255,255,0.08);'>
+<p style='color:#94a3b8; font-size:11px; letter-spacing:1px; margin:0;'>🏆 AGENTE MÁS BARATO</p>
+<p style='color:#f8fafc; font-size:20px; font-weight:800; margin:4px 0 0 0;'>{agente_loc}</p>
+</div>""", unsafe_allow_html=True)
+            else:
+                st.info("Sin datos de gastos locales para el período vigente.")
+
+            # =====================================================
+            # ZONA 3 — HISTÓRICO 2026
+            # =====================================================
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<hr style='border:none; border-top:2px solid rgba(255,170,0,0.15); margin:10px 0 30px 0;'>", unsafe_allow_html=True)
             st.markdown("""
 <div style='padding:14px 20px; background:rgba(255,255,255,0.02); border-radius:12px;
 border-left:4px solid #ffaa00; margin-bottom:20px;'>
 <p style='color:#ffaa00; font-weight:800; font-size:15px; letter-spacing:3px; margin:0;'>
-📈 HISTÓRICO 2026 — EVOLUCIÓN MENSUAL DE TARIFAS</p>
-<p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>Promedio de mercado por mes · Todos los agentes</p>
+📈 HISTÓRICO 2026 — EVOLUCIÓN MENSUAL</p>
+<p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>Promedio de mercado por mes · Línea punteada = Target -15%</p>
 </div>""", unsafe_allow_html=True)
 
-            # Filtro tipo contenedor para histórico
-            tipo_hist = st.radio("Ver tipo:", ["TODOS"] + TIPOS_CNTR, horizontal=True, key="fl_hist_tipo")
-
-            df_hist = df_fl.copy()
-            if tipo_hist != "TODOS":
-                df_hist = df_hist[df_hist[col_ffww] == tipo_hist]
-
-            # Agrupar por mes + tipo
-            df_evol = df_hist.groupby(['Mes_Num', 'Mes_Label', col_ffww]).agg(
+            # Evolución mensual por tipo de CNT
+            df_evol = df_fl.groupby(['Mes_Num', 'Mes_Label', col_ffww]).agg(
                 Prom=('Precio_Num', 'mean'),
                 Min=('Precio_Num', 'min'),
-                Max=('Precio_Num', 'max'),
-                Cotizaciones=('Precio_Num', 'count')
             ).reset_index().sort_values('Mes_Num')
 
             if not df_evol.empty:
-                # Target por tipo
                 df_evol['Target'] = df_evol['Prom'] * TARGET_PCT
 
                 fig_hist = px.line(df_evol, x='Mes_Label', y='Prom', color=col_ffww,
-                    markers=True, color_discrete_map=COLORES)
-                # Agregar línea target punteada por tipo
+                    markers=True, color_discrete_map=COLORES,
+                    labels={'Prom': 'USD Promedio', 'Mes_Label': ''})
+
+                # Líneas target punteadas por tipo
                 for tipo in df_evol[col_ffww].unique():
-                    df_t = df_evol[df_evol[col_ffww] == tipo]
+                    df_t = df_evol[df_evol[col_ffww] == tipo].sort_values('Mes_Num')
                     fig_hist.add_scatter(
                         x=df_t['Mes_Label'], y=df_t['Target'],
-                        mode='lines', line=dict(dash='dot', width=1.5, color=COLORES.get(tipo, '#94a3b8')),
-                        name=f'Target {tipo} (-15%)', opacity=0.5
+                        mode='lines',
+                        line=dict(dash='dot', width=1.5, color=COLORES.get(tipo, '#94a3b8')),
+                        name=f'Target {tipo}',
+                        opacity=0.4, showlegend=False
                     )
+
                 fig_hist.update_traces(line_width=2.5, marker_size=9)
                 fig_hist.update_layout(
                     height=380, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
                     font=dict(size=12, family='Outfit, sans-serif', color='#94a3b8'),
-                    legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1),
+                    legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1,
+                        title_text=''),
                     xaxis=dict(showgrid=False, tickangle=-30, title=''),
                     yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)', title='USD'),
                     margin=dict(l=20, r=20, t=40, b=40)
                 )
                 st.plotly_chart(fig_hist, use_container_width=True)
 
-                # Tabla resumen mensual
-                with st.expander("📋 Ver tabla resumen mensual"):
-                    df_tabla_hist = df_evol[[col_ffww, 'Mes_Label', 'Prom', 'Min', 'Max', 'Target', 'Cotizaciones']].copy()
-                    df_tabla_hist = df_tabla_hist.rename(columns={
-                        col_ffww: 'Tipo', 'Mes_Label': 'Mes',
-                        'Prom': 'Prom. USD', 'Min': 'Mínimo USD',
-                        'Max': 'Máximo USD', 'Target': 'Target -15%',
-                        'Cotizaciones': 'Cant. Cot.'
-                    })
-                    st.dataframe(df_tabla_hist, use_container_width=True, hide_index=True,
-                        column_config={
-                            'Prom. USD'   : st.column_config.NumberColumn(format="USD %.0f"),
-                            'Mínimo USD'  : st.column_config.NumberColumn(format="USD %.0f"),
-                            'Máximo USD'  : st.column_config.NumberColumn(format="USD %.0f"),
-                            'Target -15%' : st.column_config.NumberColumn(format="USD %.0f"),
-                        })
-
             # Gastos locales histórico
-            df_loc = df_fl[df_fl['Locales_Num'].notna()].copy()
-            if not df_loc.empty:
+            df_loc_hist = df_fl[df_fl['Locales_Num'].notna()].copy()
+            if not df_loc_hist.empty:
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.markdown("""
-<div style='padding:14px 20px; background:rgba(255,255,255,0.02); border-radius:12px;
+<div style='padding:12px 18px; background:rgba(255,255,255,0.02); border-radius:12px;
 border-left:4px solid #a855f7; margin-bottom:15px;'>
-<p style='color:#a855f7; font-weight:800; font-size:15px; letter-spacing:3px; margin:0;'>
+<p style='color:#a855f7; font-weight:800; font-size:14px; letter-spacing:2px; margin:0;'>
 🏛️ GASTOS LOCALES ARG — PROMEDIO MENSUAL 2026</p>
 </div>""", unsafe_allow_html=True)
 
-                df_loc_evol = df_loc.groupby(['Mes_Num', 'Mes_Label']).agg(
+                df_loc_evol = df_loc_hist.groupby(['Mes_Num', 'Mes_Label']).agg(
                     Prom_Local=('Locales_Num', 'mean'),
                     Min_Local=('Locales_Num', 'min'),
                     Max_Local=('Locales_Num', 'max')
                 ).reset_index().sort_values('Mes_Num')
 
                 fig_loc = px.bar(df_loc_evol, x='Mes_Label', y='Prom_Local',
-                    text_auto=',.0f', color_discrete_sequence=['#a855f7'])
+                    text_auto=',.0f', color_discrete_sequence=['#a855f7'],
+                    labels={'Prom_Local': 'USD Prom. Locales', 'Mes_Label': ''})
                 fig_loc.update_traces(textposition='outside', textfont_size=12,
                     textfont_color='#f8fafc', marker=dict(cornerradius=5))
                 fig_loc.update_layout(
-                    height=320, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
                     font=dict(size=12, family='Outfit, sans-serif', color='#94a3b8'),
                     xaxis=dict(showgrid=False, tickangle=-30, title=''),
-                    yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)', title='USD Prom. Locales'),
-                    margin=dict(l=20, r=20, t=20, b=40)
+                    yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)', title='USD'),
+                    margin=dict(l=20, r=20, t=30, b=40)
                 )
                 st.plotly_chart(fig_loc, use_container_width=True)
-
-            st.markdown("<hr style='border:none; border-top:2px solid rgba(255,170,0,0.2); margin:30px 0;'>", unsafe_allow_html=True)
-
-            # =====================================================
-            # ZONA 2 — SEMANA EN CURSO
-            # =====================================================
-            semana_inicio = hoy - timedelta(days=hoy.weekday())
-            semana_fin    = semana_inicio + timedelta(days=6)
-
-            st.markdown(f"""
-<div style='padding:14px 20px; background:rgba(255,255,255,0.02); border-radius:12px;
-border-left:4px solid #00ff88; margin-bottom:20px;'>
-<p style='color:#00ff88; font-weight:800; font-size:15px; letter-spacing:3px; margin:0;'>
-⚡ SEMANA EN CURSO — {semana_inicio.strftime('%d/%m')} AL {semana_fin.strftime('%d/%m/%Y')}</p>
-<p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>Cotizaciones vigentes · Mejor tarifa · vs Target -15%</p>
-</div>""", unsafe_allow_html=True)
-
-            df_semana = df_fl[
-                (df_fl['DT_Desde'] <= hoy) & (df_fl['DT_Hasta'] >= semana_inicio)
-            ].copy()
-
-            if df_semana.empty:
-                # Fallback: mostrar el período más reciente disponible
-                ultimo_desde = df_fl['DT_Desde'].max()
-                df_semana    = df_fl[df_fl['DT_Desde'] == ultimo_desde].copy()
-                st.info(f"ℹ️ No hay cotizaciones para esta semana. Mostrando el período más reciente: {ultimo_desde.strftime('%d/%m/%Y')}")
-
-            # KPIs por tipo de contenedor
-            kpi_cols = st.columns(len(TIPOS_CNTR) if TIPOS_CNTR else 3)
-            for i, tipo in enumerate(TIPOS_CNTR):
-                df_t = df_semana[df_semana[col_ffww] == tipo]
-                if df_t.empty:
-                    continue
-                prom_mkt    = df_t['Precio_Num'].mean()
-                target      = prom_mkt * TARGET_PCT
-                min_precio  = df_t['Precio_Num'].min()
-                idx_min     = df_t['Precio_Num'].idxmin()
-                agente_min  = df_t.loc[idx_min, col_agente]
-                pol_min     = df_t.loc[idx_min, col_pol] if col_pol in df_t.columns else '—'
-                ok_target   = min_precio <= target
-                color       = COLORES.get(tipo, '#94a3b8')
-                estado_ico  = "✅" if ok_target else "🔴"
-                diff_pct    = ((min_precio - target) / target * 100)
-
-                kpi_cols[i].markdown(f"""
-<div style='padding:20px 14px; background:rgba(255,255,255,0.02); border-radius:16px;
-border-top:3px solid {color}; border:1px solid {color}22; text-align:center;'>
-<p style='color:{color}; font-weight:900; font-size:14px; letter-spacing:2px; margin:0 0 12px 0;'>{tipo}</p>
-<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; margin:0;'>PROM. MERCADO</p>
-<p style='color:#f8fafc; font-size:26px; font-weight:700; margin:2px 0 10px 0;'>USD {prom_mkt:,.0f}</p>
-<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; margin:0;'>TARGET -15%</p>
-<p style='color:{color}; font-size:20px; font-weight:800; margin:2px 0 14px 0;'>USD {target:,.0f}</p>
-<hr style='border:none; border-top:1px solid rgba(255,255,255,0.07); margin:0 0 12px 0;'>
-<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; margin:0;'>🏆 MEJOR TARIFA</p>
-<p style='color:#00ff88; font-size:28px; font-weight:900; margin:2px 0 0 0;'>USD {min_precio:,.0f}</p>
-<p style='color:#94a3b8; font-size:12px; margin:4px 0;'>{agente_min}</p>
-<p style='color:#64748b; font-size:11px; margin:0 0 10px 0;'>📍 {pol_min}</p>
-<div style='background:{"rgba(0,255,136,0.1)" if ok_target else "rgba(255,75,75,0.1)"};
-border-radius:8px; padding:6px;'>
-<p style='color:{"#00ff88" if ok_target else "#ff4b4b"}; font-size:13px; font-weight:800; margin:0;'>
-{estado_ico} {diff_pct:+.1f}% vs Target</p>
-</div>
-</div>""", unsafe_allow_html=True)
-
-            # Ranking agentes semana en curso
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("<p style='color:#f8fafc; font-weight:800; font-size:14px; letter-spacing:2px; margin-bottom:12px;'>🏆 RANKING AGENTES — SEMANA EN CURSO</p>", unsafe_allow_html=True)
-
-            tipo_rank = st.radio("Tipo contenedor:", TIPOS_CNTR, horizontal=True, key="fl_rank_tipo")
-            df_rank = df_semana[df_semana[col_ffww] == tipo_rank].copy()
-
-            if not df_rank.empty:
-                df_rank_ag = df_rank.groupby(col_agente).agg(
-                    Min_Tarifa=('Precio_Num', 'min'),
-                    Prom_Tarifa=('Precio_Num', 'mean'),
-                    Cant=('Precio_Num', 'count')
-                ).reset_index().sort_values('Min_Tarifa')
-
-                prom_mkt_rank = df_rank['Precio_Num'].mean()
-                target_rank   = prom_mkt_rank * TARGET_PCT
-                df_rank_ag['vs Target'] = df_rank_ag['Min_Tarifa'].apply(
-                    lambda x: f"✅ {((x-target_rank)/target_rank*100):+.1f}%" if x <= target_rank
-                    else f"🔴 {((x-target_rank)/target_rank*100):+.1f}%"
-                )
-
-                fig_rk = px.bar(df_rank_ag, x=col_agente, y='Min_Tarifa',
-                    text_auto=',.0f', color='Min_Tarifa',
-                    color_continuous_scale=[[0, '#00ff88'], [0.5, '#ffaa00'], [1, '#ff4b4b']])
-                fig_rk.add_hline(y=target_rank, line_dash='dot', line_color='#00a8ff',
-                    annotation_text=f"Target -15%: USD {target_rank:,.0f}",
-                    annotation_position='top right',
-                    annotation_font_color='#00a8ff')
-                fig_rk.update_traces(textposition='outside', textfont_size=12,
-                    textfont_color='#f8fafc', marker=dict(cornerradius=4))
-                fig_rk.update_layout(
-                    height=380, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                    font=dict(size=12, family='Outfit, sans-serif', color='#94a3b8'),
-                    coloraxis_showscale=False,
-                    xaxis=dict(showgrid=False, tickangle=-30, title=''),
-                    yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)', title='USD Menor Tarifa'),
-                    margin=dict(l=20, r=20, t=40, b=60)
-                )
-                st.plotly_chart(fig_rk, use_container_width=True)
-
-                # Tabla detalle
-                st.dataframe(df_rank_ag.rename(columns={
-                    col_agente: 'Agente', 'Min_Tarifa': 'Menor Tarifa USD',
-                    'Prom_Tarifa': 'Prom. USD', 'Cant': 'Rutas'
-                }), use_container_width=True, hide_index=True,
-                column_config={
-                    'Menor Tarifa USD': st.column_config.NumberColumn(format="USD %.0f"),
-                    'Prom. USD'       : st.column_config.NumberColumn(format="USD %.0f"),
-                })
-            else:
-                st.info("Sin cotizaciones vigentes para este tipo de contenedor esta semana.")
 
         except Exception as e:
             st.error(f"Error en Fletes y Gastos: {e}")
