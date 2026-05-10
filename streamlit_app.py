@@ -1029,6 +1029,145 @@ try:
             import traceback
             st.code(traceback.format_exc())
 
+        # PERFORMANCE DE AGENTES (FORWARDERS)
+        st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align:center; padding: 20px; background: rgba(255,170,0,0.05); border-radius: 20px; margin: 30px 0;'><h2 style='color:#ffaa00; font-weight:800; letter-spacing:5px; margin:0;'>PERFORMANCE DE AGENTES (FORWARDERS)</h2><p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>BASADO EN RESERVAS HISTORICAS 2026</p></div>", unsafe_allow_html=True)
+        try:
+            try:
+                _ = df_rh
+            except NameError:
+                df_rh, df_eh = load_perf_data(base_url)
+
+            col_ag_fwd        = df_rh.columns[6]
+            col_ag_inst       = df_rh.columns[7]
+            col_ag_etd        = df_rh.columns[11]
+            col_ag_bl         = df_rh.columns[15]
+            col_ag_conf       = df_rh.columns[18]
+            col_ag_linea      = df_rh.columns[59]  if len(df_rh.columns) > 59 else None
+            col_ag_gto_origen = df_rh.columns[38]  if len(df_rh.columns) > 38 else None
+            col_ag_flete_pag  = df_rh.columns[51]  if len(df_rh.columns) > 51 else None
+            col_ag_flete_cert = df_rh.columns[52]  if len(df_rh.columns) > 52 else None
+            col_ag_gto_local  = df_rh.columns[54]  if len(df_rh.columns) > 54 else None
+
+            df_rh['_ag_inst_dt'] = pd.to_datetime(df_rh[col_ag_inst], dayfirst=True, errors='coerce')
+            df_rh['_ag_etd_dt']  = pd.to_datetime(df_rh[col_ag_etd],  dayfirst=True, errors='coerce')
+            df_rh['_ag_bl_dt']   = pd.to_datetime(df_rh[col_ag_bl],   dayfirst=True, errors='coerce')
+            df_rh['_ag_conf_dt'] = pd.to_datetime(df_rh[col_ag_conf], dayfirst=True, errors='coerce')
+
+            df_rh_ag_2026 = df_rh[df_rh['_ag_etd_dt'].dt.year == 2026].copy()
+            df_rh_ag_2026['Mes_Num_Ag']   = df_rh_ag_2026['_ag_etd_dt'].dt.month
+            df_rh_ag_2026['Mes_Label_Ag'] = df_rh_ag_2026['_ag_etd_dt'].dt.strftime('%B %Y').str.upper()
+
+            def safe_num_ag(val):
+                try: return float(str(val).replace(',','.').replace(' ','').strip())
+                except: return None
+
+            for col in [col_ag_gto_origen, col_ag_flete_pag, col_ag_flete_cert, col_ag_gto_local]:
+                if col: df_rh_ag_2026[col] = df_rh_ag_2026[col].apply(safe_num_ag)
+
+            if df_rh_ag_2026.empty:
+                st.warning("No se encontraron datos de agentes para 2026.")
+            else:
+                meses_ag = df_rh_ag_2026.drop_duplicates('Mes_Num_Ag').sort_values('Mes_Num_Ag')[['Mes_Num_Ag','Mes_Label_Ag']].values.tolist()
+                opciones_ag = {lbl: num for num, lbl in meses_ag}
+
+                col_sel_ag, _ = st.columns([2, 3])
+                with col_sel_ag:
+                    mes_ag_lbl = st.selectbox("SELECCIONAR MES ETD (AGENTES):", list(opciones_ag.keys()), key="perf_ag_mes_sel")
+                mes_ag_num = opciones_ag[mes_ag_lbl]
+
+                df_ag_mes = df_rh_ag_2026[df_rh_ag_2026['Mes_Num_Ag'] == mes_ag_num].copy()
+                df_ag_mes['_dias_instr_conf'] = (df_ag_mes['_ag_conf_dt'] - df_ag_mes['_ag_inst_dt']).dt.days
+                df_ag_mes['_dias_etd_bl']     = (df_ag_mes['_ag_bl_dt']   - df_ag_mes['_ag_etd_dt']).dt.days
+                df_ag_mes['_fwd_clean']        = df_ag_mes[col_ag_fwd].astype(str).str.strip()
+                df_ag_mes = df_ag_mes[~df_ag_mes['_fwd_clean'].isin(['', 'nan', 'NaN', 'None', '-'])]
+
+                total_embs_ag   = df_ag_mes[df_rh.columns[0]].nunique()
+                avg_dias_ic     = df_ag_mes['_dias_instr_conf'].mean()
+                avg_dias_bl     = df_ag_mes['_dias_etd_bl'].mean()
+                flete_pag_tot   = df_ag_mes[col_ag_flete_pag].sum()  if col_ag_flete_pag  else 0
+                flete_cert_tot  = df_ag_mes[col_ag_flete_cert].sum() if col_ag_flete_cert else 0
+                pct_cert_global = round(flete_cert_tot / flete_pag_tot * 100, 1) if flete_pag_tot and flete_pag_tot > 0 else None
+                color_cert = "#00ff88" if pct_cert_global and pct_cert_global < 75 else "#ff4b4b"
+
+                st.markdown("<br>", unsafe_allow_html=True)
+                kg1, kg2, kg3, kg4 = st.columns(4)
+                with kg1: st.markdown(f"<div class='metric-container'><p>EMBARQUES</p><p>{total_embs_ag}</p></div>", unsafe_allow_html=True)
+                with kg2: st.markdown(f"<div class='metric-container'><p>DIAS INSTR-CONF</p><p>{int(round(avg_dias_ic)) if pd.notna(avg_dias_ic) else 0}</p></div>", unsafe_allow_html=True)
+                with kg3: st.markdown(f"<div class='metric-container'><p>DIAS ETD-BL</p><p>{int(round(avg_dias_bl)) if pd.notna(avg_dias_bl) else 0}</p></div>", unsafe_allow_html=True)
+                with kg4:
+                    val_cert = f"{pct_cert_global}%" if pct_cert_global else "SD"
+                    st.markdown(f"<div class='metric-container' style='border:1px solid {color_cert}44;'><p>PCT CERTIFICACION</p><p style='color:{color_cert} !important;'>{val_cert}</p></div>", unsafe_allow_html=True)
+
+                st.markdown("<hr class='white-divider'>", unsafe_allow_html=True)
+                st.markdown("<p style='color:#ffaa00; font-weight:800; letter-spacing:4px; font-size:15px; margin-bottom:20px; text-align:center;'>DESEMPENO POR AGENTE</p>", unsafe_allow_html=True)
+
+                rows_ag = []
+                for fwd, grp_f in df_ag_mes.groupby('_fwd_clean'):
+                    cant_embs_f = grp_f[df_rh.columns[0]].nunique()
+                    avg_ic = grp_f['_dias_instr_conf'].mean()
+                    avg_bl = grp_f['_dias_etd_bl'].mean()
+                    if col_ag_linea:
+                        lineas = grp_f[col_ag_linea].dropna().astype(str).str.strip()
+                        lineas = lineas[~lineas.isin(['', 'nan', 'None', '-'])]
+                        lineas_str = ", ".join(sorted(lineas.unique())) if not lineas.empty else "Sin datos"
+                    else:
+                        lineas_str = "Sin datos"
+                    fp  = grp_f[col_ag_flete_pag].sum()  if col_ag_flete_pag  else 0
+                    fc  = grp_f[col_ag_flete_cert].sum() if col_ag_flete_cert else 0
+                    gl  = grp_f[col_ag_gto_local].sum()  if col_ag_gto_local  else 0
+                    go  = grp_f[col_ag_gto_origen].sum() if col_ag_gto_origen else 0
+                    pct_f = round(fc / fp * 100, 1) if fp and fp > 0 else None
+                    kpi_str = ("OK <75%" if pct_f < 75 else "ALTO >=75%") if pct_f else "Sin datos"
+                    rows_ag.append({
+                        'Agente'            : fwd,
+                        'Embarques'         : cant_embs_f,
+                        'Dias Instr-Conf'   : round(avg_ic, 1) if pd.notna(avg_ic) else None,
+                        'Dias ETD-BL'       : round(avg_bl, 1) if pd.notna(avg_bl) else None,
+                        'Lineas Maritimas'  : lineas_str,
+                        'Flete Pagado USD'  : round(fp, 0)  if fp else None,
+                        'Flete Cert USD'    : round(fc, 0)  if fc else None,
+                        'Gastos Locales USD': round(gl, 0)  if gl else None,
+                        'Gastos Origen USD' : round(go, 0)  if go else None,
+                        'Pct Certif'        : f"{pct_f}%" if pct_f else "Sin datos",
+                        'KPI Certif'        : kpi_str,
+                    })
+
+                df_ag_tabla = pd.DataFrame(rows_ag).sort_values('Embarques', ascending=False)
+                st.dataframe(
+                    df_ag_tabla, use_container_width=True, hide_index=True,
+                    column_config={
+                        'Agente'            : st.column_config.TextColumn("Agente"),
+                        'Embarques'         : st.column_config.NumberColumn("Embarques", format="%d"),
+                        'Dias Instr-Conf'   : st.column_config.NumberColumn("Dias Instr-Conf", format="%.1f d"),
+                        'Dias ETD-BL'       : st.column_config.NumberColumn("Dias ETD-BL", format="%.1f d"),
+                        'Lineas Maritimas'  : st.column_config.TextColumn("Lineas Maritimas"),
+                        'Flete Pagado USD'  : st.column_config.NumberColumn("Flete Pagado", format="$ %,.0f"),
+                        'Flete Cert USD'    : st.column_config.NumberColumn("Flete Cert.", format="$ %,.0f"),
+                        'Gastos Locales USD': st.column_config.NumberColumn("Gastos Locales", format="$ %,.0f"),
+                        'Gastos Origen USD' : st.column_config.NumberColumn("Gastos Origen", format="$ %,.0f"),
+                        'Pct Certif'        : st.column_config.TextColumn("% Certif."),
+                        'KPI Certif'        : st.column_config.TextColumn("KPI <75%"),
+                    }
+                )
+
+                estado_nota = "dentro del objetivo" if pct_cert_global and pct_cert_global < 75 else "fuera del objetivo - revisar negociacion"
+                val_nota = f"{pct_cert_global}% - {estado_nota}" if pct_cert_global else "Sin datos suficientes"
+                st.markdown(
+                    "<div style='margin-top:15px; padding:12px 18px; background:rgba(255,255,255,0.02);"
+                    f"border-radius:10px; border-left:4px solid {color_cert};'>"
+                    f"<p style='color:#94a3b8; font-size:12px; margin:0;'>KPI CERTIFICACION: objetivo menor al 75%."
+                    f" Flete Certificado / Flete Pagado x 100. Promedio del mes: "
+                    f"<b style='color:{color_cert};'>{val_nota}</b></p></div>",
+                    unsafe_allow_html=True
+                )
+
+        except Exception as e:
+            st.error(f"Error en Performance Agentes: {e}")
+            import traceback
+            st.code(traceback.format_exc())
+
+
     # --- SOLAPA 4: CONTROL DE FLETES, GASTOS Y CERTIFICACIONES ---
     with tabs[3]:
         try:
