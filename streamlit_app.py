@@ -1247,7 +1247,7 @@ try:
             col_pack_max = find_col(df_re, ['PACKEO MAX', 'P MAX', 'MAX PACK'], 19)
             col_draft_bl = find_col(df_re, ['DRAFT BL', 'DRAFT'], 35)
             col_pack_lst = find_col(df_re, ['PACKING LIST', 'PACKING'], 36)
-            col_impo2    = find_col(df_re, ['PASAR A IMPO', 'IMPO2'], 39)
+            col_impo2    = find_col(df_re, ['PASAR A IMPO2', 'PASAR A IMPO', 'IMPO2'], 39)  # col AN
 
             df_re['DT_Inst']       = pd.to_datetime(df_re[col_inst_re],  dayfirst=True, errors='coerce')
             df_re['DT_ETD']        = pd.to_datetime(df_re[col_etd_re],   dayfirst=True, errors='coerce')
@@ -1258,9 +1258,14 @@ try:
             df_re['Rango_Pack']    = (df_re['DT_PMax'] - df_re['DT_PMin']).dt.days
             df_re['Dias_ETD_venc'] = (hoy - df_re['DT_ETD']).dt.days
 
-            def es_maritimo(x):
-                return any(m in str(x).upper() for m in ["40", "20", "MARITIMO", "NOR", "HQ", "ST"])
-            df_mar_re = df_re[df_re.iloc[:, 5].apply(es_maritimo)].copy()
+            # Filtro exacto por Tipo Carga columna F (índice 5)
+            TIPOS_MARITIMO = ['20 ST', '40 ST', '40 HQ', '40 NOR']
+            col_tipo_carga = find_col(df_re, ['TIPO CARGA', 'TIPO DE CARGA'], 5)
+            df_mar_re = df_re[
+                df_re[col_tipo_carga].astype(str).str.strip().str.upper().isin(
+                    [t.upper() for t in TIPOS_MARITIMO]
+                )
+            ].copy()
 
             # =====================================================
             # COLUMNAS PLANIF CARGAS
@@ -1445,21 +1450,27 @@ try:
             df_a3 = pd.DataFrame(alerta3_rows)
             df_a4 = pd.DataFrame()  # unificada en A3
 
-            # A5 — ETD vencida > 7 días sin Impo2
-            impo2_vacia = (
+            # A5 — ETD vencida > 7 días sin fecha en 'Pasar a Impo2' (col AN)
+            # Está vacía cuando no se cargó (no tiene fecha)
+            impo2_sin_fecha = (
                 df_mar_re[col_impo2].isna() |
-                df_mar_re[col_impo2].astype(str).str.strip().isin(['', 'nan', 'NaN'])
+                df_mar_re[col_impo2].astype(str).str.strip().isin(['', 'nan', 'NaN', 'NONE', '-', '—'])
             )
+            # ETD vencida: col M tiene fecha y ya pasó hace más de 7 días
             df_a5 = df_mar_re[
                 df_mar_re['ETD_OK'] &
                 df_mar_re['DT_ETD'].notna() &
                 (df_mar_re['Dias_ETD_venc'] > 7) &
-                impo2_vacia
+                impo2_sin_fecha
             ].copy()
 
             # A6 — OK sin Draft BL o Packing List
-            draft_vacio = df_mar_re[col_draft_bl].isna() | df_mar_re[col_draft_bl].astype(str).str.strip().isin(['', 'nan', 'NaN'])
-            pack_vacio  = df_mar_re[col_pack_lst].isna() | df_mar_re[col_pack_lst].astype(str).str.strip().isin(['', 'nan', 'NaN'])
+            # Completos cuando dicen "SI", faltan cuando están vacíos o dicen otra cosa
+            def doc_falta(val):
+                return str(val).strip().upper() not in ['SI', 'SÍ', 'S']
+
+            draft_vacio = df_mar_re[col_draft_bl].apply(doc_falta)
+            pack_vacio  = df_mar_re[col_pack_lst].apply(doc_falta)
             df_a6 = df_mar_re[df_mar_re['ETD_OK'] & (draft_vacio | pack_vacio)].copy()
             df_a6['Falta_Draft'] = draft_vacio[df_a6.index]
             df_a6['Falta_Pack']  = pack_vacio[df_a6.index]
