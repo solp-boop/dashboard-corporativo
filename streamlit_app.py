@@ -799,61 +799,7 @@ try:
                 lbl_mon = [("Monoproveedor", df_mar[msk_mon]), ("Consolidado", df_mar[~msk_mon])]
                 renderizar_detalle(msk_mon, lbl_mon, False)
 
-            st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
-            st.markdown("<h2 style='color:#00a8ff; font-weight:800; letter-spacing:4px; margin:20px 0; font-size:22px; text-align:center;'>MONITOR DE GESTIÓN POR FORWARDER</h2>", unsafe_allow_html=True)
 
-            df_fw = df_g.copy()
-            if not df_fw.empty:
-                df_fw['Tipo_T'] = df_fw.iloc[:, 5].apply(lambda x: "MARITIMO" if any(m in str(x).upper() for m in ["40", "20", "MARITIMO", "NOR"]) else "AVION / COURIER")
-                t_sel_fw = st.radio("SELECCIONE VÍA PARA FORWARDERS:", ["MARITIMO", "AVION / COURIER"], horizontal=True, key="ag_radio_res")
-                df_fwd = df_fw[df_fw['Tipo_T'] == t_sel_fw].copy()
-
-                df_fwd['DT_Inst'] = pd.to_datetime(df_g['DT_Inst'], errors='coerce')
-                df_fwd['DT_Conf'] = pd.to_datetime(df_fwd.iloc[:, 11], dayfirst=True, errors='coerce')
-                df_fwd['DT_ETD'] = pd.to_datetime(df_fwd.iloc[:, 9], dayfirst=True, errors='coerce')
-                df_fwd['M3_Num'] = df_fwd.iloc[:, 24].apply(safe_float_f)
-                df_fwd['CNTR_Num'] = df_fwd.iloc[:, 1].apply(safe_float_f)
-                df_fwd['Gestion_Resp'] = (df_fwd['DT_Conf'] - df_fwd['DT_Inst']).dt.days
-                df_fwd['Gestion_ETD'] = (df_fwd['DT_ETD'] - df_fwd['DT_Inst']).dt.days
-                df_fwd['ETD_Status_K'] = df_fwd.iloc[:, 10].astype(str).str.upper().str.strip()
-                df_fwd['Espera'] = (hoy - df_fwd['DT_Inst']).dt.days
-
-                tot_m3_via = df_fwd['M3_Num'].sum()
-                tot_emb_via = df_fwd.iloc[:, 0].nunique()
-
-                st.markdown(f"""
-                    <div style="background: rgba(0,168,255,0.05); padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #00a8ff;">
-                        <p style="margin:0; font-size:14px; color:#94a3b8;">DETALLE {t_sel_fw}: <b>{int(tot_emb_via)} EMBS</b> | <b>{int(round(tot_m3_via)):,} M3 ACTUALES EN ESTA VÍA</b></p>
-                    </div>
-                """, unsafe_allow_html=True)
-
-                st.markdown("<p style='color:#f8fafc; font-weight:700; margin-bottom:10px;'>1. PERFORMANCE Y SHARE DE CARGA (SOLAPA RESERVAS)</p>", unsafe_allow_html=True)
-                st.markdown("<p style='color:#00ff88; font-size:14px; font-weight:700;'>A. CASOS CONFIRMADOS (ETD OK)</p>", unsafe_allow_html=True)
-                df_ok = df_fwd[df_fwd['ETD_Status_K'] == "OK"]
-                if not df_ok.empty:
-                    res_ok = df_ok.groupby(df_ok.columns[6]).agg(
-                        Cant_Emb=(df_ok.columns[0], 'nunique'),
-                        Share_Pct=('M3_Num', lambda x: (x.sum() / tot_m3_via * 100)),
-                        Prom_Resp=('Gestion_Resp', 'mean'),
-                        Prom_ETD=('Gestion_ETD', 'mean')
-                    ).reset_index()
-                    st.dataframe(res_ok.sort_values('Cant_Emb', ascending=False),
-                                 column_config={df_ok.columns[6]: "Agente", "Cant_Emb": "Embs", "Share_Pct": st.column_config.NumberColumn("Share %", format="%.1f%%"), "Prom_Resp": st.column_config.NumberColumn("Respuesta (d)", format="%d"), "Prom_ETD": st.column_config.NumberColumn("Instr->ETD (d)", format="%d")},
-                                 hide_index=True, use_container_width=True)
-                else: st.info("Sin casos confirmados.")
-
-                st.markdown("<br><p style='color:#ff4b4b; font-size:14px; font-weight:700;'>B. CASOS PENDIENTES (SIN OK)</p>", unsafe_allow_html=True)
-                df_pen = df_fwd[df_fwd['ETD_Status_K'] != "OK"]
-                if not df_pen.empty:
-                    res_pen = df_pen.groupby(df_pen.columns[6]).agg(
-                        Cant_Emb=(df_pen.columns[0], 'nunique'),
-                        Share_Pct=('M3_Num', lambda x: (x.sum() / tot_m3_via * 100)),
-                        Prom_Esp=('Espera', 'mean')
-                    ).reset_index()
-                    st.dataframe(res_pen.sort_values('Prom_Esp', ascending=False),
-                                 column_config={df_pen.columns[6]: "Agente", "Cant_Emb": "Embs", "Share_Pct": st.column_config.NumberColumn("Share %", format="%.1f%%"), "Prom_Esp": st.column_config.NumberColumn("Espera Avg (d)", format="%d")},
-                                 hide_index=True, use_container_width=True)
-                else: st.info("Sin casos pendientes.")
 
         except Exception as e:
             st.error(f"Error en Gestión de Reservas: {e}")
