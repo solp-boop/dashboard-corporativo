@@ -1262,30 +1262,108 @@ try:
             df_mar_re = df_re[df_re.iloc[:, 5].apply(es_maritimo)].copy()
 
             # =====================================================
-            # CÁLCULO DE ALERTAS
+            # COLUMNAS PLANIF CARGAS
             # =====================================================
+            col_emb_pc    = df.columns[16]   # Embarque (col Q)
+            col_rank_pc   = df.columns[1]    # Ranking
+            col_puerto_pc = df.columns[41]   # Puerto de salida
+            col_n_inv_pc  = df.columns[29]   # N Invoice
+            col_inst_pc   = find_col(df, ['INSTRUCCION', 'INSTRUCCIÓN'], 20)
+            col_mono_pc   = find_col(df, ['MONOPROVEEDOR'], 31)
+            col_nuevo_pc  = [c for c in df.columns if 'SKU NUEVO' in str(c).upper() or 'SKU_NUEVO' in str(c).upper()]
+            col_nuevo     = col_nuevo_pc[0] if col_nuevo_pc else None
+            col_mod_pc    = find_col(df, ['MODALIDAD DE COSTEO', 'MODALIDAD COSTEO'], 68)  # col BQ
+            col_pais_pc   = find_col(df, ['PAIS DESTINO', 'PAÍS DESTINO'], 0)
 
-            # A1 — Sin instruir
-            col_inst_pc = [c for c in df.columns if 'INSTRUCCION' in c.upper() or 'INSTRUCCIÓN' in c.upper()]
-            col_mono_pc = [c for c in df.columns if 'MONOPROVEEDOR' in c.upper()]
-            c_inst_pc   = col_inst_pc[0] if col_inst_pc else df.columns[20]
-            c_mono_pc   = col_mono_pc[0] if col_mono_pc else df.columns[31]
+            # =====================================================
+            # FUNCIÓN: asignar analista según reglas de negocio
+            # =====================================================
+            PUERTOS_DAVID = ['SHANGHAI', 'QINGDAO', 'TIANJIN', 'NINGBO']
 
+            def asignar_analista(modalidad, es_mono, puerto):
+                mod  = str(modalidad).strip().upper()
+                mono = str(es_mono).strip().upper()
+                prt  = str(puerto).strip().upper()
+
+                es_barco  = mod.startswith('BARCO') or 'COSTO HIBRIDO PUERTO ZFLP' in mod
+                es_avion  = mod.startswith('AVION') or mod.startswith('AVIÓN')
+
+                if es_avion:
+                    return 'AZUL'
+                if es_barco:
+                    if mono in ['SI', 'SÍ', 'S']:
+                        return 'AGUSTIN'
+                    else:
+                        # consolidado: David si puerto chino, Sofia resto
+                        if any(p in prt for p in PUERTOS_DAVID):
+                            return 'DAVID'
+                        else:
+                            return 'SOFIA'
+                return 'SIN ASIGNAR'
+
+            # =====================================================
+            # CÁLCULO ALERTA 1 — SIN INSTRUIR
+            # =====================================================
             df_ni = df[
-                df[c_inst_pc].isna() |
-                df[c_inst_pc].astype(str).str.strip().isin(['', 'nan', 'SIN INSTRUCCION', 'sin instruccion'])
+                df[col_inst_pc].isna() |
+                df[col_inst_pc].astype(str).str.strip().isin(['', 'nan', 'SIN INSTRUCCION', 'sin instruccion'])
             ].copy()
             df_ni = df_ni[~df_ni.iloc[:, 39].astype(str).str.upper().str.contains(
                 'MUESTRA|MUESTRAS|REPUESTOS', na=False)]
             df_ni['Fecha_Prior_DT'] = pd.to_datetime(df.iloc[:, 99], dayfirst=True, errors='coerce')
 
             def filter_ni(row):
-                is_mono = "SÍ" in str(row[c_mono_pc]).upper() or "SI" in str(row[c_mono_pc]).upper()
+                is_mono = "SÍ" in str(row[col_mono_pc]).upper() or "SI" in str(row[col_mono_pc]).upper()
                 return row['Fecha_Prior_DT'] <= hoy + timedelta(days=25 if is_mono else 10)
             df_a1 = df_ni[df_ni.apply(filter_ni, axis=1)].copy()
 
-            # A2 — Ventana producción > 7 días
+            # Agregar analista, ranking y SKU nuevo a A1
+            def safe_rank(val):
+                try: return float(str(val).replace('.', '').replace(',', '.').strip())
+                except: return 999999
+
+            df_a1['Rank_Num'] = df_a1[col_rank_pc].apply(safe_rank)
+            df_a1['Analista'] = df_a1.apply(
+                lambda r: asignar_analista(r[col_mod_pc], r[col_mono_pc], r[col_puerto_pc]), axis=1)
+            df_a1['Top Ranking'] = df_a1['Rank_Num'].apply(lambda x: "🏆 SÍ" if x < 300 else "—")
+            if col_nuevo:
+                df_a1['SKU Nuevo'] = df_a1[col_nuevo].apply(
+                    lambda x: "✨ SÍ" if str(x).strip().upper() == 'SI' else "—")
+            else:
+                df_a1['SKU Nuevo'] = "—"
+
+            # =====================================================
+            # CÁLCULO ALERTA 2 — VENTANA PRODUCCIÓN > 7 DÍAS
+            # =====================================================
             df_a2 = df_mar_re[df_mar_re['Rango_Pack'].notna() & (df_mar_re['Rango_Pack'] > 7)].copy()
+
+            # Cruzar A2 con Planif Cargas para traer ETD OK FFWW y País Destino
+            col_etd_ok_pc = find_col(df, ['ETD OK FFWW', 'ETD OK'], 97)
+            col_pais_dest = find_col(df, ['PAIS DESTINO', 'PAÍS DESTINO'], 0)
+
+            def enrich_a2(row):
+                emb    = str(row[col_emb_re]).strip().upper()
+                df_emb = df[df[col_emb_pc].astype(str).str.strip().str.upper() == emb]
+                if df_emb.empty:
+                    return pd.Series({'ETD OK FFWW': '—', 'País Destino': '—'})
+                etd_ok = df_emb[col_etd_ok_pc].astype(str).str.upper().str.strip().iloc[0]
+                pais   = df_emb[col_pais_dest].astype(str).str.strip().iloc[0] if col_pais_dest in df_emb.columns else '—'
+                return pd.Series({
+                    'ETD OK FFWW': '✅ OK' if etd_ok == 'OK' else '❌ Sin OK',
+                    'País Destino': pais
+                })
+
+            if not df_a2.empty:
+                enrich_cols = df_a2.apply(enrich_a2, axis=1)
+                df_a2['ETD OK FFWW']  = enrich_cols['ETD OK FFWW']
+                df_a2['País Destino'] = enrich_cols['País Destino']
+            else:
+                df_a2['ETD OK FFWW']  = []
+                df_a2['País Destino'] = []
+
+            # =====================================================
+            # CÁLCULO ALERTAS 3-6
+            # =====================================================
 
             # A3 — Instruida sin OK > 7 días
             df_a3 = df_mar_re[
@@ -1295,16 +1373,7 @@ try:
             ].copy()
 
             # A4 — Sin ETD OK + top ranking o SKU nuevo
-            col_emb_pc   = df.columns[16]
-            col_rank_pc  = df.columns[1]
-            col_nuevo_pc = [c for c in df.columns if 'SKU NUEVO' in str(c).upper() or 'SKU_NUEVO' in str(c).upper()]
-            col_nuevo    = col_nuevo_pc[0] if col_nuevo_pc else None
-
-            def safe_rank(val):
-                try: return float(str(val).replace('.', '').replace(',', '.').strip())
-                except: return 999999
             df['Rank_Num_PC'] = df[col_rank_pc].apply(safe_rank)
-
             alerta4_rows = []
             for _, row_re in df_mar_re[~df_mar_re['ETD_OK']].iterrows():
                 emb    = str(row_re[col_emb_re]).strip().upper()
@@ -1344,7 +1413,7 @@ try:
             df_a6['Falta_Pack']  = pack_vacio[df_a6.index]
 
             # =====================================================
-            # HEADER + SEMÁFORO
+            # HEADER
             # =====================================================
             st.markdown("""
 <div style='text-align:center; padding:25px; background:linear-gradient(135deg,rgba(255,75,75,0.08),rgba(255,170,0,0.05));
@@ -1353,34 +1422,28 @@ border-radius:20px; border:1px solid rgba(255,75,75,0.2); margin-bottom:30px;'>
 <p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>MARÍTIMO · TIEMPO REAL</p>
 </div>""", unsafe_allow_html=True)
 
-
-
             # =====================================================
-            # HELPER — tarjeta con botón toggle nativo Streamlit
+            # HELPER — tarjeta con botón toggle
             # =====================================================
             def render_alerta(key, emoji, titulo, subtitulo, color, conteo, tabla_fn):
                 estado_key = f"alerta_open_{key}"
                 if estado_key not in st.session_state:
                     st.session_state[estado_key] = False
 
-                # Tarjeta: columna info | columna número | columna botón
                 c_info, c_num, c_btn = st.columns([6, 1, 1.5])
-
                 with c_info:
                     st.markdown(f"""
 <div style='padding:14px 18px; background:rgba(255,255,255,0.02);
-border-radius:12px; border-left:4px solid {color}; height:100%;'>
+border-radius:12px; border-left:4px solid {color};'>
 <p style='color:{color}; font-weight:800; font-size:14px; letter-spacing:2px; margin:0 0 4px 0;'>{emoji} {titulo}</p>
 <p style='color:#94a3b8; font-size:11px; margin:0;'>{subtitulo}</p>
 </div>""", unsafe_allow_html=True)
-
                 with c_num:
                     st.markdown(f"""
 <div style='text-align:center; padding:14px 4px; background:rgba(255,255,255,0.03);
 border-radius:12px; border:1px solid {color}44;'>
 <p style='font-size:36px; font-weight:900; color:{color}; margin:0; line-height:1;'>{conteo}</p>
 </div>""", unsafe_allow_html=True)
-
                 with c_btn:
                     abierto   = st.session_state[estado_key]
                     label_btn = "🔼 OCULTAR" if abierto else "🔽 VER DETALLE"
@@ -1388,55 +1451,64 @@ border-radius:12px; border:1px solid {color}44;'>
                         st.session_state[estado_key] = not abierto
                         st.rerun()
 
-                # Detalle: solo se muestra si está abierto
                 if st.session_state[estado_key]:
-                    st.markdown("<div style='margin-top:8px;'>", unsafe_allow_html=True)
                     if conteo == 0:
                         st.success("✅ Sin casos para esta alerta.")
                     else:
                         tabla_fn()
-                    st.markdown("</div>", unsafe_allow_html=True)
 
                 st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
 
             # =====================================================
-            # ALERTA 1 — SIN INSTRUIR
+            # ALERTA 1 — SIN INSTRUIR (mejorada)
             # =====================================================
-            col_puerto_pc = df.columns[41]
-            col_n_inv_pc  = df.columns[29]
-
             def tabla_a1():
-                df_show = df_a1[[col_n_inv_pc, 'SO', col_puerto_pc, 'M3 Total', c_mono_pc, 'Fecha_Prior_DT']].copy()
+                cols_show = [col_n_inv_pc, 'SO', 'Analista', col_puerto_pc,
+                             'M3 Total', col_mono_pc, 'Top Ranking', 'SKU Nuevo', 'Fecha_Prior_DT']
+                df_show = df_a1[cols_show].copy()
                 df_show['Fecha_Prior_DT'] = df_show['Fecha_Prior_DT'].dt.strftime('%d/%m/%Y')
                 df_show = df_show.rename(columns={
-                    col_n_inv_pc: 'Invoice', col_puerto_pc: 'Puerto',
-                    c_mono_pc: '¿Mono?', 'Fecha_Prior_DT': 'F. Prioritaria'
-                }).sort_values('F. Prioritaria')
+                    col_n_inv_pc  : 'Invoice',
+                    col_puerto_pc : 'Puerto',
+                    col_mono_pc   : '¿Mono?',
+                    'Fecha_Prior_DT': 'F. Prioritaria'
+                }).sort_values('F. Prioritaria')   # más vieja primero
                 st.dataframe(df_show, use_container_width=True, hide_index=True,
-                    column_config={'M3 Total': st.column_config.NumberColumn("M3", format="%.1f")})
+                    column_config={
+                        'M3 Total'    : st.column_config.NumberColumn("M3", format="%.1f"),
+                        'Top Ranking' : st.column_config.TextColumn("🏆 Ranking"),
+                        'SKU Nuevo'   : st.column_config.TextColumn("✨ Nuevo"),
+                        'Analista'    : st.column_config.TextColumn("Analista"),
+                    })
 
             render_alerta("a1", "🔴", "ALERTA 1 — SIN INSTRUIR",
-                "Gadnic + Argentina · +10d consolidado / +25d mono · dentro de ventana crítica",
+                "Gadnic + Argentina · ordenado por fecha prioritaria (más vieja primero) · con analista asignado",
                 "#ff4b4b", len(df_a1), tabla_a1)
 
             # =====================================================
-            # ALERTA 2 — VENTANA PRODUCCIÓN > 7 DÍAS
+            # ALERTA 2 — VENTANA PRODUCCIÓN > 7 DÍAS (mejorada)
             # =====================================================
             def tabla_a2():
                 df_show = df_a2.copy()
                 df_show['F_Min'] = df_a2['DT_PMin'].dt.strftime('%d/%m/%Y')
                 df_show['F_Max'] = df_a2['DT_PMax'].dt.strftime('%d/%m/%Y')
-                df_show = df_show[[col_emb_re, col_resp, 'F_Min', 'F_Max', 'Rango_Pack']]
-                df_show = df_show.rename(columns={
-                    col_emb_re: 'Embarque', col_resp: 'Responsable',
-                    'F_Min': 'F. Packeo Min', 'F_Max': 'F. Packeo Max',
-                    'Rango_Pack': 'Días Rango'
+                cols = [col_emb_re, col_resp, 'F_Min', 'F_Max', 'Rango_Pack', 'ETD OK FFWW', 'País Destino']
+                df_show = df_show[cols].rename(columns={
+                    col_emb_re  : 'Embarque',
+                    col_resp    : 'Responsable',
+                    'F_Min'     : 'F. Packeo Min',
+                    'F_Max'     : 'F. Packeo Max',
+                    'Rango_Pack': 'Días Rango',
                 }).sort_values('Días Rango', ascending=False)
                 st.dataframe(df_show, use_container_width=True, hide_index=True,
-                    column_config={'Días Rango': st.column_config.NumberColumn(format="%d días ⚡")})
+                    column_config={
+                        'Días Rango'  : st.column_config.NumberColumn(format="%d días ⚡"),
+                        'ETD OK FFWW' : st.column_config.TextColumn("ETD OK"),
+                        'País Destino': st.column_config.TextColumn("País"),
+                    })
 
             render_alerta("a2", "🟠", "ALERTA 2 — VENTANA DE PRODUCCIÓN EXTENDIDA (>7 DÍAS)",
-                "Embarques con más de 7 días entre primer y último packeo · Riesgo de consolidación tardía",
+                "Embarques con más de 7 días entre primer y último packeo · incluye estado ETD y país destino",
                 "#ffaa00", len(df_a2), tabla_a2)
 
             # =====================================================
@@ -1512,7 +1584,6 @@ border-radius:12px; border:1px solid {color}44;'>
             st.error(f"Error en Alertas Estratégicas: {e}")
             import traceback
             st.code(traceback.format_exc())
-
       # --- SOLAPA 8: ASK COMEX ---
     with tabs[7]:
         st.markdown("<div style='text-align:center; padding: 40px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; border: 2px dashed rgba(0, 168, 255, 0.2);'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:10px;'>ASK COMEX</h2><p style='color:#94a3b8; font-size:18px; margin-top:20px;'>Inteligencia Operativa en Tiempo Real.</p></div>", unsafe_allow_html=True)
