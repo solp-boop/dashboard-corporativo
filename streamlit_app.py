@@ -1207,223 +1207,274 @@ try:
             st.markdown("""
 <div style='text-align:center; padding:25px; background:linear-gradient(135deg,rgba(255,170,0,0.08),rgba(0,168,255,0.05));
 border-radius:20px; border:1px solid rgba(255,170,0,0.2); margin-bottom:30px;'>
-<h2 style='color:#ffaa00; font-weight:900; letter-spacing:6px; margin:0; font-size:26px;'>💰 FLETES & GASTOS LOCALES</h2>
-<p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>MARÍTIMO · 2026 · COTIZACIONES EN TIEMPO REAL</p>
+<h2 style='color:#ffaa00; font-weight:900; letter-spacing:6px; margin:0; font-size:26px;'>FLETES & GASTOS LOCALES</h2>
+<p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>MARITIMO 2026 - COTIZACIONES EN TIEMPO REAL</p>
 </div>""", unsafe_allow_html=True)
 
             SHEET_URL = "https://docs.google.com/spreadsheets/d/1UJ1bDyDQdIQSSVQ6dyChVKbMX1d69G68ji_dpsOzfHg"
 
             @st.cache_data(ttl=300)
-            def load_fletes_tabla_a(url):
+            def load_fletes_data(url):
                 csv_url = f"{url}/export?format=csv&gid=0"
-                df_all = pd.read_csv(csv_url, header=0, dtype=str, on_bad_lines='skip')
-                df_all.columns = [str(c).strip() for c in df_all.columns]
-                col0 = df_all.columns[0]
-                tipos_validos = ['20ST', '40ST/40HQ', '40NOR', '40ST']
-                mask = df_all[col0].astype(str).str.strip().isin(tipos_validos)
-                df_a = df_all[mask].copy()
-                return df_a
+                df_f = pd.read_csv(csv_url, header=0, dtype=str, on_bad_lines='skip')
+                df_f.columns = [str(c).strip() for c in df_f.columns]
+                return df_f
 
-            @st.cache_data(ttl=300)
-            def load_fletes_tabla_b(url):
-                csv_url = f"{url}/export?format=csv&gid=0"
-                df_raw = pd.read_csv(csv_url, header=None, dtype=str, on_bad_lines='skip', skiprows=899)
-                header_idx = None
-                for i, row in df_raw.iterrows():
-                    if 'Tipo de transporte' in str(row.iloc[0]) or 'TIPO DE TRANSPORTE' in str(row.iloc[0]).upper():
-                        header_idx = i
-                        break
-                if header_idx is None:
-                    return pd.DataFrame()
-                headers = [str(v).strip() for v in df_raw.iloc[header_idx].values]
-                df_b = df_raw.iloc[header_idx+2:].copy()
-                df_b.columns = range(len(df_b.columns))
-                col_map = {h.upper(): i for i, h in enumerate(headers)}
-                ci_agente  = col_map.get('AGENTE', 2)
-                ci_desde   = col_map.get('VALIDEZ QUINCENA DESDE', 10)
-                ci_hasta   = col_map.get('VALIDEZ QUINCENA HASTA', 11)
-                ci_locales = next((col_map[k] for k in col_map if 'LOCAL' in k), 14)
-                df_b = df_b[[ci_agente, ci_desde, ci_hasta, ci_locales]].copy()
-                df_b.columns = ['AGENTE', 'DESDE_RAW', 'HASTA_RAW', 'LOCALES_RAW']
-                return df_b
+            df_fl = load_fletes_data(SHEET_URL)
 
-            def parse_usd(val):
+            def parse_usd_fl(val):
                 try:
-                    s = str(val).replace('USD', '').replace('$', '').replace(' ', '').replace('.', '').replace(',', '.')
-                    return float(''.join(c for c in s if c.isdigit() or c == '.'))
+                    s = str(val).replace('USD','').replace('$','').replace(' ','').strip()
+                    s = s.replace('.','').replace(',','.')
+                    return float(s)
                 except:
                     return None
 
-            df_a = load_fletes_tabla_a(SHEET_URL)
+            # Columnas por indice segun estructura confirmada
+            # A(0)=Tipo transporte, B(1)=FFWW, C(2)=Agente, D(3)=Valor Flete
+            # K(10)=Validez Desde, L(11)=Validez Hasta, O(14)=Locales ARG, P(15)=Tipo Ctnr
+            col_fl_tipo   = df_fl.columns[0]
+            col_fl_agente = df_fl.columns[2]
+            col_fl_flete  = df_fl.columns[3]
+            col_fl_desde  = df_fl.columns[10]
+            col_fl_hasta  = df_fl.columns[11]
+            col_fl_local  = df_fl.columns[14]
+            col_fl_cnt    = df_fl.columns[15]
 
-            def get_col(df, candidates):
-                for cand in candidates:
-                    matches = [c for c in df.columns if cand.upper() in c.upper()]
-                    if matches: return matches[0]
-                return df.columns[0]
+            df_fl['_desde_dt'] = pd.to_datetime(df_fl[col_fl_desde], dayfirst=True, errors='coerce')
+            df_fl['_hasta_dt'] = pd.to_datetime(df_fl[col_fl_hasta], dayfirst=True, errors='coerce')
+            df_fl['_flete']    = df_fl[col_fl_flete].apply(parse_usd_fl)
+            df_fl['_local']    = df_fl[col_fl_local].apply(parse_usd_fl)
+            df_fl['_cnt']      = df_fl[col_fl_cnt].astype(str).str.strip().str.upper()
+            df_fl['_agente']   = df_fl[col_fl_agente].astype(str).str.strip()
+            df_fl['_mes_num']  = df_fl['_desde_dt'].dt.month
+            df_fl['_mes_label']= df_fl['_desde_dt'].dt.strftime('%B %Y').str.upper()
+            df_fl['_anio']     = df_fl['_desde_dt'].dt.year
 
-            col_tipo   = get_col(df_a, ['TIPO'])
-            col_origen = get_col(df_a, ['ORIGEN'])
-            col_agente = get_col(df_a, ['AGENTE'])
-            col_precio = get_col(df_a, ['PRECIO'])
-            col_desde  = get_col(df_a, ['DESDE'])
-            col_hasta  = get_col(df_a, ['HASTA'])
-
-            df_a['PRECIO_NUM'] = df_a[col_precio].apply(parse_usd)
-            df_a['DT_Desde']   = pd.to_datetime(df_a[col_desde], dayfirst=True, errors='coerce')
-            df_a['DT_Hasta']   = pd.to_datetime(df_a[col_hasta], dayfirst=True, errors='coerce')
-
-            df_a = df_a[
-                df_a['PRECIO_NUM'].notna() &
-                (df_a['DT_Desde'].dt.year == 2026) &
-                (df_a['DT_Hasta'].dt.year == 2026)
+            # Solo 2026 y con flete valido
+            df_fl_2026 = df_fl[
+                (df_fl['_anio'] == 2026) &
+                df_fl['_flete'].notna() &
+                (df_fl['_cnt'] != 'NAN') &
+                (df_fl['_cnt'] != '')
             ].copy()
 
-            df_a['Mes_Num']   = df_a['DT_Desde'].dt.month
-            df_a['Mes_Label'] = df_a['DT_Desde'].dt.strftime('%b %Y')
-
-            try:
-                df_b = load_fletes_tabla_b(SHEET_URL)
-                df_b['LOCALES_NUM'] = df_b['LOCALES_RAW'].apply(parse_usd)
-                df_b['DT_Desde']    = pd.to_datetime(df_b['DESDE_RAW'], dayfirst=True, errors='coerce')
-                df_b['DT_Hasta']    = pd.to_datetime(df_b['HASTA_RAW'], dayfirst=True, errors='coerce')
-                df_b = df_b[
-                    df_b['LOCALES_NUM'].notna() &
-                    (df_b['DT_Desde'].dt.year == 2026) &
-                    (df_b['DT_Hasta'].dt.year == 2026)
-                ].copy()
-                df_b['Mes_Num']   = df_b['DT_Desde'].dt.month
-                df_b['Mes_Label'] = df_b['DT_Desde'].dt.strftime('%b %Y')
-                tiene_locales = not df_b.empty
-            except:
-                df_b = pd.DataFrame()
-                tiene_locales = False
-
-            TIPOS_CNTR = ['20ST', '40ST/40HQ', '40NOR']
+            TIPOS_CNT  = ['40ST/40HQ', '20ST', '40NOR']
             TARGET_PCT = 0.85
-            COLORES    = {'20ST': '#00a8ff', '40ST/40HQ': '#00ff88', '40NOR': '#ffaa00'}
+            COLORES_CNT = {'40ST/40HQ': '#00a8ff', '20ST': '#00ff88', '40NOR': '#ffaa00'}
 
-            df_vig = df_a[(df_a['DT_Desde'] <= hoy) & (df_a['DT_Hasta'] >= hoy)].copy()
+            if df_fl_2026.empty:
+                st.warning("No se encontraron cotizaciones validas para 2026.")
+            else:
+                # ── BLOQUE 1: COTIZACIONES VIGENTES HOY ─────────────────────
+                df_vig = df_fl_2026[
+                    (df_fl_2026['_desde_dt'] <= hoy) &
+                    (df_fl_2026['_hasta_dt'] >= hoy)
+                ].copy()
 
-            if df_vig.empty:
-                ultimo = df_a['DT_Desde'].max()
-                if pd.isna(ultimo):
-                    st.warning("No se encontraron cotizaciones con fechas válidas en la planilla.")
-                else:
-                    df_vig = df_a[df_a['DT_Desde'] == ultimo].copy()
-                    st.info(f"ℹ️ Sin cotizaciones para hoy. Período más reciente: {ultimo.strftime('%d/%m/%Y')}")
-
-            st.markdown(f"""
+                st.markdown(f"""
 <div style='padding:14px 20px; background:rgba(255,255,255,0.02); border-radius:12px;
 border-left:4px solid #00ff88; margin-bottom:20px;'>
 <p style='color:#00ff88; font-weight:800; font-size:15px; letter-spacing:3px; margin:0;'>
-⚡ COTIZACIONES VIGENTES — HOY {hoy.strftime('%d/%m/%Y')}</p>
+COTIZACIONES VIGENTES HOY {hoy.strftime('%d/%m/%Y')}</p>
 <p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>
-Validez Quincena Desde ≤ {hoy.strftime('%d/%m/%Y')} ≤ Validez Quincena Hasta</p>
+Validez Quincena Desde menor o igual a hoy y Validez Quincena Hasta mayor o igual a hoy</p>
 </div>""", unsafe_allow_html=True)
 
-            h0,h1,h2,h3,h4,h5 = st.columns([1.2,1.3,1.3,1.3,1.8,1])
-            for col_h, txt in zip([h0,h1,h2,h3,h4,h5], ["TIPO CNT","PROM. MERCADO","TARGET -15%","🏆 MENOR TARIFA","AGENTE","VS TARGET"]):
-                col_h.markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:700; letter-spacing:1px; margin:0;'>{txt}</p>", unsafe_allow_html=True)
-            st.markdown("<hr style='border:none; border-top:1px solid rgba(255,255,255,0.1); margin:6px 0 8px 0;'>", unsafe_allow_html=True)
+                if df_vig.empty:
+                    st.info("No hay cotizaciones vigentes para hoy. Mostrando el periodo mas reciente disponible.")
+                    ultimo_desde = df_fl_2026['_desde_dt'].max()
+                    if pd.notna(ultimo_desde):
+                        df_vig = df_fl_2026[df_fl_2026['_desde_dt'] == ultimo_desde].copy()
 
-            for tipo in TIPOS_CNTR:
-                df_t = df_vig[df_vig[col_tipo].astype(str).str.strip() == tipo]
-                if df_t.empty: continue
-                prom_mkt   = df_t['PRECIO_NUM'].mean()
-                target     = prom_mkt * TARGET_PCT
-                min_precio = df_t['PRECIO_NUM'].min()
-                agente_min = df_t.loc[df_t['PRECIO_NUM'].idxmin(), col_agente]
-                diff_pct   = (min_precio - target) / target * 100
-                ok         = min_precio <= target
-                color      = COLORES.get(tipo, '#94a3b8')
-                c0,c1,c2,c3,c4,c5 = st.columns([1.2,1.3,1.3,1.3,1.8,1])
-                c0.markdown(f"<p style='color:{color}; font-weight:800; font-size:16px; margin:8px 0;'>{tipo}</p>", unsafe_allow_html=True)
-                c1.markdown(f"<p style='color:#f8fafc; font-size:18px; font-weight:600; margin:8px 0;'>USD {prom_mkt:,.0f}</p>", unsafe_allow_html=True)
-                c2.markdown(f"<p style='color:{color}; font-size:18px; font-weight:700; margin:8px 0;'>USD {target:,.0f}</p>", unsafe_allow_html=True)
-                c3.markdown(f"<p style='color:#00ff88; font-size:20px; font-weight:900; margin:8px 0;'>USD {min_precio:,.0f}</p>", unsafe_allow_html=True)
-                c4.markdown(f"<p style='color:#f8fafc; font-size:14px; font-weight:600; margin:8px 0;'>{agente_min}</p>", unsafe_allow_html=True)
-                c5.markdown(f"<p style='color:{'#00ff88' if ok else '#ff4b4b'}; font-size:14px; font-weight:800; margin:8px 0;'>{'✅' if ok else '🔴'} {diff_pct:+.1f}%</p>", unsafe_allow_html=True)
-                st.markdown("<hr style='border:none; border-top:1px solid rgba(255,255,255,0.05); margin:2px 0;'>", unsafe_allow_html=True)
+                if not df_vig.empty:
+                    cant_agentes_vig = df_vig['_agente'].nunique()
+                    v1, v2 = st.columns([1, 3])
+                    with v1:
+                        st.markdown(f"""
+<div class='custom-card' style='border-top:3px solid #00ff88; text-align:center;'>
+<p class='minicard-title'>AGENTES COTIZADOS</p>
+<p style='font-size:52px; font-weight:900; color:#00ff88; margin:0;'>{cant_agentes_vig}</p>
+</div>""", unsafe_allow_html=True)
 
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("""
+                    with v2:
+                        # Tabla por tipo CNT
+                        rows_vig = []
+                        for cnt in TIPOS_CNT:
+                            df_cnt = df_vig[df_vig['_cnt'] == cnt]
+                            if df_cnt.empty: continue
+                            prom   = df_cnt['_flete'].mean()
+                            minimo = df_cnt['_flete'].min()
+                            ag_min = df_cnt.loc[df_cnt['_flete'].idxmin(), '_agente']
+                            target = prom * TARGET_PCT
+                            vs_tgt = round((minimo - target) / target * 100, 1) if target > 0 else None
+                            ok     = minimo <= target
+                            rows_vig.append({
+                                'Tipo CNT'       : cnt,
+                                'Agentes'        : df_cnt['_agente'].nunique(),
+                                'Prom. Mercado'  : round(prom, 0),
+                                'Target -15%'    : round(target, 0),
+                                'Mejor Oferta'   : round(minimo, 0),
+                                'Agente Ganador' : ag_min,
+                                'Vs Target'      : f"{'OK' if ok else 'ALTO'} {vs_tgt:+.1f}%" if vs_tgt else "SD",
+                            })
+
+                        if rows_vig:
+                            df_vig_tabla = pd.DataFrame(rows_vig)
+                            st.dataframe(
+                                df_vig_tabla, use_container_width=True, hide_index=True,
+                                column_config={
+                                    'Tipo CNT'      : st.column_config.TextColumn("Tipo CNT"),
+                                    'Agentes'       : st.column_config.NumberColumn("Agentes", format="%d"),
+                                    'Prom. Mercado' : st.column_config.NumberColumn("Prom. Mercado", format="$ %,.0f"),
+                                    'Target -15%'   : st.column_config.NumberColumn("Target -15%", format="$ %,.0f"),
+                                    'Mejor Oferta'  : st.column_config.NumberColumn("Mejor Oferta", format="$ %,.0f"),
+                                    'Agente Ganador': st.column_config.TextColumn("Agente Ganador"),
+                                    'Vs Target'     : st.column_config.TextColumn("Vs Target"),
+                                }
+                            )
+
+                # Gastos locales vigentes
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("""
 <div style='padding:14px 20px; background:rgba(255,255,255,0.02); border-radius:12px;
 border-left:4px solid #a855f7; margin-bottom:20px;'>
 <p style='color:#a855f7; font-weight:800; font-size:15px; letter-spacing:3px; margin:0;'>
-🏛️ GASTOS LOCALES ARG — VIGENTES HOY</p>
+GASTOS LOCALES ARG - VIGENTES HOY</p>
 </div>""", unsafe_allow_html=True)
 
-            if tiene_locales:
-                df_loc_vig = df_b[(df_b['DT_Desde'] <= hoy) & (df_b['DT_Hasta'] >= hoy)].copy()
+                df_loc_vig = df_fl_2026[
+                    (df_fl_2026['_desde_dt'] <= hoy) &
+                    (df_fl_2026['_hasta_dt'] >= hoy) &
+                    df_fl_2026['_local'].notna()
+                ].copy()
+
                 if df_loc_vig.empty:
-                    ultimo_b = df_b['DT_Desde'].max()
-                    df_loc_vig = df_b[df_b['DT_Desde'] == ultimo_b].copy()
+                    ultimo_l = df_fl_2026[df_fl_2026['_local'].notna()]['_desde_dt'].max()
+                    if pd.notna(ultimo_l):
+                        df_loc_vig = df_fl_2026[
+                            (df_fl_2026['_desde_dt'] == ultimo_l) &
+                            df_fl_2026['_local'].notna()
+                        ].copy()
+
                 if not df_loc_vig.empty:
-                    prom_loc   = df_loc_vig['LOCALES_NUM'].mean()
-                    min_loc    = df_loc_vig['LOCALES_NUM'].min()
-                    max_loc    = df_loc_vig['LOCALES_NUM'].max()
-                    agente_loc = df_loc_vig.loc[df_loc_vig['LOCALES_NUM'].idxmin(), 'AGENTE']
-                    la,lb,lc,ld = st.columns(4)
+                    prom_loc = df_loc_vig['_local'].mean()
+                    min_loc  = df_loc_vig['_local'].min()
+                    max_loc  = df_loc_vig['_local'].max()
+                    ag_loc   = df_loc_vig.loc[df_loc_vig['_local'].idxmin(), '_agente']
+                    la, lb, lc, ld = st.columns(4)
                     for col_card, valor, label, color in [
-                        (la, f"USD {prom_loc:,.0f}", "PROM. LOCALES", "#a855f7"),
-                        (lb, f"USD {min_loc:,.0f}",  "🏆 MENOR LOCAL", "#00ff88"),
-                        (lc, agente_loc,              "AGENTE MÁS BARATO", "#f8fafc"),
-                        (ld, f"USD {max_loc:,.0f}",  "MAYOR LOCAL", "#ff4b4b"),
+                        (la, f"USD {prom_loc:,.0f}", "PROM. LOCALES",     "#a855f7"),
+                        (lb, f"USD {min_loc:,.0f}",  "MENOR LOCAL",       "#00ff88"),
+                        (lc, ag_loc,                  "AGENTE MAS BARATO", "#f8fafc"),
+                        (ld, f"USD {max_loc:,.0f}",  "MAYOR LOCAL",       "#ff4b4b"),
                     ]:
                         col_card.markdown(f"""
 <div style='text-align:center; padding:16px 8px; background:rgba(255,255,255,0.02);
-border-radius:14px; border-top:3px solid {color}; border:1px solid {color}22;'>
+border-radius:14px; border-top:3px solid {color};'>
 <p style='color:#94a3b8; font-size:10px; letter-spacing:1px; margin:0 0 6px 0;'>{label}</p>
 <p style='color:{color}; font-size:22px; font-weight:900; margin:0;'>{valor}</p>
 </div>""", unsafe_allow_html=True)
-            else:
-                st.info("ℹ️ Los gastos locales ARG aún no tienen registros para 2026 en la planilla.")
+                else:
+                    st.info("No hay gastos locales disponibles para el periodo vigente.")
 
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("<hr style='border:none; border-top:2px solid rgba(255,170,0,0.15); margin:10px 0 25px 0;'>", unsafe_allow_html=True)
-            st.markdown("""
+                # ── BLOQUE 2: HISTORICO 2026 ────────────────────────────────
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("<hr style='border:none; border-top:2px solid rgba(255,170,0,0.15); margin:10px 0 25px 0;'>", unsafe_allow_html=True)
+                st.markdown("""
 <div style='padding:14px 20px; background:rgba(255,255,255,0.02); border-radius:12px;
 border-left:4px solid #ffaa00; margin-bottom:20px;'>
 <p style='color:#ffaa00; font-weight:800; font-size:15px; letter-spacing:3px; margin:0;'>
-📈 HISTÓRICO 2026 — PROMEDIO MENSUAL POR TIPO DE CNT</p>
+HISTORICO 2026 - EVOLUCION MENSUAL POR TIPO DE CNT</p>
+<p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>
+Promedio de mercado, mejor oferta y target -15% por mes y tipo de contenedor</p>
 </div>""", unsafe_allow_html=True)
 
-            df_evol = df_a.groupby(['Mes_Num', 'Mes_Label', col_tipo]).agg(
-                Prom=('PRECIO_NUM', 'mean'),
-                Min=('PRECIO_NUM', 'min'),
-                Max=('PRECIO_NUM', 'max'),
-            ).reset_index().sort_values('Mes_Num')
-            df_evol.rename(columns={col_tipo: 'TIPO'}, inplace=True)
-            df_evol['Target'] = df_evol['Prom'] * TARGET_PCT
+                # Tabla historico
+                rows_hist = []
+                meses_ord = df_fl_2026.drop_duplicates('_mes_num').sort_values('_mes_num')[['_mes_num','_mes_label']].values.tolist()
+                for mes_num, mes_lbl in meses_ord:
+                    df_mes = df_fl_2026[df_fl_2026['_mes_num'] == mes_num]
+                    for cnt in TIPOS_CNT:
+                        df_c = df_mes[df_mes['_cnt'] == cnt]
+                        if df_c.empty: continue
+                        prom   = df_c['_flete'].mean()
+                        minimo = df_c['_flete'].min()
+                        target = prom * TARGET_PCT
+                        dif    = round(prom - minimo, 0)
+                        desv   = round((minimo - prom) / prom * 100, 1) if prom > 0 else None
+                        vs_tgt = round((minimo - target) / target * 100, 1) if target > 0 else None
+                        rows_hist.append({
+                            'Mes'           : mes_lbl,
+                            '_mes_num'      : mes_num,
+                            'Tipo CNT'      : cnt,
+                            'Prom. Mercado' : round(prom, 0),
+                            'Target -15%'   : round(target, 0),
+                            'Mejor Oferta'  : round(minimo, 0),
+                            'Dif. USD'      : round(dif, 0),
+                            '% Desvio'      : f"{desv:+.1f}%" if desv is not None else "SD",
+                            'Vs Target'     : f"{vs_tgt:+.1f}%" if vs_tgt is not None else "SD",
+                        })
 
-            if not df_evol.empty:
-                fig_hist = px.line(df_evol, x='Mes_Label', y='Prom', color='TIPO', markers=True, color_discrete_map=COLORES, labels={'Prom': 'USD Promedio', 'Mes_Label': '', 'TIPO': 'Tipo CNT'})
-                for tipo in df_evol['TIPO'].unique():
-                    df_t = df_evol[df_evol['TIPO'] == tipo].sort_values('Mes_Num')
-                    fig_hist.add_scatter(x=df_t['Mes_Label'], y=df_t['Target'], mode='lines', line=dict(dash='dot', width=1.5, color=COLORES.get(tipo, '#94a3b8')), name=f'Target {tipo} (-15%)', opacity=0.4, showlegend=True)
-                fig_hist.update_traces(selector=dict(mode='lines+markers'), line_width=2.5, marker_size=9)
-                fig_hist.update_layout(height=420, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(size=12, family='Outfit, sans-serif', color='#94a3b8'), legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, title_text=''), xaxis=dict(showgrid=False, tickangle=-30, title=''), yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)', title='USD'), margin=dict(l=20, r=20, t=50, b=40))
-                st.plotly_chart(fig_hist, use_container_width=True)
+                df_hist = pd.DataFrame(rows_hist)
+                if not df_hist.empty:
+                    st.dataframe(
+                        df_hist.drop(columns=['_mes_num']),
+                        use_container_width=True, hide_index=True,
+                        column_config={
+                            'Mes'          : st.column_config.TextColumn("Mes"),
+                            'Tipo CNT'     : st.column_config.TextColumn("Tipo CNT"),
+                            'Prom. Mercado': st.column_config.NumberColumn("Prom. Mercado", format="$ %,.0f"),
+                            'Target -15%'  : st.column_config.NumberColumn("Target -15%", format="$ %,.0f"),
+                            'Mejor Oferta' : st.column_config.NumberColumn("Mejor Oferta", format="$ %,.0f"),
+                            'Dif. USD'     : st.column_config.NumberColumn("Dif. USD", format="$ %,.0f"),
+                            '% Desvio'     : st.column_config.TextColumn("% Desvio"),
+                            'Vs Target'    : st.column_config.TextColumn("Vs Target"),
+                        }
+                    )
 
-            if tiene_locales and not df_b.empty:
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.markdown("""
-<div style='padding:12px 18px; background:rgba(255,255,255,0.02); border-radius:12px;
-border-left:4px solid #a855f7; margin-bottom:15px;'>
-<p style='color:#a855f7; font-weight:800; font-size:14px; letter-spacing:2px; margin:0;'>
-🏛️ GASTOS LOCALES ARG — PROMEDIO MENSUAL 2026</p>
-</div>""", unsafe_allow_html=True)
-                df_loc_evol = df_b.groupby(['Mes_Num', 'Mes_Label']).agg(Prom_Local=('LOCALES_NUM', 'mean')).reset_index().sort_values('Mes_Num')
-                fig_loc = px.bar(df_loc_evol, x='Mes_Label', y='Prom_Local', text_auto=',.0f', color_discrete_sequence=['#a855f7'], labels={'Prom_Local': 'USD', 'Mes_Label': ''})
-                fig_loc.update_traces(textposition='outside', textfont_size=12, textfont_color='#f8fafc', marker=dict(cornerradius=5))
-                fig_loc.update_layout(height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(size=12, family='Outfit, sans-serif', color='#94a3b8'), xaxis=dict(showgrid=False, tickangle=-30, title=''), yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)', title='USD'), margin=dict(l=20, r=20, t=30, b=40))
-                st.plotly_chart(fig_loc, use_container_width=True)
+                    st.markdown("<br>", unsafe_allow_html=True)
+
+                    # Grafico de lineas: evolucion mensual por tipo CNT
+                    fig_evol = px.line(
+                        df_hist, x='Mes', y='Prom. Mercado', color='Tipo CNT',
+                        markers=True, color_discrete_map=COLORES_CNT,
+                        labels={'Prom. Mercado': 'USD', 'Mes': ''},
+                        title='Evolucion Mensual - Promedio de Mercado por Tipo CNT'
+                    )
+                    # Agregar lineas de Mejor Oferta y Target por tipo
+                    for cnt in df_hist['Tipo CNT'].unique():
+                        df_t = df_hist[df_hist['Tipo CNT'] == cnt].sort_values('_mes_num')
+                        color_cnt = COLORES_CNT.get(cnt, '#94a3b8')
+                        fig_evol.add_scatter(
+                            x=df_t['Mes'], y=df_t['Mejor Oferta'], mode='lines+markers',
+                            line=dict(dash='dot', width=2, color=color_cnt),
+                            marker=dict(symbol='diamond', size=8),
+                            name=f'Mejor Oferta {cnt}', opacity=0.7
+                        )
+                        fig_evol.add_scatter(
+                            x=df_t['Mes'], y=df_t['Target -15%'], mode='lines',
+                            line=dict(dash='dash', width=1.5, color=color_cnt),
+                            name=f'Target {cnt}', opacity=0.4
+                        )
+
+                    fig_evol.update_traces(selector=dict(mode='lines+markers', line_dash='solid'), line_width=2.5, marker_size=9)
+                    fig_evol.update_layout(
+                        height=480, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                        font=dict(size=12, family='Outfit, sans-serif', color='#94a3b8'),
+                        title_font_color='#ffaa00', title_font_size=14,
+                        legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, title_text=''),
+                        xaxis=dict(showgrid=False, tickangle=-30),
+                        yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)', title='USD'),
+                        margin=dict(l=20, r=20, t=80, b=40)
+                    )
+                    st.plotly_chart(fig_evol, use_container_width=True)
 
         except Exception as e:
             st.error(f"Error en Fletes y Gastos: {e}")
             import traceback
             st.code(traceback.format_exc())
+
 
 
     # --- SOLAPA 5: PROYECCIÓN SEMANAL ETD ---
