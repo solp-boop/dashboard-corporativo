@@ -977,131 +977,285 @@ try:
                 st.info("💡 Módulo : Próximamente integración de métricas de performance por usuario (Comex/Agentes).")
         except Exception as e: st.error(f"Error en Performance Agentes: {e}")
 
-    # --- SOLAPA 4: CONTROL DE FLETES, GASTOS Y CERTIFICACIONES ---
+ # --- SOLAPA 4: CONTROL DE FLETES, GASTOS Y CERTIFICACIONES ---
     with tabs[3]:
-        st.markdown("<div style='text-align:center; padding: 20px; background: rgba(255, 170, 0, 0.05); border-radius: 20px; margin-bottom: 30px;'><h2 style='color:#ffaa00; font-weight:800; letter-spacing:5px; margin:0;'>CONTROL DE FLETES, GASTOS Y CERTIFICACIONES</h2></div>", unsafe_allow_html=True)
-        st.info("Módulo en desarrollo: Integración de costos logísticos, certificación de fletes gastos en origen y destino.")
-
-    # --- SOLAPA 5: COTIZACIÓN FFWW ---
-    with tabs[4]:
         try:
-            st.markdown("<div style='background: rgba(0, 168, 255, 0.05); padding: 15px 25px; border-radius: 20px; border: 1px solid rgba(0, 168, 255, 0.2); margin: 15px 0;'><h3 style='color:#00a8ff; margin:0; text-align:center; letter-spacing:5px; text-transform:uppercase; font-weight:900;'>COTIZACIÓN FFWW — PROYECCIÓN MARÍTIMA</h3></div>", unsafe_allow_html=True)
-            st.markdown("<p style='color:#94a3b8; font-size:13px; text-align:center; margin-bottom:20px;'>Fuente: <b>Planif Cargas</b> · Filtro: Modalidad de Costeo = <b>BARCO</b> · ETD = Columna X</p>", unsafe_allow_html=True)
+            st.markdown("""
+<div style='text-align:center; padding:25px; background:linear-gradient(135deg,rgba(255,170,0,0.08),rgba(0,168,255,0.05));
+border-radius:20px; border:1px solid rgba(255,170,0,0.2); margin-bottom:30px;'>
+<h2 style='color:#ffaa00; font-weight:900; letter-spacing:6px; margin:0; font-size:26px;'>💰 FLETES & GASTOS LOCALES</h2>
+<p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>MARÍTIMO · COTIZACIONES EN TIEMPO REAL</p>
+</div>""", unsafe_allow_html=True)
 
-            # Cargar datos SIN filtro de SO para capturar TODAS las filas de planificación
-            @st.cache_data(ttl=60)
-            def load_planif_raw(u):
-                d = pd.read_csv(u)
-                d.columns = d.columns.str.strip()
-                if 'M3 Total' in d.columns:
-                    d['M3 Total'] = d['M3 Total'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
-                    d['M3 Total'] = pd.to_numeric(d['M3 Total'], errors='coerce').fillna(0)
-                return d
+            # =====================================================
+            # CARGA DE DATOS — Google Sheet cotizaciones
+            # =====================================================
+            SHEET_FLETES = "https://docs.google.com/spreadsheets/d/1UJ1bDyDQdIQSSVQ6dyChVKbMX1d69G68ji_dpsOzfHg"
 
-            df_raw = load_planif_raw(f"{base_url}/export?format=csv&gid=0&nocache={time.time()}")
+            @st.cache_data(ttl=300)
+            def load_fletes(url):
+                df = pd.read_csv(f"{url}/export?format=csv&gid=0")
+                df.columns = df.columns.str.strip()
+                return df
 
-            # Detectar columna Modalidad de Costeo
-            col_mod_opciones = [c for c in df_raw.columns if 'MODALIDAD' in str(c).upper() and 'COSTEO' in str(c).upper()]
-            col_mod = col_mod_opciones[0] if col_mod_opciones else 'Modalidad de Costeo Reposicion'
+            df_fl = load_fletes(SHEET_FLETES)
 
-            if col_mod in df_raw.columns:
-                mask_barco = df_raw[col_mod].astype(str).str.upper().str.startswith("BARCO")
-                df_ffww = df_raw[mask_barco].copy()
+            # Columnas esperadas:
+            # Tipo de transporte | FFWW | Agente | Valor Flete | POL | TT | Tipo de Servicio
+            # Linea | POD | Transbordo | Validez Quincena Desde | Validez Quincena Hasta
+            # Dias libres | Pagadero | Locales ARG
 
-                if not df_ffww.empty:
-                    # ETD = Columna X = índice 23
-                    df_ffww['ETD_DT'] = pd.to_datetime(df_ffww.iloc[:, 23], dayfirst=True, errors='coerce')
-                    df_ffww['Mes_ETD_Full'] = df_ffww['ETD_DT'].apply(lambda x: label_proyeccion(x, inicio_mes))
+            # Limpiar columnas
+            def find_fl(df, kws, idx):
+                for kw in kws:
+                    m = [c for c in df.columns if kw.upper() in str(c).upper()]
+                    if m: return m[0]
+                return df.columns[idx] if len(df.columns) > idx else df.columns[0]
 
-                    meses_disp = [m for m in df_ffww['Mes_ETD_Full'].unique() if m not in ["PASADO/REALIZADO", "SIN FECHA"]]
-                    meses_disp = sorted(meses_disp, key=lambda x: datetime.strptime(x, '%m/%Y'))
+            col_tipo_fl  = find_fl(df_fl, ['TIPO DE TRANSPORTE', 'TIPO'], 0)
+            col_ffww     = find_fl(df_fl, ['FFWW'], 1)
+            col_agente   = find_fl(df_fl, ['AGENTE'], 2)
+            col_flete    = find_fl(df_fl, ['VALOR FLETE', 'PRECIO'], 3)
+            col_pol      = find_fl(df_fl, ['POL'], 4)
+            col_tt       = find_fl(df_fl, ['TT'], 5)
+            col_servicio = find_fl(df_fl, ['TIPO DE SERVICIO', 'SERVICIO'], 6)
+            col_linea    = find_fl(df_fl, ['LINEA'], 7)
+            col_desde    = find_fl(df_fl, ['VALIDEZ QUINCENA DESDE', 'DESDE'], 10)
+            col_hasta    = find_fl(df_fl, ['VALIDEZ QUINCENA HASTA', 'HASTA'], 11)
+            col_locales  = find_fl(df_fl, ['LOCALES ARG', 'LOCALES'], 14)
 
+            # Parsear precio
+            def parse_usd(val):
+                try:
+                    s = str(val).replace('USD', '').replace('$', '').replace(' ', '').replace('.', '').replace(',', '.')
+                    return float(''.join(c for c in s if c.isdigit() or c == '.'))
+                except:
+                    return None
 
-                    if meses_disp:
-                        # Detectar columna Puerto
-                        col_puerto_opts = [c for c in df.columns if 'PUERTO' in str(c).upper() and 'SAL' in str(c).upper()]
-                        col_puerto = col_puerto_opts[0] if col_puerto_opts else df.columns[41]
+            df_fl['Precio_Num']   = df_fl[col_flete].apply(parse_usd)
+            df_fl['Locales_Num']  = df_fl[col_locales].apply(parse_usd)
+            df_fl['DT_Desde']     = pd.to_datetime(df_fl[col_desde], dayfirst=True, errors='coerce')
+            df_fl['DT_Hasta']     = pd.to_datetime(df_fl[col_hasta], dayfirst=True, errors='coerce')
+            df_fl['Mes_Label']    = df_fl['DT_Desde'].dt.strftime('%m/%Y')
+            df_fl['Quincena']     = df_fl['DT_Desde'].dt.day.apply(lambda d: 'Q1' if d <= 15 else 'Q2')
+            df_fl['Periodo']      = df_fl['Mes_Label'] + ' ' + df_fl['Quincena']
 
-                        c_sel, _ = st.columns([1, 2])
-                        with c_sel:
-                            sel_mes = st.selectbox("📅 SELECCIONE EL MES A COTIZAR:", meses_disp, index=0)
+            # Solo marítimo y con precio válido
+            df_fl = df_fl[
+                df_fl[col_tipo_fl].astype(str).str.upper().str.contains('MARITIMO|MARÍTIMO', na=False) &
+                df_fl['Precio_Num'].notna()
+            ].copy()
 
-                        df_mes = df_ffww[df_ffww['Mes_ETD_Full'] == sel_mes].copy()
+            # Tipos de contenedor
+            TIPOS_CNTR = sorted(df_fl[col_ffww].dropna().unique().tolist())
 
-                        if not df_mes.empty:
-                            # Semana dentro del mes (1-5) basada en el día del ETD
-                            def semana_del_mes(dt):
-                                if pd.isnull(dt): return 0
-                                day = dt.day
-                                month = dt.month
-                                year = dt.year
-                                # Determinar el rango de la semana para el label
-                                if day <= 7: return 1, "01-07"
-                                elif day <= 14: return 2, "08-14"
-                                elif day <= 21: return 3, "15-21"
-                                else: return 4, f"22-{pd.Period(dt, freq='M').days_in_month}"
+            # Semana en curso
+            semana_inicio = hoy - timedelta(days=hoy.weekday())
+            semana_fin    = semana_inicio + timedelta(days=6)
+            df_semana = df_fl[
+                (df_fl['DT_Desde'] <= hoy) & (df_fl['DT_Hasta'] >= semana_inicio)
+            ].copy()
 
-                            df_mes[['Sem_Mes', 'Sem_Rango']] = df_mes['ETD_DT'].apply(
-                                lambda x: pd.Series(semana_del_mes(x)) if pd.notnull(x) else pd.Series([0, ""])
-                            )
-                            
-                            df_mes['Semana_Label'] = df_mes.apply(
-                                lambda r: f"Semana {int(r['Sem_Mes'])} ({r['Sem_Rango']}) — {sel_mes}" if r['Sem_Mes'] > 0 else "📋 SIN ETD ASIGNADO",
-                                axis=1
-                            )
+            TARGET_PCT = 0.85  # -15% del promedio mercado
 
-                            # Agrupación por semana del mes y puerto
-                            res_ffww = df_mes.groupby(['Sem_Mes', 'Semana_Label', col_puerto]).agg({'M3 Total': 'sum'}).reset_index()
-                            res_ffww['Contenedores'] = (res_ffww['M3 Total'] / 60).round().astype(int)
-                            res_ffww['M3 Total'] = res_ffww['M3 Total'].round().astype(int)
+            # =====================================================
+            # KPIs EJECUTIVOS — semana en curso
+            # =====================================================
+            st.markdown(f"<p style='color:#94a3b8; font-size:12px; text-align:center; letter-spacing:2px; margin-bottom:20px;'>SEMANA EN CURSO: {semana_inicio.strftime('%d/%m')} AL {semana_fin.strftime('%d/%m/%Y')}</p>", unsafe_allow_html=True)
 
-                            # Subtotales por semana del mes
-                            subtot_ffww = res_ffww.groupby(['Sem_Mes', 'Semana_Label']).agg({'Contenedores': 'sum', 'M3 Total': 'sum'}).reset_index()
-                            subtot_ffww[col_puerto] = "📌 SUBTOTAL SEMANA"
+            kpi_cols = st.columns(len(TIPOS_CNTR) if TIPOS_CNTR else 3)
+            colores_tipo = {'20ST': '#00a8ff', '40ST/40HQ': '#00ff88', '40NOR': '#ffaa00'}
 
-                            res_ffww['IsTotal'] = False
-                            subtot_ffww['IsTotal'] = True
+            for i, tipo in enumerate(TIPOS_CNTR):
+                df_t = df_semana[df_semana[col_ffww] == tipo]
+                if df_t.empty:
+                    continue
+                prom_mercado = df_t['Precio_Num'].mean()
+                target       = prom_mercado * TARGET_PCT
+                min_precio   = df_t['Precio_Num'].min()
+                agente_min   = df_t.loc[df_t['Precio_Num'].idxmin(), col_agente]
+                desvio_pct   = ((prom_mercado - target) / target * 100)
+                ok_vs_target = min_precio <= target
+                color        = colores_tipo.get(tipo, '#94a3b8')
+                estado       = "✅ OK" if ok_vs_target else "🔴 Por encima"
 
-                            final_ffww = pd.concat([res_ffww, subtot_ffww], ignore_index=True)
-                            
-                            # Forzar mostrar todas las semanas aunque no tengan datos (Opcional, pero aquí simplemente ordenamos)
-                            final_ffww = final_ffww.sort_values(
-                                by=['Sem_Mes', 'IsTotal', 'Contenedores'],
-                                ascending=[True, True, False]
-                            )
+                kpi_cols[i].markdown(f"""
+<div style='padding:18px; background:rgba(255,255,255,0.02); border-radius:16px;
+border-top:3px solid {color}; border:1px solid {color}33; text-align:center;'>
+<p style='color:{color}; font-weight:800; font-size:13px; letter-spacing:2px; margin:0 0 10px 0;'>{tipo}</p>
+<p style='color:#94a3b8; font-size:11px; margin:0;'>PROM. MERCADO</p>
+<p style='color:#f8fafc; font-size:24px; font-weight:700; margin:0;'>USD {prom_mercado:,.0f}</p>
+<p style='color:#94a3b8; font-size:11px; margin:8px 0 0 0;'>TARGET (-15%)</p>
+<p style='color:{color}; font-size:20px; font-weight:700; margin:0;'>USD {target:,.0f}</p>
+<hr style='border:none; border-top:1px solid rgba(255,255,255,0.08); margin:10px 0;'>
+<p style='color:#94a3b8; font-size:11px; margin:0;'>🏆 MENOR TARIFA</p>
+<p style='color:#00ff88; font-size:22px; font-weight:900; margin:0;'>USD {min_precio:,.0f}</p>
+<p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>{agente_min}</p>
+<hr style='border:none; border-top:1px solid rgba(255,255,255,0.08); margin:10px 0;'>
+<p style='font-size:13px; font-weight:700; margin:0; color:{"#00ff88" if ok_vs_target else "#ff4b4b"};'>{estado} vs Target</p>
+<p style='color:#94a3b8; font-size:11px; margin:2px 0 0 0;'>Desvío: {desvio_pct:+.1f}%</p>
+</div>""", unsafe_allow_html=True)
 
-                            final_ffww = final_ffww[['Semana_Label', col_puerto, 'Contenedores', 'M3 Total']]
-                            final_ffww.columns = ['Semana del Mes', 'Puerto de Salida', 'Cant. Contenedores', 'Total M3']
+            st.markdown("<br>", unsafe_allow_html=True)
 
-                            st.dataframe(final_ffww, use_container_width=True, hide_index=True,
-                                column_config={
-                                    'Total M3': st.column_config.NumberColumn(format="%d M3"),
-                                    'Cant. Contenedores': st.column_config.NumberColumn(format="%d CNTR")
-                                })
+            # =====================================================
+            # SELECTOR DE PERÍODO
+            # =====================================================
+            periodos_disp = sorted(df_fl['Periodo'].dropna().unique().tolist(),
+                key=lambda x: pd.to_datetime(x.split(' ')[0], format='%m/%Y'))
 
-                            # Alerta si hay embarques sin ETD
-                            sin_etd = (df_mes['Sem_Mes'] == 0).sum()
-                            if sin_etd > 0:
-                                st.warning(f"⚠️ **{sin_etd} embarque(s)** no tienen ETD asignado y aparecen en '📋 SIN ETD ASIGNADO'.")
+            col_sel1, col_sel2 = st.columns([2, 3])
+            with col_sel1:
+                tipo_sel = st.selectbox("📦 TIPO DE CONTENEDOR:", ["TODOS"] + TIPOS_CNTR, key="fl_tipo")
+            with col_sel2:
+                periodo_sel = st.selectbox("📅 PERÍODO (QUINCENA):", ["TODOS"] + periodos_disp, key="fl_periodo")
 
-                            st.markdown("<div style='height:15px;'></div>", unsafe_allow_html=True)
-                            cc1, cc2, cc3, _ = st.columns([1, 1, 1, 1])
-                            # Filtro Sem_Mes > 0 para excluir sin ETD de la suma de contenedores si se prefiere, pero aquí sumamos todo lo visible
-                            cc1.metric("CONTENEDORES (MES)", int(res_ffww['Contenedores'].sum()))
-                            cc2.metric("VOLUMEN TOTAL (MES)", f"{int(res_ffww['M3 Total'].sum()):,} M3")
-                            cc3.metric("EMBARQUES (MES)", len(df_mes))
-                        else:
-                            st.info("No hay proyecciones para este mes.")
+            df_vista = df_fl.copy()
+            if tipo_sel != "TODOS":
+                df_vista = df_vista[df_vista[col_ffww] == tipo_sel]
+            if periodo_sel != "TODOS":
+                df_vista = df_vista[df_vista['Periodo'] == periodo_sel]
 
+            st.markdown("<hr style='border:none; border-top:1px solid rgba(255,255,255,0.08); margin:20px 0;'>", unsafe_allow_html=True)
 
-                    else:
-                        st.info("No hay meses futuros disponibles.")
-                else:
-                    st.info("No hay operaciones marítimas activas (modalidad BARCO).")
+            # =====================================================
+            # GRÁFICO 1 — Evolución histórica de tarifas por tipo
+            # =====================================================
+            st.markdown("<p style='color:#ffaa00; font-weight:800; font-size:15px; letter-spacing:3px; margin-bottom:15px;'>📈 EVOLUCIÓN HISTÓRICA DE TARIFAS POR QUINCENA</p>", unsafe_allow_html=True)
+
+            df_hist = df_fl.copy()
+            if tipo_sel != "TODOS":
+                df_hist = df_hist[df_hist[col_ffww] == tipo_sel]
+
+            df_evol = df_hist.groupby(['Periodo', col_ffww, 'DT_Desde']).agg(
+                Prom=('Precio_Num', 'mean'),
+                Min=('Precio_Num', 'min'),
+                Max=('Precio_Num', 'max')
+            ).reset_index().sort_values('DT_Desde')
+
+            if not df_evol.empty:
+                fig_hist = px.line(df_evol, x='Periodo', y='Prom', color=col_ffww,
+                    markers=True, title='',
+                    color_discrete_map={'20ST': '#00a8ff', '40ST/40HQ': '#00ff88', '40NOR': '#ffaa00'})
+                fig_hist.update_traces(line_width=2.5, marker_size=8)
+                fig_hist.update_layout(
+                    height=400, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    font=dict(size=13, family='Outfit, sans-serif', color='#94a3b8'),
+                    legend_title_text='Tipo',
+                    xaxis=dict(showgrid=False, tickangle=-45),
+                    yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)', title='USD Promedio'),
+                    margin=dict(l=20, r=20, t=20, b=80)
+                )
+                st.plotly_chart(fig_hist, use_container_width=True)
+
+            # =====================================================
+            # GRÁFICO 2 — Ranking de agentes por tarifa promedio
+            # =====================================================
+            st.markdown("<p style='color:#00a8ff; font-weight:800; font-size:15px; letter-spacing:3px; margin:20px 0 15px 0;'>🏆 RANKING DE AGENTES — MENOR TARIFA PROMEDIO</p>", unsafe_allow_html=True)
+
+            df_rank_ag = df_vista.groupby([col_agente, col_ffww]).agg(
+                Prom_Tarifa=('Precio_Num', 'mean'),
+                Min_Tarifa=('Precio_Num', 'min'),
+                Cotizaciones=('Precio_Num', 'count')
+            ).reset_index().sort_values('Prom_Tarifa')
+
+            if not df_rank_ag.empty:
+                fig_rank = px.bar(df_rank_ag, x=col_agente, y='Prom_Tarifa', color=col_ffww,
+                    barmode='group', text_auto=',.0f',
+                    color_discrete_map={'20ST': '#00a8ff', '40ST/40HQ': '#00ff88', '40NOR': '#ffaa00'})
+                fig_rank.update_traces(textposition='outside', textfont_size=12, marker=dict(cornerradius=4))
+                fig_rank.update_layout(
+                    height=420, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    font=dict(size=12, family='Outfit, sans-serif', color='#94a3b8'),
+                    xaxis=dict(showgrid=False, tickangle=-30, title=''),
+                    yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)', title='USD Promedio'),
+                    legend_title_text='Tipo', margin=dict(l=20, r=20, t=20, b=80)
+                )
+                st.plotly_chart(fig_rank, use_container_width=True)
+
+            # =====================================================
+            # GRÁFICO 3 — Gastos Locales ARG promedio por quincena
+            # =====================================================
+            df_locales = df_fl[df_fl['Locales_Num'].notna()].copy()
+            if not df_locales.empty:
+                st.markdown("<p style='color:#a855f7; font-weight:800; font-size:15px; letter-spacing:3px; margin:20px 0 15px 0;'>🏛️ GASTOS LOCALES ARG — PROMEDIO POR QUINCENA</p>", unsafe_allow_html=True)
+
+                df_loc_evol = df_locales.groupby(['Periodo', 'DT_Desde']).agg(
+                    Prom_Local=('Locales_Num', 'mean'),
+                    Min_Local=('Locales_Num', 'min'),
+                    Max_Local=('Locales_Num', 'max')
+                ).reset_index().sort_values('DT_Desde')
+
+                fig_loc = px.bar(df_loc_evol, x='Periodo', y='Prom_Local', text_auto=',.0f',
+                    color_discrete_sequence=['#a855f7'])
+                fig_loc.update_traces(textposition='outside', textfont_size=12, marker=dict(cornerradius=4))
+                fig_loc.update_layout(
+                    height=380, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    font=dict(size=12, family='Outfit, sans-serif', color='#94a3b8'),
+                    xaxis=dict(showgrid=False, tickangle=-45, title=''),
+                    yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)', title='USD Promedio Locales'),
+                    margin=dict(l=20, r=20, t=20, b=80)
+                )
+                st.plotly_chart(fig_loc, use_container_width=True)
+
+                # Mini tabla: mejor agente en gastos locales
+                best_local = df_locales.groupby(col_agente).agg(
+                    Prom_Local=('Locales_Num', 'mean'),
+                    Min_Local=('Locales_Num', 'min')
+                ).reset_index().sort_values('Prom_Local')
+
+                c1, c2 = st.columns([1, 2])
+                with c1:
+                    agente_mejor_local = best_local.iloc[0][col_agente]
+                    mejor_local_val    = best_local.iloc[0]['Prom_Local']
+                    st.markdown(f"""
+<div style='padding:20px; background:rgba(168,85,247,0.08); border-radius:14px;
+border-left:4px solid #a855f7; text-align:center;'>
+<p style='color:#a855f7; font-size:11px; font-weight:700; letter-spacing:2px; margin:0;'>🏆 MEJOR AGENTE LOCAL</p>
+<p style='color:#f8fafc; font-size:22px; font-weight:900; margin:8px 0 4px 0;'>{agente_mejor_local}</p>
+<p style='color:#a855f7; font-size:18px; font-weight:700; margin:0;'>USD {mejor_local_val:,.0f} prom.</p>
+</div>""", unsafe_allow_html=True)
+                with c2:
+                    st.dataframe(best_local.rename(columns={
+                        col_agente: 'Agente',
+                        'Prom_Local': 'Prom. Locales USD',
+                        'Min_Local': 'Menor Cotiz. USD'
+                    }), use_container_width=True, hide_index=True,
+                    column_config={
+                        'Prom. Locales USD': st.column_config.NumberColumn(format="USD %.0f"),
+                        'Menor Cotiz. USD' : st.column_config.NumberColumn(format="USD %.0f"),
+                    })
+
+            st.markdown("<hr style='border:none; border-top:1px solid rgba(255,255,255,0.08); margin:25px 0;'>", unsafe_allow_html=True)
+
+            # =====================================================
+            # TABLA DETALLE DEL PERÍODO SELECCIONADO
+            # =====================================================
+            st.markdown(f"<p style='color:#f8fafc; font-weight:800; font-size:15px; letter-spacing:3px; margin-bottom:15px;'>📋 DETALLE COTIZACIONES — {periodo_sel}</p>", unsafe_allow_html=True)
+
+            if not df_vista.empty:
+                cols_tabla = [col_ffww, col_agente, col_flete, col_pol, col_tt,
+                              col_desde, col_hasta, col_locales]
+                cols_tabla = [c for c in cols_tabla if c in df_vista.columns]
+                df_tabla = df_vista[cols_tabla].copy()
+                df_tabla = df_tabla.rename(columns={
+                    col_ffww   : 'Tipo',
+                    col_agente : 'Agente',
+                    col_flete  : 'Tarifa',
+                    col_pol    : 'POL (Origen)',
+                    col_tt     : 'TT (días)',
+                    col_desde  : 'Válido Desde',
+                    col_hasta  : 'Válido Hasta',
+                    col_locales: 'Locales ARG',
+                }).sort_values(['Tipo', 'Tarifa'])
+                st.dataframe(df_tabla, use_container_width=True, hide_index=True)
             else:
-                st.warning(f"No se encontró la columna de Modalidad de Costeo. Columnas disponibles: {list(df.columns[:10])}")
+                st.info("No hay cotizaciones para el período seleccionado.")
+
         except Exception as e:
-            st.error(f"Error en Cotización FFWW: {e}")
+            st.error(f"Error en Fletes y Gastos: {e}")
+            import traceback
+            st.code(traceback.format_exc())
 
 
     # --- SOLAPA 6: INDICADORES (SLA & CONSOLIDACIÓN) ---
