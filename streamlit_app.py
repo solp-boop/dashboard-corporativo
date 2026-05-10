@@ -2352,76 +2352,136 @@ No inventes datos. Si te preguntan algo que no está en el contexto, indícalo a
                     st.markdown(html_progress, unsafe_allow_html=True)
 
 
-    # --- SOLAPA 6: ALERTAS ESTRATÉGICAS ---
+# --- SOLAPA 6: INDICADORES (SLA & CONSOLIDACIÓN) ---
     with tabs[5]:
+        st.markdown("<div style='text-align:center; padding: 20px; background: rgba(0, 255, 136, 0.05); border-radius: 20px; margin: 30px 0;'><h2 style='color:#00ff88; font-weight:800; letter-spacing:5px; margin:0;'>INDICADORES DE CONSOLIDACIÓN Y SLA</h2></div>", unsafe_allow_html=True)
         try:
-            st.markdown("<h2 style='color:#00a8ff; font-weight:800; letter-spacing:4px; margin:20px 0; font-size:24px; text-align:center;'>ALERTAS ESTRATÉGICAS</h2>", unsafe_allow_html=True)
-            
-            # Recargamos Reservas para asegurar datos frescos
-            url_reserva = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
-            try: df_res_alt = load_reserva_data(url_reserva)
-            except: df_res_alt = pd.read_csv(url_reserva)
-            df_res_alt.columns = df_res_alt.columns.str.strip()
+            url_hi = f"{base_url}/export?format=csv&gid=32771816"
+            @st.cache_data(ttl=60)
+            def load_hi_vfinal(u): return pd.read_csv(u, engine='python')
 
-            # 1. MONITOR DE GESTIÓN POR FORWARDER (CRÍTICOS MOVILIZADOS)
-            st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
-            st.markdown("<p style='color:#ff4b4b; font-weight:700; letter-spacing:2px; font-size:18px;'>1. MONITOR DE GESTIÓN POR FORWARDER (CRÍTICOS)</p>", unsafe_allow_html=True)
-            
-            df_res_alt['DT_Inst'] = pd.to_datetime(df_res_alt.iloc[:, 7], dayfirst=True, errors='coerce')
-            df_res_alt['ETD_Status_K'] = df_res_alt.iloc[:, 10].astype(str).str.upper().str.strip()
-            df_res_alt['Espera'] = (pd.to_datetime('today') - df_res_alt['DT_Inst']).dt.days
-            df_res_alt['Critico'] = (df_res_alt['ETD_Status_K'] != "OK") & (df_res_alt['Espera'] > 5)
-            
-            df_crit = df_res_alt[df_res_alt['Critico']].copy()
-            if not df_crit.empty:
-                agentes_crit = sorted(df_crit.iloc[:, 6].unique().tolist())
-                sel_ag = st.selectbox("FILTRAR POR AGENTE (CASOS CRÍTICOS):", ["TODOS"] + agentes_crit, key="ag_crit_tab3")
-                df_crit_show = df_crit if sel_ag == "TODOS" else df_crit[df_crit.iloc[:, 6] == sel_ag]
-                
-                # Columnas: Embarque (0), Fecha Instruccion (7), Packeo Min (18), Packeo Max (19), Espera
-                cols_show = [df_crit.columns[0], df_crit.columns[7], df_crit.columns[18], df_crit.columns[19], 'Espera']
-                df_crit_disp = df_crit_show[cols_show].copy()
-                df_crit_disp.columns = ["Embarque", "Fecha Instrucción", "F. Packeo Min", "F. Packeo Max", "Días de Espera"]
-                
-                st.dataframe(df_crit_disp.sort_values('Días de Espera', ascending=False), 
-                             column_config={"Días de Espera": st.column_config.NumberColumn("Wait", format="%d ⚠️")},
-                             use_container_width=True, hide_index=True)
+            df_hi = load_hi_vfinal(url_hi)
+            df_hi.columns = [str(c).strip() for c in df_hi.columns]
+            df_hi['ETD_DT'] = pd.to_datetime(df_hi.iloc[:, 11], dayfirst=True, errors='coerce')
+            df_2026 = df_hi[df_hi.iloc[:, 25].astype(str).str.contains("2026")].copy()
+
+            if not df_2026.empty:
+                df_2026['Mes'] = df_2026['ETD_DT'].dt.month
+                col_tipo_carga_hi = df_hi.columns[5]
+                df_mar = df_2026[~df_2026[col_tipo_carga_hi].astype(str).str.upper().str.contains('AVION|COURRIER', na=False)].copy()
+                meses_dict = {1:"Enero", 2:"Febrero", 3:"Marzo", 4:"Abril", 5:"Mayo", 6:"Junio",
+                              7:"Julio", 8:"Agosto", 9:"Septiembre", 10:"Octubre", 11:"Noviembre", 12:"Diciembre"}
+                df_mar['Mes_Nombre'] = df_mar['Mes'].map(meses_dict)
+
+                col_mono_hi  = df_hi.columns[24]
+                col_puerto_hi = df_hi.columns[4]
+                col_cons_hi  = df_hi.columns[32]
+
+                def clean_n_hi(val):
+                    if pd.isna(val) or str(val).strip() in ['', 'nan']: return 0.0
+                    try:
+                        s = str(val).replace(',', '.').replace(' ', '').strip()
+                        return pd.to_numeric(s, errors='coerce')
+                    except: return 0.0
+
+                df_mar[col_cons_hi] = df_mar[col_cons_hi].apply(clean_n_hi).fillna(0.0).round(0)
+
+                @st.dialog("🚢 DETALLE POR PUERTO Y SLA", width="large")
+                def show_detalle_mes(df_sub, mes_lbl, mode="mixed"):
+                    st.markdown(f"### Análisis {mes_lbl.upper()}")
+                    res_p = df_sub.groupby(col_puerto_hi).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
+                    p_rows = []
+                    for _, r in res_p.iterrows():
+                        df_p_t = df_sub[df_sub[col_puerto_hi] == r[col_puerto_hi]].copy()
+                        tp_p = r[df_hi.columns[0]]
+                        def check_sla(row):
+                            days = row[col_cons_hi]
+                            is_mono = "SÍ" in str(row[col_mono_hi]).upper() or "SI" in str(row[col_mono_hi]).upper()
+                            limit = (15 if row['Mes'] <= 2 else 7) if is_mono else 25
+                            return days <= limit
+                        df_p_t['SLA_OK'] = df_p_t.apply(check_sla, axis=1)
+                        pct_sla = int((len(df_p_t[df_p_t['SLA_OK']]) / tp_p) * 100) if tp_p > 0 else 0
+                        row_data = {"Puerto": r[col_puerto_hi], "Embs": tp_p,
+                                    "Días Avg": int(round(r[col_cons_hi])),
+                                    "% Cumple SLA": f"{pct_sla}%", "% Fuera SLA": f"{100 - pct_sla}%"}
+                        if mode == "mixed":
+                            cm_p = len(df_p_t[df_p_t[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)])
+                            row_data["% Mono"] = f"{int((cm_p/tp_p)*100)}%"
+                            row_data["% Cons"] = f"{int((1-(cm_p/tp_p))*100)}%"
+                        p_rows.append(row_data)
+                    st.dataframe(pd.DataFrame(p_rows).sort_values("Embs", ascending=False),
+                                 use_container_width=True, hide_index=True)
+
+                # --- RESUMEN MES CERRADO ---
+                st.markdown("<div style='background:rgba(0,168,255,0.05); padding:15px 25px; border-radius:20px; border:1px solid rgba(0,168,255,0.2); margin:15px 0;'><h3 style='color:#00a8ff; margin:0; text-align:center; letter-spacing:5px; text-transform:uppercase; font-weight:900;'>RESUMEN MES CERRADO (MARÍTIMOS 2026)</h3></div>",
+                    unsafe_allow_html=True)
+                thc = st.columns([1.5, 1, 1.2, 1, 1, 0.8])
+                for i, h in enumerate(["MES ETD", "EMBS", "DIAS AVG", "% MONO", "% CONS", "DETALLE"]):
+                    thc[i].markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:800; text-align:center;'>{h}</p>",
+                        unsafe_allow_html=True)
+
+                res_mensual = df_mar.groupby(['Mes', 'Mes_Nombre']).agg(
+                    {df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
+                for _, row in res_mensual.iterrows():
+                    df_m_temp = df_mar[df_mar['Mes'] == row['Mes']].copy()
+                    tot_m = len(df_m_temp)
+                    df_m_mono = df_m_temp[df_m_temp[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)]
+                    p_mono = (len(df_m_mono) / tot_m) if tot_m > 0 else 0
+                    tr1, tr2, tr3, tr4, tr5, tr6 = st.columns([1.5, 1, 1.2, 1, 1, 0.8])
+                    tr1.markdown(f"<p style='font-weight:700; color:#fff; text-align:center; margin-top:5px;'>{row['Mes_Nombre'].upper()}</p>", unsafe_allow_html=True)
+                    tr2.markdown(f"<p style='text-align:center; margin-top:5px;'>{tot_m}</p>", unsafe_allow_html=True)
+                    tr3.markdown(f"<p style='color:#00ff88; font-weight:700; text-align:center; margin-top:5px;'>{int(round(row[col_cons_hi]))}d</p>", unsafe_allow_html=True)
+                    tr4.markdown(f"<p style='color:#00a8ff; text-align:center; margin-top:5px;'>{int(p_mono*100)}%</p>", unsafe_allow_html=True)
+                    tr5.markdown(f"<p style='color:#94a3b8; text-align:center; margin-top:5px;'>{int((1-p_mono)*100)}%</p>", unsafe_allow_html=True)
+                    with tr6:
+                        if st.button("🔍 VER", key=f"btn_res_{row['Mes']}", use_container_width=True):
+                            show_detalle_mes(df_m_temp, row['Mes_Nombre'], mode="mixed")
+
+                # --- MONOPROVEEDOR ---
+                st.markdown("<br><div style='background:rgba(0,168,255,0.05); padding:15px; border-radius:12px; border-left:5px solid #00a8ff; margin-bottom:15px;'><h4 style='color:#00a8ff; margin:0; letter-spacing:2px; font-size:16px;'>1. SOLAMENTE MONOPROVEEDOR (MARÍTIMOS 2026)</h4></div>",
+                    unsafe_allow_html=True)
+                df_mono_v4 = df_mar[df_mar[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)].copy()
+                if not df_mono_v4.empty:
+                    mhc = st.columns([1.5, 1, 1.2, 2, 0.8])
+                    for i, h in enumerate(["MES ETD", "EMBS", "DIAS AVG", "CUMPLIMIENTO SLA", "DETALLE"]):
+                        mhc[i].markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:800; text-align:center;'>{h}</p>", unsafe_allow_html=True)
+                    res_m = df_mono_v4.groupby(['Mes', 'Mes_Nombre']).agg(
+                        {df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
+                    for _, rm in res_m.iterrows():
+                        df_sub_m = df_mono_v4[df_mono_v4['Mes'] == rm['Mes']].copy()
+                        lim_m = 15 if rm['Mes'] <= 2 else 7
+                        pct_m = int((len(df_sub_m[df_sub_m[col_cons_hi] <= lim_m]) / len(df_sub_m)) * 100) if len(df_sub_m) > 0 else 0
+                        mr1, mr2, mr3, mr4, mr5 = st.columns([1.5, 1, 1.2, 2, 0.8])
+                        mr1.markdown(f"<p style='font-weight:700; color:#fff; text-align:center;'>{rm['Mes_Nombre'].upper()}</p>", unsafe_allow_html=True)
+                        mr2.markdown(f"<p style='text-align:center;'>{int(rm.iloc[2])}</p>", unsafe_allow_html=True)
+                        mr3.markdown(f"<p style='color:#00ff88; font-weight:700; text-align:center;'>{int(round(rm.iloc[3]))}d</p>", unsafe_allow_html=True)
+                        mr4.markdown(f"<div style='background:rgba(0,168,255,0.1); border-radius:10px; text-align:center; padding:2px; border:1px solid rgba(0,168,255,0.2);'><span style='color:#00a8ff; font-weight:800; font-size:12px;'>SLA {pct_m}%</span></div>", unsafe_allow_html=True)
+                        with mr5:
+                            if st.button("🔍 VER", key=f"btn_m_v4_{rm['Mes']}", use_container_width=True):
+                                show_detalle_mes(df_sub_m, f"MONO - {rm['Mes_Nombre']}", mode="specific")
+
+                # --- CONSOLIDADO ---
+                st.markdown("<br><div style='background:rgba(0,255,136,0.05); padding:15px; border-radius:12px; border-left:5px solid #00ff88; margin-bottom:15px;'><h4 style='color:#00ff88; margin:0; letter-spacing:2px; font-size:16px;'>2. SOLAMENTE CONSOLIDADO (MARÍTIMOS 2026)</h4></div>",
+                    unsafe_allow_html=True)
+                df_cons_v4 = df_mar[~df_mar[col_mono_hi].astype(str).str.contains('SÍ|SI|MONO', case=False, na=False)].copy()
+                if not df_cons_v4.empty:
+                    chc = st.columns([1.5, 1, 1.2, 2, 0.8])
+                    for i, h in enumerate(["MES ETD", "EMBS", "DIAS AVG", "CUMPLIMIENTO SLA", "DETALLE"]):
+                        chc[i].markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:800; text-align:center;'>{h}</p>", unsafe_allow_html=True)
+                    res_c = df_cons_v4.groupby(['Mes', 'Mes_Nombre']).agg(
+                        {df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
+                    for _, rc in res_c.iterrows():
+                        df_sub_c = df_cons_v4[df_cons_v4['Mes'] == rc['Mes']].copy()
+                        pct_c = int((len(df_sub_c[df_sub_c[col_cons_hi] <= 25]) / len(df_sub_c)) * 100) if len(df_sub_c) > 0 else 0
+                        cr1, cr2, cr3, cr4, cr5 = st.columns([1.5, 1, 1.2, 2, 0.8])
+                        cr1.markdown(f"<p style='font-weight:700; color:#fff; text-align:center;'>{rc['Mes_Nombre'].upper()}</p>", unsafe_allow_html=True)
+                        cr2.markdown(f"<p style='text-align:center;'>{int(rc.iloc[2])}</p>", unsafe_allow_html=True)
+                        cr3.markdown(f"<p style='color:#00ff88; font-weight:700; text-align:center;'>{int(round(rc.iloc[3]))}d</p>", unsafe_allow_html=True)
+                        cr4.markdown(f"<div style='background:rgba(0,255,136,0.1); border-radius:10px; text-align:center; padding:2px; border:1px solid rgba(0,255,136,0.2);'><span style='color:#00ff88; font-weight:800; font-size:12px;'>SLA {pct_c}%</span></div>", unsafe_allow_html=True)
+                        with cr5:
+                            if st.button("🔍 VER", key=f"btn_c_v4_{rc['Mes']}", use_container_width=True):
+                                show_detalle_mes(df_sub_c, f"CONS - {rc['Mes_Nombre']}", mode="specific")
             else:
-                st.success("No hay alertas de gestión pendientes. ✅")
-
-            # 2. MONITOR DE AGRUPAMIENTO DE MERCADERÍA
-            st.markdown("<br><hr class='glow-divider'>", unsafe_allow_html=True)
-            st.markdown("<p style='color:#00a8ff; font-weight:700; letter-spacing:2px; font-size:18px;'>2. MONITOR DE AGRUPAMIENTO DE MERCADERÍA</p>", unsafe_allow_html=True)
-            
-            df_res_alt['P_Min'] = pd.to_datetime(df_res_alt.iloc[:, 18], dayfirst=True, errors='coerce')
-            df_res_alt['P_Max'] = pd.to_datetime(df_res_alt.iloc[:, 19], dayfirst=True, errors='coerce')
-            df_res_alt['Rango_Dias'] = (df_res_alt['P_Max'] - df_res_alt['P_Min']).dt.days
-            
-            # Alertamos si el rango es > 7 días
-            df_alert_g = df_res_alt[df_res_alt['Rango_Dias'] > 7].copy()
-            
-            if not df_alert_g.empty:
-                st.warning(f"Se han detectado {len(df_alert_g.iloc[:, 0].unique())} embarques con ventanas de producción extendidas (>7 días).")
-                
-                # Agrupamos por embarque para ver el rango real
-                df_g_table = df_alert_g.groupby(df_alert_g.columns[0]).agg({
-                    df_alert_g.columns[6]: 'first', # Agente
-                    'P_Min': 'min',
-                    'P_Max': 'max',
-                    'Rango_Dias': 'max'
-                }).reset_index()
-                
-                df_g_table.columns = ["Embarque", "Agente", "Fecha Min Packeo", "Fecha Max Packeo", "Días de Rango"]
-                st.dataframe(df_g_table.sort_values('Días de Rango', ascending=False),
-                             column_config={"Días de Rango": st.column_config.NumberColumn("Rango", format="%d ⚡")},
-                             use_container_width=True, hide_index=True)
-                
-                st.info("💡 Un rango elevado indica que la mercadería está tardando mucho en consolidarse para este embarque.")
-            else:
-                st.success("El agrupamiento de mercadería es eficiente para todos los embarques (Rango <= 7 días).")
-
+                st.warning("No se encontraron registros marítimos para el año 2026.")
         except Exception as e:
-            st.error(f"Error en Solapa Alertas: {e}")
-
-except Exception as e:
-    st.error(f"Error crítico en el Tablero: {e}")
+            st.error(f"Error en Indicadores: {e}")
