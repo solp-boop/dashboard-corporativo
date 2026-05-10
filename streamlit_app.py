@@ -1448,12 +1448,19 @@ Promedio de mercado, mejor oferta y target -15% por mes y tipo de contenedor</p>
                         avg_dif   = df_hist_fil['Dif. USD'].mean()
 
                         kh1, kh2, kh3, kh4 = st.columns(4)
-                        with kh1: st.markdown(f"<div class='metric-container'><p>PROM. MERCADO</p><p style='font-size:40px !important;'>USD {int(avg_prom):,}</p></div>", unsafe_allow_html=True)
-                        with kh2: st.markdown(f"<div class='metric-container'><p>MEJOR OFERTA</p><p style='font-size:40px !important;'>USD {int(avg_mejor):,}</p></div>", unsafe_allow_html=True)
-                        with kh3: st.markdown(f"<div class='metric-container'><p>TARGET -15%</p><p style='font-size:40px !important;'>USD {int(avg_tgt):,}</p></div>", unsafe_allow_html=True)
-                        with kh4:
-                            color_dif = "#00ff88" if avg_dif > 0 else "#ff4b4b"
-                            st.markdown(f"<div class='metric-container'><p>AHORRO PROM.</p><p style='font-size:40px !important; color:{color_dif} !important;'>USD {int(avg_dif):,}</p></div>", unsafe_allow_html=True)
+                        color_dif = "#00ff88" if avg_dif > 0 else "#ff4b4b"
+                        for col_k, valor, label, color in [
+                            (kh1, f"USD {int(avg_prom):,}",  "PROM. MERCADO", "#f8fafc"),
+                            (kh2, f"USD {int(avg_mejor):,}", "MEJOR OFERTA",  "#00ff88"),
+                            (kh3, f"USD {int(avg_tgt):,}",   "TARGET -15%",   "#ffaa00"),
+                            (kh4, f"USD {int(avg_dif):,}",   "AHORRO PROM.",  color_dif),
+                        ]:
+                            col_k.markdown(f"""
+<div style='text-align:center; padding:12px 8px; background:rgba(255,255,255,0.02);
+border-radius:12px; border-top:2px solid {color};'>
+<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>{label}</p>
+<p style='color:{color}; font-size:18px; font-weight:800; margin:0;'>{valor}</p>
+</div>""", unsafe_allow_html=True)
 
                         st.markdown("<br>", unsafe_allow_html=True)
 
@@ -1481,30 +1488,15 @@ Promedio de mercado, mejor oferta y target -15% por mes y tipo de contenedor</p>
                     if cnt_sel_hist != "TODOS":
                         df_hist_graf = df_hist_graf[df_hist_graf['Tipo CNT'] == cnt_sel_hist]
 
-                    titulo_graf = f"Evolucion Mensual - {'Todos los tipos CNT' if cnt_sel_hist == 'TODOS' else cnt_sel_hist}"
+                    titulo_graf = f"Evolucion de Costos - {'Todos los tipos CNT' if cnt_sel_hist == 'TODOS' else cnt_sel_hist}"
                     fig_evol = px.line(
                         df_hist_graf.sort_values(['_mes_num','Tipo CNT']),
                         x='Mes', y='Prom. Mercado', color='Tipo CNT',
                         markers=True, color_discrete_map=COLORES_CNT,
-                        labels={'Prom. Mercado': 'USD', 'Mes': ''},
+                        labels={'Prom. Mercado': 'USD Promedio de Mercado', 'Mes': ''},
                         title=titulo_graf
                     )
-                    for cnt in df_hist_graf['Tipo CNT'].unique():
-                        df_t = df_hist_graf[df_hist_graf['Tipo CNT'] == cnt].sort_values('_mes_num')
-                        color_cnt = COLORES_CNT.get(cnt, '#94a3b8')
-                        fig_evol.add_scatter(
-                            x=df_t['Mes'], y=df_t['Mejor Oferta'], mode='lines+markers',
-                            line=dict(dash='dot', width=2, color=color_cnt),
-                            marker=dict(symbol='diamond', size=8),
-                            name=f'Mejor Oferta {cnt}', opacity=0.8
-                        )
-                        fig_evol.add_scatter(
-                            x=df_t['Mes'], y=df_t['Target -15%'], mode='lines',
-                            line=dict(dash='dash', width=1.5, color=color_cnt),
-                            name=f'Target {cnt}', opacity=0.4
-                        )
-
-                    fig_evol.update_traces(selector=dict(mode='lines+markers', line_dash='solid'), line_width=2.5, marker_size=9)
+                    fig_evol.update_traces(line_width=3, marker_size=10)
                     fig_evol.update_layout(
                         height=480, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
                         font=dict(size=12, family='Outfit, sans-serif', color='#94a3b8'),
