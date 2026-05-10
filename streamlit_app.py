@@ -1486,7 +1486,7 @@ border-radius:12px; border:1px solid {color}44;'>
                 "#ff4b4b", len(df_a1), tabla_a1)
 
             # =====================================================
-            # ALERTA 2 — VENTANA PRODUCCIÓN > 7 DÍAS (mejorada)
+            # ALERTA 2 — EMBARQUES VENTANA PRODUCCIÓN > 7 DÍAS (mejorada)
             # =====================================================
             def tabla_a2():
                 df_show = df_a2.copy()
@@ -1507,7 +1507,7 @@ border-radius:12px; border:1px solid {color}44;'>
                         'País Destino': st.column_config.TextColumn("País"),
                     })
 
-            render_alerta("a2", "🟠", "ALERTA 2 — VENTANA DE PRODUCCIÓN EXTENDIDA (>7 DÍAS)",
+            render_alerta("a2", "🟠", "ALERTA 2 — EMBARQUES CON VENTANA DE PRODUCCIÓN EXTENDIDA (>7 DÍAS)",
                 "Embarques con más de 7 días entre primer y último packeo · incluye estado ETD y país destino",
                 "#ffaa00", len(df_a2), tabla_a2)
 
