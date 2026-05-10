@@ -277,7 +277,7 @@ try:
     cant_proveedores_global = df['Proveedor'].nunique() if 'Proveedor' in df.columns else 0
 
     st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><div class='bidcom-subtitle'>Tablero Logístico Corporativo</div></div>", unsafe_allow_html=True)
-    tabs = st.tabs(["ORIGEN", "MERCADERÍA EN PROCESO", "PERFORMANCE DE AGENTES Y ANALISTAS", "FLETES, GASTOS Y CERTIFICACIONES", "COTIZACIÓN FFWW", "INDICADORES", "ALERTAS ESTRATÉGICAS", "ASK COMEX"])
+    tabs = st.tabs(["ORIGEN", "MERCADERÍA EN PROCESO", "PERFORMANCE DE AGENTES Y ANALISTAS", "FLETES, GASTOS Y CERTIFICACIONES", "PROYECCIÓN SEMANAL ETD", "INDICADORES", "ALERTAS ESTRATÉGICAS", "ASK COMEX"])
 
     # --- SOLAPA 1: ORIGEN ---
     with tabs[0]:
@@ -1400,6 +1400,171 @@ border-left:4px solid #a855f7; margin-bottom:15px;'>
             st.error(f"Error en Fletes y Gastos: {e}")
             import traceback
             st.code(traceback.format_exc())
+
+
+    # --- SOLAPA 5: PROYECCIÓN SEMANAL ETD ---
+    with tabs[4]:
+        st.markdown("<div style='text-align:center; padding:25px; background:linear-gradient(135deg,rgba(0,168,255,0.08),rgba(0,255,136,0.04)); border-radius:20px; border:1px solid rgba(0,168,255,0.2); margin-bottom:30px;'><h2 style='color:#00a8ff; font-weight:900; letter-spacing:6px; margin:0; font-size:26px;'>PROYECCION SEMANAL ETD</h2><p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>VOLUMEN Y CONTENEDORES FUTUROS - BASE PARA NEGOCIACION DE TARIFAS</p></div>", unsafe_allow_html=True)
+        try:
+            col_etd_proy    = df.columns[23]
+            col_m3_proy     = df.columns[50]
+            col_mod_proy    = df.columns[68]
+            col_puerto_proy = df.columns[41]
+            col_pais_proy   = df.columns[0]
+
+            def clean_m3_proy(val):
+                try: return float(str(val).replace('.','').replace(',','.').strip())
+                except: return 0.0
+
+            df_proy = df.copy()
+            df_proy['_m3'] = df_proy[col_m3_proy].apply(clean_m3_proy)
+
+            mask_pais = df_proy[col_pais_proy].astype(str).str.strip().str.upper() == 'ARGENTINA'
+            mask_mod  = (
+                df_proy[col_mod_proy].astype(str).str.strip().str.upper().str.startswith('BARCO') |
+                df_proy[col_mod_proy].astype(str).str.strip().str.upper().str.contains('COSTO HIBRIDO PUERTO ZFLP', na=False)
+            )
+            df_proy = df_proy[mask_pais & mask_mod].copy()
+
+            df_proy['_etd_dt'] = pd.to_datetime(df_proy[col_etd_proy], dayfirst=True, errors='coerce')
+            df_proy = df_proy[df_proy['_etd_dt'].notna() & (df_proy['_etd_dt'] >= hoy)].copy()
+
+            df_proy['_semana_inicio'] = df_proy['_etd_dt'].dt.to_period('W').apply(lambda p: p.start_time)
+            df_proy['_mes_num']       = df_proy['_etd_dt'].dt.month
+            df_proy['_mes_label']     = df_proy['_etd_dt'].dt.strftime('%B %Y').str.upper()
+            df_proy['_puerto']        = df_proy[col_puerto_proy].astype(str).str.strip().str.upper().fillna('SIN DEFINIR')
+
+            if df_proy.empty:
+                st.warning("No hay carga futura proyectada con los filtros aplicados.")
+            else:
+                meses_proy  = df_proy.drop_duplicates('_mes_num').sort_values('_mes_num')[['_mes_num','_mes_label']].values.tolist()
+                opciones_proy = {lbl: num for num, lbl in meses_proy}
+
+                col_sp, _ = st.columns([2, 3])
+                with col_sp:
+                    mes_proy_lbl = st.selectbox("SELECCIONAR MES ETD:", list(opciones_proy.keys()), key="proy_mes_sel")
+                mes_proy_num = opciones_proy[mes_proy_lbl]
+
+                df_mes_proy = df_proy[df_proy['_mes_num'] == mes_proy_num].copy()
+
+                total_m3_mes   = df_mes_proy['_m3'].sum()
+                total_cntr_mes = total_m3_mes / 60
+                total_so_mes   = df_mes_proy['SO'].nunique() if 'SO' in df_mes_proy.columns else 0
+                semanas_mes    = df_mes_proy['_semana_inicio'].nunique()
+
+                st.markdown("<br>", unsafe_allow_html=True)
+                pm1, pm2, pm3, pm4 = st.columns(4)
+                with pm1: st.markdown(f"<div class='metric-container'><p>M3 TOTALES</p><p>{int(round(total_m3_mes)):,}</p></div>", unsafe_allow_html=True)
+                with pm2: st.markdown(f"<div class='metric-container'><p>CONTENEDORES</p><p>{int(round(total_cntr_mes))}</p></div>", unsafe_allow_html=True)
+                with pm3: st.markdown(f"<div class='metric-container'><p>SOs</p><p>{total_so_mes}</p></div>", unsafe_allow_html=True)
+                with pm4: st.markdown(f"<div class='metric-container'><p>SEMANAS</p><p>{semanas_mes}</p></div>", unsafe_allow_html=True)
+
+                st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
+
+                # Grafico barras apiladas M3 por semana y puerto
+                df_stack = df_mes_proy.groupby(['_semana_inicio','_puerto'])['_m3'].sum().reset_index()
+                df_stack['Semana'] = df_stack['_semana_inicio'].apply(
+                    lambda d: d.strftime('%d/%m') + ' - ' + (d + pd.Timedelta(days=6)).strftime('%d/%m')
+                )
+
+                fig_stack = px.bar(
+                    df_stack, x='Semana', y='_m3', color='_puerto',
+                    text='_m3', barmode='stack',
+                    color_discrete_sequence=['#00a8ff','#00ff88','#ffaa00','#ff4b4b','#a855f7','#06b6d4','#f97316'],
+                    labels={'_m3': 'M3', '_puerto': 'Puerto', 'Semana': ''},
+                    title='M3 por Semana ETD - ' + mes_proy_lbl
+                )
+                fig_stack.update_traces(texttemplate='%{text:,.0f}', textposition='inside', textfont_size=11, textfont_color='#fff')
+                fig_stack.update_layout(
+                    height=420, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    font=dict(family='Outfit, sans-serif', color='#94a3b8', size=12),
+                    title_font_color='#00a8ff', title_font_size=14,
+                    legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, title_text='Puerto'),
+                    xaxis=dict(showgrid=False),
+                    yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)', title='M3'),
+                    margin=dict(l=20,r=20,t=60,b=20)
+                )
+                st.plotly_chart(fig_stack, use_container_width=True)
+
+                # Grafico contenedores por semana
+                df_cntr_sem = df_mes_proy.groupby('_semana_inicio')['_m3'].sum().reset_index()
+                df_cntr_sem['Semana'] = df_cntr_sem['_semana_inicio'].apply(
+                    lambda d: d.strftime('%d/%m') + ' - ' + (d + pd.Timedelta(days=6)).strftime('%d/%m')
+                )
+                df_cntr_sem['Contenedores'] = (df_cntr_sem['_m3'] / 60).round(1)
+
+                fig_cntr = px.bar(
+                    df_cntr_sem, x='Semana', y='Contenedores', text='Contenedores',
+                    color_discrete_sequence=['#ffaa00'],
+                    title='Contenedores estimados por Semana ETD - ' + mes_proy_lbl
+                )
+                fig_cntr.update_traces(
+                    texttemplate='%{text:.1f} CNTR', textposition='outside',
+                    textfont_color='#f8fafc', marker=dict(cornerradius=5)
+                )
+                fig_cntr.update_layout(
+                    height=380, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    font=dict(family='Outfit, sans-serif', color='#94a3b8', size=12),
+                    title_font_color='#ffaa00', title_font_size=14,
+                    xaxis=dict(showgrid=False),
+                    yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)', title='Contenedores'),
+                    margin=dict(l=20,r=20,t=60,b=20)
+                )
+                st.plotly_chart(fig_cntr, use_container_width=True)
+
+                st.markdown("<hr class='white-divider'>", unsafe_allow_html=True)
+                st.markdown("<p style='color:#00a8ff; font-weight:800; letter-spacing:4px; font-size:15px; margin-bottom:20px; text-align:center;'>DETALLE POR SEMANA Y PUERTO</p>", unsafe_allow_html=True)
+
+                for sem_inicio in sorted(df_mes_proy['_semana_inicio'].unique()):
+                    sem_fin    = sem_inicio + pd.Timedelta(days=6)
+                    sem_label  = sem_inicio.strftime('%d/%m/%Y') + ' al ' + sem_fin.strftime('%d/%m/%Y')
+                    df_sem     = df_mes_proy[df_mes_proy['_semana_inicio'] == sem_inicio]
+                    m3_sem     = df_sem['_m3'].sum()
+                    cntr_sem   = round(m3_sem / 60, 1)
+                    so_sem     = df_sem['SO'].nunique() if 'SO' in df_sem.columns else 0
+                    cntr_label = str(cntr_sem)
+
+                    st.markdown(
+                        "<div class='custom-card' style='border-left:5px solid #00a8ff; margin-bottom:20px;'>"
+                        "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;'>"
+                        f"<p style='color:#00a8ff; font-weight:800; font-size:16px; letter-spacing:2px; margin:0;'>SEMANA {sem_label}</p>"
+                        "<div style='display:flex; gap:30px;'>"
+                        "<div style='text-align:center;'><p class='minicard-title'>M3 TOTAL</p>"
+                        f"<p style='font-size:22px; font-weight:700; color:#f8fafc; margin:0;'>{int(round(m3_sem)):,}</p></div>"
+                        "<div style='text-align:center;'><p class='minicard-title'>CONTENEDORES</p>"
+                        f"<p style='font-size:22px; font-weight:700; color:#ffaa00; margin:0;'>{cntr_label}</p></div>"
+                        "<div style='text-align:center;'><p class='minicard-title'>SOs</p>"
+                        f"<p style='font-size:22px; font-weight:700; color:#00ff88; margin:0;'>{so_sem}</p></div>"
+                        "</div></div>",
+                        unsafe_allow_html=True
+                    )
+
+                    df_sem_puerto = df_sem.groupby('_puerto').agg(
+                        M3=('_m3', 'sum'),
+                        SOs=('SO', 'nunique') if 'SO' in df_sem.columns else ('_m3', 'count')
+                    ).reset_index().sort_values('M3', ascending=False)
+                    df_sem_puerto['CTNRS']   = (df_sem_puerto['M3'] / 60).round(1)
+                    df_sem_puerto['Share %'] = (df_sem_puerto['M3'] / m3_sem * 100).round(1)
+                    df_sem_puerto = df_sem_puerto.rename(columns={'_puerto': 'Puerto', 'M3': 'M3 Total'})
+
+                    st.dataframe(
+                        df_sem_puerto[['Puerto', 'M3 Total', 'CTNRS', 'SOs', 'Share %']],
+                        use_container_width=True, hide_index=True,
+                        column_config={
+                            'Puerto'  : st.column_config.TextColumn("Puerto"),
+                            'M3 Total': st.column_config.NumberColumn("M3", format="%,.1f"),
+                            'CTNRS'   : st.column_config.NumberColumn("CTNRS", format="%.1f"),
+                            'SOs'     : st.column_config.NumberColumn("SOs", format="%d"),
+                            'Share %' : st.column_config.NumberColumn("Share %", format="%.1f%%"),
+                        }
+                    )
+                    st.markdown("</div>", unsafe_allow_html=True)
+
+        except Exception as e:
+            st.error(f"Error en Proyeccion Semanal ETD: {e}")
+            import traceback
+            st.code(traceback.format_exc())
+
 
     # --- SOLAPA 6: INDICADORES (SLA & CONSOLIDACIÓN) ---
     with tabs[5]:
