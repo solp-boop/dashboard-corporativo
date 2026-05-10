@@ -1043,6 +1043,7 @@ try:
             col_ag_etd        = df_rh.columns[11]
             col_ag_bl         = df_rh.columns[15]
             col_ag_conf       = df_rh.columns[18]
+            col_ag_cntr       = df_rh.columns[1]   # col B = cant contenedores
             col_ag_linea      = df_rh.columns[59]  if len(df_rh.columns) > 59 else None
             col_ag_gto_origen = df_rh.columns[38]  if len(df_rh.columns) > 38 else None
             col_ag_flete_pag  = df_rh.columns[51]  if len(df_rh.columns) > 51 else None
@@ -1055,6 +1056,10 @@ try:
             df_rh['_ag_conf_dt'] = pd.to_datetime(df_rh[col_ag_conf], dayfirst=True, errors='coerce')
 
             df_rh_ag_2026 = df_rh[df_rh['_ag_etd_dt'].dt.year == 2026].copy()
+            # Excluir aereos (embarques que arrancan con AIR)
+            df_rh_ag_2026 = df_rh_ag_2026[
+                ~df_rh_ag_2026[df_rh.columns[0]].astype(str).str.strip().str.upper().str.startswith('AIR')
+            ].copy()
             df_rh_ag_2026['Mes_Num_Ag']   = df_rh_ag_2026['_ag_etd_dt'].dt.month
             df_rh_ag_2026['Mes_Label_Ag'] = df_rh_ag_2026['_ag_etd_dt'].dt.strftime('%B %Y').str.upper()
 
@@ -1062,11 +1067,11 @@ try:
                 try: return float(str(val).replace(',','.').replace(' ','').strip())
                 except: return None
 
-            for col in [col_ag_gto_origen, col_ag_flete_pag, col_ag_flete_cert, col_ag_gto_local]:
+            for col in [col_ag_gto_origen, col_ag_flete_pag, col_ag_flete_cert, col_ag_gto_local, col_ag_cntr]:
                 if col: df_rh_ag_2026[col] = df_rh_ag_2026[col].apply(safe_num_ag)
 
             if df_rh_ag_2026.empty:
-                st.warning("No se encontraron datos de agentes para 2026.")
+                st.warning("No se encontraron datos maritimos de agentes para 2026.")
             else:
                 meses_ag = df_rh_ag_2026.drop_duplicates('Mes_Num_Ag').sort_values('Mes_Num_Ag')[['Mes_Num_Ag','Mes_Label_Ag']].values.tolist()
                 opciones_ag = {lbl: num for num, lbl in meses_ag}
@@ -1083,19 +1088,22 @@ try:
                 df_ag_mes = df_ag_mes[~df_ag_mes['_fwd_clean'].isin(['', 'nan', 'NaN', 'None', '-'])]
 
                 total_embs_ag   = df_ag_mes[df_rh.columns[0]].nunique()
+                total_cntrs_ag  = df_ag_mes[col_ag_cntr].sum()
                 avg_dias_ic     = df_ag_mes['_dias_instr_conf'].mean()
                 avg_dias_bl     = df_ag_mes['_dias_etd_bl'].mean()
-                flete_pag_tot   = df_ag_mes[col_ag_flete_pag].sum()  if col_ag_flete_pag  else 0
-                flete_cert_tot  = df_ag_mes[col_ag_flete_cert].sum() if col_ag_flete_cert else 0
-                pct_cert_global = round(flete_cert_tot / flete_pag_tot * 100, 1) if flete_pag_tot and flete_pag_tot > 0 else None
+                # Para el KPI global usamos promedio por embarque
+                avg_fp_global   = df_ag_mes[col_ag_flete_pag].mean()  if col_ag_flete_pag  else 0
+                avg_fc_global   = df_ag_mes[col_ag_flete_cert].mean() if col_ag_flete_cert else 0
+                pct_cert_global = round(avg_fc_global / avg_fp_global * 100, 1) if avg_fp_global and avg_fp_global > 0 else None
                 color_cert = "#00ff88" if pct_cert_global and pct_cert_global < 75 else "#ff4b4b"
 
                 st.markdown("<br>", unsafe_allow_html=True)
-                kg1, kg2, kg3, kg4 = st.columns(4)
+                kg1, kg2, kg3, kg4, kg5 = st.columns(5)
                 with kg1: st.markdown(f"<div class='metric-container'><p>EMBARQUES</p><p>{total_embs_ag}</p></div>", unsafe_allow_html=True)
-                with kg2: st.markdown(f"<div class='metric-container'><p>DIAS INSTR-CONF</p><p>{int(round(avg_dias_ic)) if pd.notna(avg_dias_ic) else 0}</p></div>", unsafe_allow_html=True)
-                with kg3: st.markdown(f"<div class='metric-container'><p>DIAS ETD-BL</p><p>{int(round(avg_dias_bl)) if pd.notna(avg_dias_bl) else 0}</p></div>", unsafe_allow_html=True)
-                with kg4:
+                with kg2: st.markdown(f"<div class='metric-container'><p>CONTENEDORES</p><p>{int(total_cntrs_ag)}</p></div>", unsafe_allow_html=True)
+                with kg3: st.markdown(f"<div class='metric-container'><p>DIAS INSTR-CONF</p><p>{int(round(avg_dias_ic)) if pd.notna(avg_dias_ic) else 0}</p></div>", unsafe_allow_html=True)
+                with kg4: st.markdown(f"<div class='metric-container'><p>DIAS ETD-BL</p><p>{int(round(avg_dias_bl)) if pd.notna(avg_dias_bl) else 0}</p></div>", unsafe_allow_html=True)
+                with kg5:
                     val_cert = f"{pct_cert_global}%" if pct_cert_global else "SD"
                     st.markdown(f"<div class='metric-container' style='border:1px solid {color_cert}44;'><p>PCT CERTIFICACION</p><p style='color:{color_cert} !important;'>{val_cert}</p></div>", unsafe_allow_html=True)
 
@@ -1104,7 +1112,8 @@ try:
 
                 rows_ag = []
                 for fwd, grp_f in df_ag_mes.groupby('_fwd_clean'):
-                    cant_embs_f = grp_f[df_rh.columns[0]].nunique()
+                    cant_embs_f  = grp_f[df_rh.columns[0]].nunique()
+                    cant_cntrs_f = grp_f[col_ag_cntr].sum()
                     avg_ic = grp_f['_dias_instr_conf'].mean()
                     avg_bl = grp_f['_dias_etd_bl'].mean()
                     if col_ag_linea:
@@ -1113,41 +1122,44 @@ try:
                         lineas_str = ", ".join(sorted(lineas.unique())) if not lineas.empty else "Sin datos"
                     else:
                         lineas_str = "Sin datos"
-                    fp  = grp_f[col_ag_flete_pag].sum()  if col_ag_flete_pag  else 0
-                    fc  = grp_f[col_ag_flete_cert].sum() if col_ag_flete_cert else 0
-                    gl  = grp_f[col_ag_gto_local].sum()  if col_ag_gto_local  else 0
-                    go  = grp_f[col_ag_gto_origen].sum() if col_ag_gto_origen else 0
-                    pct_f = round(fc / fp * 100, 1) if fp and fp > 0 else None
+                    # Promedios por embarque
+                    avg_fp = grp_f[col_ag_flete_pag].mean()  if col_ag_flete_pag  else 0
+                    avg_fc = grp_f[col_ag_flete_cert].mean() if col_ag_flete_cert else 0
+                    avg_gl = grp_f[col_ag_gto_local].mean()  if col_ag_gto_local  else 0
+                    avg_go = grp_f[col_ag_gto_origen].mean() if col_ag_gto_origen else 0
+                    pct_f  = round(avg_fc / avg_fp * 100, 1) if avg_fp and avg_fp > 0 else None
                     kpi_str = ("OK <75%" if pct_f < 75 else "ALTO >=75%") if pct_f else "Sin datos"
                     rows_ag.append({
-                        'Agente'            : fwd,
-                        'Embarques'         : cant_embs_f,
-                        'Dias Instr-Conf'   : round(avg_ic, 1) if pd.notna(avg_ic) else None,
-                        'Dias ETD-BL'       : round(avg_bl, 1) if pd.notna(avg_bl) else None,
-                        'Lineas Maritimas'  : lineas_str,
-                        'Flete Pagado USD'  : round(fp, 0)  if fp else None,
-                        'Flete Cert USD'    : round(fc, 0)  if fc else None,
-                        'Gastos Locales USD': round(gl, 0)  if gl else None,
-                        'Gastos Origen USD' : round(go, 0)  if go else None,
-                        'Pct Certif'        : f"{pct_f}%" if pct_f else "Sin datos",
-                        'KPI Certif'        : kpi_str,
+                        'Agente'              : fwd,
+                        'Embarques'           : cant_embs_f,
+                        'Contenedores'        : int(cant_cntrs_f) if pd.notna(cant_cntrs_f) else 0,
+                        'Dias Instr-Conf'     : round(avg_ic, 1) if pd.notna(avg_ic) else None,
+                        'Dias ETD-BL'         : round(avg_bl, 1) if pd.notna(avg_bl) else None,
+                        'Lineas Maritimas'    : lineas_str,
+                        'Prom Flete Pag USD'  : round(avg_fp, 0) if avg_fp else None,
+                        'Prom Flete Cert USD' : round(avg_fc, 0) if avg_fc else None,
+                        'Prom Gtos Local USD' : round(avg_gl, 0) if avg_gl else None,
+                        'Prom Gtos Orig USD'  : round(avg_go, 0) if avg_go else None,
+                        'Pct Certif'          : f"{pct_f}%" if pct_f else "Sin datos",
+                        'KPI Certif'          : kpi_str,
                     })
 
                 df_ag_tabla = pd.DataFrame(rows_ag).sort_values('Embarques', ascending=False)
                 st.dataframe(
                     df_ag_tabla, use_container_width=True, hide_index=True,
                     column_config={
-                        'Agente'            : st.column_config.TextColumn("Agente"),
-                        'Embarques'         : st.column_config.NumberColumn("Embarques", format="%d"),
-                        'Dias Instr-Conf'   : st.column_config.NumberColumn("Dias Instr-Conf", format="%.1f d"),
-                        'Dias ETD-BL'       : st.column_config.NumberColumn("Dias ETD-BL", format="%.1f d"),
-                        'Lineas Maritimas'  : st.column_config.TextColumn("Lineas Maritimas"),
-                        'Flete Pagado USD'  : st.column_config.NumberColumn("Flete Pagado", format="$ %,.0f"),
-                        'Flete Cert USD'    : st.column_config.NumberColumn("Flete Cert.", format="$ %,.0f"),
-                        'Gastos Locales USD': st.column_config.NumberColumn("Gastos Locales", format="$ %,.0f"),
-                        'Gastos Origen USD' : st.column_config.NumberColumn("Gastos Origen", format="$ %,.0f"),
-                        'Pct Certif'        : st.column_config.TextColumn("% Certif."),
-                        'KPI Certif'        : st.column_config.TextColumn("KPI <75%"),
+                        'Agente'              : st.column_config.TextColumn("Agente"),
+                        'Embarques'           : st.column_config.NumberColumn("Embarques", format="%d"),
+                        'Contenedores'        : st.column_config.NumberColumn("CTNRS", format="%d"),
+                        'Dias Instr-Conf'     : st.column_config.NumberColumn("Dias Instr-Conf", format="%.1f d"),
+                        'Dias ETD-BL'         : st.column_config.NumberColumn("Dias ETD-BL", format="%.1f d"),
+                        'Lineas Maritimas'    : st.column_config.TextColumn("Lineas Maritimas"),
+                        'Prom Flete Pag USD'  : st.column_config.NumberColumn("Prom Flete Pag", format="$ %,.0f"),
+                        'Prom Flete Cert USD' : st.column_config.NumberColumn("Prom Flete Cert", format="$ %,.0f"),
+                        'Prom Gtos Local USD' : st.column_config.NumberColumn("Prom Gtos Locales", format="$ %,.0f"),
+                        'Prom Gtos Orig USD'  : st.column_config.NumberColumn("Prom Gtos Origen", format="$ %,.0f"),
+                        'Pct Certif'          : st.column_config.TextColumn("% Certif."),
+                        'KPI Certif'          : st.column_config.TextColumn("KPI <75%"),
                     }
                 )
 
@@ -1157,7 +1169,7 @@ try:
                     "<div style='margin-top:15px; padding:12px 18px; background:rgba(255,255,255,0.02);"
                     f"border-radius:10px; border-left:4px solid {color_cert};'>"
                     f"<p style='color:#94a3b8; font-size:12px; margin:0;'>KPI CERTIFICACION: objetivo menor al 75%."
-                    f" Flete Certificado / Flete Pagado x 100. Promedio del mes: "
+                    f" Flete Certificado / Flete Pagado x 100 (promedio por embarque). Promedio del mes: "
                     f"<b style='color:{color_cert};'>{val_nota}</b></p></div>",
                     unsafe_allow_html=True
                 )
