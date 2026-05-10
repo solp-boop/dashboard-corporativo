@@ -1106,11 +1106,11 @@ try:
                 avg_dias_ic     = df_ag_mes['_dias_instr_conf'].mean()
                 avg_dias_bl     = df_ag_mes['_dias_etd_bl'].mean()
                 # Para el KPI global usamos promedio por embarque
-                avg_fp_global   = df_ag_mes[col_ag_flete_pag].mean()  if col_ag_flete_pag  else 0
-                avg_fc_global   = df_ag_mes[col_ag_flete_cert].mean() if col_ag_flete_cert else 0
-                pct_cert_global = round(avg_fc_global / avg_fp_global * 100, 1) if avg_fp_global and avg_fp_global > 0 else None
-                color_cert = "#00ff88" if pct_cert_global and pct_cert_global < 75 else "#ff4b4b"
-
+                # KPI global: suma total certificado / suma total pagado x 100. Objetivo >= 75%
+                sum_fp_global   = df_ag_mes[col_ag_flete_pag].sum()  if col_ag_flete_pag  else 0
+                sum_fc_global   = df_ag_mes[col_ag_flete_cert].sum() if col_ag_flete_cert else 0
+                pct_cert_global = round(sum_fc_global / sum_fp_global * 100, 1) if sum_fp_global and sum_fp_global > 0 else None
+                color_cert = "#00ff88" if pct_cert_global and pct_cert_global >= 75 else "#ff4b4b"
                 st.markdown("<br>", unsafe_allow_html=True)
                 kg1, kg2, kg3, kg4, kg5 = st.columns(5)
                 with kg1: st.markdown(f"<div class='metric-container'><p>EMBARQUES</p><p>{total_embs_ag}</p></div>", unsafe_allow_html=True)
@@ -1137,12 +1137,15 @@ try:
                     else:
                         lineas_str = "Sin datos"
                     # Promedios por embarque
+                    # Certificacion por agente: suma certif / suma pagado x 100. Objetivo >= 75%
                     avg_fp = grp_f[col_ag_flete_pag].mean()  if col_ag_flete_pag  else 0
                     avg_fc = grp_f[col_ag_flete_cert].mean() if col_ag_flete_cert else 0
                     avg_gl = grp_f[col_ag_gto_local].mean()  if col_ag_gto_local  else 0
                     avg_go = grp_f[col_ag_gto_origen].mean() if col_ag_gto_origen else 0
-                    pct_f  = round(avg_fc / avg_fp * 100, 1) if avg_fp and avg_fp > 0 else None
-                    kpi_str = ("OK <75%" if pct_f < 75 else "ALTO >=75%") if pct_f else "Sin datos"
+                    sum_fp_f = grp_f[col_ag_flete_pag].sum()  if col_ag_flete_pag  else 0
+                    sum_fc_f = grp_f[col_ag_flete_cert].sum() if col_ag_flete_cert else 0
+                    pct_f    = round(sum_fc_f / sum_fp_f * 100, 1) if sum_fp_f and sum_fp_f > 0 else None
+                    kpi_str  = ("OK >=75%" if pct_f >= 75 else "BAJO <75%") if pct_f else "Sin datos"
                     rows_ag.append({
                         'Agente'              : fwd,
                         'Embarques'           : cant_embs_f,
@@ -1173,18 +1176,22 @@ try:
                         'Prom Gtos Local USD' : st.column_config.NumberColumn("Prom Gtos Locales", format="$ %,.0f"),
                         'Prom Gtos Orig USD'  : st.column_config.NumberColumn("Prom Gtos Origen", format="$ %,.0f"),
                         'Pct Certif'          : st.column_config.TextColumn("% Certif."),
-                        'KPI Certif'          : st.column_config.TextColumn("KPI <75%"),
+                        'KPI Certif'          : st.column_config.TextColumn("KPI >=75%"),
                     }
                 )
 
-                estado_nota = "dentro del objetivo" if pct_cert_global and pct_cert_global < 75 else "fuera del objetivo - revisar negociacion"
+                estado_nota = "OBJETIVO CUMPLIDO" if pct_cert_global and pct_cert_global >= 75 else "POR DEBAJO DEL OBJETIVO - revisar certificacion"
                 val_nota = f"{pct_cert_global}% - {estado_nota}" if pct_cert_global else "Sin datos suficientes"
                 st.markdown(
                     "<div style='margin-top:15px; padding:12px 18px; background:rgba(255,255,255,0.02);"
                     f"border-radius:10px; border-left:4px solid {color_cert};'>"
-                    f"<p style='color:#94a3b8; font-size:12px; margin:0;'>KPI CERTIFICACION: objetivo menor al 75%."
-                    f" Flete Certificado / Flete Pagado x 100 (promedio por embarque). Promedio del mes: "
-                    f"<b style='color:{color_cert};'>{val_nota}</b></p></div>",
+                    f"<p style='color:#94a3b8; font-size:12px; margin:0;'>"
+                    f"KPI CERTIFICACION: objetivo >= 75%. "
+                    f"Total Flete Certificado / Total Flete Pagado x 100. "
+                    f"Resultado del mes: "
+                    f"<b style='color:{color_cert};'>{val_nota}</b> "
+                    f"| Meta: lograr que la totalidad de las cargas tengan flete certificado al menos en un 75% del valor pagado."
+                    f"</p></div>",
                     unsafe_allow_html=True
                 )
 
