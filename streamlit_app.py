@@ -988,31 +988,23 @@ border-radius:20px; border:1px solid rgba(255,170,0,0.2); margin-bottom:30px;'>
 </div>""", unsafe_allow_html=True)
 
             # =====================================================
-            # CARGA Y LIMPIEZA
+            # CARGA DE DATOS
+            # La planilla tiene dos tablas en gid=0:
+            # Tabla A: TIPO | ORIGEN | AGENTE | PRECIO USD | DESDE | HASTA
+            # Tabla B: FFWW | Agente | Valor Flete | POL | ... | Locales ARG
+            # Usamos Tabla A para fletes y Tabla B para gastos locales
             # =====================================================
-            SHEET_FLETES = "https://docs.google.com/spreadsheets/d/1UJ1bDyDQdIQSSVQ6dyChVKbMX1d69G68ji_dpsOzfHg"
+            SHEET_URL = "https://docs.google.com/spreadsheets/d/1UJ1bDyDQdIQSSVQ6dyChVKbMX1d69G68ji_dpsOzfHg"
 
             @st.cache_data(ttl=300)
-            def load_fletes(url):
-                df = pd.read_csv(f"{url}/export?format=csv&gid=0")
-                df.columns = df.columns.str.strip()
+            def load_raw_sheet(url):
+                # Leer como texto crudo para parsear ambas tablas
+                import io, requests
+                csv_url = f"{url}/export?format=csv&gid=0"
+                df = pd.read_csv(csv_url, header=None, dtype=str)
                 return df
 
-            df_fl = load_fletes(SHEET_FLETES)
-
-            def find_fl(df, kws, idx):
-                for kw in kws:
-                    m = [c for c in df.columns if kw.upper() in str(c).upper()]
-                    if m: return m[0]
-                return df.columns[idx] if len(df.columns) > idx else df.columns[0]
-
-            col_tipo_fl = find_fl(df_fl, ['TIPO DE TRANSPORTE', 'TIPO'], 0)
-            col_ffww    = find_fl(df_fl, ['FFWW'], 1)
-            col_agente  = find_fl(df_fl, ['AGENTE'], 2)
-            col_flete   = find_fl(df_fl, ['VALOR FLETE', 'PRECIO'], 3)
-            col_desde   = find_fl(df_fl, ['VALIDEZ QUINCENA DESDE', 'DESDE'], 10)
-            col_hasta   = find_fl(df_fl, ['VALIDEZ QUINCENA HASTA', 'HASTA'], 11)
-            col_locales = find_fl(df_fl, ['LOCALES ARG', 'LOCALES'], 14)
+            df_raw = load_raw_sheet(SHEET_URL)
 
             def parse_usd(val):
                 try:
@@ -1021,36 +1013,102 @@ border-radius:20px; border:1px solid rgba(255,170,0,0.2); margin-bottom:30px;'>
                 except:
                     return None
 
-            df_fl['Precio_Num']  = df_fl[col_flete].apply(parse_usd)
-            df_fl['Locales_Num'] = df_fl[col_locales].apply(parse_usd)
-            df_fl['DT_Desde']    = pd.to_datetime(df_fl[col_desde], dayfirst=True, errors='coerce')
-            df_fl['DT_Hasta']    = pd.to_datetime(df_fl[col_hasta], dayfirst=True, errors='coerce')
+            # ── Detectar fila header de Tabla A (TIPO | ORIGEN | AGENTE | PRECIO USD | DESDE | HASTA)
+            header_a_idx = None
+            for i, row in df_raw.iterrows():
+                vals = [str(v).strip().upper() for v in row.values]
+                if 'TIPO' in vals and 'AGENTE' in vals and 'PRECIO USD' in vals:
+                    header_a_idx = i
+                    break
 
-            # ✅ Solo marítimo + precio válido + AMBAS fechas en 2026
-            df_fl = df_fl[
-                df_fl[col_tipo_fl].astype(str).str.upper().str.contains('MARITIMO|MARÍTIMO', na=False) &
-                df_fl['Precio_Num'].notna() &
-                (df_fl['DT_Desde'].dt.year == 2026) &
-                (df_fl['DT_Hasta'].dt.year == 2026)
+            # ── Detectar fila header de Tabla B (FFWW | Agente | Valor Flete | ... | Locales ARG)
+            header_b_idx = None
+            for i, row in df_raw.iterrows():
+                vals = [str(v).strip().upper() for v in row.values]
+                if 'FFWW' in vals and 'VALOR FLETE' in vals and any('LOCAL' in v for v in vals):
+                    header_b_idx = i
+                    break
+
+            if header_a_idx is None:
+                st.error("No se encontró la tabla de cotizaciones (TIPO | ORIGEN | AGENTE | PRECIO USD).")
+                st.stop()
+
+            # ── Construir Tabla A
+            headers_a = [str(v).strip() for v in df_raw.iloc[header_a_idx].values]
+            df_a = df_raw.iloc[header_a_idx+1:].copy()
+            df_a.columns = range(len(df_a.columns))
+
+            # Identificar índices de columnas A
+            col_idx = {h.upper(): i for i, h in enumerate(headers_a)}
+            ci_tipo   = col_idx.get('TIPO', 0)
+            ci_origen = col_idx.get('ORIGEN', 1)
+            ci_agente = col_idx.get('AGENTE', 2)
+            ci_precio = col_idx.get('PRECIO USD', 3)
+            ci_desde  = col_idx.get('DESDE', 4)
+            ci_hasta  = col_idx.get('HASTA', 5)
+
+            df_a = df_a[[ci_tipo, ci_origen, ci_agente, ci_precio, ci_desde, ci_hasta]].copy()
+            df_a.columns = ['TIPO', 'ORIGEN', 'AGENTE', 'PRECIO_RAW', 'DESDE_RAW', 'HASTA_RAW']
+
+            # Limpiar y filtrar
+            df_a['TIPO']    = df_a['TIPO'].astype(str).str.strip()
+            df_a['AGENTE']  = df_a['AGENTE'].astype(str).str.strip()
+            df_a['PRECIO']  = df_a['PRECIO_RAW'].apply(parse_usd)
+            df_a['DT_Desde'] = pd.to_datetime(df_a['DESDE_RAW'], dayfirst=True, errors='coerce')
+            df_a['DT_Hasta'] = pd.to_datetime(df_a['HASTA_RAW'], dayfirst=True, errors='coerce')
+
+            # Solo filas con tipo CNT válido + precio + ambas fechas en 2026
+            TIPOS_CNTR = ['20ST', '40ST/40HQ', '40NOR']
+            df_a = df_a[
+                df_a['TIPO'].isin(TIPOS_CNTR) &
+                df_a['PRECIO'].notna() &
+                (df_a['DT_Desde'].dt.year == 2026) &
+                (df_a['DT_Hasta'].dt.year == 2026)
             ].copy()
 
-            df_fl['Mes_Num']   = df_fl['DT_Desde'].dt.month
-            df_fl['Mes_Label'] = df_fl['DT_Desde'].dt.strftime('%b %Y')
+            df_a['Mes_Num']   = df_a['DT_Desde'].dt.month
+            df_a['Mes_Label'] = df_a['DT_Desde'].dt.strftime('%b %Y')
 
-            TIPOS_CNTR = ['20ST', '40ST/40HQ', '40NOR']
+            # ── Construir Tabla B (Locales ARG)
+            df_b = pd.DataFrame()
+            if header_b_idx is not None:
+                headers_b = [str(v).strip() for v in df_raw.iloc[header_b_idx].values]
+                df_b = df_raw.iloc[header_b_idx+1:].copy()
+                df_b.columns = range(len(df_b.columns))
+                col_idx_b = {h.upper(): i for i, h in enumerate(headers_b)}
+                ci_agente_b  = col_idx_b.get('AGENTE', 2)
+                ci_desde_b   = col_idx_b.get('VALIDEZ QUINCENA DESDE', 10)
+                ci_hasta_b   = col_idx_b.get('VALIDEZ QUINCENA HASTA', 11)
+                ci_locales_b = next((col_idx_b[k] for k in col_idx_b if 'LOCAL' in k), 14)
+
+                df_b = df_b[[ci_agente_b, ci_desde_b, ci_hasta_b, ci_locales_b]].copy()
+                df_b.columns = ['AGENTE', 'DESDE_RAW', 'HASTA_RAW', 'LOCALES_RAW']
+                df_b['LOCALES']  = df_b['LOCALES_RAW'].apply(parse_usd)
+                df_b['DT_Desde'] = pd.to_datetime(df_b['DESDE_RAW'], dayfirst=True, errors='coerce')
+                df_b['DT_Hasta'] = pd.to_datetime(df_b['HASTA_RAW'], dayfirst=True, errors='coerce')
+                df_b = df_b[
+                    df_b['LOCALES'].notna() &
+                    (df_b['DT_Desde'].dt.year == 2026) &
+                    (df_b['DT_Hasta'].dt.year == 2026)
+                ].copy()
+                df_b['Mes_Num']   = df_b['DT_Desde'].dt.month
+                df_b['Mes_Label'] = df_b['DT_Desde'].dt.strftime('%b %Y')
+
             TARGET_PCT = 0.85
             COLORES    = {'20ST': '#00a8ff', '40ST/40HQ': '#00ff88', '40NOR': '#ffaa00'}
 
             # ✅ Vigentes: DT_Desde <= hoy <= DT_Hasta
-            df_vig = df_fl[
-                (df_fl['DT_Desde'] <= hoy) &
-                (df_fl['DT_Hasta'] >= hoy)
+            df_vig = df_a[
+                (df_a['DT_Desde'] <= hoy) & (df_a['DT_Hasta'] >= hoy)
             ].copy()
-
             if df_vig.empty:
-                ultimo = df_fl['DT_Desde'].max()
-                df_vig = df_fl[df_fl['DT_Desde'] == ultimo].copy()
-                st.info(f"ℹ️ Sin cotizaciones para hoy. Mostrando período más reciente: {ultimo.strftime('%d/%m/%Y')}")
+                ultimo = df_a['DT_Desde'].max()
+                df_vig = df_a[df_a['DT_Desde'] == ultimo].copy()
+                st.info(f"ℹ️ Sin cotizaciones para hoy. Período más reciente: {ultimo.strftime('%d/%m/%Y')}")
+
+            df_loc_vig = df_b[
+                (df_b['DT_Desde'] <= hoy) & (df_b['DT_Hasta'] >= hoy)
+            ].copy() if not df_b.empty else pd.DataFrame()
 
             # =====================================================
             # ZONA 1 — COTIZACIONES VIGENTES
@@ -1061,7 +1119,7 @@ border-left:4px solid #00ff88; margin-bottom:20px;'>
 <p style='color:#00ff88; font-weight:800; font-size:15px; letter-spacing:3px; margin:0;'>
 ⚡ COTIZACIONES VIGENTES — HOY {hoy.strftime('%d/%m/%Y')}</p>
 <p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>
-Tarifas con vigencia activa hoy (Desde ≤ {hoy.strftime('%d/%m')} ≤ Hasta)</p>
+Tarifas con Validez Quincena Desde ≤ hoy ≤ Validez Quincena Hasta</p>
 </div>""", unsafe_allow_html=True)
 
             # Cabecera
@@ -1074,17 +1132,13 @@ Tarifas con vigencia activa hoy (Desde ≤ {hoy.strftime('%d/%m')} ≤ Hasta)</p
                 unsafe_allow_html=True)
 
             for tipo in TIPOS_CNTR:
-                # Filtrar por tipo usando contains para manejar variantes
-                mask = df_vig[col_ffww].astype(str).str.replace(' ', '').str.upper().str.contains(
-                    tipo.replace('/', '').replace(' ', ''), na=False)
-                df_t = df_vig[mask]
+                df_t = df_vig[df_vig['TIPO'] == tipo]
                 if df_t.empty:
                     continue
-
-                prom_mkt   = df_t['Precio_Num'].mean()
+                prom_mkt   = df_t['PRECIO'].mean()
                 target     = prom_mkt * TARGET_PCT
-                min_precio = df_t['Precio_Num'].min()
-                agente_min = df_t.loc[df_t['Precio_Num'].idxmin(), col_agente]
+                min_precio = df_t['PRECIO'].min()
+                agente_min = df_t.loc[df_t['PRECIO'].idxmin(), 'AGENTE']
                 diff_pct   = (min_precio - target) / target * 100
                 ok         = min_precio <= target
                 color      = COLORES.get(tipo, '#94a3b8')
@@ -1115,27 +1169,26 @@ Tarifas con vigencia activa hoy (Desde ≤ {hoy.strftime('%d/%m')} ≤ Hasta)</p
 border-left:4px solid #a855f7; margin-bottom:20px;'>
 <p style='color:#a855f7; font-weight:800; font-size:15px; letter-spacing:3px; margin:0;'>
 🏛️ GASTOS LOCALES ARG — VIGENTES HOY</p>
-<p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>Promedio de cotizaciones activas hoy</p>
+<p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>
+Promedio de cotizaciones con vigencia activa hoy</p>
 </div>""", unsafe_allow_html=True)
 
-            df_loc_vig = df_vig[df_vig['Locales_Num'].notna()].copy()
-
             if not df_loc_vig.empty:
-                prom_loc   = df_loc_vig['Locales_Num'].mean()
-                min_loc    = df_loc_vig['Locales_Num'].min()
-                agente_loc = df_loc_vig.loc[df_loc_vig['Locales_Num'].idxmin(), col_agente]
-                max_loc    = df_loc_vig['Locales_Num'].max()
+                prom_loc   = df_loc_vig['LOCALES'].mean()
+                min_loc    = df_loc_vig['LOCALES'].min()
+                max_loc    = df_loc_vig['LOCALES'].max()
+                agente_loc = df_loc_vig.loc[df_loc_vig['LOCALES'].idxmin(), 'AGENTE']
 
-                la, lb, lc, ld = st.columns(4)
+                la,lb,lc,ld = st.columns(4)
                 for col_card, valor, label, color in [
-                    (la, f"USD {prom_loc:,.0f}", "PROM. LOCALES",      "#a855f7"),
-                    (lb, f"USD {min_loc:,.0f}",  "🏆 MENOR LOCAL",     "#00ff88"),
-                    (lc, agente_loc,              "AGENTE MÁS BARATO",  "#f8fafc"),
-                    (ld, f"USD {max_loc:,.0f}",  "MAYOR LOCAL",        "#ff4b4b"),
+                    (la, f"USD {prom_loc:,.0f}", "PROM. LOCALES",     "#a855f7"),
+                    (lb, f"USD {min_loc:,.0f}",  "🏆 MENOR LOCAL",    "#00ff88"),
+                    (lc, agente_loc,              "AGENTE MÁS BARATO", "#f8fafc"),
+                    (ld, f"USD {max_loc:,.0f}",  "MAYOR LOCAL",       "#ff4b4b"),
                 ]:
                     col_card.markdown(f"""
 <div style='text-align:center; padding:16px 8px; background:rgba(255,255,255,0.02);
-border-radius:14px; border:1px solid {color}33; border-top:3px solid {color};'>
+border-radius:14px; border-top:3px solid {color}; border:1px solid {color}22;'>
 <p style='color:#94a3b8; font-size:10px; letter-spacing:1px; margin:0 0 6px 0;'>{label}</p>
 <p style='color:{color}; font-size:22px; font-weight:900; margin:0;'>{valor}</p>
 </div>""", unsafe_allow_html=True)
@@ -1154,30 +1207,31 @@ border-left:4px solid #ffaa00; margin-bottom:20px;'>
 <p style='color:#ffaa00; font-weight:800; font-size:15px; letter-spacing:3px; margin:0;'>
 📈 HISTÓRICO 2026 — PROMEDIO MENSUAL POR TIPO DE CNT</p>
 <p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>
-Promedio de todas las cotizaciones del mes · Línea punteada = Target -15%</p>
+Una línea por tipo · Promedio de todas las cotizaciones del mes · Línea punteada = Target -15%</p>
 </div>""", unsafe_allow_html=True)
 
-            # Agrupar por mes + tipo (SIN agente)
-            df_evol = df_fl.groupby(['Mes_Num', 'Mes_Label', col_ffww]).agg(
-                Prom=('Precio_Num', 'mean'),
-                Min=('Precio_Num', 'min'),
+            # Una fila por (Mes, Tipo CNT) con promedio de todas las cotizaciones
+            df_evol = df_a.groupby(['Mes_Num', 'Mes_Label', 'TIPO']).agg(
+                Prom=('PRECIO', 'mean'),
+                Min=('PRECIO', 'min'),
+                Max=('PRECIO', 'max'),
             ).reset_index().sort_values('Mes_Num')
             df_evol['Target'] = df_evol['Prom'] * TARGET_PCT
 
             if not df_evol.empty:
-                fig_hist = px.line(df_evol, x='Mes_Label', y='Prom', color=col_ffww,
+                fig_hist = px.line(df_evol, x='Mes_Label', y='Prom', color='TIPO',
                     markers=True, color_discrete_map=COLORES,
-                    labels={'Prom': 'USD Promedio', 'Mes_Label': '', col_ffww: 'Tipo CNT'})
+                    labels={'Prom': 'USD Promedio', 'Mes_Label': '', 'TIPO': 'Tipo CNT'})
 
-                # Líneas target punteadas (sin leyenda extra)
-                for tipo in df_evol[col_ffww].unique():
-                    df_t = df_evol[df_evol[col_ffww] == tipo].sort_values('Mes_Num')
+                # Línea target punteada por tipo
+                for tipo in df_evol['TIPO'].unique():
+                    df_t = df_evol[df_evol['TIPO'] == tipo].sort_values('Mes_Num')
                     fig_hist.add_scatter(
                         x=df_t['Mes_Label'], y=df_t['Target'],
                         mode='lines',
                         line=dict(dash='dot', width=1.5, color=COLORES.get(tipo, '#94a3b8')),
                         name=f'Target {tipo} (-15%)',
-                        opacity=0.45, showlegend=True
+                        opacity=0.4, showlegend=True
                     )
 
                 fig_hist.update_traces(selector=dict(mode='lines+markers'), line_width=2.5, marker_size=9)
@@ -1191,9 +1245,8 @@ Promedio de todas las cotizaciones del mes · Línea punteada = Target -15%</p>
                 )
                 st.plotly_chart(fig_hist, use_container_width=True)
 
-            # Gastos locales histórico mensual
-            df_loc_hist = df_fl[df_fl['Locales_Num'].notna()].copy()
-            if not df_loc_hist.empty:
+            # Gastos locales histórico — promedio mensual simple
+            if not df_b.empty:
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.markdown("""
 <div style='padding:12px 18px; background:rgba(255,255,255,0.02); border-radius:12px;
@@ -1202,11 +1255,10 @@ border-left:4px solid #a855f7; margin-bottom:15px;'>
 🏛️ GASTOS LOCALES ARG — PROMEDIO MENSUAL 2026</p>
 </div>""", unsafe_allow_html=True)
 
-                # Promedio mensual simple (sin agente)
-                df_loc_evol = df_loc_hist.groupby(['Mes_Num', 'Mes_Label']).agg(
-                    Prom_Local=('Locales_Num', 'mean'),
-                    Min_Local=('Locales_Num', 'min'),
-                    Max_Local=('Locales_Num', 'max')
+                df_loc_evol = df_b.groupby(['Mes_Num', 'Mes_Label']).agg(
+                    Prom_Local=('LOCALES', 'mean'),
+                    Min_Local=('LOCALES', 'min'),
+                    Max_Local=('LOCALES', 'max')
                 ).reset_index().sort_values('Mes_Num')
 
                 fig_loc = px.bar(df_loc_evol, x='Mes_Label', y='Prom_Local',
