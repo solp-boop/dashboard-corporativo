@@ -1239,15 +1239,26 @@ try:
 
             col_emb_re   = find_col(df_re, ['EMBARQUE'], 0)
             col_resp     = find_col(df_re, ['RESPONSABLE DE LA CARGA', 'RESPONSABLE'], 33)
-            col_fwd      = find_col(df_re, ['FORWARDER', 'AGENTE'], 6)  # col G
+            col_fwd      = find_col(df_re, ['FORWARDER', 'AGENTE'], 6)   # col G idx 6
             col_inst_re  = find_col(df_re, ['INSTRUCCION', 'INSTRUCCIÓN'], 7)
-            col_etd_ok   = find_col(df_re, ['ETD OK', 'ETD STATUS'], 10)
-            col_etd_re   = find_col(df_re, ['ETD'], 12)
+
+            # Col K idx 10 — nombre exacto "ETD OK FFWW"
+            col_etd_ok   = df_re.columns[10] if len(df_re.columns) > 10 else find_col(df_re, ['ETD OK FFWW'], 10)
+
+            # Col M idx 12 — nombre exacto "ETD"
+            col_etd_re   = df_re.columns[12] if len(df_re.columns) > 12 else find_col(df_re, ['ETD'], 12)
+
             col_pack_min = find_col(df_re, ['PACKEO MIN', 'P MIN', 'MIN PACK'], 18)
             col_pack_max = find_col(df_re, ['PACKEO MAX', 'P MAX', 'MAX PACK'], 19)
-            col_draft_bl = find_col(df_re, ['DRAFT BL', 'DRAFT'], 35)
-            col_pack_lst = find_col(df_re, ['PACKING LIST', 'PACKING'], 36)
-            col_impo2    = find_col(df_re, ['PASAR A IMPO2', 'PASAR A IMPO', 'IMPO2'], 39)  # col AN
+
+            # Col AJ idx 35 — DRAFT BL
+            col_draft_bl = df_re.columns[35] if len(df_re.columns) > 35 else find_col(df_re, ['DRAFT BL'], 35)
+
+            # Col AK idx 36 — PACKING LIST FINAL
+            col_pack_lst = df_re.columns[36] if len(df_re.columns) > 36 else find_col(df_re, ['PACKING LIST'], 36)
+
+            # Col AN idx 39 — PASAR A IMPO2
+            col_impo2    = df_re.columns[39] if len(df_re.columns) > 39 else find_col(df_re, ['PASAR A IMPO'], 39)
 
             df_re['DT_Inst']       = pd.to_datetime(df_re[col_inst_re],  dayfirst=True, errors='coerce')
             df_re['DT_ETD']        = pd.to_datetime(df_re[col_etd_re],   dayfirst=True, errors='coerce')
