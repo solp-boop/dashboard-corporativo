@@ -1399,44 +1399,39 @@ border-radius:16px; border:1px solid {color}33; border-top:3px solid {color};'>
             # HELPER: bloque de alerta con botón toggle
             # =====================================================
             def render_alerta(key, emoji, titulo, subtitulo, color, conteo, tabla_fn):
-                """
-                key       : clave única para session_state
-                tabla_fn  : función sin args que devuelve el st.dataframe a mostrar
-                """
                 estado_key = f"alerta_open_{key}"
                 if estado_key not in st.session_state:
                     st.session_state[estado_key] = False
 
-                # Cabecera siempre visible
-                col_txt, col_num, col_btn = st.columns([5, 1, 1.4])
-                with col_txt:
-                    st.markdown(f"""
-<div style='padding:16px 20px; background:rgba(255,255,255,0.02); border-radius:14px;
-border-left:5px solid {color};'>
-<p style='color:{color}; font-weight:800; font-size:15px; letter-spacing:2px; margin:0;'>{emoji} {titulo}</p>
-<p style='color:#94a3b8; font-size:12px; margin:5px 0 0 0;'>{subtitulo}</p>
+                # Fila superior: info + contador + botón
+                st.markdown(f"""
+<div style='padding:16px 22px; background:rgba(255,255,255,0.02); border-radius:14px;
+border-left:5px solid {color}; margin-bottom:6px;'>
+<div style='display:flex; justify-content:space-between; align-items:center;'>
+  <div>
+    <p style='color:{color}; font-weight:800; font-size:15px; letter-spacing:2px; margin:0;'>{emoji} {titulo}</p>
+    <p style='color:#94a3b8; font-size:12px; margin:5px 0 0 0;'>{subtitulo}</p>
+  </div>
+  <p style='color:{color}; font-size:40px; font-weight:900; margin:0 30px;'>{conteo}</p>
+</div>
 </div>""", unsafe_allow_html=True)
-                with col_num:
-                    st.markdown(f"""
-<div style='text-align:center; padding:16px 8px; background:rgba(255,255,255,0.03);
-border-radius:14px; border:1px solid {color}44; height:100%; display:flex; align-items:center; justify-content:center;'>
-<p style='font-size:38px; font-weight:900; color:{color}; margin:0; line-height:1;'>{conteo}</p>
-</div>""", unsafe_allow_html=True)
-                with col_btn:
+
+                # Botón toggle en su propia fila, ancho reducido
+                _, col_b = st.columns([6, 1])
+                with col_b:
                     label_btn = "🔼 OCULTAR" if st.session_state[estado_key] else "🔽 VER DETALLE"
                     if st.button(label_btn, key=f"btn_{key}", use_container_width=True):
                         st.session_state[estado_key] = not st.session_state[estado_key]
                         st.rerun()
 
-                # Detalle desplegable
+                # Tabla: solo aparece si el toggle está abierto
                 if st.session_state[estado_key]:
-                    with st.container():
-                        if conteo == 0:
-                            st.success("✅ Sin casos para esta alerta.")
-                        else:
-                            tabla_fn()
+                    if conteo == 0:
+                        st.success("✅ Sin casos para esta alerta.")
+                    else:
+                        tabla_fn()
 
-                st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
+                st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
 
             # =====================================================
             # ALERTA 1 — SIN INSTRUIR
