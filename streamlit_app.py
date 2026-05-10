@@ -2402,39 +2402,40 @@ No inventes datos. Si te preguntan algo que no está en el contexto, indícalo a
                             cantidad_mostrar = int(val_cant_emb); label_cant = "CANTIDAD EMB"
                         else:
                             cantidad_mostrar = int(val_cant_pend); label_cant = "CANT. PENDIENTE"
-                        estadio = 1; desc_estadio = "PENDIENTE DE INSTRUCCIÓN"; color_estadio = "#94a3b8"
-                        info_extra = "La carga no ha sido instruida. Se encuentra en origen sin gestión iniciada."
+                        # Columnas clave de Planif Cargas
+                        col_etd_ok_ask = next((c for c in df.columns if "ETD OK FFWW" in str(c).upper() or "ETD OK" in str(c).upper()), df.columns[97])
+                        val_etd_ok = str(row[col_etd_ok_ask]).strip().upper() if col_etd_ok_ask in df.columns else ""
+                        hoy_d = datetime.now().date()
+                        try: dt_eta_gso = pd.to_datetime(val_eta_gso, dayfirst=True).date()
+                        except: dt_eta_gso = None
+                        try: dt_etd_gso = pd.to_datetime(val_etd_gso, dayfirst=True).date()
+                        except: dt_etd_gso = None
+                        in_historical = False
+                        if not df_hi_ask.empty:
+                            df_hi_ask.columns = df_hi_ask.columns.str.strip()
+                            col_hi_emb = df_hi_ask.columns[0]
+                            hi_match = df_hi_ask[df_hi_ask[col_hi_emb].astype(str).str.strip().str.upper() == val_emb.upper()]
+                            if not hi_match.empty: in_historical = True
+                        tiene_emb  = val_emb not in ["Sin Asignar", "", "nan", "NAN"]
                         tiene_inst = val_fecha_inst != "Pendiente"
-                        if tiene_inst:
-                            estadio = 2; desc_estadio = "INSTRUIDA / EN GESTIÓN"; color_estadio = "#ffaa00"
-                            info_extra = f"Instruida el {val_inst}. Esperando confirmación de Booking en Reservas."
-                            df_res_ask.columns = df_res_ask.columns.str.strip()
-                            col_res_emb = df_res_ask.columns[0] if not df_res_ask.empty else None
-                            status_res = ""
-                            if col_res_emb:
-                                res_match = df_res_ask[df_res_ask[col_res_emb].astype(str).str.strip().str.upper() == val_emb.upper()]
-                                if not res_match.empty:
-                                    status_res = str(res_match.iloc[0].iloc[10]).upper().strip() if len(res_match.iloc[0]) > 10 else ""
-                            hoy_d = datetime.now().date()
-                            try: dt_eta_gso = pd.to_datetime(val_eta_gso, dayfirst=True).date()
-                            except: dt_eta_gso = None
-                            try: dt_etd_gso = pd.to_datetime(val_etd_gso, dayfirst=True).date()
-                            except: dt_etd_gso = None
-                            in_historical = False
-                            if not df_hi_ask.empty:
-                                df_hi_ask.columns = df_hi_ask.columns.str.strip()
-                                col_hi_emb = df_hi_ask.columns[0]
-                                hi_match = df_hi_ask[df_hi_ask[col_hi_emb].astype(str).str.strip().str.upper() == val_emb.upper()]
-                                if not hi_match.empty: in_historical = True
-                            if in_historical or (dt_eta_gso and dt_eta_gso <= hoy_d):
-                                estadio, desc_estadio, color_estadio, info_extra = get_estadio_impo2(val_emb, val_eta_gso, df_ddp_ask, hoy_d, historico=False)
-                            elif dt_etd_gso and dt_etd_gso <= hoy_d:
-                                estadio = 4; desc_estadio = "EN TRÁNSITO"; color_estadio = "#00a8ff"
-                                info_extra = f"La carga está navegando/volando hacia destino. (ETD: {dt_etd_gso.strftime('%d/%m/%Y')} | ETA: {val_eta_gso})"
-                            elif status_res == "OK" or (dt_etd_gso and dt_etd_gso > hoy_d):
-                                estadio = 3; desc_estadio = "BOOKING CONFIRMADO"; color_estadio = "#a855f7"
-                                info_extra = f"Espacio confirmado. Esperando zarpada. (ETD aprox: {dt_etd_gso.strftime('%d/%m/%Y') if dt_etd_gso else 'No def'})"
-
+                        etd_ok     = val_etd_ok == "OK"
+                        if in_historical or (dt_eta_gso and dt_eta_gso <= hoy_d):
+                            estadio, desc_estadio, color_estadio, info_extra = get_estadio_impo2(val_emb, val_eta_gso, df_ddp_ask, hoy_d, historico=False)
+                        elif dt_etd_gso and dt_etd_gso <= hoy_d and etd_ok:
+                            estadio = 5; desc_estadio = "EN TRANSITO"; color_estadio = "#00a8ff"
+                            info_extra = "La carga esta navegando hacia destino. ETD: " + (dt_etd_gso.strftime("%d/%m/%Y") if dt_etd_gso else "SD") + " | ETA: " + val_eta_gso
+                        elif etd_ok and (not dt_etd_gso or dt_etd_gso > hoy_d):
+                            estadio = 4; desc_estadio = "BOOKING CONFIRMADO"; color_estadio = "#a855f7"
+                            info_extra = "Espacio confirmado por el agente. Esperando zarpada. ETD: " + (dt_etd_gso.strftime("%d/%m/%Y") if dt_etd_gso else "Sin fecha")
+                        elif tiene_inst and not etd_ok:
+                            estadio = 3; desc_estadio = "INSTRUCCION ENVIADA - ESPERA BOOKING"; color_estadio = "#ffaa00"
+                            info_extra = "Instruccion enviada el " + val_inst + ". Esperando confirmacion de booking del agente."
+                        elif tiene_emb and not tiene_inst:
+                            estadio = 2; desc_estadio = "EN PROCESO DE CONSOLIDACION"; color_estadio = "#06b6d4"
+                            info_extra = "SO asignado al embarque " + val_emb + ". Pendiente de instruccion al agente."
+                        else:
+                            estadio = 1; desc_estadio = "PENDIENTE DE INSTRUCCION"; color_estadio = "#94a3b8"
+                            info_extra = "Sin embarque asignado. Carga en origen sin gestion iniciada."
                     resultados_procesados.append({
                         "estadio": estadio, "desc_estadio": desc_estadio, "color_estadio": color_estadio,
                         "info_extra": info_extra, "so": val_so, "inv": val_inv, "sku": val_sku,
@@ -2499,11 +2500,11 @@ No inventes datos. Si te preguntan algo que no está en el contexto, indícalo a
 </div>
 <div style="display: flex; justify-content: space-between; margin-top: 10px; padding: 0 5px;">
     <span style="font-size: 10px; font-weight:700; color: {'#fff' if grp['estadio'] >= 1 else '#64748b'};">1. PENDIENTE</span>
-    <span style="font-size: 10px; font-weight:700; color: {'#fff' if grp['estadio'] >= 2 else '#64748b'};">2. INSTRUIDO</span>
-    <span style="font-size: 10px; font-weight:700; color: {'#fff' if grp['estadio'] >= 3 else '#64748b'};">3. BOOKING</span>
-    <span style="font-size: 10px; font-weight:700; color: {'#fff' if grp['estadio'] >= 4 else '#64748b'};">4. TRÁNSITO</span>
-    <span style="font-size: 10px; font-weight:700; color: {'#fff' if grp['estadio'] >= 5 else '#64748b'};">5. NACIONLIZ.</span>
-    <span style="font-size: 10px; font-weight:700; color: {'#fff' if grp['estadio'] >= 6 else '#64748b'};">6. COORD. SAL.</span>
+    <span style="font-size: 10px; font-weight:700; color: {'#fff' if grp['estadio'] >= 2 else '#64748b'};">2. CONSOLID.</span>
+    <span style="font-size: 10px; font-weight:700; color: {'#fff' if grp['estadio'] >= 3 else '#64748b'};">3. INSTRUCCION</span>
+    <span style="font-size: 10px; font-weight:700; color: {'#fff' if grp['estadio'] >= 4 else '#64748b'};">4. BOOKING</span>
+    <span style="font-size: 10px; font-weight:700; color: {'#fff' if grp['estadio'] >= 5 else '#64748b'};">5. TRANSITO</span>
+    <span style="font-size: 10px; font-weight:700; color: {'#fff' if grp['estadio'] >= 6 else '#64748b'};">6. NACIONALIZ.</span>
     <span style="font-size: 10px; font-weight:700; color: {'#fff' if grp['estadio'] >= 7 else '#64748b'};">7. ENTREGADO</span>
 </div>
 <br><br>
