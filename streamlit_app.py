@@ -1234,7 +1234,7 @@ border-radius:20px; border:1px solid rgba(255,170,0,0.2); margin-bottom:30px;'>
             # A(0)=Tipo transporte, B(1)=FFWW, C(2)=Agente, D(3)=Valor Flete
             # K(10)=Validez Desde, L(11)=Validez Hasta, O(14)=Locales ARG, P(15)=Tipo Ctnr
             col_fl_tipo   = df_fl.columns[0]
-            col_fl_agente = df_fl.columns[2]
+            col_fl_agente = df_fl.columns[1]
             col_fl_flete  = df_fl.columns[3]
             col_fl_desde  = df_fl.columns[10]
             col_fl_hasta  = df_fl.columns[11]
@@ -1390,7 +1390,7 @@ HISTORICO 2026 - EVOLUCION MENSUAL POR TIPO DE CNT</p>
 Promedio de mercado, mejor oferta y target -15% por mes y tipo de contenedor</p>
 </div>""", unsafe_allow_html=True)
 
-                # Tabla historico
+                # Construir tabla historica completa (todos los meses x todos los CNTs)
                 rows_hist = []
                 meses_ord = df_fl_2026.drop_duplicates('_mes_num').sort_values('_mes_num')[['_mes_num','_mes_label']].values.tolist()
                 for mes_num, mes_lbl in meses_ord:
@@ -1418,8 +1418,47 @@ Promedio de mercado, mejor oferta y target -15% por mes y tipo de contenedor</p>
 
                 df_hist = pd.DataFrame(rows_hist)
                 if not df_hist.empty:
+                    # ── SELECTORES ───────────────────────────────────────────
+                    meses_disponibles = ["TODOS"] + [m for _, m in meses_ord]
+                    cnts_disponibles  = ["TODOS"] + TIPOS_CNT
+
+                    fh1, fh2 = st.columns(2)
+                    with fh1:
+                        mes_sel_hist = st.selectbox(
+                            "MES:", meses_disponibles, key="hist_mes_sel"
+                        )
+                    with fh2:
+                        cnt_sel_hist = st.selectbox(
+                            "TIPO CNT:", cnts_disponibles, key="hist_cnt_sel"
+                        )
+
+                    # Aplicar filtros a la tabla
+                    df_hist_fil = df_hist.copy()
+                    if mes_sel_hist != "TODOS":
+                        df_hist_fil = df_hist_fil[df_hist_fil['Mes'] == mes_sel_hist]
+                    if cnt_sel_hist != "TODOS":
+                        df_hist_fil = df_hist_fil[df_hist_fil['Tipo CNT'] == cnt_sel_hist]
+
+                    # KPIs del filtro actual
+                    if not df_hist_fil.empty:
+                        avg_prom  = df_hist_fil['Prom. Mercado'].mean()
+                        avg_mejor = df_hist_fil['Mejor Oferta'].mean()
+                        avg_tgt   = df_hist_fil['Target -15%'].mean()
+                        avg_dif   = df_hist_fil['Dif. USD'].mean()
+
+                        kh1, kh2, kh3, kh4 = st.columns(4)
+                        with kh1: st.markdown(f"<div class='metric-container'><p>PROM. MERCADO</p><p style='font-size:40px !important;'>USD {int(avg_prom):,}</p></div>", unsafe_allow_html=True)
+                        with kh2: st.markdown(f"<div class='metric-container'><p>MEJOR OFERTA</p><p style='font-size:40px !important;'>USD {int(avg_mejor):,}</p></div>", unsafe_allow_html=True)
+                        with kh3: st.markdown(f"<div class='metric-container'><p>TARGET -15%</p><p style='font-size:40px !important;'>USD {int(avg_tgt):,}</p></div>", unsafe_allow_html=True)
+                        with kh4:
+                            color_dif = "#00ff88" if avg_dif > 0 else "#ff4b4b"
+                            st.markdown(f"<div class='metric-container'><p>AHORRO PROM.</p><p style='font-size:40px !important; color:{color_dif} !important;'>USD {int(avg_dif):,}</p></div>", unsafe_allow_html=True)
+
+                        st.markdown("<br>", unsafe_allow_html=True)
+
+                    # Tabla filtrada
                     st.dataframe(
-                        df_hist.drop(columns=['_mes_num']),
+                        df_hist_fil.drop(columns=['_mes_num']),
                         use_container_width=True, hide_index=True,
                         column_config={
                             'Mes'          : st.column_config.TextColumn("Mes"),
@@ -1435,22 +1474,28 @@ Promedio de mercado, mejor oferta y target -15% por mes y tipo de contenedor</p>
 
                     st.markdown("<br>", unsafe_allow_html=True)
 
-                    # Grafico de lineas: evolucion mensual por tipo CNT
+                    # ── GRAFICO EVOLUCION ─────────────────────────────────────
+                    # Siempre sobre todos los meses; filtrado solo por CNT
+                    df_hist_graf = df_hist.copy()
+                    if cnt_sel_hist != "TODOS":
+                        df_hist_graf = df_hist_graf[df_hist_graf['Tipo CNT'] == cnt_sel_hist]
+
+                    titulo_graf = f"Evolucion Mensual - {'Todos los tipos CNT' if cnt_sel_hist == 'TODOS' else cnt_sel_hist}"
                     fig_evol = px.line(
-                        df_hist, x='Mes', y='Prom. Mercado', color='Tipo CNT',
+                        df_hist_graf.sort_values(['_mes_num','Tipo CNT']),
+                        x='Mes', y='Prom. Mercado', color='Tipo CNT',
                         markers=True, color_discrete_map=COLORES_CNT,
                         labels={'Prom. Mercado': 'USD', 'Mes': ''},
-                        title='Evolucion Mensual - Promedio de Mercado por Tipo CNT'
+                        title=titulo_graf
                     )
-                    # Agregar lineas de Mejor Oferta y Target por tipo
-                    for cnt in df_hist['Tipo CNT'].unique():
-                        df_t = df_hist[df_hist['Tipo CNT'] == cnt].sort_values('_mes_num')
+                    for cnt in df_hist_graf['Tipo CNT'].unique():
+                        df_t = df_hist_graf[df_hist_graf['Tipo CNT'] == cnt].sort_values('_mes_num')
                         color_cnt = COLORES_CNT.get(cnt, '#94a3b8')
                         fig_evol.add_scatter(
                             x=df_t['Mes'], y=df_t['Mejor Oferta'], mode='lines+markers',
                             line=dict(dash='dot', width=2, color=color_cnt),
                             marker=dict(symbol='diamond', size=8),
-                            name=f'Mejor Oferta {cnt}', opacity=0.7
+                            name=f'Mejor Oferta {cnt}', opacity=0.8
                         )
                         fig_evol.add_scatter(
                             x=df_t['Mes'], y=df_t['Target -15%'], mode='lines',
@@ -1468,6 +1513,15 @@ Promedio de mercado, mejor oferta y target -15% por mes y tipo de contenedor</p>
                         yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)', title='USD'),
                         margin=dict(l=20, r=20, t=80, b=40)
                     )
+                    # Marcar mes seleccionado con linea vertical si no es TODOS
+                    if mes_sel_hist != "TODOS":
+                        fig_evol.add_vline(
+                            x=mes_sel_hist, line_width=1.5,
+                            line_dash="dot", line_color="rgba(255,255,255,0.3)",
+                            annotation_text=mes_sel_hist,
+                            annotation_font_color="#f8fafc",
+                            annotation_position="top"
+                        )
                     st.plotly_chart(fig_evol, use_container_width=True)
 
         except Exception as e:
