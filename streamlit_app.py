@@ -1732,6 +1732,17 @@ border-radius:12px; border-top:2px solid {color};'>
             if df_2026.empty:
                 df_2026 = df_hi[df_hi.iloc[:, 25].astype(str).str.contains("2026", na=False)].copy()
 
+            # Diagnóstico temporal
+            with st.expander("🔍 Diagnóstico de datos (expandí para ver)"):
+                st.write(f"**Total filas en Reservas Históricas:** {len(df_hi)}")
+                st.write(f"**Columna ETD usada (índice 11):** `{df_hi.columns[11]}`")
+                st.write(f"**Valores únicos de ETD_DT (año):** {sorted(df_hi['ETD_DT'].dt.year.dropna().unique().tolist())}")
+                st.write(f"**Filas con ETD en 2026:** {len(df_2026)}")
+                st.write(f"**Meses encontrados en 2026:** {sorted(df_2026['ETD_DT'].dt.month.dropna().unique().tolist()) if not df_2026.empty else 'ninguno'}")
+                st.write(f"**Columna 25 (nombre):** `{df_hi.columns[25] if len(df_hi.columns) > 25 else 'no existe'}`")
+                st.write("**Primeras 5 filas de columna ETD (raw):**")
+                st.write(df_hi.iloc[:5, 11].tolist())
+
             if not df_2026.empty:
                 df_2026['Mes'] = df_2026['ETD_DT'].dt.month
                 col_tipo_carga_hi = df_hi.columns[5]
