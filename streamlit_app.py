@@ -1067,9 +1067,12 @@ try:
             df_rh['_ag_conf_dt'] = pd.to_datetime(df_rh[col_ag_conf], dayfirst=True, errors='coerce')
 
             df_rh_ag_2026 = df_rh[df_rh['_ag_etd_dt'].dt.year == 2026].copy()
-            # Excluir aereos (embarques que arrancan con AIR)
+            # Filtrar solo tipos maritimos por columna F (índice 5)
+            TIPOS_MAR_AG = ['40 HQ', '20 ST', '40 ST', '40 NOR']
             df_rh_ag_2026 = df_rh_ag_2026[
-                ~df_rh_ag_2026[df_rh.columns[0]].astype(str).str.strip().str.upper().str.startswith('AIR')
+                df_rh_ag_2026[df_rh.columns[5]].astype(str).str.strip().str.upper().isin(
+                    [t.upper() for t in TIPOS_MAR_AG]
+                )
             ].copy()
             df_rh_ag_2026['Mes_Num_Ag']   = df_rh_ag_2026['_ag_etd_dt'].dt.month
             df_rh_ag_2026['Mes_Label_Ag'] = df_rh_ag_2026['_ag_etd_dt'].dt.strftime('%B %Y').str.upper()
