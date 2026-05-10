@@ -1471,7 +1471,12 @@ try:
 
             draft_vacio = df_mar_re[col_draft_bl].apply(doc_falta)
             pack_vacio  = df_mar_re[col_pack_lst].apply(doc_falta)
-            df_a6 = df_mar_re[df_mar_re['ETD_OK'] & (draft_vacio | pack_vacio)].copy()
+            df_a6 = df_mar_re[
+                df_mar_re['ETD_OK'] &
+                (draft_vacio | pack_vacio) &
+                df_mar_re['DT_ETD'].notna() &
+                (df_mar_re['DT_ETD'] < hoy)          # solo ETD vencida
+            ].copy()
             df_a6['Falta_Draft'] = draft_vacio[df_a6.index]
             df_a6['Falta_Pack']  = pack_vacio[df_a6.index]
 
@@ -1631,12 +1636,16 @@ border-radius:12px; border:1px solid {color}44;'>
             # =====================================================
             def tabla_a6():
                 df_show = df_a6.copy()
-                df_show['F_ETD']              = df_a6['DT_ETD'].dt.strftime('%d/%m/%Y')
+                df_show['ETD']                = df_a6['DT_ETD'].dt.strftime('%d/%m/%Y')
                 df_show['Falta Draft BL']     = df_a6['Falta_Draft'].apply(lambda x: "❌ Falta" if x else "✅ OK")
-                df_show['Falta Packing List'] = df_a6['Falta_Pack'].apply(lambda x: "❌ Falta" if x else "✅ OK")
-                df_show = df_show[[col_emb_re, col_resp, 'F_ETD', 'Falta Draft BL', 'Falta Packing List']]
-                df_show = df_show.rename(columns={col_emb_re: 'Embarque', col_resp: 'Responsable', 'F_ETD': 'ETD'})
-                st.dataframe(df_show, use_container_width=True, hide_index=True)
+                df_show['Falta Packing List'] = df_a6['Falta_Pack'].apply(lambda x:  "❌ Falta" if x else "✅ OK")
+                df_show = df_show[[col_emb_re, col_resp, 'ETD', 'Falta Draft BL', 'Falta Packing List']].copy()
+                df_show = df_show.rename(columns={col_emb_re: 'Embarque', col_resp: 'Responsable'})
+                # Ordenar por ETD de menor a mayor
+                df_show['_sort'] = pd.to_datetime(df_a6['DT_ETD'].values)
+                df_show = df_show.sort_values('_sort', ascending=True).drop(columns=['_sort'])
+                st.dataframe(df_show, use_container_width=True, hide_index=True,
+                    column_config={'ETD': st.column_config.TextColumn("ETD (col M)")})
 
             render_alerta("a6", "📋", "ALERTA 6 — RESERVA OK PERO FALTAN DOCUMENTOS",
                 "ETD OK confirmada · Falta Draft BL y/o Packing List Final en Reservas",
