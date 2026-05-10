@@ -1406,11 +1406,19 @@ border-left:4px solid #a855f7; margin-bottom:15px;'>
     with tabs[4]:
         st.markdown("<div style='text-align:center; padding:25px; background:linear-gradient(135deg,rgba(0,168,255,0.08),rgba(0,255,136,0.04)); border-radius:20px; border:1px solid rgba(0,168,255,0.2); margin-bottom:30px;'><h2 style='color:#00a8ff; font-weight:900; letter-spacing:6px; margin:0; font-size:26px;'>PROYECCION SEMANAL ETD</h2><p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>VOLUMEN Y CONTENEDORES FUTUROS - BASE PARA NEGOCIACION DE TARIFAS</p></div>", unsafe_allow_html=True)
         try:
-            col_etd_proy    = df.columns[23]
-            col_m3_proy     = df.columns[50]
-            col_mod_proy    = df.columns[68]
-            col_puerto_proy = df.columns[41]
-            col_pais_proy   = df.columns[0]
+            # Buscar columnas por nombre para evitar desplazamientos de índice
+            def find_col_proy(df, keywords):
+                for kw in keywords:
+                    matches = [c for c in df.columns if kw.upper() in str(c).upper()]
+                    if matches: return matches[0]
+                return None
+
+            col_etd_proy    = find_col_proy(df, ['ETD']) or df.columns[23]
+            col_m3_proy     = find_col_proy(df, ['M3 TOTAL', 'M3TOTAL']) or df.columns[50]
+            col_mod_proy    = find_col_proy(df, ['MODALIDAD DE COSTEO', 'MODALIDAD COSTEO']) or df.columns[68]
+            col_puerto_proy = find_col_proy(df, ['PUERTO DE SALIDA', 'PUERTO SALIDA', 'PUERTO']) or df.columns[41]
+            # Pais Destino: columna S (índice 18) en Planif Cargas
+            col_pais_proy   = df.columns[18]
 
             def clean_m3_proy(val):
                 try: return float(str(val).replace('.','').replace(',','.').strip())
@@ -1418,6 +1426,10 @@ border-left:4px solid #a855f7; margin-bottom:15px;'>
 
             df_proy = df.copy()
             df_proy['_m3'] = df_proy[col_m3_proy].apply(clean_m3_proy)
+
+            # Debug: mostrar valores únicos de pais y modalidad para verificar
+            paises_unicos = df_proy[col_pais_proy].astype(str).str.strip().str.upper().unique()
+            mods_unicas   = df_proy[col_mod_proy].astype(str).str.strip().str.upper().unique()
 
             mask_pais = df_proy[col_pais_proy].astype(str).str.strip().str.upper() == 'ARGENTINA'
             mask_mod  = (
@@ -1436,6 +1448,26 @@ border-left:4px solid #a855f7; margin-bottom:15px;'>
 
             if df_proy.empty:
                 st.warning("No hay carga futura proyectada con los filtros aplicados.")
+                with st.expander("🔍 Diagnóstico de columnas (para verificar)"):
+                    st.write(f"**Columna País Destino usada:** `{col_pais_proy}` (índice 18)")
+                    st.write(f"**Columna Modalidad usada:** `{col_mod_proy}`")
+                    st.write(f"**Columna ETD usada:** `{col_etd_proy}`")
+                    st.write(f"**Columna M3 usada:** `{col_m3_proy}`")
+                    st.write(f"**Columna Puerto usada:** `{col_puerto_proy}`")
+                    st.write("**Valores únicos de País Destino (primeros 15):**")
+                    st.write(list(paises_unicos[:15]))
+                    st.write("**Valores únicos de Modalidad (primeros 15):**")
+                    st.write(list(mods_unicas[:15]))
+                    # Mostrar cuántos pasan cada filtro por separado
+                    df_debug = df.copy()
+                    df_debug['_m3'] = df_debug[col_m3_proy].apply(clean_m3_proy)
+                    n_pais = (df_debug[col_pais_proy].astype(str).str.strip().str.upper() == 'ARGENTINA').sum()
+                    n_mod  = (
+                        df_debug[col_mod_proy].astype(str).str.strip().str.upper().str.startswith('BARCO') |
+                        df_debug[col_mod_proy].astype(str).str.strip().str.upper().str.contains('COSTO HIBRIDO PUERTO ZFLP', na=False)
+                    ).sum()
+                    st.write(f"**Filas que pasan filtro Argentina:** {n_pais}")
+                    st.write(f"**Filas que pasan filtro Modalidad (Barco/ZFLP):** {n_mod}")
             else:
                 meses_proy  = df_proy.drop_duplicates('_mes_num').sort_values('_mes_num')[['_mes_num','_mes_label']].values.tolist()
                 opciones_proy = {lbl: num for num, lbl in meses_proy}
