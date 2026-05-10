@@ -1239,6 +1239,7 @@ try:
 
             col_emb_re   = find_col(df_re, ['EMBARQUE'], 0)
             col_resp     = find_col(df_re, ['RESPONSABLE DE LA CARGA', 'RESPONSABLE'], 33)
+            col_fwd      = find_col(df_re, ['FORWARDER', 'AGENTE'], 6)  # col G
             col_inst_re  = find_col(df_re, ['INSTRUCCION', 'INSTRUCCIÓN'], 7)
             col_etd_ok   = find_col(df_re, ['ETD OK', 'ETD STATUS'], 10)
             col_etd_re   = find_col(df_re, ['ETD'], 12)
@@ -1402,28 +1403,23 @@ try:
                     dt_inst    = grp['DT_Inst_PC'].min()
                     dias_sin_ok = int((hoy - dt_inst).days) if pd.notna(dt_inst) else 0
 
-                    # FFWW desde Planif Cargas
-                    ffww_val = grp[col_etd_ok_pc].astype(str).str.strip().iloc[0] if not grp.empty else '—'
-                    ffww_fmt = '✅ OK' if ffww_val.upper() == 'OK' else ('—' if ffww_val in ['', 'nan', 'NaN'] else ffww_val)
-
-                    # F. Packeo Max desde Reservas
-                    pack_max_fmt = '—'
+                    # Forwarder y F. Packeo Max desde Reservas
+                    forwarder_fmt = '—'
+                    pack_max_fmt  = '—'
+                    resp          = '—'
                     if not df_re.empty:
                         match_re = df_re[df_re[col_emb_re].astype(str).str.strip().str.upper() == emb_str]
                         if not match_re.empty:
-                            resp = str(match_re[col_resp].iloc[0]).strip()
-                            pm   = match_re['DT_PMax'].iloc[0]
-                            pack_max_fmt = pm.strftime('%d/%m/%Y') if pd.notna(pm) else '—'
-                        else:
-                            resp = '—'
-                    else:
-                        resp = '—'
+                            resp          = str(match_re[col_resp].iloc[0]).strip()
+                            forwarder_fmt = str(match_re[col_fwd].iloc[0]).strip() if col_fwd in match_re.columns else '—'
+                            pm            = match_re['DT_PMax'].iloc[0]
+                            pack_max_fmt  = pm.strftime('%d/%m/%Y') if pd.notna(pm) else '—'
 
                     alerta3_rows.append({
                         'Embarque'        : emb,
                         'Responsable'     : resp,
                         'F. Instrucción'  : dt_inst.strftime('%d/%m/%Y') if pd.notna(dt_inst) else '—',
-                        'ETD OK FFWW'     : ffww_fmt,
+                        'Forwarder'       : forwarder_fmt,
                         'F. Packeo Max'   : pack_max_fmt,
                         'Días sin OK'     : dias_sin_ok,
                         'Total SOs'       : total_sos,
@@ -1561,8 +1557,8 @@ border-radius:12px; border:1px solid {color}44;'>
                     st.success("✅ Sin casos.")
                     return
                 cols_order = [
-                    'Embarque', 'Responsable', 'F. Instrucción',
-                    'ETD OK FFWW', 'F. Packeo Max', 'Días sin OK',
+                    'Embarque', 'Responsable', 'Forwarder', 'F. Instrucción',
+                    'F. Packeo Max', 'Días sin OK',
                     'Total SOs', 'SOs Top Ranking', 'SKUs Nuevos', 'Prod. Críticos'
                 ]
                 df_show = df_a3[[c for c in cols_order if c in df_a3.columns]].sort_values('Días sin OK', ascending=False)
@@ -1572,7 +1568,7 @@ border-radius:12px; border:1px solid {color}44;'>
                         'SOs Top Ranking' : st.column_config.TextColumn("SOs Top Ranking 🏆"),
                         'SKUs Nuevos'     : st.column_config.TextColumn("SKUs Nuevos ✨"),
                         'Total SOs'       : st.column_config.NumberColumn(format="%d"),
-                        'ETD OK FFWW'     : st.column_config.TextColumn("ETD OK FFWW"),
+                        'Forwarder'       : st.column_config.TextColumn("Forwarder"),
                         'F. Packeo Max'   : st.column_config.TextColumn("F. Packeo Max"),
                         'Prod. Críticos'  : st.column_config.TextColumn("🚨 Prod. Críticos"),
                     })
