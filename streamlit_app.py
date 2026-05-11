@@ -2396,7 +2396,6 @@ border-radius:12px; border:1px solid {color}44;'>
                         col_eta = [c for c in df.columns if 'ETA' in c.upper()][0] if any('ETA' in c.upper() for c in df.columns) else df.columns[24]
                         val_eta_gso = str(row[col_eta]).strip()
                         val_etd_gso = str(row[df.columns[23]]).strip()  # col X = ETD
-                        val_etd_gso = str(row[col_etd]).strip()
                         col_cant_pend = [c for c in df.columns if 'CANTIDAD PENDIENTE DE EMBARCAR' in c.upper()][0] if any('CANTIDAD PENDIENTE DE EMBARCAR' in c.upper() for c in df.columns) else df.columns[21]
                         col_cant_emb = [c for c in df.columns if 'CANTIDAD EMB' in c.upper() and 'PREVENTA' not in c.upper()][0] if any('CANTIDAD EMB' in c.upper() and 'PREVENTA' not in c.upper() for c in df.columns) else df.columns[60]
                         try: val_cant_pend = float(str(row[col_cant_pend]).replace(',', '.').strip())
