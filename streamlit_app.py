@@ -2301,19 +2301,17 @@ border-radius:12px; border:1px solid {color}44;'>
             else:
                 return 5, "EN PROCESO DE NACIONALIZACION" + suffix, "#ffaa00", "Carga arribada. Pendiente de oficializacion del despacho." + orden_txt
 
-        query = st.text_input("🔍 INGRESE SO, INVOICE O SKU (CÓDIGO):", placeholder="Ej: SO-12345, INV-999, SKU-XYZ...")
+        query = st.text_input("🔍 INGRESE SO O N° DE EMBARQUE:", placeholder="Ej: SO-12345 o EMB-999...")
 
         if query:
             query = str(query).strip().upper()
-            col_so = [c for c in df.columns if 'SO' in c.upper()][0] if any('SO' in c.upper() for c in df.columns) else df.columns[0]
-            col_inv = [c for c in df.columns if 'N INVOICE' in c.upper() or 'N° INVOICE' in c.upper()][0] if any('N INVOICE' in c.upper() or 'N° INVOICE' in c.upper() for c in df.columns) else df.columns[29]
-            col_sku = [c for c in df.columns if c.strip().upper() == 'CODIGO' or c.strip().upper() == 'CÓDIGO'][0] if any(c.strip().upper() in ['CODIGO', 'CÓDIGO'] for c in df.columns) else df.columns[32]
+            col_so  = [c for c in df.columns if c.strip().upper() == 'SO'][0] if any(c.strip().upper() == 'SO' for c in df.columns) else df.columns[0]
+            col_emb_search = df.columns[16]  # Columna Q = Embarque
 
-            mask_so = df[col_so].astype(str).str.upper().str.contains(query, na=False)
-            mask_inv = df[col_inv].astype(str).str.upper().str.contains(query, na=False)
-            mask_sku = df[col_sku].astype(str).str.upper().str.contains(query, na=False)
+            mask_so  = df[col_so].astype(str).str.upper().str.contains(query, na=False)
+            mask_emb = df[col_emb_search].astype(str).str.upper().str.contains(query, na=False)
 
-            df_found = df[mask_so | mask_inv | mask_sku]
+            df_found = df[mask_so | mask_emb]
             is_historical = False
 
             if df_found.empty and not df_emb_hi_ask.empty:
@@ -2360,12 +2358,18 @@ border-radius:12px; border:1px solid {color}44;'>
                         try: dt_eta = pd.to_datetime(val_eta_gso, dayfirst=True).date()
                         except: dt_eta = None
                         if dt_eta and dt_eta < hoy_d:
-                            estadio, desc_estadio, color_estadio, info_extra = get_estadio_impo2(val_emb, val_eta_gso, df_ddp_ask, hoy_d, historico=True)
+                            estadio_ddp, desc_ddp, color_ddp, info_ddp = get_estadio_impo2(val_emb, val_eta_gso, df_ddp_ask, hoy_d, historico=True)
+                            if estadio_ddp == 5:
+                                estadio = 6; desc_estadio = "ARRIBADO (HISTORICO)"; color_estadio = "#00ff88"
+                                info_extra = "La carga ha llegado a destino. Pendiente proceso de aduana. ETA: " + str(val_eta_gso)
+                            else:
+                                estadio = estadio_ddp + 1
+                                desc_estadio = desc_ddp; color_estadio = color_ddp; info_extra = info_ddp
                         else:
                             estadio = 4; desc_estadio = "EN TRÁNSITO (HISTÓRICO)"; color_estadio = "#00a8ff"
                             info_extra = f"La carga figura despachada en registros históricos pero su ETA es futura. (ETA: {val_eta_gso})"
                     else:
-                        val_so = str(row[col_so]); val_inv = str(row[col_inv]); val_sku = str(row[col_sku])
+                        val_so = str(row[col_so]); val_inv = ""; val_sku = ""
                         col_prov = [c for c in df.columns if 'PROVEEDOR' in c.upper()][0] if any('PROVEEDOR' in c.upper() for c in df.columns) else df.columns[30]
                         val_prov = str(row[col_prov])
                         col_emb = [c for c in df.columns if 'EMBARQUE' in c.upper()][0] if any('EMBARQUE' in c.upper() for c in df.columns) else df.columns[16]
@@ -2408,17 +2412,24 @@ border-radius:12px; border:1px solid {color}44;'>
                         tiene_emb  = val_emb not in ["Sin Asignar", "", "nan", "NAN"]
                         tiene_inst = val_fecha_inst != "Pendiente"
                         etd_ok     = val_etd_ok == "OK"
+                        eta_display = val_eta_gso if val_eta_gso and str(val_eta_gso).lower() not in ["nan","none",""] else "Sin fecha"
                         if in_historical or (dt_eta_gso and dt_eta_gso <= hoy_d):
-                            estadio, desc_estadio, color_estadio, info_extra = get_estadio_impo2(val_emb, val_eta_gso, df_ddp_ask, hoy_d, historico=False)
+                            estadio_ddp, desc_ddp, color_ddp, info_ddp = get_estadio_impo2(val_emb, val_eta_gso, df_ddp_ask, hoy_d, historico=False)
+                            if estadio_ddp == 5:
+                                estadio = 6; desc_estadio = "ARRIBADO"; color_estadio = "#00ff88"
+                                info_extra = "La carga ha llegado a destino. Pendiente de proceso de aduana. ETA: " + eta_display
+                            else:
+                                estadio = estadio_ddp + 1
+                                desc_estadio = desc_ddp; color_estadio = color_ddp; info_extra = info_ddp
                         elif dt_etd_gso and dt_etd_gso <= hoy_d and etd_ok:
                             estadio = 5; desc_estadio = "EN TRANSITO"; color_estadio = "#00a8ff"
-                            info_extra = "La carga esta navegando hacia destino. ETD: " + (dt_etd_gso.strftime("%d/%m/%Y") if dt_etd_gso else "SD") + " | ETA: " + val_eta_gso
+                            info_extra = "La carga esta navegando hacia destino. ETD: " + (dt_etd_gso.strftime("%d/%m/%Y") if dt_etd_gso else "SD") + " | ETA: " + eta_display
                         elif etd_ok and (not dt_etd_gso or dt_etd_gso > hoy_d):
                             estadio = 4; desc_estadio = "BOOKING CONFIRMADO"; color_estadio = "#a855f7"
-                            info_extra = "Espacio confirmado por el agente. Esperando zarpada. ETD: " + (dt_etd_gso.strftime("%d/%m/%Y") if dt_etd_gso else "Sin fecha")
+                            info_extra = "Espacio confirmado. Esperando zarpada. ETD: " + (dt_etd_gso.strftime("%d/%m/%Y") if dt_etd_gso else "Sin fecha") + " | ETA estimada: " + eta_display
                         elif tiene_inst and not etd_ok:
                             estadio = 3; desc_estadio = "INSTRUCCION ENVIADA - ESPERA BOOKING"; color_estadio = "#ffaa00"
-                            info_extra = "Instruccion enviada el " + val_inst + ". Esperando confirmacion de booking del agente."
+                            info_extra = "Instruccion enviada el " + val_inst + ". Esperando confirmacion de booking. ETA estimada: " + eta_display
                         elif tiene_emb and not tiene_inst:
                             estadio = 2; desc_estadio = "EN PROCESO DE CONSOLIDACION"; color_estadio = "#06b6d4"
                             info_extra = "SO asignado al embarque " + val_emb + ". Pendiente de instruccion al agente."
@@ -2482,19 +2493,20 @@ border-radius:12px; border:1px solid {color}44;'>
 """
                     st.markdown(html_card, unsafe_allow_html=True)
 
-                    pct_progreso = round(grp['estadio'] / 7 * 100)
+                    pct_progreso = round(grp['estadio'] / 8 * 100)
                     html_progress = f"""
 <div style="width: 100%; background-color: rgba(255,255,255,0.1); border-radius: 10px; margin-top:20px; height: 10px;">
     <div style="width: {pct_progreso}%; background-color: {grp['color_estadio']}; height: 10px; border-radius: 10px; transition: width 0.5s;"></div>
 </div>
 <div style="display: flex; justify-content: space-between; margin-top: 10px; padding: 0 5px;">
-    <span style="font-size: 10px; font-weight:700; color: {'#fff' if grp['estadio'] >= 1 else '#64748b'};">1. PENDIENTE</span>
-    <span style="font-size: 10px; font-weight:700; color: {'#fff' if grp['estadio'] >= 2 else '#64748b'};">2. CONSOLID.</span>
-    <span style="font-size: 10px; font-weight:700; color: {'#fff' if grp['estadio'] >= 3 else '#64748b'};">3. INSTRUCCION</span>
-    <span style="font-size: 10px; font-weight:700; color: {'#fff' if grp['estadio'] >= 4 else '#64748b'};">4. BOOKING</span>
-    <span style="font-size: 10px; font-weight:700; color: {'#fff' if grp['estadio'] >= 5 else '#64748b'};">5. TRANSITO</span>
-    <span style="font-size: 10px; font-weight:700; color: {'#fff' if grp['estadio'] >= 6 else '#64748b'};">6. NACIONALIZ.</span>
-    <span style="font-size: 10px; font-weight:700; color: {'#fff' if grp['estadio'] >= 7 else '#64748b'};">7. ENTREGADO</span>
+    <span style="font-size: 9px; font-weight:700; color: {'#fff' if grp['estadio'] >= 1 else '#64748b'};">1.PENDIENTE</span>
+    <span style="font-size: 9px; font-weight:700; color: {'#fff' if grp['estadio'] >= 2 else '#64748b'};">2.CONSOLID.</span>
+    <span style="font-size: 9px; font-weight:700; color: {'#fff' if grp['estadio'] >= 3 else '#64748b'};">3.INSTRUC.</span>
+    <span style="font-size: 9px; font-weight:700; color: {'#fff' if grp['estadio'] >= 4 else '#64748b'};">4.BOOKING</span>
+    <span style="font-size: 9px; font-weight:700; color: {'#fff' if grp['estadio'] >= 5 else '#64748b'};">5.TRANSITO</span>
+    <span style="font-size: 9px; font-weight:700; color: {'#fff' if grp['estadio'] >= 6 else '#64748b'};">6.ARRIBADO</span>
+    <span style="font-size: 9px; font-weight:700; color: {'#fff' if grp['estadio'] >= 7 else '#64748b'};">7.NACIONALIZ.</span>
+    <span style="font-size: 9px; font-weight:700; color: {'#fff' if grp['estadio'] >= 8 else '#64748b'};">8.ENTREGADO</span>
 </div>
 <br><br>
 """
