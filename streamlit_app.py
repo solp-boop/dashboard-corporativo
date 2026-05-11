@@ -2305,31 +2305,35 @@ border-radius:12px; border:1px solid {color}44;'>
 
         if query:
             query = str(query).strip().upper()
-            col_so  = [c for c in df.columns if c.strip().upper() == 'SO'][0] if any(c.strip().upper() == 'SO' for c in df.columns) else df.columns[0]
-            col_emb_search = df.columns[16]  # Columna Q = Embarque
+            # Columnas de búsqueda
+            col_so         = [c for c in df.columns if c.strip().upper() == 'SO'][0] if any(c.strip().upper() == 'SO' for c in df.columns) else df.columns[0]
+            col_emb_pc     = df.columns[16]   # Planif Cargas col Q = Embarque
 
-            mask_so  = df[col_so].astype(str).str.upper().str.contains(query, na=False)
-            mask_emb = df[col_emb_search].astype(str).str.upper().str.contains(query, na=False)
-
-            df_found = df[mask_so | mask_emb]
             is_historical = False
+            df_found = pd.DataFrame()
 
+            # 1. Buscar por SO en Planif Cargas
+            mask_so  = df[col_so].astype(str).str.upper().str.contains(query, na=False)
+            # 2. Buscar por Embarque en Planif Cargas (col Q)
+            mask_emb_pc = df[col_emb_pc].astype(str).str.strip().str.upper() == query
+
+            df_found = df[mask_so | mask_emb_pc]
+
+            # 3. Fallback: buscar en Embarques Historicos (col E idx 4 = Embarque, col A idx 0 = SO)
             if df_found.empty and not df_emb_hi_ask.empty:
-                col_embhi_so = df_emb_hi_ask.columns[0] if len(df_emb_hi_ask.columns) > 0 else None
-                col_embhi_inv = df_emb_hi_ask.columns[19] if len(df_emb_hi_ask.columns) > 19 else None
-                col_embhi_sku = df_emb_hi_ask.columns[5] if len(df_emb_hi_ask.columns) > 5 else None
-                if col_embhi_so and col_embhi_inv and col_embhi_sku:
-                    m_so = df_emb_hi_ask[col_embhi_so].astype(str).str.upper().str.contains(query, na=False)
-                    m_inv = df_emb_hi_ask[col_embhi_inv].astype(str).str.upper().str.contains(query, na=False)
-                    m_sku = df_emb_hi_ask[col_embhi_sku].astype(str).str.upper().str.contains(query, na=False)
-                    df_found = df_emb_hi_ask[m_so | m_inv | m_sku]
-                    if not df_found.empty: is_historical = True
+                col_eh_emb = df_emb_hi_ask.columns[4]  # col E = Embarque
+                col_eh_so  = df_emb_hi_ask.columns[0]  # col A = SO
+                m_emb = df_emb_hi_ask[col_eh_emb].astype(str).str.strip().str.upper() == query
+                m_so  = df_emb_hi_ask[col_eh_so].astype(str).str.upper().str.contains(query, na=False)
+                df_found = df_emb_hi_ask[m_emb | m_so]
+                if not df_found.empty: is_historical = True
 
             if df_found.empty:
-                st.warning(f"No se encontraron registros para '{query}' en GSO v4 ni en Embarques Históricos.")
+                st.warning(f"No se encontraron registros para '{query}'.")
+                st.info("Verificá que el SO o número de embarque esté exactamente como aparece en el sistema (ej: FCL 2050, AIR 152).")
             else:
-                origen = "Embarques Históricos" if is_historical else "GSO v4 (Planif Cargas)"
-                st.success(f"✅ ¡Registro encontrado! ({len(df_found)} coincidencias en {origen})")
+                origen = "Embarques Históricos" if is_historical else "Planif Cargas"
+                st.success(f"✅ Registro encontrado — {len(df_found)} coincidencias en {origen}")
                 if len(df_found) > 50:
                     st.warning(f"⚠️ Se encontraron {len(df_found)} resultados. Procesando los primeros 50.")
                     df_found = df_found.head(50)
@@ -2337,9 +2341,9 @@ border-radius:12px; border:1px solid {color}44;'>
                 resultados_procesados = []
                 for i, row in df_found.iterrows():
                     if is_historical:
-                        val_so = str(row.iloc[0]); val_inv = str(row.iloc[19]); val_sku = str(row.iloc[5])
+                        val_so = str(row.iloc[0]).strip(); val_inv = ""; val_sku = ""
                         val_emb = str(row.iloc[4]).strip()
-                        if val_emb.lower() == 'nan': val_emb = "Sin Asignar"
+                        if val_emb.lower() in ['nan', 'none', '']: val_emb = "Sin Asignar"
                         val_prov = str(row.iloc[18])
                         val_etd_gso = str(row.iloc[6]).strip(); val_eta_gso = str(row.iloc[7]).strip()
                         val_fin_prod = str(row.iloc[2]).strip()
