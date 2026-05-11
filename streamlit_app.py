@@ -2386,6 +2386,9 @@ border-radius:12px; border:1px solid {color}44;'>
                         else:
                             estadio = 4; desc_estadio = "EN TRÁNSITO (HISTÓRICO)"; color_estadio = "#00a8ff"
                             info_extra = f"La carga figura despachada en registros históricos pero su ETA es futura. (ETA: {val_eta_gso})"
+                        # ETD y ETA para historicos
+                        etd_display = val_etd_gso if val_etd_gso and str(val_etd_gso).lower() not in ["nan","none",""] else "Sin fecha"
+                        eta_display = val_eta_gso if val_eta_gso and str(val_eta_gso).lower() not in ["nan","none",""] else "Sin fecha"
                     else:
                         val_so  = str(row[col_so]).strip()
                         val_sku = str(row[df.columns[32]]).strip() if len(df.columns) > 32 else ""
