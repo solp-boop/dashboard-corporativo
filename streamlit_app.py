@@ -2247,7 +2247,8 @@ border-radius:12px; border:1px solid {color}44;'>
             url_reserva = f"{base_url}/export?format=csv&gid=276804813"
             url_hist = f"{base_url}/export?format=csv&gid=32771816"
             url_emb_hist = "https://docs.google.com/spreadsheets/d/1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI/export?format=csv&gid=50628730"
-            url_ddp = "https://docs.google.com/spreadsheets/d/1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI/export?format=csv&gid=2050674215"
+            url_ddp   = "https://docs.google.com/spreadsheets/d/1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI/export?format=csv&gid=2050674215"
+            url_impo2 = "https://docs.google.com/spreadsheets/d/1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI/export?format=csv&gid=131563120"
             try: res = pd.read_csv(url_reserva, engine='python', on_bad_lines='skip')
             except: res = pd.DataFrame()
             try: hi = pd.read_csv(url_hist, engine='python', on_bad_lines='skip')
@@ -2256,14 +2257,21 @@ border-radius:12px; border:1px solid {color}44;'>
             except: emb_hi = pd.DataFrame()
             try: ddp = pd.read_csv(url_ddp, engine='python', on_bad_lines='skip')
             except: ddp = pd.DataFrame()
-            return res, hi, emb_hi, ddp
+            try: impo2 = pd.read_csv(url_impo2, engine='python', on_bad_lines='skip')
+            except: impo2 = pd.DataFrame()
+            return res, hi, emb_hi, ddp, impo2
 
-        df_res_ask, df_hi_ask, df_emb_hi_ask, df_ddp_ask = load_ask_comex_data()
-        # Preparar Despachos Directo Puerto para cruce por FCL (col F, idx 5)
-        # col A(0)=N Orden WMS, col B(1)=Fecha Retiro, col D(3)=Fecha OFI, col E(4)=N Despacho, col F(5)=FCL
+        df_res_ask, df_hi_ask, df_emb_hi_ask, df_ddp_ask, df_impo2_ask = load_ask_comex_data()
+        # Preparar Despachos Directo Puerto: cruce por FCL (col F idx 5)
+        # col A(0)=Orden WMS, col B(1)=Fecha Retiro, col D(3)=Fecha OFI, col E(4)=N Despacho, col F(5)=FCL
         if not df_ddp_ask.empty:
             df_ddp_ask.columns = [str(c).strip() for c in df_ddp_ask.columns]
             df_ddp_ask['_emb_key'] = df_ddp_ask.iloc[:, 5].astype(str).str.strip().str.upper()
+        # Preparar Importaciones2: cruce por Embarque (col A idx 0)
+        # col A(0)=Embarque, col B(1)=Fecha Salida Origen, col C(2)=Fecha Arribo Aduana
+        if not df_impo2_ask.empty:
+            df_impo2_ask.columns = [str(c).strip() for c in df_impo2_ask.columns]
+            df_impo2_ask['_emb_key'] = df_impo2_ask.iloc[:, 0].astype(str).str.strip().str.upper()
 
         st.markdown("<br>", unsafe_allow_html=True)
         def get_estadio_impo2(emb, eta_str, df_impo2, hoy_d, historico=False):
@@ -2393,9 +2401,8 @@ border-radius:12px; border:1px solid {color}44;'>
                         val_fin_prod = str(row[col_fin_prod]).strip()
                         if val_fin_prod.lower() == 'nan' or val_fin_prod == '': val_fin_prod = "Sin Info"
                         val_fecha_inst = val_inst if (val_inst != "" and val_inst.lower() != "nan" and "sin instruccion" not in val_inst.lower()) else "Pendiente"
-                        col_eta = [c for c in df.columns if 'ETA' in c.upper()][0] if any('ETA' in c.upper() for c in df.columns) else df.columns[24]
-                        val_eta_gso = str(row[col_eta]).strip()
                         val_etd_gso = str(row[df.columns[23]]).strip()  # col X = ETD
+                        val_eta_gso = str(row[df.columns[24]]).strip()  # col Y = ETA
                         col_cant_pend = [c for c in df.columns if 'CANTIDAD PENDIENTE DE EMBARCAR' in c.upper()][0] if any('CANTIDAD PENDIENTE DE EMBARCAR' in c.upper() for c in df.columns) else df.columns[21]
                         col_cant_emb = [c for c in df.columns if 'CANTIDAD EMB' in c.upper() and 'PREVENTA' not in c.upper()][0] if any('CANTIDAD EMB' in c.upper() and 'PREVENTA' not in c.upper() for c in df.columns) else df.columns[60]
                         try: val_cant_pend = float(str(row[col_cant_pend]).replace(',', '.').strip())
@@ -2423,21 +2430,36 @@ border-radius:12px; border:1px solid {color}44;'>
                         tiene_emb  = val_emb not in ["Sin Asignar", "", "nan", "NAN"]
                         tiene_inst = val_fecha_inst != "Pendiente"
                         etd_ok     = val_etd_ok == "OK"
+                        etd_display = val_etd_gso if val_etd_gso and str(val_etd_gso).lower() not in ["nan","none",""] else "Sin fecha"
                         eta_display = val_eta_gso if val_eta_gso and str(val_eta_gso).lower() not in ["nan","none",""] else "Sin fecha"
+
+                        # Buscar en Importaciones2 para fechas de transito/arribo
+                        f_salida_origen = ""; f_arribo_aduana = ""
+                        if not df_impo2_ask.empty and val_emb not in ["Sin Asignar","","nan","NAN"]:
+                            impo2_match = df_impo2_ask[df_impo2_ask["_emb_key"] == val_emb.upper()]
+                            if not impo2_match.empty:
+                                f_salida_origen = str(impo2_match.iloc[0].iloc[1]).strip()
+                                f_arribo_aduana = str(impo2_match.iloc[0].iloc[2]).strip()
+                                if f_salida_origen.lower() in ["nan","none",""]: f_salida_origen = ""
+                                if f_arribo_aduana.lower() in ["nan","none",""]: f_arribo_aduana = ""
+
                         if in_historical or (dt_eta_gso and dt_eta_gso <= hoy_d):
                             estadio_ddp, desc_ddp, color_ddp, info_ddp = get_estadio_impo2(val_emb, val_eta_gso, df_ddp_ask, hoy_d, historico=False)
                             if estadio_ddp == 5:
                                 estadio = 6; desc_estadio = "ARRIBADO"; color_estadio = "#00ff88"
-                                info_extra = "La carga ha llegado a destino. Pendiente de proceso de aduana. ETA: " + eta_display
+                                arribo_txt = " | Arribo a aduana: " + f_arribo_aduana if f_arribo_aduana else ""
+                                info_extra = "La carga ha llegado a destino. ETA: " + eta_display + arribo_txt
                             else:
                                 estadio = estadio_ddp + 1
                                 desc_estadio = desc_ddp; color_estadio = color_ddp; info_extra = info_ddp
                         elif dt_etd_gso and dt_etd_gso <= hoy_d and etd_ok:
                             estadio = 5; desc_estadio = "EN TRANSITO"; color_estadio = "#00a8ff"
-                            info_extra = "La carga esta navegando hacia destino. ETD: " + (dt_etd_gso.strftime("%d/%m/%Y") if dt_etd_gso else "SD") + " | ETA: " + eta_display
+                            salida_txt = " | Salida origen: " + f_salida_origen if f_salida_origen else ""
+                            arribo_txt = " | Arribo estimado aduana: " + f_arribo_aduana if f_arribo_aduana else " | ETA: " + eta_display
+                            info_extra = "La carga esta navegando. ETD: " + (dt_etd_gso.strftime("%d/%m/%Y") if dt_etd_gso else "SD") + salida_txt + arribo_txt
                         elif etd_ok and (not dt_etd_gso or dt_etd_gso > hoy_d):
                             estadio = 4; desc_estadio = "BOOKING CONFIRMADO"; color_estadio = "#a855f7"
-                            info_extra = "Espacio confirmado. Esperando zarpada. ETD: " + (dt_etd_gso.strftime("%d/%m/%Y") if dt_etd_gso else "Sin fecha") + " | ETA estimada: " + eta_display
+                            info_extra = "Espacio confirmado. Esperando zarpada. ETD: " + etd_display + " | ETA estimada: " + eta_display
                         elif tiene_inst and not etd_ok:
                             estadio = 3; desc_estadio = "INSTRUCCION ENVIADA - ESPERA BOOKING"; color_estadio = "#ffaa00"
                             info_extra = "Instruccion enviada el " + val_inst + ". Esperando confirmacion de booking. ETA estimada: " + eta_display
@@ -2447,14 +2469,12 @@ border-radius:12px; border:1px solid {color}44;'>
                         else:
                             estadio = 1; desc_estadio = "PENDIENTE DE INSTRUCCION"; color_estadio = "#94a3b8"
                             info_extra = "Sin embarque asignado. Carga en origen sin gestion iniciada."
-                    # ETD display
-                    etd_display = val_etd_gso if val_etd_gso and str(val_etd_gso).lower() not in ["nan","none",""] else "Sin fecha"
                     resultados_procesados.append({
                         "estadio": estadio, "desc_estadio": desc_estadio, "color_estadio": color_estadio,
                         "info_extra": info_extra, "so": val_so, "inv": val_inv, "sku": val_sku,
                         "emb": val_emb, "prov": val_prov, "cant": cantidad_mostrar,
                         "label_cant": label_cant, "fecha_inst": val_fecha_inst, "fin_prod": val_fin_prod,
-                        "etd": etd_display, "eta": eta_display if 'eta_display' in dir() else "Sin fecha"
+                        "etd": etd_display, "eta": eta_display
                     })
 
                 st.session_state.ultimos_resultados = resultados_procesados
