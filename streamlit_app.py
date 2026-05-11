@@ -2371,9 +2371,11 @@ border-radius:12px; border:1px solid {color}44;'>
                                 val_f = str(hi_match.iloc[0].iloc[7]).strip()
                                 if val_f.lower() != 'nan' and val_f != '': val_fecha_inst = val_f
                         hoy_d = datetime.now().date()
-                        try: dt_eta = pd.to_datetime(val_eta_gso, dayfirst=True).date()
+                        try:
+                            dt_eta_parsed = pd.to_datetime(val_eta_gso, dayfirst=True)
+                            dt_eta = dt_eta_parsed.date() if pd.notna(dt_eta_parsed) else None
                         except: dt_eta = None
-                        if dt_eta and dt_eta < hoy_d:
+                        if dt_eta is not None and dt_eta < hoy_d:
                             estadio_ddp, desc_ddp, color_ddp, info_ddp = get_estadio_impo2(val_emb, val_eta_gso, df_ddp_ask, hoy_d, historico=True)
                             if estadio_ddp == 5:
                                 estadio = 6; desc_estadio = "ARRIBADO (HISTORICO)"; color_estadio = "#00ff88"
@@ -2417,9 +2419,13 @@ border-radius:12px; border:1px solid {color}44;'>
                         col_etd_ok_ask = next((c for c in df.columns if "ETD OK FFWW" in str(c).upper() or "ETD OK" in str(c).upper()), df.columns[97])
                         val_etd_ok = str(row[col_etd_ok_ask]).strip().upper() if col_etd_ok_ask in df.columns else ""
                         hoy_d = datetime.now().date()
-                        try: dt_eta_gso = pd.to_datetime(val_eta_gso, dayfirst=True).date()
+                        try:
+                            _p = pd.to_datetime(val_eta_gso, dayfirst=True)
+                            dt_eta_gso = _p.date() if pd.notna(_p) else None
                         except: dt_eta_gso = None
-                        try: dt_etd_gso = pd.to_datetime(val_etd_gso, dayfirst=True).date()
+                        try:
+                            _p = pd.to_datetime(val_etd_gso, dayfirst=True)
+                            dt_etd_gso = _p.date() if pd.notna(_p) else None
                         except: dt_etd_gso = None
                         in_historical = False
                         if not df_hi_ask.empty:
