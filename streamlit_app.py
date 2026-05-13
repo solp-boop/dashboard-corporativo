@@ -1340,6 +1340,95 @@ Validez Quincena Desde menor o igual a hoy y Validez Quincena Hasta mayor o igua
                                 }
                             )
 
+                # Selector FFWW para ver tarifas por forwarder
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("""
+<div style='padding:14px 20px; background:rgba(255,255,255,0.02); border-radius:12px;
+border-left:4px solid #00a8ff; margin-bottom:15px;'>
+<p style='color:#00a8ff; font-weight:800; font-size:15px; letter-spacing:3px; margin:0;'>
+TARIFAS POR FORWARDER (FFWW)</p>
+<p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>
+Seleccioná un agente para ver sus tarifas vigentes por tipo de CNT</p>
+</div>""", unsafe_allow_html=True)
+
+                ffww_opciones = sorted(df_vig['_agente'].dropna().astype(str).str.strip().unique().tolist()) if not df_vig.empty else []
+                ffww_opciones = [f for f in ffww_opciones if f.lower() not in ['', 'nan', 'none']]
+
+                if ffww_opciones:
+                    col_ffww, _ = st.columns([2, 3])
+                    with col_ffww:
+                        ffww_sel = st.selectbox("SELECCIONAR FFWW:", ["COMPARATIVA GENERAL"] + ffww_opciones, key="ffww_sel")
+
+                    if ffww_sel == "COMPARATIVA GENERAL":
+                        # Una fila por FFWW x tipo CNT con su tarifa vs prom mercado
+                        rows_ffww = []
+                        for agente in ffww_opciones:
+                            df_ag = df_vig[df_vig['_agente'].astype(str).str.strip() == agente]
+                            for cnt in TIPOS_CNT:
+                                df_c = df_ag[df_ag['_cnt'] == cnt]
+                                if df_c.empty: continue
+                                tarifa   = df_c['_flete'].mean()
+                                prom_mkt = df_vig[df_vig['_cnt'] == cnt]['_flete'].mean()
+                                target   = prom_mkt * TARGET_PCT
+                                vs_tgt   = round((tarifa - target) / target * 100, 1) if target > 0 else None
+                                ok       = tarifa <= target
+                                rows_ffww.append({
+                                    'FFWW'         : agente,
+                                    'Tipo CNT'     : cnt,
+                                    'Su Tarifa'    : round(tarifa, 0),
+                                    'Prom. Mercado': round(prom_mkt, 0),
+                                    'Target -15%'  : round(target, 0),
+                                    'Vs Target'    : ("✅ OK " if ok else "🔴 ALTO ") + f"{vs_tgt:+.1f}%" if vs_tgt is not None else "SD",
+                                })
+                        if rows_ffww:
+                            st.dataframe(
+                                pd.DataFrame(rows_ffww),
+                                use_container_width=True, hide_index=True,
+                                column_config={
+                                    'FFWW'         : st.column_config.TextColumn("FFWW"),
+                                    'Tipo CNT'     : st.column_config.TextColumn("Tipo CNT"),
+                                    'Su Tarifa'    : st.column_config.NumberColumn("Su Tarifa", format="$ %,.0f"),
+                                    'Prom. Mercado': st.column_config.NumberColumn("Prom. Mercado", format="$ %,.0f"),
+                                    'Target -15%'  : st.column_config.NumberColumn("Target -15%", format="$ %,.0f"),
+                                    'Vs Target'    : st.column_config.TextColumn("Vs Target"),
+                                }
+                            )
+                    else:
+                        # Detalle de FFWW específico
+                        df_ffww = df_vig[df_vig['_agente'].astype(str).str.strip() == ffww_sel]
+                        rows_ffww = []
+                        for cnt in TIPOS_CNT:
+                            df_c = df_ffww[df_ffww['_cnt'] == cnt]
+                            if df_c.empty: continue
+                            tarifa   = df_c['_flete'].mean()
+                            prom_mkt = df_vig[df_vig['_cnt'] == cnt]['_flete'].mean()
+                            target   = prom_mkt * TARGET_PCT
+                            vs_tgt   = round((tarifa - target) / target * 100, 1) if target > 0 else None
+                            ok       = tarifa <= target
+                            rows_ffww.append({
+                                'Tipo CNT'     : cnt,
+                                'Tarifa FFWW'  : round(tarifa, 0),
+                                'Prom. Mercado': round(prom_mkt, 0),
+                                'Target -15%'  : round(target, 0),
+                                'Vs Target'    : ("✅ OK " if ok else "🔴 ALTO ") + f"{vs_tgt:+.1f}%" if vs_tgt is not None else "SD",
+                            })
+                        if rows_ffww:
+                            st.dataframe(
+                                pd.DataFrame(rows_ffww),
+                                use_container_width=True, hide_index=True,
+                                column_config={
+                                    'Tipo CNT'     : st.column_config.TextColumn("Tipo CNT"),
+                                    'Tarifa FFWW'  : st.column_config.NumberColumn("Tarifa FFWW", format="$ %,.0f"),
+                                    'Prom. Mercado': st.column_config.NumberColumn("Prom. Mercado", format="$ %,.0f"),
+                                    'Target -15%'  : st.column_config.NumberColumn("Target -15%", format="$ %,.0f"),
+                                    'Vs Target'    : st.column_config.TextColumn("Vs Target"),
+                                }
+                            )
+                        else:
+                            st.info(f"No hay tarifas vigentes para {ffww_sel}.")
+                else:
+                    st.info("No hay forwarders disponibles en el período vigente.")
+
                 # Gastos locales vigentes
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.markdown("""
