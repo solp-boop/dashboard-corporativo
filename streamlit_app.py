@@ -314,13 +314,6 @@ try:
             <li><b style='color:#ffaa00;'>MSC:</b> opera en Diamond Tier — solo 7 días libres en BUE, penalidades por cancelación</li>
             <li><b style='color:#94a3b8;'>Mayor riesgo de rollovers, vessel changes y ETD móviles</b></li>
         </ul>
-
-        <div style='background:rgba(0,168,255,0.08); border-radius:10px; padding:14px; border-left:4px solid #00a8ff;'>
-            <p style='color:#00a8ff; font-weight:800; font-size:12px; letter-spacing:1px; margin:0 0 6px 0;'>
-            💡 RECOMENDACIÓN OPERATIVA</p>
-            <p style='color:#cbd5e1; font-size:13px; margin:0;'>
-            Priorizar <b>booking anticipado</b> y <b>carrier confiable</b> sobre tarifa mínima.
-            El espacio real, la ruta directa y el free time razonable son hoy más críticos que el rate.</p>
         </div>
         </div>
         """, unsafe_allow_html=True)
