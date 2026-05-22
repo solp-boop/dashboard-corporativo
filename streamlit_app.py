@@ -17,8 +17,7 @@ html, body, [class*="css"] {
     font-family: 'Outfit', sans-serif !important;
 }
 .block-container { padding: 2rem 3rem; }
-.main { background-color: #020617;    color: #00ff88;
-}
+.main { background-color: #f1f5f9; color: #1e293b; }
 
 /* BOTONES COMPACTOS INDICADORES */
 div[data-testid="stColumn"] div[data-testid="stButton"] button {
@@ -30,7 +29,7 @@ div[data-testid="stColumn"] div[data-testid="stButton"] button {
 }
 
 /* DIVIDORES Y ESPACIOS */
-hr { margin: 1rem 0 !important; opacity: 0.1; }
+hr { margin: 1rem 0 !important; opacity: 0.15; }
 
 /* ANIMACIONES */
 @keyframes fadeInDown {
@@ -42,9 +41,9 @@ hr { margin: 1rem 0 !important; opacity: 0.1; }
     to { opacity: 1; transform: translateY(0); }
 }
 @keyframes pulseGlow {
-    0% { box-shadow: 0 0 20px rgba(0, 168, 255, 0.2); }
-    50% { box-shadow: 0 0 40px rgba(0, 168, 255, 0.4); }
-    100% { box-shadow: 0 0 20px rgba(0, 168, 255, 0.2); }
+    0% { box-shadow: 0 0 20px rgba(0, 100, 200, 0.15); }
+    50% { box-shadow: 0 0 40px rgba(0, 100, 200, 0.25); }
+    100% { box-shadow: 0 0 20px rgba(0, 100, 200, 0.15); }
 }
 
 /* TABS */
@@ -55,33 +54,33 @@ hr { margin: 1rem 0 !important; opacity: 0.1; }
     animation: fadeInUp 0.8s ease-out;
 }
 .stTabs [data-baseweb="tab"] { 
-    background-color: transparent !important;
+    background-color: #ffffff !important;
     border-radius: 8px !important;
-    border: 1px solid transparent !important;
+    border: 1px solid #e2e8f0 !important;
     transition: all 0.3s ease;
     padding: 12px 24px;
-    color: #475569 !important;
+    color: #64748b !important;
     font-weight: 700 !important;
     letter-spacing: 2px;
 }
 .stTabs [aria-selected="true"] {
-    background: rgba(0, 168, 255, 0.1) !important;
-    box-shadow: 0 0 25px rgba(0, 168, 255, 0.2) !important;
-    color: #00a8ff !important;
-    border: 1px solid rgba(0, 168, 255, 0.3) !important;
+    background: rgba(0, 100, 200, 0.08) !important;
+    box-shadow: 0 0 15px rgba(0, 100, 200, 0.15) !important;
+    color: #0064c8 !important;
+    border: 1px solid rgba(0, 100, 200, 0.3) !important;
 }
 
 /* ENCABEZADO */
 .bidcom-header {
-    background: linear-gradient(135deg, rgba(0,31,63,0.7) 0%, rgba(0,51,102,0.8) 100%);
+    background: linear-gradient(135deg, #1e3a5f 0%, #0f2d5a 100%);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     padding: 50px; 
     border-radius: 24px; 
-    border: 1px solid rgba(0, 168, 255, 0.2);
+    border: 1px solid rgba(0, 100, 200, 0.3);
     text-align: center; 
     margin-bottom: 40px;
-    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6), inset 0 0 40px rgba(0,168,255,0.1);
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.2), inset 0 0 40px rgba(0,100,200,0.08);
     animation: fadeInDown 1s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .bidcom-header h1 { 
@@ -89,37 +88,35 @@ hr { margin: 1rem 0 !important; opacity: 0.1; }
     letter-spacing: 20px; 
     font-weight: 900; 
     margin: 0; 
-    background: linear-gradient(180deg, #ffffff 0%, #00a8ff 150%);
+    background: linear-gradient(180deg, #ffffff 0%, #7dd3fc 150%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    text-shadow: 0px 10px 40px rgba(0, 168, 255, 0.5); 
+    text-shadow: 0px 10px 40px rgba(0, 100, 200, 0.3); 
 }
 .bidcom-subtitle { 
     font-size: 22px; 
-    color: #00a8ff; 
+    color: #7dd3fc; 
     letter-spacing: 12px; 
     text-transform: uppercase; 
     font-weight: 600; 
     margin-top: 15px; 
-    text-shadow: 0 0 15px rgba(0, 168, 255, 0.4);
+    text-shadow: 0 0 15px rgba(0, 100, 200, 0.3);
 }
 
 /* KPIs PRINCIPALES MASIVOS */
 .metric-container { 
     text-align: center; 
     padding: 35px 20px; 
-    background: linear-gradient(145deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
+    background: #ffffff;
     border-radius: 24px;
-    border: 1px solid rgba(255,255,255,0.05);
-    backdrop-filter: blur(15px);
-    -webkit-backdrop-filter: blur(15px);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     animation: fadeInUp 0.8s backwards;
 }
 .metric-container p:first-child { 
     font-size: 18px !important;
-    color: #94a3b8 !important; 
+    color: #64748b !important; 
     letter-spacing: 6px !important;
     font-weight: 700 !important;
     margin-bottom: 15px !important;
@@ -128,21 +125,19 @@ hr { margin: 1rem 0 !important; opacity: 0.1; }
 .metric-container p:last-child { 
     font-size: 85px !important; 
     font-weight: 900 !important; 
-    color: #fff !important; 
+    color: #1e293b !important; 
     line-height: 1 !important; 
     margin: 0 !important; 
-    text-shadow: 0 0 40px rgba(0,168,255,0.7), 0 0 10px rgba(0,168,255,0.4) !important; 
+    text-shadow: none !important; 
 }
 
 /* TARJETAS GLASSMORPHISM STANDARDS */
 .custom-card {
-    background: linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%);
+    background: #ffffff;
     padding: 30px; 
     border-radius: 20px; 
-    backdrop-filter: blur(15px);
-    -webkit-backdrop-filter: blur(15px);
-    border: 1px solid rgba(255,255,255,0.08);
-    box-shadow: 0 10px 35px rgba(0,0,0,0.35);
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.07);
     transition: all 0.4s ease;
     margin-bottom: 25px;
     animation: fadeInUp 1s backwards;
@@ -167,7 +162,7 @@ hr { margin: 1rem 0 !important; opacity: 0.1; }
 }
 .minicard-title {
     font-size: 11px; 
-    color: #94a3b8; 
+    color: #64748b; 
     letter-spacing: 2px;
     margin: 0 0 5px 0;
     font-weight: 600;
@@ -176,29 +171,28 @@ hr { margin: 1rem 0 !important; opacity: 0.1; }
     font-size: 28px; 
     font-weight: 300; 
     margin: 0; 
-    color: #f8fafc;
+    color: #1e293b;
 }
 
 /* BOTONES GLOBALES Y FILTROS */
 .stButton>button {
     border-radius: 16px !important; 
-    color: #f8fafc !important;
+    color: #1e293b !important;
     width: 100%; 
     height: 110px; 
     font-weight: 700 !important; 
     font-size: 15px !important;
-    background: rgba(15, 23, 42, 0.4) !important; 
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    background: #ffffff !important; 
+    border: 1px solid #cbd5e1 !important;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
     line-height: 1.4 !important;
     letter-spacing: 1px;
 }
 .stButton>button:hover { 
-    background-color: rgba(0, 168, 255, 0.15) !important; 
-    border-color: #00a8ff !important; 
-    color: #ffffff !important; 
-    box-shadow: 0 10px 30px rgba(0, 168, 255, 0.3), inset 0 0 20px rgba(0, 168, 255, 0.1) !important; 
+    background-color: rgba(0, 100, 200, 0.08) !important; 
+    border-color: #0064c8 !important; 
+    color: #0064c8 !important; 
+    box-shadow: 0 8px 25px rgba(0, 100, 200, 0.2) !important; 
     transform: translateY(-4px);
 }
 
@@ -206,14 +200,14 @@ hr { margin: 1rem 0 !important; opacity: 0.1; }
 .glow-divider {
     border: none;
     height: 2px;
-    background: linear-gradient(90deg, transparent, rgba(0,168,255,0.4), transparent);
+    background: linear-gradient(90deg, transparent, rgba(0,100,200,0.3), transparent);
     margin: 40px 0;
-    opacity: 0.6;
+    opacity: 0.8;
 }
 .white-divider {
     border: none;
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    background: linear-gradient(90deg, transparent, rgba(0,0,0,0.1), transparent);
     margin: 30px 0;
 }
 </style>
@@ -314,6 +308,13 @@ try:
             <li><b style='color:#ffaa00;'>MSC:</b> opera en Diamond Tier — solo 7 días libres en BUE, penalidades por cancelación</li>
             <li><b style='color:#94a3b8;'>Mayor riesgo de rollovers, vessel changes y ETD móviles</b></li>
         </ul>
+
+        <div style='background:rgba(0,168,255,0.08); border-radius:10px; padding:14px; border-left:4px solid #00a8ff;'>
+            <p style='color:#00a8ff; font-weight:800; font-size:12px; letter-spacing:1px; margin:0 0 6px 0;'>
+            💡 RECOMENDACIÓN OPERATIVA</p>
+            <p style='color:#cbd5e1; font-size:13px; margin:0;'>
+            Priorizar <b>booking anticipado</b> y <b>carrier confiable</b> sobre tarifa mínima.
+            El espacio real, la ruta directa y el free time razonable son hoy más críticos que el rate.</p>
         </div>
         </div>
         """, unsafe_allow_html=True)
