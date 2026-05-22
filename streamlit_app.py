@@ -276,12 +276,109 @@ try:
     cant_so_global = df['SO'].nunique()
     cant_proveedores_global = df['Proveedor'].nunique() if 'Proveedor' in df.columns else 0
 
+    # ─────────────────────────────────────────────────────────────────────────────
+    # --- POP-UP ALERTA DE MERCADO (aparece una vez por sesión al ingresar) ---
+    # ─────────────────────────────────────────────────────────────────────────────
+    if 'alerta_mercado_mostrada' not in st.session_state:
+        st.session_state.alerta_mercado_mostrada = False
+
+    @st.dialog("⚠️ ALERTA DE MERCADO — MAYO 2026", width="large")
+    def mostrar_alerta_mercado():
+        st.markdown("""
+        <div style='background: linear-gradient(135deg, rgba(255,170,0,0.1), rgba(255,75,75,0.05));
+        border-radius: 16px; padding: 25px; border: 1px solid rgba(255,170,0,0.3);'>
+
+        <p style='color:#ffaa00; font-weight:800; font-size:16px; letter-spacing:2px; margin-bottom:20px;'>
+        📌 SITUACIÓN ACTUAL — TRADE ASIA → SUDAMÉRICA</p>
+
+        <div style='display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:20px;'>
+            <div style='background:rgba(255,75,75,0.08); border-radius:10px; padding:14px; border-left:4px solid #ff4b4b;'>
+                <p style='color:#94a3b8; font-size:11px; letter-spacing:1px; margin:0 0 5px 0;'>NIVEL TARIFARIO ACTUAL</p>
+                <p style='color:#ff4b4b; font-size:26px; font-weight:900; margin:0;'>USD 5.600–6.000</p>
+                <p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>por contenedor 40' HC · +80% en el mes</p>
+            </div>
+            <div style='background:rgba(255,170,0,0.08); border-radius:10px; padding:14px; border-left:4px solid #ffaa00;'>
+                <p style='color:#94a3b8; font-size:11px; letter-spacing:1px; margin:0 0 5px 0;'>ESTIMADO JUNIO</p>
+                <p style='color:#ffaa00; font-size:26px; font-weight:900; margin:0;'>USD 7.000–7.600</p>
+                <p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>sujeto a disponibilidad y naviera</p>
+            </div>
+        </div>
+
+        <p style='color:#f8fafc; font-weight:700; font-size:13px; letter-spacing:1px; margin-bottom:12px;'>
+        🔴 FACTORES QUE IMPACTAN HOY:</p>
+
+        <ul style='color:#cbd5e1; font-size:13px; line-height:2; padding-left:20px; margin:0 0 20px 0;'>
+            <li><b style='color:#ff4b4b;'>Blank sailings sem. 18–20:</b> reducción del 20–25% de capacidad disponible</li>
+            <li><b style='color:#ffaa00;'>Labour Day China (1–5 May):</b> acumulación de carga en WH, backlog aún activo</li>
+            <li><b style='color:#ffaa00;'>CMA CGM:</b> aplica PSS de USD 1.000/contenedor desde el 20/05</li>
+            <li><b style='color:#ffaa00;'>MSC:</b> opera en Diamond Tier — solo 7 días libres en BUE, penalidades por cancelación</li>
+            <li><b style='color:#94a3b8;'>Mayor riesgo de rollovers, vessel changes y ETD móviles</b></li>
+        </ul>
+
+        <div style='background:rgba(0,168,255,0.08); border-radius:10px; padding:14px; border-left:4px solid #00a8ff;'>
+            <p style='color:#00a8ff; font-weight:800; font-size:12px; letter-spacing:1px; margin:0 0 6px 0;'>
+            💡 RECOMENDACIÓN OPERATIVA</p>
+            <p style='color:#cbd5e1; font-size:13px; margin:0;'>
+            Priorizar <b>booking anticipado</b> y <b>carrier confiable</b> sobre tarifa mínima.
+            El espacio real, la ruta directa y el free time razonable son hoy más críticos que el rate.</p>
+        </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("✅ ENTENDIDO — INGRESAR AL DASHBOARD", use_container_width=True):
+            st.session_state.alerta_mercado_mostrada = True
+            st.rerun()
+
+    if not st.session_state.alerta_mercado_mostrada:
+        mostrar_alerta_mercado()
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # --- HEADER BIDCOM ---
+    # ─────────────────────────────────────────────────────────────────────────────
     st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><div class='bidcom-subtitle'>Tablero Logística Internacional</div></div>", unsafe_allow_html=True)
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # --- BANNER ALERTA MERCADO (colapsable, siempre visible debajo del header) ---
+    # ─────────────────────────────────────────────────────────────────────────────
+    with st.expander("⚠️  ALERTA DE MERCADO ACTIVA — MAYO 2026  |  Tarifas Asia-LATAM +80% · Clic para ver detalle", expanded=False):
+        st.markdown("""
+        <div style='padding: 20px; background: rgba(255,170,0,0.05); border-radius: 12px;'>
+
+        <div style='display:grid; grid-template-columns: repeat(3,1fr); gap:12px; margin-bottom:16px;'>
+            <div style='text-align:center; padding:12px; background:rgba(255,75,75,0.08); border-radius:10px; border-top:3px solid #ff4b4b;'>
+                <p style='color:#94a3b8; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>TARIFA ACTUAL (40'HC)</p>
+                <p style='color:#ff4b4b; font-size:20px; font-weight:900; margin:0;'>USD 5.600–6.000</p>
+            </div>
+            <div style='text-align:center; padding:12px; background:rgba(255,170,0,0.08); border-radius:10px; border-top:3px solid #ffaa00;'>
+                <p style='color:#94a3b8; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>INCREMENTO MAYO</p>
+                <p style='color:#ffaa00; font-size:20px; font-weight:900; margin:0;'>+80%</p>
+            </div>
+            <div style='text-align:center; padding:12px; background:rgba(255,75,75,0.08); border-radius:10px; border-top:3px solid #ff4b4b;'>
+                <p style='color:#94a3b8; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>ESTIMADO JUNIO</p>
+                <p style='color:#ff4b4b; font-size:20px; font-weight:900; margin:0;'>USD 7.000–7.600</p>
+            </div>
+        </div>
+
+        <p style='color:#cbd5e1; font-size:13px; line-height:1.8; margin:0;'>
+        🔴 <b style='color:#ff4b4b;'>Blank sailings sem. 18–20</b> — reducción del 20–25% de capacidad &nbsp;|&nbsp;
+        🟠 <b style='color:#ffaa00;'>Labour Day China (1–5 May)</b> — acumulación de carga en WH &nbsp;|&nbsp;
+        🟠 <b style='color:#ffaa00;'>CMA CGM</b> PSS USD 1.000/cntr desde 20/05 &nbsp;|&nbsp;
+        🟠 <b style='color:#ffaa00;'>MSC Diamond Tier</b> — 7 días libres BUE, penalidades por cancelación &nbsp;|&nbsp;
+        ⚡ Mayor riesgo de <b>rollovers</b> y <b>vessel changes</b>
+        </p>
+
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
     col_ref, _ = st.columns([1, 5])
     with col_ref:
         if st.button("🔄 Actualizar datos", key="btn_refresh", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
+
     tabs = st.tabs(["ORIGEN", "MERCADERÍA EN PROCESO", "PERFORMANCE DE AGENTES Y ANALISTAS", "FLETES, GASTOS Y CERTIFICACIONES", "PROYECCIÓN SEMANAL ETD", "INDICADORES", "ALERTAS ESTRATÉGICAS", "ASK COMEX"])
 
     # --- SOLAPA 1: ORIGEN ---
@@ -580,7 +677,6 @@ try:
                 col_mod_opciones = [c for c in df.columns if 'MODALIDAD' in str(c).upper() and 'COSTEO' in str(c).upper()]
                 col_mod = col_mod_opciones[0] if col_mod_opciones else 'Modalidad de Costeo Reposicion'
                 if col_mod in df.columns:
-                    # Filtro alineado con Proyección Semanal: Argentina + Barco + Costo Hibrido Puerto ZFLP
                     mask_arg   = df['Pais Destino'].astype(str).str.strip().str.upper() == 'ARGENTINA'
                     mask_barco = (
                         df[col_mod].astype(str).str.upper().str.startswith("BARCO") |
@@ -815,8 +911,6 @@ try:
                 lbl_mon = [("Monoproveedor", df_mar[msk_mon]), ("Consolidado", df_mar[~msk_mon])]
                 renderizar_detalle(msk_mon, lbl_mon, False)
 
-
-
         except Exception as e:
             st.error(f"Error en Gestión de Reservas: {e}")
 
@@ -836,15 +930,11 @@ try:
 
             df_rh, df_eh = load_perf_data(base_url)
 
-            # Columnas Reservas Historicas
-            # col A (0)=Embarque, col O (14)=Responsable, col Y (24)=Monoproveedor, col AG (32)=Tiempo cons
             col_rh_emb   = df_rh.columns[0]
             col_rh_resp  = df_rh.columns[14]
             col_rh_mono  = df_rh.columns[24]
             col_rh_tcons = df_rh.columns[32]
 
-            # Columnas Embarques Historicos
-            # col A (0)=SO, col E (4)=Embarque, col G (6)=ETD, col S (18)=Proveedor
             col_eh_so   = df_eh.columns[0]
             col_eh_emb  = df_eh.columns[4]
             col_eh_etd  = df_eh.columns[6]
@@ -920,7 +1010,6 @@ try:
                         )[col_eh_prov].nunique()
                         avg_prov_emb = round(prov_por_emb.mean(), 1) if not prov_por_emb.empty else 0
 
-                        # AZUL: aéreos, sin metodología de consolidación marítima
                         es_azul = analista.strip().upper() == 'AZUL'
                         dias_cons_val = "✈️ En preparación" if es_azul else (f"{round(avg_tcons, 1)} d" if pd.notna(avg_tcons) else "—")
 
@@ -990,7 +1079,6 @@ try:
                         es_azul_sel = analista_sel.strip().upper() == 'AZUL'
 
                         if es_azul_sel:
-                            # AZUL: solo gráfico de embarques, sin consolidación
                             st.plotly_chart(
                                 px.bar(df_evol_a, x='Mes', y='Embarques', text_auto=',.0f',
                                        color_discrete_sequence=['#00a8ff'],
@@ -1059,7 +1147,7 @@ try:
             col_ag_etd        = df_rh.columns[11]
             col_ag_bl         = df_rh.columns[15]
             col_ag_conf       = df_rh.columns[18]
-            col_ag_cntr       = df_rh.columns[1]   # col B = cant contenedores
+            col_ag_cntr       = df_rh.columns[1]
             col_ag_linea      = df_rh.columns[59]  if len(df_rh.columns) > 59 else None
             col_ag_gto_origen = df_rh.columns[38]  if len(df_rh.columns) > 38 else None
             col_ag_flete_pag  = df_rh.columns[51]  if len(df_rh.columns) > 51 else None
@@ -1072,7 +1160,6 @@ try:
             df_rh['_ag_conf_dt'] = pd.to_datetime(df_rh[col_ag_conf], dayfirst=True, errors='coerce')
 
             df_rh_ag_2026 = df_rh[df_rh['_ag_etd_dt'].dt.year == 2026].copy()
-            # Filtrar solo tipos maritimos por columna F (índice 5)
             TIPOS_MAR_AG = ['40 HQ', '20 ST', '40 ST', '40 NOR']
             df_rh_ag_2026 = df_rh_ag_2026[
                 df_rh_ag_2026[df_rh.columns[5]].astype(str).str.strip().str.upper().isin(
@@ -1110,8 +1197,6 @@ try:
                 total_cntrs_ag  = df_ag_mes[col_ag_cntr].sum()
                 avg_dias_ic     = df_ag_mes['_dias_instr_conf'].mean()
                 avg_dias_bl     = df_ag_mes['_dias_etd_bl'].mean()
-                # Para el KPI global usamos promedio por embarque
-                # KPI global: suma total certificado / suma total pagado x 100. Objetivo >= 75%
                 sum_fp_global   = df_ag_mes[col_ag_flete_pag].sum()  if col_ag_flete_pag  else 0
                 sum_fc_global   = df_ag_mes[col_ag_flete_cert].sum() if col_ag_flete_cert else 0
                 pct_cert_global = round(sum_fc_global / sum_fp_global * 100, 1) if sum_fp_global and sum_fp_global > 0 else None
@@ -1141,8 +1226,6 @@ try:
                         lineas_str = ", ".join(sorted(lineas.unique())) if not lineas.empty else "Sin datos"
                     else:
                         lineas_str = "Sin datos"
-                    # Promedios por embarque
-                    # Certificacion por agente: suma certif / suma pagado x 100. Objetivo >= 75%
                     avg_fp = grp_f[col_ag_flete_pag].mean()  if col_ag_flete_pag  else 0
                     avg_fc = grp_f[col_ag_flete_cert].mean() if col_ag_flete_cert else 0
                     avg_gl = grp_f[col_ag_gto_local].mean()  if col_ag_gto_local  else 0
@@ -1235,9 +1318,6 @@ border-radius:20px; border:1px solid rgba(255,170,0,0.2); margin-bottom:30px;'>
                 except:
                     return None
 
-            # Columnas por indice segun estructura confirmada
-            # A(0)=Tipo transporte, B(1)=FFWW, C(2)=Agente, D(3)=Valor Flete
-            # K(10)=Validez Desde, L(11)=Validez Hasta, O(14)=Locales ARG, P(15)=Tipo Ctnr
             col_fl_tipo   = df_fl.columns[0]
             col_fl_agente = df_fl.columns[1]
             col_fl_flete  = df_fl.columns[3]
@@ -1256,7 +1336,6 @@ border-radius:20px; border:1px solid rgba(255,170,0,0.2); margin-bottom:30px;'>
             df_fl['_mes_label']= df_fl['_desde_dt'].dt.strftime('%B %Y').str.upper()
             df_fl['_anio']     = df_fl['_desde_dt'].dt.year
 
-            # Solo 2026 y con flete valido, excluir POD Lazaro Cardenas
             df_fl_2026 = df_fl[
                 (df_fl['_anio'] == 2026) &
                 df_fl['_flete'].notna() &
@@ -1272,7 +1351,6 @@ border-radius:20px; border:1px solid rgba(255,170,0,0.2); margin-bottom:30px;'>
             if df_fl_2026.empty:
                 st.warning("No se encontraron cotizaciones validas para 2026.")
             else:
-                # ── BLOQUE 1: COTIZACIONES VIGENTES HOY ─────────────────────
                 df_vig = df_fl_2026[
                     (df_fl_2026['_desde_dt'] <= hoy) &
                     (df_fl_2026['_hasta_dt'] >= hoy)
@@ -1304,7 +1382,6 @@ Validez Quincena Desde menor o igual a hoy y Validez Quincena Hasta mayor o igua
 </div>""", unsafe_allow_html=True)
 
                     with v2:
-                        # Tabla por tipo CNT
                         rows_vig = []
                         for cnt in TIPOS_CNT:
                             df_cnt = df_vig[df_vig['_cnt'] == cnt]
@@ -1340,7 +1417,6 @@ Validez Quincena Desde menor o igual a hoy y Validez Quincena Hasta mayor o igua
                                 }
                             )
 
-                # Selector FFWW para ver tarifas por forwarder
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.markdown("""
 <div style='padding:14px 20px; background:rgba(255,255,255,0.02); border-radius:12px;
@@ -1360,7 +1436,6 @@ Seleccioná un agente para ver sus tarifas vigentes por tipo de CNT</p>
                         ffww_sel = st.selectbox("SELECCIONAR FFWW:", ["COMPARATIVA GENERAL"] + ffww_opciones, key="ffww_sel")
 
                     if ffww_sel == "COMPARATIVA GENERAL":
-                        # Una fila por FFWW x tipo CNT con su tarifa vs prom mercado
                         rows_ffww = []
                         for agente in ffww_opciones:
                             df_ag = df_vig[df_vig['_agente'].astype(str).str.strip() == agente]
@@ -1394,7 +1469,6 @@ Seleccioná un agente para ver sus tarifas vigentes por tipo de CNT</p>
                                 }
                             )
                     else:
-                        # Detalle de FFWW específico
                         df_ffww = df_vig[df_vig['_agente'].astype(str).str.strip() == ffww_sel]
                         rows_ffww = []
                         for cnt in TIPOS_CNT:
@@ -1429,7 +1503,6 @@ Seleccioná un agente para ver sus tarifas vigentes por tipo de CNT</p>
                 else:
                     st.info("No hay forwarders disponibles en el período vigente.")
 
-                # Gastos locales vigentes
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.markdown("""
 <div style='padding:14px 20px; background:rgba(255,255,255,0.02); border-radius:12px;
@@ -1473,7 +1546,6 @@ border-radius:14px; border-top:3px solid {color};'>
                 else:
                     st.info("No hay gastos locales disponibles para el periodo vigente.")
 
-                # ── BLOQUE 2: HISTORICO 2026 ────────────────────────────────
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.markdown("<hr style='border:none; border-top:2px solid rgba(255,170,0,0.15); margin:10px 0 25px 0;'>", unsafe_allow_html=True)
                 st.markdown("""
@@ -1485,7 +1557,6 @@ HISTORICO 2026 - EVOLUCION MENSUAL POR TIPO DE CNT</p>
 Promedio de mercado, mejor oferta y target -15% por mes y tipo de contenedor</p>
 </div>""", unsafe_allow_html=True)
 
-                # Construir tabla historica completa (todos los meses x todos los CNTs)
                 rows_hist = []
                 meses_ord = df_fl_2026.drop_duplicates('_mes_num').sort_values('_mes_num')[['_mes_num','_mes_label']].values.tolist()
                 for mes_num, mes_lbl in meses_ord:
@@ -1513,28 +1584,21 @@ Promedio de mercado, mejor oferta y target -15% por mes y tipo de contenedor</p>
 
                 df_hist = pd.DataFrame(rows_hist)
                 if not df_hist.empty:
-                    # ── SELECTORES ───────────────────────────────────────────
                     meses_disponibles = ["TODOS"] + [m for _, m in meses_ord]
                     cnts_disponibles  = ["TODOS"] + TIPOS_CNT
 
                     fh1, fh2 = st.columns(2)
                     with fh1:
-                        mes_sel_hist = st.selectbox(
-                            "MES:", meses_disponibles, key="hist_mes_sel"
-                        )
+                        mes_sel_hist = st.selectbox("MES:", meses_disponibles, key="hist_mes_sel")
                     with fh2:
-                        cnt_sel_hist = st.selectbox(
-                            "TIPO CNT:", cnts_disponibles, key="hist_cnt_sel"
-                        )
+                        cnt_sel_hist = st.selectbox("TIPO CNT:", cnts_disponibles, key="hist_cnt_sel")
 
-                    # Aplicar filtros a la tabla
                     df_hist_fil = df_hist.copy()
                     if mes_sel_hist != "TODOS":
                         df_hist_fil = df_hist_fil[df_hist_fil['Mes'] == mes_sel_hist]
                     if cnt_sel_hist != "TODOS":
                         df_hist_fil = df_hist_fil[df_hist_fil['Tipo CNT'] == cnt_sel_hist]
 
-                    # KPIs del filtro actual
                     if not df_hist_fil.empty:
                         avg_prom  = df_hist_fil['Prom. Mercado'].mean()
                         avg_mejor = df_hist_fil['Mejor Oferta'].mean()
@@ -1558,7 +1622,6 @@ border-radius:12px; border-top:2px solid {color};'>
 
                         st.markdown("<br>", unsafe_allow_html=True)
 
-                    # Tabla filtrada
                     st.dataframe(
                         df_hist_fil.drop(columns=['_mes_num']),
                         use_container_width=True, hide_index=True,
@@ -1576,8 +1639,6 @@ border-radius:12px; border-top:2px solid {color};'>
 
                     st.markdown("<br>", unsafe_allow_html=True)
 
-                    # ── GRAFICO EVOLUCION ─────────────────────────────────────
-                    # Siempre sobre todos los meses; filtrado solo por CNT
                     df_hist_graf = df_hist.copy()
                     if cnt_sel_hist != "TODOS":
                         df_hist_graf = df_hist_graf[df_hist_graf['Tipo CNT'] == cnt_sel_hist]
@@ -1600,7 +1661,6 @@ border-radius:12px; border-top:2px solid {color};'>
                         yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)', title='USD'),
                         margin=dict(l=20, r=20, t=80, b=40)
                     )
-                    # Marcar mes seleccionado con vrect si no es TODOS (vline no funciona con eje categorico)
                     if mes_sel_hist != "TODOS":
                         fig_evol.add_vrect(
                             x0=mes_sel_hist, x1=mes_sel_hist,
@@ -1615,12 +1675,10 @@ border-radius:12px; border-top:2px solid {color};'>
             st.code(traceback.format_exc())
 
 
-
     # --- SOLAPA 5: PROYECCIÓN SEMANAL ETD ---
     with tabs[4]:
         st.markdown("<div style='text-align:center; padding:25px; background:linear-gradient(135deg,rgba(0,168,255,0.08),rgba(0,255,136,0.04)); border-radius:20px; border:1px solid rgba(0,168,255,0.2); margin-bottom:30px;'><h2 style='color:#00a8ff; font-weight:900; letter-spacing:6px; margin:0; font-size:26px;'>PROYECCION SEMANAL ETD</h2><p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>VOLUMEN Y CONTENEDORES FUTUROS - BASE PARA NEGOCIACION DE TARIFAS</p></div>", unsafe_allow_html=True)
         try:
-            # Buscar columnas por nombre para evitar desplazamientos de índice
             def find_col_proy(df, keywords):
                 for kw in keywords:
                     matches = [c for c in df.columns if kw.upper() in str(c).upper()]
@@ -1698,7 +1756,6 @@ border-radius:12px; border-top:2px solid {color};'>
 
                 st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
 
-                # Grafico barras apiladas M3 por semana y puerto
                 df_stack = df_mes_proy.groupby(['_semana_inicio','_puerto'])['_m3'].sum().reset_index()
                 df_stack['Semana'] = df_stack['_semana_inicio'].apply(
                     lambda d: d.strftime('%d/%m') + ' - ' + (d + pd.Timedelta(days=6)).strftime('%d/%m')
@@ -1723,7 +1780,6 @@ border-radius:12px; border-top:2px solid {color};'>
                 )
                 st.plotly_chart(fig_stack, use_container_width=True)
 
-                # Grafico contenedores por semana
                 df_cntr_sem = df_mes_proy.groupby('_semana_inicio')['_m3'].sum().reset_index()
                 df_cntr_sem['Semana'] = df_cntr_sem['_semana_inicio'].apply(
                     lambda d: d.strftime('%d/%m') + ' - ' + (d + pd.Timedelta(days=6)).strftime('%d/%m')
@@ -1815,19 +1871,15 @@ border-radius:12px; border-top:2px solid {color};'>
             df_hi.columns = [str(c).strip() for c in df_hi.columns]
 
             df_hi['ETD_DT'] = pd.to_datetime(df_hi.iloc[:, 11], dayfirst=True, errors='coerce')
-            # Filtrar 2026: combinamos año en ETD parseado Y columna Z (Año ETD) para máxima cobertura
             mask_anio_etd = df_hi['ETD_DT'].dt.year == 2026
             mask_anio_col = df_hi.iloc[:, 25].astype(str).str.strip() == '2026'
             df_2026 = df_hi[mask_anio_etd | mask_anio_col].copy()
-            # Asegurar que ETD_DT esté completo usando columna Z como respaldo
             df_2026.loc[df_2026['ETD_DT'].isna(), 'ETD_DT'] = pd.to_datetime(
                 df_2026.loc[df_2026['ETD_DT'].isna(), df_hi.columns[11]], dayfirst=True, errors='coerce'
             )
 
             if not df_2026.empty:
-                # Asegurar columna Mes para todas las filas
                 df_2026['Mes'] = df_2026['ETD_DT'].dt.month
-                # Para filas sin ETD parseado, intentar extraer mes de columna L directamente
                 mask_sin_mes = df_2026['Mes'].isna()
                 if mask_sin_mes.any():
                     df_2026.loc[mask_sin_mes, 'ETD_DT'] = pd.to_datetime(
@@ -2283,7 +2335,6 @@ border-radius:12px; border:1px solid {color}44;'>
                 "ETD OK confirmada · Falta Draft BL y/o Packing List Final en Reservas",
                 "#ffaa00", len(df_a6), tabla_a6)
 
-            # ALERTA AÉREOS — placeholder
             def tabla_aereos():
                 st.info("✈️ Módulo de alertas para cargas aéreas en desarrollo. Próximamente disponible.")
 
@@ -2351,21 +2402,15 @@ border-radius:12px; border:1px solid {color}44;'>
             return res, hi, emb_hi, ddp, impo2
 
         df_res_ask, df_hi_ask, df_emb_hi_ask, df_ddp_ask, df_impo2_ask = load_ask_comex_data()
-        # Preparar Despachos Directo Puerto: cruce por FCL (col F idx 5)
-        # col A(0)=Orden WMS, col B(1)=Fecha Retiro, col D(3)=Fecha OFI, col E(4)=N Despacho, col F(5)=FCL
         if not df_ddp_ask.empty:
             df_ddp_ask.columns = [str(c).strip() for c in df_ddp_ask.columns]
             df_ddp_ask['_emb_key'] = df_ddp_ask.iloc[:, 5].astype(str).str.strip().str.upper()
-        # Preparar Importaciones2: cruce por Embarque (col A idx 0)
-        # col A(0)=Embarque, col B(1)=Fecha Salida Origen, col C(2)=Fecha Arribo Aduana
         if not df_impo2_ask.empty:
             df_impo2_ask.columns = [str(c).strip() for c in df_impo2_ask.columns]
             df_impo2_ask['_emb_key'] = df_impo2_ask.iloc[:, 0].astype(str).str.strip().str.upper()
 
         st.markdown("<br>", unsafe_allow_html=True)
         def get_estadio_impo2(emb, eta_str, df_impo2, hoy_d, historico=False):
-            # Determina estadio 5/6/7 cruzando con Despachos Directo Puerto
-            # col A(0)=Orden WMS, col B(1)=Fecha Retiro, col D(3)=Fecha OFI, col E(4)=N Despacho, col F(5)=FCL
             suffix = " (HISTORICO)" if historico else ""
             def es_vacio(v): return str(v).strip().lower() in ['', 'nan', 'none', '-', 'n/a']
             if df_impo2.empty:
@@ -2402,24 +2447,20 @@ border-radius:12px; border:1px solid {color}44;'>
 
         if query:
             query = str(query).strip().upper()
-            # Columnas de búsqueda
             col_so         = [c for c in df.columns if c.strip().upper() == 'SO'][0] if any(c.strip().upper() == 'SO' for c in df.columns) else df.columns[0]
-            col_emb_pc     = df.columns[16]   # Planif Cargas col Q = Embarque
+            col_emb_pc     = df.columns[16]
 
             is_historical = False
             df_found = pd.DataFrame()
 
-            # 1. Buscar por SO en Planif Cargas
             mask_so  = df[col_so].astype(str).str.upper().str.contains(query, na=False)
-            # 2. Buscar por Embarque en Planif Cargas (col Q)
             mask_emb_pc = df[col_emb_pc].astype(str).str.strip().str.upper() == query
 
             df_found = df[mask_so | mask_emb_pc]
 
-            # 3. Fallback: buscar en Embarques Historicos (col E idx 4 = Embarque, col A idx 0 = SO)
             if df_found.empty and not df_emb_hi_ask.empty:
-                col_eh_emb = df_emb_hi_ask.columns[4]  # col E = Embarque
-                col_eh_so  = df_emb_hi_ask.columns[0]  # col A = SO
+                col_eh_emb = df_emb_hi_ask.columns[4]
+                col_eh_so  = df_emb_hi_ask.columns[0]
                 m_emb = df_emb_hi_ask[col_eh_emb].astype(str).str.strip().str.upper() == query
                 m_so  = df_emb_hi_ask[col_eh_so].astype(str).str.upper().str.contains(query, na=False)
                 df_found = df_emb_hi_ask[m_emb | m_so]
@@ -2439,8 +2480,8 @@ border-radius:12px; border:1px solid {color}44;'>
                 for i, row in df_found.iterrows():
                     if is_historical:
                         val_so  = str(row.iloc[0]).strip()
-                        val_sku = str(row.iloc[5]).strip() if len(row) > 5 else "—"  # col F
-                        val_inv = str(row.iloc[17]).strip() if len(row) > 17 else "—"  # col R
+                        val_sku = str(row.iloc[5]).strip() if len(row) > 5 else "—"
+                        val_inv = str(row.iloc[17]).strip() if len(row) > 17 else "—"
                         if val_sku.lower() in ["nan","none",""]: val_sku = "—"
                         if val_inv.lower() in ["nan","none",""]: val_inv = "—"
                         val_emb = str(row.iloc[4]).strip()
@@ -2475,7 +2516,6 @@ border-radius:12px; border:1px solid {color}44;'>
                         else:
                             estadio = 4; desc_estadio = "EN TRÁNSITO (HISTÓRICO)"; color_estadio = "#00a8ff"
                             info_extra = f"La carga figura despachada en registros históricos pero su ETA es futura. (ETA: {val_eta_gso})"
-                        # ETD y ETA para historicos
                         etd_display = val_etd_gso if val_etd_gso and str(val_etd_gso).lower() not in ["nan","none",""] else "Sin fecha"
                         eta_display = val_eta_gso if val_eta_gso and str(val_eta_gso).lower() not in ["nan","none",""] else "Sin fecha"
                     else:
@@ -2491,12 +2531,12 @@ border-radius:12px; border:1px solid {color}44;'>
                         if val_emb.lower() == 'nan': val_emb = "Sin Asignar"
                         col_inst = [c for c in df.columns if 'INSTRUCCION' in c.upper() or 'INSTRUCCIÓN' in c.upper()][0] if any('INSTRUCCION' in c.upper() or 'INSTRUCCIÓN' in c.upper() for c in df.columns) else df.columns[20]
                         val_inst = str(row[col_inst]).strip()
-                        col_fin_prod = df.columns[99]  # Columna CV: Fecha prioritaria / Fin produccion real
+                        col_fin_prod = df.columns[99]
                         val_fin_prod = str(row[col_fin_prod]).strip()
                         if val_fin_prod.lower() == 'nan' or val_fin_prod == '': val_fin_prod = "Sin Info"
                         val_fecha_inst = val_inst if (val_inst != "" and val_inst.lower() != "nan" and "sin instruccion" not in val_inst.lower()) else "Pendiente"
-                        val_etd_gso = str(row[df.columns[23]]).strip()  # col X = ETD
-                        val_eta_gso = str(row[df.columns[24]]).strip()  # col Y = ETA
+                        val_etd_gso = str(row[df.columns[23]]).strip()
+                        val_eta_gso = str(row[df.columns[24]]).strip()
                         col_cant_pend = [c for c in df.columns if 'CANTIDAD PENDIENTE DE EMBARCAR' in c.upper()][0] if any('CANTIDAD PENDIENTE DE EMBARCAR' in c.upper() for c in df.columns) else df.columns[21]
                         col_cant_emb = [c for c in df.columns if 'CANTIDAD EMB' in c.upper() and 'PREVENTA' not in c.upper()][0] if any('CANTIDAD EMB' in c.upper() and 'PREVENTA' not in c.upper() for c in df.columns) else df.columns[60]
                         try: val_cant_pend = float(str(row[col_cant_pend]).replace(',', '.').strip())
@@ -2507,7 +2547,6 @@ border-radius:12px; border:1px solid {color}44;'>
                             cantidad_mostrar = int(val_cant_emb); label_cant = "CANTIDAD EMB"
                         else:
                             cantidad_mostrar = int(val_cant_pend); label_cant = "CANT. PENDIENTE"
-                        # Columnas clave de Planif Cargas
                         col_etd_ok_ask = next((c for c in df.columns if "ETD OK FFWW" in str(c).upper() or "ETD OK" in str(c).upper()), df.columns[97])
                         val_etd_ok = str(row[col_etd_ok_ask]).strip().upper() if col_etd_ok_ask in df.columns else ""
                         hoy_d = datetime.now().date()
@@ -2531,7 +2570,6 @@ border-radius:12px; border:1px solid {color}44;'>
                         etd_display = val_etd_gso if val_etd_gso and str(val_etd_gso).lower() not in ["nan","none",""] else "Sin fecha"
                         eta_display = val_eta_gso if val_eta_gso and str(val_eta_gso).lower() not in ["nan","none",""] else "Sin fecha"
 
-                        # Buscar en Importaciones2 para fechas de transito/arribo
                         f_salida_origen = ""; f_arribo_aduana = ""
                         if not df_impo2_ask.empty and val_emb not in ["Sin Asignar","","nan","NAN"]:
                             impo2_match = df_impo2_ask[df_impo2_ask["_emb_key"] == val_emb.upper()]
