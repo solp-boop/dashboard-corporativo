@@ -3,15 +3,12 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime, timedelta
 import time
-
 # --- 1. CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="BIDCOM | Dashboard Ejecutivo", layout="wide")
-
 # --- 2. DISEÑO BIDCOM IMPACTO TOTAL (CSS) ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;900&display=swap');
-
 /* TIPO Y FONDO GENERAL */
 html, body, [class*="css"] {
     font-family: 'Outfit', sans-serif !important;
@@ -19,7 +16,6 @@ html, body, [class*="css"] {
 .block-container { padding: 2rem 3rem; }
 .main { background-color: #020617;    color: #00ff88;
 }
-
 /* BOTONES COMPACTOS INDICADORES */
 div[data-testid="stColumn"] div[data-testid="stButton"] button {
     height: 28px !important;
@@ -28,10 +24,8 @@ div[data-testid="stColumn"] div[data-testid="stButton"] button {
     font-size: 12px !important;
     border-radius: 6px !important;
 }
-
 /* DIVIDORES Y ESPACIOS */
 hr { margin: 1rem 0 !important; opacity: 0.1; }
-
 /* ANIMACIONES */
 @keyframes fadeInDown {
     from { opacity: 0; transform: translateY(-40px); }
@@ -46,7 +40,6 @@ hr { margin: 1rem 0 !important; opacity: 0.1; }
     50% { box-shadow: 0 0 40px rgba(0, 168, 255, 0.4); }
     100% { box-shadow: 0 0 20px rgba(0, 168, 255, 0.2); }
 }
-
 /* TABS */
 .stTabs [data-baseweb="tab-list"] { 
     justify-content: center !important; 
@@ -70,7 +63,6 @@ hr { margin: 1rem 0 !important; opacity: 0.1; }
     color: #00a8ff !important;
     border: 1px solid rgba(0, 168, 255, 0.3) !important;
 }
-
 /* ENCABEZADO */
 .bidcom-header {
     background: linear-gradient(135deg, rgba(0,31,63,0.7) 0%, rgba(0,51,102,0.8) 100%);
@@ -103,7 +95,6 @@ hr { margin: 1rem 0 !important; opacity: 0.1; }
     margin-top: 15px; 
     text-shadow: 0 0 15px rgba(0, 168, 255, 0.4);
 }
-
 /* KPIs PRINCIPALES MASIVOS */
 .metric-container { 
     text-align: center; 
@@ -133,7 +124,6 @@ hr { margin: 1rem 0 !important; opacity: 0.1; }
     margin: 0 !important; 
     text-shadow: 0 0 40px rgba(0,168,255,0.7), 0 0 10px rgba(0,168,255,0.4) !important; 
 }
-
 /* TARJETAS GLASSMORPHISM STANDARDS */
 .custom-card {
     background: linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%);
@@ -178,7 +168,6 @@ hr { margin: 1rem 0 !important; opacity: 0.1; }
     margin: 0; 
     color: #f8fafc;
 }
-
 /* BOTONES GLOBALES Y FILTROS */
 .stButton>button {
     border-radius: 16px !important; 
@@ -201,7 +190,6 @@ hr { margin: 1rem 0 !important; opacity: 0.1; }
     box-shadow: 0 10px 30px rgba(0, 168, 255, 0.3), inset 0 0 20px rgba(0, 168, 255, 0.1) !important; 
     transform: translateY(-4px);
 }
-
 /* DECORATIVOS: LINEAS DIVISORAS */
 .glow-divider {
     border: none;
@@ -218,23 +206,18 @@ hr { margin: 1rem 0 !important; opacity: 0.1; }
 }
 </style>
 """, unsafe_allow_html=True)
-
 try:
     # --- 3. CARGA DE DATOS ---
     base_url = "https://docs.google.com/spreadsheets/d/1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI"
-
     @st.cache_data(ttl=60)
     def load_main_data(url):
         df = pd.read_csv(url)
         df.columns = df.columns.str.strip()
         return df
-
     df = load_main_data(f"{base_url}/export?format=csv&gid=0&nocache={time.time()}")
-
     if 'M3 Total' in df.columns:
         df['M3 Total'] = df['M3 Total'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
         df['M3 Total'] = pd.to_numeric(df['M3 Total'], errors='coerce').fillna(0)
-
     if 'Fob total Origen' in df.columns:
         def clean_val(x):
             if isinstance(x, (int, float)): return x
@@ -246,134 +229,108 @@ try:
                 num = num.replace(',', '.')
             return pd.to_numeric(num, errors='coerce')
         df['Fob total Origen'] = df['Fob total Origen'].apply(clean_val).fillna(0)
-
     df.iloc[:, 23] = df.iloc[:, 23].astype(str).str.strip()
     df.iloc[:, 24] = df.iloc[:, 24].astype(str).str.strip()
     df['ETD_DT'] = pd.to_datetime(df.iloc[:, 23], dayfirst=True, errors='coerce')
     df['ETA_DT'] = pd.to_datetime(df.iloc[:, 24], dayfirst=True, errors='coerce')
     df['Fecha_Prior_DT'] = pd.to_datetime(df.iloc[:, 99], dayfirst=True, errors='coerce')
-
     hoy = pd.Timestamp(datetime.now().date())
     inicio_mes = hoy.replace(day=1)
     limite_proximo = hoy + timedelta(days=30)
-
     def label_proyeccion(fecha, pivot):
         if pd.isna(fecha): return "SIN FECHA"
         if fecha.year < 2024: return "PASADO/REALIZADO"
         if fecha < pivot: return "PASADO/REALIZADO"
         return fecha.strftime('%m/%Y')
-
     df['Mes_ETD_Full'] = df['ETD_DT'].apply(lambda x: label_proyeccion(x, inicio_mes))
     df['Mes_ETA_Full'] = df['ETA_DT'].apply(lambda x: label_proyeccion(x, hoy))
-
     meses_eta = [m for m in df['Mes_ETA_Full'].unique() if m not in ["PASADO/REALIZADO", "SIN FECHA"]]
     meses_eta_ordenados = sorted(meses_eta, key=lambda x: datetime.strptime(x, '%m/%Y'))
     orden_final_eta = ["PASADO/REALIZADO"] + meses_eta_ordenados + ["SIN FECHA"]
     df['Mes_ETA_Full'] = pd.Categorical(df['Mes_ETA_Full'], categories=orden_final_eta, ordered=True)
-
     df = df[df['SO'].notna() & (df['SO'].astype(str).str.strip() != "") & (df['SO'].astype(str).str.strip().str.lower() != "nan")]
     m3_totales_global = round(df['M3 Total'].sum())
     cant_so_global = df['SO'].nunique()
     cant_proveedores_global = df['Proveedor'].nunique() if 'Proveedor' in df.columns else 0
-
     # ─────────────────────────────────────────────────────────────────────────────
     # --- POP-UP ALERTA DE MERCADO (aparece una vez por sesión al ingresar) ---
     # ─────────────────────────────────────────────────────────────────────────────
     if 'alerta_mercado_mostrada' not in st.session_state:
         st.session_state.alerta_mercado_mostrada = False
-
-    @st.dialog("⚠️ ALERTA DE MERCADO — MAYO 2026", width="large")
+    @st.dialog("⚠️ ALERTA DE MERCADO — JUNIO 2026", width="large")
     def mostrar_alerta_mercado():
         st.markdown("""
         <div style='background: linear-gradient(135deg, rgba(255,170,0,0.1), rgba(255,75,75,0.05));
         border-radius: 16px; padding: 25px; border: 1px solid rgba(255,170,0,0.3);'>
-
         <p style='color:#ffaa00; font-weight:800; font-size:16px; letter-spacing:2px; margin-bottom:20px;'>
-        📌 SITUACIÓN ACTUAL — TRADE ASIA → SUDAMÉRICA</p>
-
-        <div style='display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:20px;'>
-            <div style='background:rgba(255,75,75,0.08); border-radius:10px; padding:14px; border-left:4px solid #ff4b4b;'>
-                <p style='color:#94a3b8; font-size:11px; letter-spacing:1px; margin:0 0 5px 0;'>NIVEL TARIFARIO ACTUAL</p>
-                <p style='color:#ff4b4b; font-size:26px; font-weight:900; margin:0;'>USD 5.600–6.000</p>
-                <p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>por contenedor 40' HC · +80% en el mes</p>
-            </div>
-            <div style='background:rgba(255,170,0,0.08); border-radius:10px; padding:14px; border-left:4px solid #ffaa00;'>
-                <p style='color:#94a3b8; font-size:11px; letter-spacing:1px; margin:0 0 5px 0;'>ESTIMADO JUNIO</p>
-                <p style='color:#ffaa00; font-size:26px; font-weight:900; margin:0;'>USD 7.000–7.600</p>
-                <p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>sujeto a disponibilidad y naviera</p>
-            </div>
-        </div>
-
-        <p style='color:#f8fafc; font-weight:700; font-size:13px; letter-spacing:1px; margin-bottom:12px;'>
-        🔴 FACTORES QUE IMPACTAN HOY:</p>
-
-        <ul style='color:#cbd5e1; font-size:13px; line-height:2; padding-left:20px; margin:0 0 20px 0;'>
-            <li><b style='color:#ff4b4b;'>Blank sailings sem. 18–20:</b> reducción del 20–25% de capacidad disponible</li>
-            <li><b style='color:#ffaa00;'>Labour Day China (1–5 May):</b> acumulación de carga en WH, backlog aún activo</li>
-            <li><b style='color:#ffaa00;'>CMA CGM:</b> aplica PSS de USD 1.000/contenedor desde el 20/05</li>
-            <li><b style='color:#ffaa00;'>MSC:</b> opera en Diamond Tier — solo 7 días libres en BUE, penalidades por cancelación</li>
-            <li><b style='color:#94a3b8;'>Mayor riesgo de rollovers, vessel changes y ETD móviles</b></li>
+        📌 ACTUALIZACIÓN MERCADO MARÍTIMO — JUNIO 2026</p>
+        <ul style='color:#cbd5e1; font-size:13px; line-height:2.2; padding-left:20px; margin:0 0 20px 0;'>
+            <li><b style='color:#ff4b4b;'>Espacio en buques limitado</b> y mayor riesgo de rollovers</li>
+            <li><b style='color:#ffaa00;'>Disponibilidad ajustada</b> de contenedores</li>
+            <li><b style='color:#ffaa00;'>Warehouses y consolidadores</b> operando con alto volumen de carga</li>
+            <li><b style='color:#ffaa00;'>Posibles demoras</b> en transbordos y puertos de origen</li>
+            <li><b style='color:#ffaa00;'>Navieras aplicando incrementos tarifarios</b> (GRI/PSS)</li>
         </ul>
+        <div style='background:rgba(255,75,75,0.08); border-radius:10px; padding:14px; border-left:4px solid #ff4b4b; margin-bottom:14px;'>
+            <p style='color:#94a3b8; font-size:11px; letter-spacing:1px; margin:0 0 6px 0;'>IMPACTO ESPERADO</p>
+            <p style='color:#ff4b4b; font-size:13px; font-weight:600; margin:0; line-height:1.7;'>
+            Mayor presión operativa en origen · Posibles reprogramaciones de ETD · Costos de flete al alza durante junio
+            </p>
+        </div>
+        <div style='background:rgba(255,170,0,0.08); border-radius:10px; padding:14px; border-left:4px solid #ffaa00;'>
+            <p style='color:#94a3b8; font-size:11px; letter-spacing:1px; margin:0 0 5px 0;'>PRONÓSTICO DE FLETES — JUNIO 2026</p>
+            <p style='color:#ffaa00; font-size:26px; font-weight:900; margin:0;'>USD 8.900</p>
+            <p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>estimado por contenedor 40' HC · sujeto a naviera y disponibilidad</p>
         </div>
         </div>
         """, unsafe_allow_html=True)
-
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("✅ ENTENDIDO — INGRESAR AL DASHBOARD", use_container_width=True):
             st.session_state.alerta_mercado_mostrada = True
             st.rerun()
-
     if not st.session_state.alerta_mercado_mostrada:
         mostrar_alerta_mercado()
-
     # ─────────────────────────────────────────────────────────────────────────────
     # --- HEADER BIDCOM ---
     # ─────────────────────────────────────────────────────────────────────────────
     st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><div class='bidcom-subtitle'>Tablero Logística Internacional</div></div>", unsafe_allow_html=True)
-
     # ─────────────────────────────────────────────────────────────────────────────
     # --- BANNER ALERTA MERCADO (colapsable, siempre visible debajo del header) ---
     # ─────────────────────────────────────────────────────────────────────────────
-    with st.expander("⚠️  ALERTA DE MERCADO ACTIVA — MAYO 2026  |  Tarifas Asia-LATAM +80% · Clic para ver detalle", expanded=False):
+    with st.expander("⚠️  ALERTA DE MERCADO ACTIVA — JUNIO 2026  |  Mercado marítimo bajo presión · USD 8.900/cntr estimado · Clic para ver detalle", expanded=False):
         st.markdown("""
         <div style='padding: 20px; background: rgba(255,170,0,0.05); border-radius: 12px;'>
-
         <div style='display:grid; grid-template-columns: repeat(3,1fr); gap:12px; margin-bottom:16px;'>
             <div style='text-align:center; padding:12px; background:rgba(255,75,75,0.08); border-radius:10px; border-top:3px solid #ff4b4b;'>
-                <p style='color:#94a3b8; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>TARIFA ACTUAL (40'HC)</p>
-                <p style='color:#ff4b4b; font-size:20px; font-weight:900; margin:0;'>USD 5.600–6.000</p>
+                <p style='color:#94a3b8; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>PRONÓSTICO FLETE (40'HC)</p>
+                <p style='color:#ff4b4b; font-size:20px; font-weight:900; margin:0;'>USD 8.900</p>
             </div>
             <div style='text-align:center; padding:12px; background:rgba(255,170,0,0.08); border-radius:10px; border-top:3px solid #ffaa00;'>
-                <p style='color:#94a3b8; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>INCREMENTO MAYO</p>
-                <p style='color:#ffaa00; font-size:20px; font-weight:900; margin:0;'>+80%</p>
+                <p style='color:#94a3b8; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>DISPONIBILIDAD</p>
+                <p style='color:#ffaa00; font-size:20px; font-weight:900; margin:0;'>AJUSTADA</p>
             </div>
             <div style='text-align:center; padding:12px; background:rgba(255,75,75,0.08); border-radius:10px; border-top:3px solid #ff4b4b;'>
-                <p style='color:#94a3b8; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>ESTIMADO JUNIO</p>
-                <p style='color:#ff4b4b; font-size:20px; font-weight:900; margin:0;'>USD 7.000–7.600</p>
+                <p style='color:#94a3b8; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>RIESGO ROLLOVER</p>
+                <p style='color:#ff4b4b; font-size:20px; font-weight:900; margin:0;'>ALTO</p>
             </div>
         </div>
-
         <p style='color:#cbd5e1; font-size:13px; line-height:1.8; margin:0;'>
-        🔴 <b style='color:#ff4b4b;'>Blank sailings sem. 18–20</b> — reducción del 20–25% de capacidad &nbsp;|&nbsp;
-        🟠 <b style='color:#ffaa00;'>Labour Day China (1–5 May)</b> — acumulación de carga en WH &nbsp;|&nbsp;
-        🟠 <b style='color:#ffaa00;'>CMA CGM</b> PSS USD 1.000/cntr desde 20/05 &nbsp;|&nbsp;
-        🟠 <b style='color:#ffaa00;'>MSC Diamond Tier</b> — 7 días libres BUE, penalidades por cancelación &nbsp;|&nbsp;
-        ⚡ Mayor riesgo de <b>rollovers</b> y <b>vessel changes</b>
+        🔴 <b style='color:#ff4b4b;'>Espacio en buques limitado</b> — mayor riesgo de rollovers &nbsp;|&nbsp;
+        🟠 <b style='color:#ffaa00;'>Disponibilidad ajustada de contenedores</b> &nbsp;|&nbsp;
+        🟠 <b style='color:#ffaa00;'>Warehouses y consolidadores</b> con alto volumen de carga &nbsp;|&nbsp;
+        🟠 <b style='color:#ffaa00;'>Posibles demoras</b> en transbordos y puertos de origen &nbsp;|&nbsp;
+        🟠 <b style='color:#ffaa00;'>Navieras aplicando GRI/PSS</b> — costos al alza &nbsp;|&nbsp;
+        ⚡ <b style='color:#ff4b4b;'>Pronóstico flete: USD 8.900/cntr 40'HC</b>
         </p>
-
         </div>
         """, unsafe_allow_html=True)
-
     st.markdown("<br>", unsafe_allow_html=True)
-
     col_ref, _ = st.columns([1, 5])
     with col_ref:
         if st.button("🔄 Actualizar datos", key="btn_refresh", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
-
     tabs = st.tabs(["ORIGEN", "MERCADERÍA EN PROCESO", "PERFORMANCE DE AGENTES Y ANALISTAS", "FLETES, GASTOS Y CERTIFICACIONES", "PROYECCIÓN SEMANAL ETD", "INDICADORES", "ALERTAS ESTRATÉGICAS", "ASK COMEX"])
-
     # --- SOLAPA 1: ORIGEN ---
     with tabs[0]:
         try:
@@ -381,10 +338,8 @@ try:
             col_rank = df.columns[1]
             df['Rank_Num'] = df[col_rank].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
             df['Rank_Num'] = pd.to_numeric(df['Rank_Num'], errors='coerce').fillna(999999)
-
             col_cp = df.columns[93]
             df['Tipo_Carga'] = df[col_cp].apply(lambda x: 'MONOPROVEEDOR' if str(x).upper() == 'SI' else 'CONSOLIDADO')
-
             def get_tipo_repuesto(val):
                 val_str = str(val).strip().lower()
                 if val_str in ['', 'nan', 'none'] or pd.isna(val) or val_str == 'nan': return "Gadnic"
@@ -392,10 +347,8 @@ try:
                 if "sin planeamiento" in val_str: return "Marcas"
                 return "Gadnic"
             df['Tipo_Repuesto'] = df['Repuestos'].apply(get_tipo_repuesto) if 'Repuestos' in df.columns else 'Gadnic'
-
             df['Pais Destino'] = df['Pais Destino'].fillna('SIN DEFINIR').astype(str).str.strip()
             df['Repuestos'] = df['Repuestos'].fillna('').astype(str).str.strip()
-
             cond_prioridad = (df['Pais Destino'].str.upper() == 'ARGENTINA') & (df['Tipo_Repuesto'] == 'Gadnic')
             cond_instruido = df['Fecha_Inst_DT'].notna() & ~(df['Fecha de Instruccion'].astype(str).str.upper().str.contains("SIN INSTRUCCION", na=False))
             cond_pendiente = ~cond_instruido
@@ -405,41 +358,33 @@ try:
             cond_acc_consol = cond_pd_futura & (df['Tipo_Carga'] == 'CONSOLIDADO') & (df['Fecha_Prior_DT'] <= hoy + timedelta(days=10))
             cond_accionar = cond_acc_mono | cond_acc_consol
             cond_futura = cond_pendiente & (~cond_urgente) & (~cond_accionar)
-
             df_inst = df[cond_instruido & cond_prioridad].sort_values(by='Rank_Num').copy()
             df_urgente = df[cond_urgente & cond_prioridad].sort_values(by='Rank_Num').copy()
             df_accionar = df[cond_accionar & cond_prioridad].sort_values(by='Rank_Num').copy()
             df_futura = df[cond_futura & cond_prioridad].sort_values(by='Rank_Num').copy()
-
             cond_complementario = cond_pendiente & (~cond_prioridad)
             df_complem = df[cond_complementario].sort_values(by=['Fecha_Prior_DT', 'Rank_Num']).copy()
             df_otros_p = df_complem[df_complem['Pais Destino'].str.upper() != 'ARGENTINA'].copy()
             df_repuestos = df_complem[df_complem['Tipo_Repuesto'] != 'Gadnic'].copy()
             cant_demorados_comp = df_complem[df_complem['Fecha_Prior_DT'] < hoy]['SO'].nunique()
-
             m3_inst = df_inst['M3 Total'].sum()
             m3_urgente = df_urgente['M3 Total'].sum()
             m3_accionar = df_accionar['M3 Total'].sum()
             m3_futura = df_futura['M3 Total'].sum()
             m3_pend_total = m3_urgente + m3_accionar + m3_futura
-
             p_inst_val = int(round(m3_inst / m3_totales_global * 100)) if m3_totales_global > 0 else 0
             p_pend_val = 100 - p_inst_val
             fob_total_global = df['Fob total Origen'].sum()
-
             st.markdown("<br>", unsafe_allow_html=True)
             o1, o2, o3, o4 = st.columns(4)
             with o1: st.markdown(f"<div class='metric-container'><p>CANTIDAD DE SO</p><p>{int(cant_so_global)}</p></div>", unsafe_allow_html=True)
             with o2: st.markdown(f"<div class='metric-container'><p>VOLUMEN TOTAL (M3)</p><p>{int(round(m3_totales_global)):,}</p></div>", unsafe_allow_html=True)
             with o3: st.markdown(f"<div class='metric-container'><p>PROVEEDORES</p><p>{int(cant_proveedores_global)}</p></div>", unsafe_allow_html=True)
             with o4: st.markdown(f"<div class='metric-container'><p>FOB TOTAL (USD)</p><p>${int(round(fob_total_global)):,}</p></div>", unsafe_allow_html=True)
-
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
             st.markdown("<div style='text-align:center; padding: 20px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; margin-bottom: 30px;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>CONTROL DE STATUS DE MERCADERÍA</h2></div>", unsafe_allow_html=True)
-
             s1, s2 = st.columns([1.2, 1])
             filtro_actual = st.session_state.get('f')
-
             with s1:
                 st.markdown(f"""
                     <div class="custom-card" style="border-top: 5px solid #00ff88; background: rgba(0,255,136,0.02);">
@@ -469,7 +414,6 @@ try:
                     st.session_state.f = 'inst' if filtro_actual != 'inst' else None
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
-
             with s2:
                 df_pend_view = df[cond_pendiente]
                 st.markdown(f"""
@@ -484,7 +428,6 @@ try:
                         </div>
                     </div>
                 """, unsafe_allow_html=True)
-
                 if st.button(f"🔴 NIVEL 1: VENCIDA (URGENTE) - {int(round(df_urgente['M3 Total'].sum()))} M3", key="btn_urg_new", use_container_width=True):
                     st.session_state.f = 'venc' if filtro_actual != 'venc' else None
                     st.rerun()
@@ -494,7 +437,6 @@ try:
                 if st.button(f"🔵 NIVEL 3: PROGRAMADA (FUTURA) - {int(round(df_futura['M3 Total'].sum()))} M3", key="btn_rest_new", use_container_width=True):
                     st.session_state.f = 'rest' if filtro_actual != 'rest' else None
                     st.rerun()
-
             st.markdown("<br>", unsafe_allow_html=True)
             c_sec1, c_sec2, c_sec3 = st.columns(3)
             with c_sec1:
@@ -512,7 +454,6 @@ try:
                 if st.button("🏗️ ESTRUCTURA DE CARGA", key="btn_estr_new", use_container_width=True):
                     st.session_state.f = 'estr' if filtro_actual != 'estr' else None
                     st.rerun()
-
             f = st.session_state.get('f')
             if f:
                 st.markdown("<br>", unsafe_allow_html=True)
@@ -522,10 +463,8 @@ try:
                     elif f == "px25": titulo, dff, color = "PROXIMA A INSTRUIR (ACCIÓN)", df_accionar, "#ffaa00"
                     elif f == "rest": titulo, dff, color = "MERCADERIA PROGRAMADA (FUTURA)", df_futura, "#94a3b8"
                     elif f == "comp": titulo, dff, color = "SEGUIMIENTO ESPECIAL (OTROS PAÍSES / REPUESTOS)", df_complem, "#00a8ff"
-
                     cant_so_f = dff['SO'].nunique()
                     m3_f = int(round(dff['M3 Total'].sum()))
-
                     if f == "comp":
                         msg_extra = f"<p style='color:#ff4b4b; font-size:14px; font-weight:700;'>🚨 {cant_demorados_comp} SO DEMORADAS EN SEGUIMIENTO</p>"
                         st.markdown(f"""
@@ -554,13 +493,11 @@ try:
                                 </div>
                             </div>
                         """, unsafe_allow_html=True)
-
                     col_puerto = df.columns[41]
                     cols_to_show = ['SO', col_rank, 'Proveedor', col_puerto, 'Pais Destino', 'M3 Total', df.columns[99], 'Fecha de Instruccion']
                     if 'Repuestos' in df.columns:
                         cols_to_show.insert(4, 'Repuestos')
                     st.dataframe(dff[cols_to_show], use_container_width=True)
-
                 elif f == "rank":
                     col_rank = df.columns[1]
                     col_prior = df.columns[99]
@@ -579,7 +516,6 @@ try:
                     cols_rank = ['SO', col_rank, 'Proveedor', col_puerto, 'Pais Destino', col_prior, 'M3 Total', 'Status']
                     if 'Repuestos' in df.columns: cols_rank.insert(3, 'Repuestos')
                     st.dataframe(df_rank[cols_rank], use_container_width=True)
-
                 elif f == "estr":
                     col_cp = df.columns[93]
                     df['Tipo_Carga'] = df[col_cp].apply(lambda x: 'MONOPROVEEDOR' if str(x).upper() == 'SI' else 'CONSOLIDADO')
@@ -599,21 +535,17 @@ try:
                                     </div>
                                 </div>
                             """, unsafe_allow_html=True)
-
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
             st.markdown("<p style='color:#00a8ff; font-weight:700; letter-spacing:4px; font-size:18px; margin-bottom:25px; text-align:center;'>DISTRIBUCIÓN GEOGRÁFICA</p>", unsafe_allow_html=True)
-
             res_p = df.groupby('Pais Destino').agg({'SO': 'nunique', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT_SO', 'M3 Total': 'M3'}).sort_values(by='M3', ascending=False)
             total_so_p = res_p['CANT_SO'].sum()
             total_m3_p = res_p['M3'].sum()
-
             hp1, hp2, hp3, hp4 = st.columns([1.5, 1, 1, 0.8])
             hp1.markdown("<p style='color:#94a3b8; font-size:12px; letter-spacing:1px; font-weight:700;'>DESTINO</p>", unsafe_allow_html=True)
             hp2.markdown("<p style='color:#94a3b8; font-size:12px; letter-spacing:1px; font-weight:700; text-align:center;'>VOLUMEN (M3)</p>", unsafe_allow_html=True)
             hp3.markdown("<p style='color:#94a3b8; font-size:12px; letter-spacing:1px; font-weight:700; text-align:center;'>CANTIDAD SO</p>", unsafe_allow_html=True)
             hp4.markdown("<p style='color:#94a3b8; font-size:12px; letter-spacing:1px; font-weight:700; text-align:right;'>SHARE %</p>", unsafe_allow_html=True)
             st.markdown("<hr style='margin:0 0 10px 0; border: none; border-top: 1px solid rgba(255,255,255,0.2);'>", unsafe_allow_html=True)
-
             for pais, row in res_p.iterrows():
                 m3_v = int(round(row['M3']))
                 so_v = int(row['CANT_SO'])
@@ -624,26 +556,21 @@ try:
                 cp2.markdown(f"<p style='color:#00a8ff; font-weight:400; font-size:20px; text-align:center; margin:8px 0;'>{m3_v:,}</p>", unsafe_allow_html=True)
                 cp3.markdown(f"<p style='color:{color_texto}; font-weight:400; font-size:20px; text-align:center; margin:8px 0;'>{so_v}</p>", unsafe_allow_html=True)
                 cp4.markdown(f"<p style='color:#00ff88; font-weight:700; font-size:18px; text-align:right; margin:8px 0;'>{pct_v}%</p>", unsafe_allow_html=True)
-
             st.markdown("<hr style='margin:15px 0; border: none; border-top: 1px solid rgba(255,255,255,0.4);'>", unsafe_allow_html=True)
             tp1, tp2, tp3, tp4 = st.columns([1.5, 1, 1, 0.8])
             tp1.markdown("<p style='color:#f8fafc; font-weight:800; font-size:18px;'>TOTAL GENERAL</p>", unsafe_allow_html=True)
             tp2.markdown(f"<p style='color:#00a8ff; font-weight:800; font-size:22px; text-align:center;'>{int(round(total_m3_p)):,}</p>", unsafe_allow_html=True)
             tp3.markdown(f"<p style='color:#f8fafc; font-weight:800; font-size:22px; text-align:center;'>{int(total_so_p)}</p>", unsafe_allow_html=True)
             tp4.markdown("<p style='color:#00ff88; font-weight:900; font-size:20px; text-align:right;'>100%</p>", unsafe_allow_html=True)
-
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
-
             col_puerto = df.columns[41]
             p_df = df.groupby(col_puerto).agg({'M3 Total': 'sum'}).reset_index().sort_values(by='M3 Total')
             st.markdown(f"<p style='color:#00a8ff; font-weight:700; font-size:18px; text-align:center; letter-spacing:4px; margin-bottom:20px;'>VOLUMEN POR PUERTO DE SALIDA <span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>| TOTAL: {int(round(p_df['M3 Total'].sum())):,} M3</span></p>", unsafe_allow_html=True)
-
             fig_p = px.bar(p_df, y=col_puerto, x='M3 Total', orientation='h', text_auto=',.0f', color_discrete_sequence=['#00a8ff'])
             fig_p.update_traces(textposition='outside', cliponaxis=False, textfont_size=16, textfont_color="#f8fafc", marker=dict(cornerradius=5))
             fig_p.update_layout(xaxis_visible=True, xaxis_title="Total M3", yaxis_title="Puerto", height=500, margin=dict(l=150, r=100, t=20, b=20), font=dict(size=14, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
             fig_p.update_xaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)')
             st.plotly_chart(fig_p, use_container_width=True)
-
             ga, gb = st.columns(2)
             with ga:
                 etd_p = df.groupby('Mes_ETD_Full').agg({'M3 Total': 'sum'}).reset_index()
@@ -653,7 +580,6 @@ try:
                 fig_e.update_layout(yaxis_visible=True, yaxis_title="Total M3", xaxis_title="Mes ETD", height=450, margin=dict(l=20, r=20, t=20, b=20), font=dict(size=14, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                 fig_e.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)')
                 st.plotly_chart(fig_e, use_container_width=True)
-
             with gb:
                 eta_p = df.groupby('Mes_ETA_Full', observed=True).agg({'M3 Total': 'sum'}).reset_index()
                 st.markdown(f"<p style='color:#ff4b4b; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:20px;'>PROYECCIÓN MENSUAL ETA<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL: {int(round(eta_p['M3 Total'].sum())):,} M3</span></p>", unsafe_allow_html=True)
@@ -662,9 +588,7 @@ try:
                 fig_a.update_layout(yaxis_visible=True, yaxis_title="Total M3", xaxis_title="Mes ETA", height=450, margin=dict(l=20, r=20, t=20, b=20), font=dict(size=14, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                 fig_a.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)')
                 st.plotly_chart(fig_a, use_container_width=True)
-
             st.markdown("<hr class='white-divider'>", unsafe_allow_html=True)
-
             gc, gd = st.columns(2)
             with gc:
                 col_mod_opciones = [c for c in df.columns if 'MODALIDAD' in str(c).upper() and 'COSTEO' in str(c).upper()]
@@ -687,7 +611,6 @@ try:
                     st.plotly_chart(fig_cetd, use_container_width=True)
                 else:
                     st.warning(f"La columna requerida '{col_mod}' no se encuentra para calcular la proyección.")
-
             with gd:
                 if col_mod in df.columns:
                     mask_arg   = df['Pais Destino'].astype(str).str.strip().str.upper() == 'ARGENTINA'
@@ -705,35 +628,27 @@ try:
                     fig_ceta.update_layout(yaxis_visible=True, yaxis_title="Cant. Cont", xaxis_title="Mes ETA", height=450, margin=dict(l=20, r=20, t=20, b=20), font=dict(size=14, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                     fig_ceta.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)')
                     st.plotly_chart(fig_ceta, use_container_width=True)
-
         except Exception as e:
             st.error(f"Error en Solapa Origen: {e}")
-
     # --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
     with tabs[1]:
         try:
             url_reserva = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
-
             @st.cache_data(ttl=60)
             def load_reserva_data(url): return pd.read_csv(url, engine='python', on_bad_lines='skip')
-
             try: df_res = load_reserva_data(url_reserva)
             except Exception: df_res = pd.read_csv(url_reserva)
             df_res.columns = df_res.columns.str.strip()
-
             df_res['Fecha_Inst_H'] = df_res.iloc[:, 7].astype(str).str.strip()
             df_g = df_res[df_res['Fecha_Inst_H'].apply(lambda x: len(str(x)) > 4)].copy()
             df_g['DT_Inst'] = pd.to_datetime(df_g.iloc[:, 7], dayfirst=True, errors='coerce')
             df_g['ETD_Status_K'] = df_g.iloc[:, 10].astype(str).str.upper().str.strip()
             df_g['Espera'] = (pd.to_datetime('today') - df_g['DT_Inst']).dt.days
             df_g['Critico'] = (df_g['ETD_Status_K'] != "OK") & (df_g['Espera'] > 5)
-
             col_so_res = [c for c in df_g.columns if 'SO' in str(c).upper()][0] if any('SO' in str(c).upper() for c in df_g.columns) else df_g.columns[2]
-
             df_plan_res = df_inst[df_inst.iloc[:, 20].notna() & (df_inst.iloc[:, 20].astype(str).str.strip() != "")].copy()
             col_etd_plan = '¿ETD OK FFWW?' if '¿ETD OK FFWW?' in df_plan_res.columns else df_plan_res.columns[97]
             df_plan_res['Status_P'] = df_plan_res[col_etd_plan].astype(str).str.lower().str.strip()
-
             def safe_float_f(val):
                 if isinstance(val, (int, float)): return float(val)
                 if pd.isna(val) or str(val).strip() in ['', 'nan']: return 0.0
@@ -745,37 +660,29 @@ try:
                     elif ',' in s: s = s.replace(',', '.')
                     return float(s)
                 except: return 0.0
-
             st.markdown("<br>", unsafe_allow_html=True)
             k1, k2, k3, k4 = st.columns(4)
             m3_total_clean = df_inst['M3 Total'].apply(safe_float_f).sum()
             fob_total_clean = df_inst['Fob total Origen'].apply(safe_float_f).sum()
-
             with k1: st.markdown(f"<div class='metric-container'><p>SO INSTRUIDAS</p><p>{int(df_inst['SO'].nunique())}</p></div>", unsafe_allow_html=True)
             with k2: st.markdown(f"<div class='metric-container'><p>VOLUMEN (M3)</p><p>{int(round(m3_total_clean)):,}</p></div>", unsafe_allow_html=True)
             with k3: st.markdown(f"<div class='metric-container'><p>PROVEEDORES</p><p>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
             with k4: st.markdown(f"<div class='metric-container'><p>FOB TOTAL (USD)</p><p>${int(round(fob_total_clean)):,}</p></div>", unsafe_allow_html=True)
-
             st.markdown("<div style='text-align:center; padding: 20px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; margin: 30px 0;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>CONTROL GESTIÓN RESERVAS</h2></div>", unsafe_allow_html=True)
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
-
             df_p_ok = df_plan_res[df_plan_res['Status_P'] == "ok"]
             df_p_pend = df_plan_res[df_plan_res['Status_P'] != "ok"]
-
             c_so_ok = df_p_ok.iloc[:, 0].nunique()
             c_emb_ok = df_p_ok.iloc[:, 16].nunique()
             prov_ok_p = df_p_ok.iloc[:, 30].nunique()
             m3_ok_p = df_p_ok['M3 Total'].apply(safe_float_f).sum()
-
             c_so_pend = df_p_pend.iloc[:, 0].nunique()
             c_emb_pend = df_p_pend.iloc[:, 16].nunique()
             prov_pend_p = df_p_pend.iloc[:, 30].nunique()
             m3_pend_p = df_p_pend['M3 Total'].apply(safe_float_f).sum()
-
             total_emb_p = df_plan_res.iloc[:, 16].nunique()
             pct_ok_p = round((c_emb_ok / total_emb_p * 100)) if total_emb_p > 0 else 0
             pct_pend_p = 100 - pct_ok_p if total_emb_p > 0 else 0
-
             st.markdown(f"""
                 <div class="grid-2">
                     <div class="custom-card" style="border: 2px solid rgba(0,255,136,0.5); box-shadow: 0 0 30px rgba(0,255,136,0.15);">
@@ -798,16 +705,13 @@ try:
                     </div>
                 </div>
             """, unsafe_allow_html=True)
-
             st.markdown("<br><br>", unsafe_allow_html=True)
             st.markdown("<p style='text-align:center; color:#00a8ff; font-weight:700; letter-spacing:4px; font-size:16px;'>DESGLOSE POR TIPO DE TRANSPORTE</p>", unsafe_allow_html=True)
-
             def clasificar_transp_res(x):
                 x = str(x).upper().strip()
                 if any(m in x for m in ["40 HQ", "40 ST", "40 NOR", "20 ST", "40NOR"]): return "MARITIMO"
                 if any(a in x for a in ["AVION", "COURIER", "COURRIER"]): return "AVION / COURIER"
                 return "OTROS"
-
             df_g['Transporte'] = df_g.iloc[:, 5].apply(clasificar_transp_res)
             t1, t2 = st.columns(2)
             for i, tipo in enumerate(["MARITIMO", "AVION / COURIER"]):
@@ -842,25 +746,20 @@ try:
                         </p>
                         {f'<p style="font-size:13px; color:#ff4b4b; font-weight:700; margin-top:10px;">🚨 CRÍTICOS (>5d): {crit_t}</p>' if crit_t > 0 else ""}
                     </div>""", unsafe_allow_html=True)
-
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
             st.markdown("<br>", unsafe_allow_html=True)
-
             df_mar = df_g[df_g['Transporte'] == "MARITIMO"].copy()
             def clean_val_mar(value):
                 if pd.isna(value): return 0
                 s = str(value).replace('.', '').replace(',', '.')
                 num = ''.join(c for c in s if c.isdigit() or c == '.')
                 return pd.to_numeric(num, errors='coerce') if num else 0
-
             df_mar.iloc[:, 1] = pd.to_numeric(df_mar.iloc[:, 1], errors='coerce').fillna(0)
             df_mar.iloc[:, 29] = pd.to_numeric(df_mar.iloc[:, 29], errors='coerce').fillna(0)
             df_mar.iloc[:, 21] = df_mar.iloc[:, 21].apply(clean_val_mar).fillna(0)
-
             st.markdown("<div style='margin-bottom:10px;'>", unsafe_allow_html=True)
             if st.button("ANALISIS BOOKING IN ADVANCE", key="btn_adv", use_container_width=True): st.session_state.mode = 'adv' if st.session_state.get('mode') != 'adv' else None
             st.markdown("</div>", unsafe_allow_html=True)
-
             def renderizar_detalle(mask, etiquetas, is_adv):
                 col_a, col_b = st.columns(2)
                 tot_local = len(df_mar) if len(df_mar) > 0 else 1
@@ -888,25 +787,20 @@ try:
                                 </div>
                             </div>
                         """, unsafe_allow_html=True)
-
             mode = st.session_state.get('mode')
             if mode == 'adv':
                 msk_adv = df_mar.iloc[:, 8].astype(str).str.strip() == "Booked in Advance"
                 lbl_adv = [("Booked in Advance", df_mar[msk_adv]), ("No Booked in Advance", df_mar[~msk_adv])]
                 renderizar_detalle(msk_adv, lbl_adv, True)
-
             st.markdown("<div style='margin-bottom:10px;'>", unsafe_allow_html=True)
             if st.button("ANALISIS MONOPROVEEDOR / CONSOLIDADO", key="btn_mono", use_container_width=True): st.session_state.mode = 'mono' if st.session_state.get('mode') != 'mono' else None
             st.markdown("</div>", unsafe_allow_html=True)
-
             if mode == 'mono':
                 msk_mon = df_mar.iloc[:, 34].astype(str).str.strip() == "Monoproveedor"
                 lbl_mon = [("Monoproveedor", df_mar[msk_mon]), ("Consolidado", df_mar[~msk_mon])]
                 renderizar_detalle(msk_mon, lbl_mon, False)
-
         except Exception as e:
             st.error(f"Error en Gestión de Reservas: {e}")
-
     # --- SOLAPA 3: PERFORMANCE DE ANALISTAS ---
     with tabs[2]:
         st.markdown("<div style='text-align:center; padding: 20px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; margin: 30px 0;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>PERFORMANCE DE ANALISTAS</h2><p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>BASADO EN RESERVAS HISTÓRICAS · 2026</p></div>", unsafe_allow_html=True)
@@ -920,52 +814,41 @@ try:
                 rh.columns = [str(c).strip() for c in rh.columns]
                 eh.columns = [str(c).strip() for c in eh.columns]
                 return rh, eh
-
             df_rh, df_eh = load_perf_data(base_url)
-
             col_rh_emb   = df_rh.columns[0]
             col_rh_resp  = df_rh.columns[14]
             col_rh_mono  = df_rh.columns[24]
             col_rh_tcons = df_rh.columns[32]
-
             col_eh_so   = df_eh.columns[0]
             col_eh_emb  = df_eh.columns[4]
             col_eh_etd  = df_eh.columns[6]
             col_eh_prov = df_eh.columns[18]
-
             df_eh['ETD_DT'] = pd.to_datetime(df_eh[col_eh_etd], dayfirst=True, errors='coerce')
             df_eh_2026 = df_eh[df_eh['ETD_DT'].dt.year == 2026].copy()
             df_eh_2026['Mes_Num']   = df_eh_2026['ETD_DT'].dt.month
             df_eh_2026['Mes_Label'] = df_eh_2026['ETD_DT'].dt.strftime('%B %Y').str.upper()
-
             if df_eh_2026.empty:
                 st.warning("No se encontraron embarques históricos para 2026.")
             else:
                 meses_disp = df_eh_2026.drop_duplicates('Mes_Num').sort_values('Mes_Num')[['Mes_Num','Mes_Label']].values.tolist()
                 opciones_mes = {lbl: num for num, lbl in meses_disp}
-
                 col_sel, _ = st.columns([2, 3])
                 with col_sel:
                     mes_sel_lbl = st.selectbox("SELECCIONAR MES ETD:", list(opciones_mes.keys()), key="perf_mes_sel")
                 mes_sel_num = opciones_mes[mes_sel_lbl]
-
                 df_eh_mes = df_eh_2026[df_eh_2026['Mes_Num'] == mes_sel_num].copy()
                 embs_mes  = df_eh_mes[col_eh_emb].astype(str).str.strip().str.upper().unique()
-
                 df_rh['_emb_key'] = df_rh[col_rh_emb].astype(str).str.strip().str.upper()
                 df_rh_mes = df_rh[df_rh['_emb_key'].isin(embs_mes)].copy()
-
                 def clean_tcons(val):
                     try: return float(str(val).replace(',','.').strip())
                     except: return None
-
                 df_rh_mes['T_Cons_Num'] = df_rh_mes[col_rh_tcons].apply(clean_tcons)
                 df_rh_mes['Tipo_Carga'] = df_rh_mes[col_rh_mono].astype(str).str.strip().str.upper().apply(
                     lambda x: 'MONOPROVEEDOR' if 'MONO' in x else 'CONSOLIDADO'
                 )
                 df_rh_mes['Responsable'] = df_rh_mes[col_rh_resp].astype(str).str.strip()
                 df_rh_mes = df_rh_mes[~df_rh_mes['Responsable'].isin(['', 'nan', 'NaN', 'None', '-', 'nan'])]
-
                 if df_rh_mes.empty:
                     st.warning(f"No se encontraron datos para {mes_sel_lbl}.")
                 else:
@@ -975,7 +858,6 @@ try:
                     total_mono_mes  = (df_rh_mes['Tipo_Carga'] == 'MONOPROVEEDOR').sum()
                     total_cons_mes  = (df_rh_mes['Tipo_Carga'] == 'CONSOLIDADO').sum()
                     avg_tcons_mes   = df_rh_mes['T_Cons_Num'].mean()
-
                     st.markdown("<br>", unsafe_allow_html=True)
                     k1, k2, k3, k4, k5 = st.columns(5)
                     with k1: st.markdown(f"<div class='metric-container'><p>EMBARQUES</p><p>{total_embs_mes}</p></div>", unsafe_allow_html=True)
@@ -983,10 +865,8 @@ try:
                     with k3: st.markdown(f"<div class='metric-container'><p>PROVEEDORES</p><p>{total_provs_mes}</p></div>", unsafe_allow_html=True)
                     with k4: st.markdown(f"<div class='metric-container'><p>MONO / CONS</p><p style='font-size:40px !important;'>{total_mono_mes} / {total_cons_mes}</p></div>", unsafe_allow_html=True)
                     with k5: st.markdown(f"<div class='metric-container'><p>DIAS PROM. CONS.</p><p>{int(round(avg_tcons_mes)) if pd.notna(avg_tcons_mes) else 0}</p></div>", unsafe_allow_html=True)
-
                     st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
                     st.markdown("<p style='color:#00a8ff; font-weight:800; letter-spacing:4px; font-size:16px; margin-bottom:20px; text-align:center;'>DESEMPENO POR ANALISTA</p>", unsafe_allow_html=True)
-
                     rows_analistas = []
                     for analista, grp_a in df_rh_mes.groupby('Responsable'):
                         embs_a   = grp_a['_emb_key'].unique()
@@ -1002,10 +882,8 @@ try:
                             df_eh_a[col_eh_emb].astype(str).str.strip().str.upper()
                         )[col_eh_prov].nunique()
                         avg_prov_emb = round(prov_por_emb.mean(), 1) if not prov_por_emb.empty else 0
-
                         es_azul = analista.strip().upper() == 'AZUL'
                         dias_cons_val = "✈️ En preparación" if es_azul else (f"{round(avg_tcons, 1)} d" if pd.notna(avg_tcons) else "—")
-
                         rows_analistas.append({
                             'Analista'         : analista,
                             'Embarques'        : cant_embs,
@@ -1017,7 +895,6 @@ try:
                             'SO por Embarque'  : avg_so_emb,
                             'Prov por Embarque': avg_prov_emb,
                         })
-
                     df_analistas = pd.DataFrame(rows_analistas).sort_values('Embarques', ascending=False)
                     st.dataframe(
                         df_analistas, use_container_width=True, hide_index=True,
@@ -1033,10 +910,8 @@ try:
                             'Prov por Embarque': st.column_config.NumberColumn("Prov/Emb", format="%.1f"),
                         }
                     )
-
                     st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
                     st.markdown("<p style='color:#00ff88; font-weight:800; letter-spacing:4px; font-size:16px; margin-bottom:20px; text-align:center;'>EVOLUCION MES A MES POR ANALISTA</p>", unsafe_allow_html=True)
-
                     rows_evol = []
                     for mes_num, mes_lbl in meses_disp:
                         df_eh_m = df_eh_2026[df_eh_2026['Mes_Num'] == mes_num]
@@ -1060,7 +935,6 @@ try:
                                 'SOs'       : df_eh_a[col_eh_so].nunique(),
                                 'Dias Cons.': round(avg_tc, 1) if pd.notna(avg_tc) else None,
                             })
-
                     df_evol = pd.DataFrame(rows_evol)
                     if not df_evol.empty:
                         analistas_disp = sorted(df_evol['Analista'].unique())
@@ -1068,9 +942,7 @@ try:
                         with col_pick:
                             analista_sel = st.selectbox("VER EVOLUCION DE:", analistas_disp, key="perf_analista_sel")
                         df_evol_a = df_evol[df_evol['Analista'] == analista_sel].sort_values('Mes_Num')
-
                         es_azul_sel = analista_sel.strip().upper() == 'AZUL'
-
                         if es_azul_sel:
                             st.plotly_chart(
                                 px.bar(df_evol_a, x='Mes', y='Embarques', text_auto=',.0f',
@@ -1108,7 +980,6 @@ try:
                                 fig_ev_tc.update_traces(textposition='outside', textfont_color='#f8fafc', marker=dict(cornerradius=5))
                                 fig_ev_tc.update_layout(height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(family='Outfit, sans-serif', color='#94a3b8'), title_font_color='#00ff88', xaxis=dict(showgrid=False, tickangle=-30), yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)'), margin=dict(l=10,r=10,t=50,b=40))
                                 st.plotly_chart(fig_ev_tc, use_container_width=True)
-
                             st.markdown("<br>", unsafe_allow_html=True)
                             st.dataframe(
                                 df_evol_a[['Mes','Embarques','SOs','Dias Cons.']].reset_index(drop=True),
@@ -1120,12 +991,10 @@ try:
                                     'Dias Cons.': st.column_config.NumberColumn("Dias Prom. Cons.", format="%.1f d"),
                                 }
                             )
-
         except Exception as e:
             st.error(f"Error en Performance Analistas: {e}")
             import traceback
             st.code(traceback.format_exc())
-
         # PERFORMANCE DE AGENTES (FORWARDERS)
         st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
         st.markdown("<div style='text-align:center; padding: 20px; background: rgba(255,170,0,0.05); border-radius: 20px; margin: 30px 0;'><h2 style='color:#ffaa00; font-weight:800; letter-spacing:5px; margin:0;'>PERFORMANCE DE AGENTES (FORWARDERS)</h2><p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>BASADO EN RESERVAS HISTORICAS 2026</p></div>", unsafe_allow_html=True)
@@ -1134,7 +1003,6 @@ try:
                 _ = df_rh
             except NameError:
                 df_rh, df_eh = load_perf_data(base_url)
-
             col_ag_fwd        = df_rh.columns[6]
             col_ag_inst       = df_rh.columns[7]
             col_ag_etd        = df_rh.columns[11]
@@ -1146,12 +1014,10 @@ try:
             col_ag_flete_pag  = df_rh.columns[51]  if len(df_rh.columns) > 51 else None
             col_ag_flete_cert = df_rh.columns[52]  if len(df_rh.columns) > 52 else None
             col_ag_gto_local  = df_rh.columns[54]  if len(df_rh.columns) > 54 else None
-
             df_rh['_ag_inst_dt'] = pd.to_datetime(df_rh[col_ag_inst], dayfirst=True, errors='coerce')
             df_rh['_ag_etd_dt']  = pd.to_datetime(df_rh[col_ag_etd],  dayfirst=True, errors='coerce')
             df_rh['_ag_bl_dt']   = pd.to_datetime(df_rh[col_ag_bl],   dayfirst=True, errors='coerce')
             df_rh['_ag_conf_dt'] = pd.to_datetime(df_rh[col_ag_conf], dayfirst=True, errors='coerce')
-
             df_rh_ag_2026 = df_rh[df_rh['_ag_etd_dt'].dt.year == 2026].copy()
             TIPOS_MAR_AG = ['40 HQ', '20 ST', '40 ST', '40 NOR']
             df_rh_ag_2026 = df_rh_ag_2026[
@@ -1161,31 +1027,25 @@ try:
             ].copy()
             df_rh_ag_2026['Mes_Num_Ag']   = df_rh_ag_2026['_ag_etd_dt'].dt.month
             df_rh_ag_2026['Mes_Label_Ag'] = df_rh_ag_2026['_ag_etd_dt'].dt.strftime('%B %Y').str.upper()
-
             def safe_num_ag(val):
                 try: return float(str(val).replace(',','.').replace(' ','').strip())
                 except: return None
-
             for col in [col_ag_gto_origen, col_ag_flete_pag, col_ag_flete_cert, col_ag_gto_local, col_ag_cntr]:
                 if col: df_rh_ag_2026[col] = df_rh_ag_2026[col].apply(safe_num_ag)
-
             if df_rh_ag_2026.empty:
                 st.warning("No se encontraron datos maritimos de agentes para 2026.")
             else:
                 meses_ag = df_rh_ag_2026.drop_duplicates('Mes_Num_Ag').sort_values('Mes_Num_Ag')[['Mes_Num_Ag','Mes_Label_Ag']].values.tolist()
                 opciones_ag = {lbl: num for num, lbl in meses_ag}
-
                 col_sel_ag, _ = st.columns([2, 3])
                 with col_sel_ag:
                     mes_ag_lbl = st.selectbox("SELECCIONAR MES ETD (AGENTES):", list(opciones_ag.keys()), key="perf_ag_mes_sel")
                 mes_ag_num = opciones_ag[mes_ag_lbl]
-
                 df_ag_mes = df_rh_ag_2026[df_rh_ag_2026['Mes_Num_Ag'] == mes_ag_num].copy()
                 df_ag_mes['_dias_instr_conf'] = (df_ag_mes['_ag_conf_dt'] - df_ag_mes['_ag_inst_dt']).dt.days
                 df_ag_mes['_dias_etd_bl']     = (df_ag_mes['_ag_bl_dt']   - df_ag_mes['_ag_etd_dt']).dt.days
                 df_ag_mes['_fwd_clean']        = df_ag_mes[col_ag_fwd].astype(str).str.strip()
                 df_ag_mes = df_ag_mes[~df_ag_mes['_fwd_clean'].isin(['', 'nan', 'NaN', 'None', '-'])]
-
                 total_embs_ag   = df_ag_mes[df_rh.columns[0]].nunique()
                 total_cntrs_ag  = df_ag_mes[col_ag_cntr].sum()
                 avg_dias_ic     = df_ag_mes['_dias_instr_conf'].mean()
@@ -1203,10 +1063,8 @@ try:
                 with kg5:
                     val_cert = f"{pct_cert_global}%" if pct_cert_global else "SD"
                     st.markdown(f"<div class='metric-container' style='border:1px solid {color_cert}44;'><p>PCT CERTIFICACION</p><p style='color:{color_cert} !important;'>{val_cert}</p></div>", unsafe_allow_html=True)
-
                 st.markdown("<hr class='white-divider'>", unsafe_allow_html=True)
                 st.markdown("<p style='color:#ffaa00; font-weight:800; letter-spacing:4px; font-size:15px; margin-bottom:20px; text-align:center;'>DESEMPENO POR AGENTE</p>", unsafe_allow_html=True)
-
                 rows_ag = []
                 for fwd, grp_f in df_ag_mes.groupby('_fwd_clean'):
                     cant_embs_f  = grp_f[df_rh.columns[0]].nunique()
@@ -1241,7 +1099,6 @@ try:
                         'Pct Certif'          : f"{pct_f}%" if pct_f else "Sin datos",
                         'KPI Certif'          : kpi_str,
                     })
-
                 df_ag_tabla = pd.DataFrame(rows_ag).sort_values('Embarques', ascending=False)
                 st.dataframe(
                     df_ag_tabla, use_container_width=True, hide_index=True,
@@ -1260,7 +1117,6 @@ try:
                         'KPI Certif'          : st.column_config.TextColumn("KPI >=75%"),
                     }
                 )
-
                 estado_nota = "OBJETIVO CUMPLIDO" if pct_cert_global and pct_cert_global >= 75 else "POR DEBAJO DEL OBJETIVO - revisar certificacion"
                 val_nota = f"{pct_cert_global}% - {estado_nota}" if pct_cert_global else "Sin datos suficientes"
                 st.markdown(
@@ -1275,13 +1131,10 @@ try:
                     f"</p></div>",
                     unsafe_allow_html=True
                 )
-
         except Exception as e:
             st.error(f"Error en Performance Agentes: {e}")
             import traceback
             st.code(traceback.format_exc())
-
-
     # --- SOLAPA 4: CONTROL DE FLETES, GASTOS Y CERTIFICACIONES ---
     with tabs[3]:
         try:
@@ -1291,18 +1144,14 @@ border-radius:20px; border:1px solid rgba(255,170,0,0.2); margin-bottom:30px;'>
 <h2 style='color:#ffaa00; font-weight:900; letter-spacing:6px; margin:0; font-size:26px;'>FLETES & GASTOS LOCALES</h2>
 <p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>MARITIMO 2026 - COTIZACIONES EN TIEMPO REAL</p>
 </div>""", unsafe_allow_html=True)
-
             SHEET_URL = "https://docs.google.com/spreadsheets/d/1UJ1bDyDQdIQSSVQ6dyChVKbMX1d69G68ji_dpsOzfHg"
-
             @st.cache_data(ttl=300)
             def load_fletes_data(url):
                 csv_url = f"{url}/export?format=csv&gid=0"
                 df_f = pd.read_csv(csv_url, header=0, dtype=str, on_bad_lines='skip')
                 df_f.columns = [str(c).strip() for c in df_f.columns]
                 return df_f
-
             df_fl = load_fletes_data(SHEET_URL)
-
             def parse_usd_fl(val):
                 try:
                     s = str(val).replace('USD','').replace('$','').replace(' ','').strip()
@@ -1310,7 +1159,6 @@ border-radius:20px; border:1px solid rgba(255,170,0,0.2); margin-bottom:30px;'>
                     return float(s)
                 except:
                     return None
-
             col_fl_tipo   = df_fl.columns[0]
             col_fl_agente = df_fl.columns[1]
             col_fl_flete  = df_fl.columns[3]
@@ -1318,7 +1166,6 @@ border-radius:20px; border:1px solid rgba(255,170,0,0.2); margin-bottom:30px;'>
             col_fl_hasta  = df_fl.columns[11]
             col_fl_local  = df_fl.columns[14]
             col_fl_cnt    = df_fl.columns[15]
-
             df_fl['_desde_dt'] = pd.to_datetime(df_fl[col_fl_desde], dayfirst=True, errors='coerce')
             df_fl['_hasta_dt'] = pd.to_datetime(df_fl[col_fl_hasta], dayfirst=True, errors='coerce')
             df_fl['_flete']    = df_fl[col_fl_flete].apply(parse_usd_fl)
@@ -1328,7 +1175,6 @@ border-radius:20px; border:1px solid rgba(255,170,0,0.2); margin-bottom:30px;'>
             df_fl['_mes_num']  = df_fl['_desde_dt'].dt.month
             df_fl['_mes_label']= df_fl['_desde_dt'].dt.strftime('%B %Y').str.upper()
             df_fl['_anio']     = df_fl['_desde_dt'].dt.year
-
             df_fl_2026 = df_fl[
                 (df_fl['_anio'] == 2026) &
                 df_fl['_flete'].notna() &
@@ -1336,11 +1182,9 @@ border-radius:20px; border:1px solid rgba(255,170,0,0.2); margin-bottom:30px;'>
                 (df_fl['_cnt'] != '') &
                 ~df_fl[df_fl.columns[8]].astype(str).str.strip().str.upper().str.contains('LAZARO|CARDENAS|CÁRDENAS', na=False)
             ].copy()
-
             TIPOS_CNT  = ['40ST/40HQ', '20ST', '40NOR']
             TARGET_PCT = 0.85
             COLORES_CNT = {'40ST/40HQ': '#00a8ff', '20ST': '#00ff88', '40NOR': '#ffaa00'}
-
             if df_fl_2026.empty:
                 st.warning("No se encontraron cotizaciones validas para 2026.")
             else:
@@ -1348,7 +1192,6 @@ border-radius:20px; border:1px solid rgba(255,170,0,0.2); margin-bottom:30px;'>
                     (df_fl_2026['_desde_dt'] <= hoy) &
                     (df_fl_2026['_hasta_dt'] >= hoy)
                 ].copy()
-
                 st.markdown(f"""
 <div style='padding:14px 20px; background:rgba(255,255,255,0.02); border-radius:12px;
 border-left:4px solid #00ff88; margin-bottom:20px;'>
@@ -1357,13 +1200,11 @@ COTIZACIONES VIGENTES HOY {hoy.strftime('%d/%m/%Y')}</p>
 <p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>
 Validez Quincena Desde menor o igual a hoy y Validez Quincena Hasta mayor o igual a hoy</p>
 </div>""", unsafe_allow_html=True)
-
                 if df_vig.empty:
                     st.info("No hay cotizaciones vigentes para hoy. Mostrando el periodo mas reciente disponible.")
                     ultimo_desde = df_fl_2026['_desde_dt'].max()
                     if pd.notna(ultimo_desde):
                         df_vig = df_fl_2026[df_fl_2026['_desde_dt'] == ultimo_desde].copy()
-
                 if not df_vig.empty:
                     cant_agentes_vig = df_vig['_agente'].nunique()
                     v1, v2 = st.columns([1, 3])
@@ -1373,7 +1214,6 @@ Validez Quincena Desde menor o igual a hoy y Validez Quincena Hasta mayor o igua
 <p class='minicard-title'>AGENTES COTIZADOS</p>
 <p style='font-size:52px; font-weight:900; color:#00ff88; margin:0;'>{cant_agentes_vig}</p>
 </div>""", unsafe_allow_html=True)
-
                     with v2:
                         rows_vig = []
                         for cnt in TIPOS_CNT:
@@ -1394,7 +1234,6 @@ Validez Quincena Desde menor o igual a hoy y Validez Quincena Hasta mayor o igua
                                 'Agente Ganador' : ag_min,
                                 'Vs Target'      : f"{'OK' if ok else 'ALTO'} {vs_tgt:+.1f}%" if vs_tgt else "SD",
                             })
-
                         if rows_vig:
                             df_vig_tabla = pd.DataFrame(rows_vig)
                             st.dataframe(
@@ -1409,7 +1248,6 @@ Validez Quincena Desde menor o igual a hoy y Validez Quincena Hasta mayor o igua
                                     'Vs Target'     : st.column_config.TextColumn("Vs Target"),
                                 }
                             )
-
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.markdown("""
 <div style='padding:14px 20px; background:rgba(255,255,255,0.02); border-radius:12px;
@@ -1419,15 +1257,12 @@ TARIFAS POR FORWARDER (FFWW)</p>
 <p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>
 Seleccioná un agente para ver sus tarifas vigentes por tipo de CNT</p>
 </div>""", unsafe_allow_html=True)
-
                 ffww_opciones = sorted(df_vig['_agente'].dropna().astype(str).str.strip().unique().tolist()) if not df_vig.empty else []
                 ffww_opciones = [f for f in ffww_opciones if f.lower() not in ['', 'nan', 'none']]
-
                 if ffww_opciones:
                     col_ffww, _ = st.columns([2, 3])
                     with col_ffww:
                         ffww_sel = st.selectbox("SELECCIONAR FFWW:", ["COMPARATIVA GENERAL"] + ffww_opciones, key="ffww_sel")
-
                     if ffww_sel == "COMPARATIVA GENERAL":
                         rows_ffww = []
                         for agente in ffww_opciones:
@@ -1495,7 +1330,6 @@ Seleccioná un agente para ver sus tarifas vigentes por tipo de CNT</p>
                             st.info(f"No hay tarifas vigentes para {ffww_sel}.")
                 else:
                     st.info("No hay forwarders disponibles en el período vigente.")
-
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.markdown("""
 <div style='padding:14px 20px; background:rgba(255,255,255,0.02); border-radius:12px;
@@ -1503,13 +1337,11 @@ border-left:4px solid #a855f7; margin-bottom:20px;'>
 <p style='color:#a855f7; font-weight:800; font-size:15px; letter-spacing:3px; margin:0;'>
 GASTOS LOCALES ARG - VIGENTES HOY</p>
 </div>""", unsafe_allow_html=True)
-
                 df_loc_vig = df_fl_2026[
                     (df_fl_2026['_desde_dt'] <= hoy) &
                     (df_fl_2026['_hasta_dt'] >= hoy) &
                     df_fl_2026['_local'].notna()
                 ].copy()
-
                 if df_loc_vig.empty:
                     ultimo_l = df_fl_2026[df_fl_2026['_local'].notna()]['_desde_dt'].max()
                     if pd.notna(ultimo_l):
@@ -1517,7 +1349,6 @@ GASTOS LOCALES ARG - VIGENTES HOY</p>
                             (df_fl_2026['_desde_dt'] == ultimo_l) &
                             df_fl_2026['_local'].notna()
                         ].copy()
-
                 if not df_loc_vig.empty:
                     prom_loc = df_loc_vig['_local'].mean()
                     min_loc  = df_loc_vig['_local'].min()
@@ -1538,7 +1369,6 @@ border-radius:14px; border-top:3px solid {color};'>
 </div>""", unsafe_allow_html=True)
                 else:
                     st.info("No hay gastos locales disponibles para el periodo vigente.")
-
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.markdown("<hr style='border:none; border-top:2px solid rgba(255,170,0,0.15); margin:10px 0 25px 0;'>", unsafe_allow_html=True)
                 st.markdown("""
@@ -1549,7 +1379,6 @@ HISTORICO 2026 - EVOLUCION MENSUAL POR TIPO DE CNT</p>
 <p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>
 Promedio de mercado, mejor oferta y target -15% por mes y tipo de contenedor</p>
 </div>""", unsafe_allow_html=True)
-
                 rows_hist = []
                 meses_ord = df_fl_2026.drop_duplicates('_mes_num').sort_values('_mes_num')[['_mes_num','_mes_label']].values.tolist()
                 for mes_num, mes_lbl in meses_ord:
@@ -1574,30 +1403,25 @@ Promedio de mercado, mejor oferta y target -15% por mes y tipo de contenedor</p>
                             '% Desvio'      : f"{desv:+.1f}%" if desv is not None else "SD",
                             'Vs Target'     : f"{vs_tgt:+.1f}%" if vs_tgt is not None else "SD",
                         })
-
                 df_hist = pd.DataFrame(rows_hist)
                 if not df_hist.empty:
                     meses_disponibles = ["TODOS"] + [m for _, m in meses_ord]
                     cnts_disponibles  = ["TODOS"] + TIPOS_CNT
-
                     fh1, fh2 = st.columns(2)
                     with fh1:
                         mes_sel_hist = st.selectbox("MES:", meses_disponibles, key="hist_mes_sel")
                     with fh2:
                         cnt_sel_hist = st.selectbox("TIPO CNT:", cnts_disponibles, key="hist_cnt_sel")
-
                     df_hist_fil = df_hist.copy()
                     if mes_sel_hist != "TODOS":
                         df_hist_fil = df_hist_fil[df_hist_fil['Mes'] == mes_sel_hist]
                     if cnt_sel_hist != "TODOS":
                         df_hist_fil = df_hist_fil[df_hist_fil['Tipo CNT'] == cnt_sel_hist]
-
                     if not df_hist_fil.empty:
                         avg_prom  = df_hist_fil['Prom. Mercado'].mean()
                         avg_mejor = df_hist_fil['Mejor Oferta'].mean()
                         avg_tgt   = df_hist_fil['Target -15%'].mean()
                         avg_dif   = df_hist_fil['Dif. USD'].mean()
-
                         kh1, kh2, kh3, kh4 = st.columns(4)
                         color_dif = "#00ff88" if avg_dif > 0 else "#ff4b4b"
                         for col_k, valor, label, color in [
@@ -1612,9 +1436,7 @@ border-radius:12px; border-top:2px solid {color};'>
 <p style='color:#94a3b8; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>{label}</p>
 <p style='color:{color}; font-size:18px; font-weight:800; margin:0;'>{valor}</p>
 </div>""", unsafe_allow_html=True)
-
                         st.markdown("<br>", unsafe_allow_html=True)
-
                     st.dataframe(
                         df_hist_fil.drop(columns=['_mes_num']),
                         use_container_width=True, hide_index=True,
@@ -1629,13 +1451,10 @@ border-radius:12px; border-top:2px solid {color};'>
                             'Vs Target'    : st.column_config.TextColumn("Vs Target"),
                         }
                     )
-
                     st.markdown("<br>", unsafe_allow_html=True)
-
                     df_hist_graf = df_hist.copy()
                     if cnt_sel_hist != "TODOS":
                         df_hist_graf = df_hist_graf[df_hist_graf['Tipo CNT'] == cnt_sel_hist]
-
                     titulo_graf = f"Evolucion de Costos - {'Todos los tipos CNT' if cnt_sel_hist == 'TODOS' else cnt_sel_hist}"
                     fig_evol = px.line(
                         df_hist_graf.sort_values(['_mes_num','Tipo CNT']),
@@ -1661,13 +1480,10 @@ border-radius:12px; border-top:2px solid {color};'>
                             layer="below", line_width=0,
                         )
                     st.plotly_chart(fig_evol, use_container_width=True)
-
         except Exception as e:
             st.error(f"Error en Fletes y Gastos: {e}")
             import traceback
             st.code(traceback.format_exc())
-
-
     # --- SOLAPA 5: PROYECCIÓN SEMANAL ETD ---
     with tabs[4]:
         st.markdown("<div style='text-align:center; padding:25px; background:linear-gradient(135deg,rgba(0,168,255,0.08),rgba(0,255,136,0.04)); border-radius:20px; border:1px solid rgba(0,168,255,0.2); margin-bottom:30px;'><h2 style='color:#00a8ff; font-weight:900; letter-spacing:6px; margin:0; font-size:26px;'>PROYECCION SEMANAL ETD</h2><p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>VOLUMEN Y CONTENEDORES FUTUROS - BASE PARA NEGOCIACION DE TARIFAS</p></div>", unsafe_allow_html=True)
@@ -1677,33 +1493,26 @@ border-radius:12px; border-top:2px solid {color};'>
                     matches = [c for c in df.columns if kw.upper() in str(c).upper()]
                     if matches: return matches[0]
                 return None
-
             col_etd_proy    = find_col_proy(df, ['ETD']) or df.columns[23]
             col_mod_proy    = find_col_proy(df, ['MODALIDAD DE COSTEO', 'MODALIDAD COSTEO']) or df.columns[68]
             col_puerto_proy = find_col_proy(df, ['PUERTO DE SALIDA', 'PUERTO SALIDA', 'PUERTO']) or df.columns[41]
             col_pais_proy   = df.columns[18]
-
             df_proy = df.copy()
             df_proy['_m3'] = pd.to_numeric(df_proy['M3 Total'], errors='coerce').fillna(0)
-
             paises_unicos = df_proy[col_pais_proy].astype(str).str.strip().str.upper().unique()
             mods_unicas   = df_proy[col_mod_proy].astype(str).str.strip().str.upper().unique()
-
             mask_pais = df_proy[col_pais_proy].astype(str).str.strip().str.upper() == 'ARGENTINA'
             mask_mod  = (
                 df_proy[col_mod_proy].astype(str).str.strip().str.upper().str.startswith('BARCO') |
                 df_proy[col_mod_proy].astype(str).str.strip().str.upper().str.contains('COSTO HIBRIDO PUERTO ZFLP', na=False)
             )
             df_proy = df_proy[mask_pais & mask_mod].copy()
-
             df_proy['_etd_dt'] = pd.to_datetime(df_proy[col_etd_proy], dayfirst=True, errors='coerce')
             df_proy = df_proy[df_proy['_etd_dt'].notna() & (df_proy['_etd_dt'] >= hoy)].copy()
-
             df_proy['_semana_inicio'] = df_proy['_etd_dt'].dt.to_period('W').apply(lambda p: p.start_time)
             df_proy['_mes_num']       = df_proy['_etd_dt'].dt.month
             df_proy['_mes_label']     = df_proy['_etd_dt'].dt.strftime('%B %Y').str.upper()
             df_proy['_puerto']        = df_proy[col_puerto_proy].astype(str).str.strip().str.upper().fillna('SIN DEFINIR')
-
             if df_proy.empty:
                 st.warning("No hay carga futura proyectada con los filtros aplicados.")
                 with st.expander("🔍 Diagnóstico de columnas (para verificar)"):
@@ -1727,33 +1536,26 @@ border-radius:12px; border-top:2px solid {color};'>
             else:
                 meses_proy  = df_proy.drop_duplicates('_mes_num').sort_values('_mes_num')[['_mes_num','_mes_label']].values.tolist()
                 opciones_proy = {lbl: num for num, lbl in meses_proy}
-
                 col_sp, _ = st.columns([2, 3])
                 with col_sp:
                     mes_proy_lbl = st.selectbox("SELECCIONAR MES ETD:", list(opciones_proy.keys()), key="proy_mes_sel")
                 mes_proy_num = opciones_proy[mes_proy_lbl]
-
                 df_mes_proy = df_proy[df_proy['_mes_num'] == mes_proy_num].copy()
-
                 total_m3_mes   = df_mes_proy['_m3'].sum()
                 total_cntr_mes = total_m3_mes / 60
                 total_so_mes   = df_mes_proy['SO'].nunique() if 'SO' in df_mes_proy.columns else 0
                 semanas_mes    = df_mes_proy['_semana_inicio'].nunique()
-
                 st.markdown("<br>", unsafe_allow_html=True)
                 pm1, pm2, pm3, pm4 = st.columns(4)
                 with pm1: st.markdown(f"<div class='metric-container'><p>M3 TOTALES</p><p>{int(round(total_m3_mes)):,}</p></div>", unsafe_allow_html=True)
                 with pm2: st.markdown(f"<div class='metric-container'><p>CONTENEDORES</p><p>{int(round(total_cntr_mes))}</p></div>", unsafe_allow_html=True)
                 with pm3: st.markdown(f"<div class='metric-container'><p>SOs</p><p>{total_so_mes}</p></div>", unsafe_allow_html=True)
                 with pm4: st.markdown(f"<div class='metric-container'><p>SEMANAS</p><p>{semanas_mes}</p></div>", unsafe_allow_html=True)
-
                 st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
-
                 df_stack = df_mes_proy.groupby(['_semana_inicio','_puerto'])['_m3'].sum().reset_index()
                 df_stack['Semana'] = df_stack['_semana_inicio'].apply(
                     lambda d: d.strftime('%d/%m') + ' - ' + (d + pd.Timedelta(days=6)).strftime('%d/%m')
                 )
-
                 fig_stack = px.bar(
                     df_stack, x='Semana', y='_m3', color='_puerto',
                     text='_m3', barmode='stack',
@@ -1772,13 +1574,11 @@ border-radius:12px; border-top:2px solid {color};'>
                     margin=dict(l=20,r=20,t=60,b=20)
                 )
                 st.plotly_chart(fig_stack, use_container_width=True)
-
                 df_cntr_sem = df_mes_proy.groupby('_semana_inicio')['_m3'].sum().reset_index()
                 df_cntr_sem['Semana'] = df_cntr_sem['_semana_inicio'].apply(
                     lambda d: d.strftime('%d/%m') + ' - ' + (d + pd.Timedelta(days=6)).strftime('%d/%m')
                 )
                 df_cntr_sem['Contenedores'] = (df_cntr_sem['_m3'] / 60).round(1)
-
                 fig_cntr = px.bar(
                     df_cntr_sem, x='Semana', y='Contenedores', text='Contenedores',
                     color_discrete_sequence=['#ffaa00'],
@@ -1797,10 +1597,8 @@ border-radius:12px; border-top:2px solid {color};'>
                     margin=dict(l=20,r=20,t=60,b=20)
                 )
                 st.plotly_chart(fig_cntr, use_container_width=True)
-
                 st.markdown("<hr class='white-divider'>", unsafe_allow_html=True)
                 st.markdown("<p style='color:#00a8ff; font-weight:800; letter-spacing:4px; font-size:15px; margin-bottom:20px; text-align:center;'>DETALLE POR SEMANA Y PUERTO</p>", unsafe_allow_html=True)
-
                 for sem_inicio in sorted(df_mes_proy['_semana_inicio'].unique()):
                     sem_fin    = sem_inicio + pd.Timedelta(days=6)
                     sem_label  = sem_inicio.strftime('%d/%m/%Y') + ' al ' + sem_fin.strftime('%d/%m/%Y')
@@ -1809,7 +1607,6 @@ border-radius:12px; border-top:2px solid {color};'>
                     cntr_sem   = round(m3_sem / 60, 1)
                     so_sem     = df_sem['SO'].nunique() if 'SO' in df_sem.columns else 0
                     cntr_label = str(cntr_sem)
-
                     st.markdown(
                         "<div class='custom-card' style='border-left:5px solid #00a8ff; margin-bottom:20px;'>"
                         "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;'>"
@@ -1824,7 +1621,6 @@ border-radius:12px; border-top:2px solid {color};'>
                         "</div></div>",
                         unsafe_allow_html=True
                     )
-
                     df_sem_puerto = df_sem.groupby('_puerto').agg(
                         M3=('_m3', 'sum'),
                         SOs=('SO', 'nunique') if 'SO' in df_sem.columns else ('_m3', 'count')
@@ -1832,7 +1628,6 @@ border-radius:12px; border-top:2px solid {color};'>
                     df_sem_puerto['CTNRS']   = (df_sem_puerto['M3'] / 60).round(1)
                     df_sem_puerto['Share %'] = (df_sem_puerto['M3'] / m3_sem * 100).round(1)
                     df_sem_puerto = df_sem_puerto.rename(columns={'_puerto': 'Puerto', 'M3': 'M3 Total'})
-
                     st.dataframe(
                         df_sem_puerto[['Puerto', 'M3 Total', 'CTNRS', 'SOs', 'Share %']],
                         use_container_width=True, hide_index=True,
@@ -1845,13 +1640,10 @@ border-radius:12px; border-top:2px solid {color};'>
                         }
                     )
                     st.markdown("</div>", unsafe_allow_html=True)
-
         except Exception as e:
             st.error(f"Error en Proyeccion Semanal ETD: {e}")
             import traceback
             st.code(traceback.format_exc())
-
-
     # --- SOLAPA 6: INDICADORES (SLA & CONSOLIDACIÓN) ---
     with tabs[5]:
         st.markdown("<div style='text-align:center; padding: 20px; background: rgba(0, 255, 136, 0.05); border-radius: 20px; margin: 30px 0;'><h2 style='color:#00ff88; font-weight:800; letter-spacing:5px; margin:0;'>INDICADORES DE CONSOLIDACIÓN Y SLA</h2></div>", unsafe_allow_html=True)
@@ -1859,10 +1651,8 @@ border-radius:12px; border-top:2px solid {color};'>
             url_hi = f"{base_url}/export?format=csv&gid=32771816&nocache={time.time()}"
             @st.cache_data(ttl=60)
             def load_hi_vfinal(u): return pd.read_csv(u, engine='python')
-
             df_hi = load_hi_vfinal(url_hi)
             df_hi.columns = [str(c).strip() for c in df_hi.columns]
-
             df_hi['ETD_DT'] = pd.to_datetime(df_hi.iloc[:, 11], dayfirst=True, errors='coerce')
             mask_anio_etd = df_hi['ETD_DT'].dt.year == 2026
             mask_anio_col = df_hi.iloc[:, 25].astype(str).str.strip() == '2026'
@@ -1870,7 +1660,6 @@ border-radius:12px; border-top:2px solid {color};'>
             df_2026.loc[df_2026['ETD_DT'].isna(), 'ETD_DT'] = pd.to_datetime(
                 df_2026.loc[df_2026['ETD_DT'].isna(), df_hi.columns[11]], dayfirst=True, errors='coerce'
             )
-
             if not df_2026.empty:
                 df_2026['Mes'] = df_2026['ETD_DT'].dt.month
                 mask_sin_mes = df_2026['Mes'].isna()
@@ -1885,20 +1674,16 @@ border-radius:12px; border-top:2px solid {color};'>
                 df_mar = df_2026[~df_2026[col_tipo_carga_hi].astype(str).str.upper().str.contains('AVION|COURRIER', na=False)].copy()
                 meses_dict = {1:"Enero", 2:"Febrero", 3:"Marzo", 4:"Abril", 5:"Mayo", 6:"Junio", 7:"Julio", 8:"Agosto", 9:"Septiembre", 10:"Octubre", 11:"Noviembre", 12:"Diciembre"}
                 df_mar['Mes_Nombre'] = df_mar['Mes'].map(meses_dict)
-
                 col_mono_hi  = df_hi.columns[24]
                 col_puerto_hi = df_hi.columns[4]
                 col_cons_hi  = df_hi.columns[32]
-
                 def clean_n_hi(val):
                     if pd.isna(val) or str(val).strip() in ['', 'nan']: return 0.0
                     try:
                         s = str(val).replace(',', '.').replace(' ', '').strip()
                         return pd.to_numeric(s, errors='coerce')
                     except: return 0.0
-
                 df_mar[col_cons_hi] = df_mar[col_cons_hi].apply(clean_n_hi).fillna(0.0).round(0)
-
                 @st.dialog("🚢 DETALLE POR PUERTO Y SLA", width="large")
                 def show_detalle_mes(df_sub, mes_lbl, mode="mixed"):
                     st.markdown(f"### Análisis {mes_lbl.upper()}")
@@ -1925,12 +1710,10 @@ border-radius:12px; border-top:2px solid {color};'>
                             row_data["% Cons"] = f"{int((1-(cm_p/tp_p))*100)}%"
                         p_rows.append(row_data)
                     st.dataframe(pd.DataFrame(p_rows).sort_values("Embs", ascending=False), use_container_width=True, hide_index=True)
-
                 st.markdown("<div style='background: rgba(0, 168, 255, 0.05); padding: 15px 25px; border-radius: 20px; border: 1px solid rgba(0, 168, 255, 0.2); margin: 15px 0;'><h3 style='color:#00a8ff; margin:0; text-align:center; letter-spacing:5px; text-transform:uppercase; font-weight:900;'>RESUMEN MES CERRADO (MARÍTIMOS 2026)</h3></div>", unsafe_allow_html=True)
                 thc = st.columns([1.5, 1, 1.2, 1, 1, 0.8])
                 for i, h in enumerate(["MES ETD", "EMBS", "DIAS AVG", "% MONO", "% CONS", "DETALLE"]):
                     thc[i].markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:800; text-align:center;'>{h}</p>", unsafe_allow_html=True)
-
                 res_mensual = df_mar.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
                 for _, row in res_mensual.iterrows():
                     df_m_temp = df_mar[df_mar['Mes'] == row['Mes']].copy()
@@ -1946,7 +1729,6 @@ border-radius:12px; border-top:2px solid {color};'>
                     with tr6:
                         if st.button("🔍 VER", key=f"btn_res_{row['Mes']}", use_container_width=True):
                             show_detalle_mes(df_m_temp, row['Mes_Nombre'], mode="mixed")
-
                 st.markdown("<br><div style='background: rgba(0, 168, 255, 0.05); padding: 15px; border-radius: 12px; border-left: 5px solid #00a8ff; margin-bottom:15px;'><h4 style='color:#00a8ff; margin:0; letter-spacing:2px; font-size:16px;'>1. SOLAMENTE MONOPROVEEDOR (MARÍTIMOS 2026)</h4></div>", unsafe_allow_html=True)
                 df_mono_v4 = df_mar[df_mar[col_mono_hi].astype(str).str.upper().str.contains('MONOPROVEEDOR', na=False)].copy()
                 if not df_mono_v4.empty:
@@ -1966,7 +1748,6 @@ border-radius:12px; border-top:2px solid {color};'>
                         with mr5:
                             if st.button("🔍 VER", key=f"btn_m_v4_{rm['Mes']}", use_container_width=True):
                                 show_detalle_mes(df_sub_m, f"MONO - {rm['Mes_Nombre']}", mode="specific")
-
                 st.markdown("<br><div style='background: rgba(0, 255, 136, 0.05); padding: 15px; border-radius: 12px; border-left: 5px solid #00ff88; margin-bottom:15px;'><h4 style='color:#00ff88; margin:0; letter-spacing:2px; font-size:16px;'>2. SOLAMENTE CONSOLIDADO (MARÍTIMOS 2026)</h4></div>", unsafe_allow_html=True)
                 df_cons_v4 = df_mar[~df_mar[col_mono_hi].astype(str).str.upper().str.contains('MONOPROVEEDOR', na=False)].copy()
                 if not df_cons_v4.empty:
@@ -1989,25 +1770,20 @@ border-radius:12px; border-top:2px solid {color};'>
                 st.warning("No se encontraron registros marítimos para el año 2026.")
         except Exception as e:
             st.error(f"Error en Indicadores: {e}")
-
     # --- SOLAPA 7: ALERTAS ESTRATÉGICAS ---
     with tabs[6]:
         try:
             url_re = f"{base_url}/export?format=csv&gid=276804813"
-
             @st.cache_data(ttl=60)
             def load_alertas_data(u):
                 return pd.read_csv(u, engine='python', on_bad_lines='skip')
-
             df_re = load_alertas_data(url_re)
             df_re.columns = [str(c).strip() for c in df_re.columns]
-
             def find_col(df, keywords, fallback_idx):
                 for kw in keywords:
                     matches = [c for c in df.columns if kw.upper() in str(c).upper()]
                     if matches: return matches[0]
                 return df.columns[fallback_idx]
-
             col_emb_re   = find_col(df_re, ['EMBARQUE'], 0)
             col_resp     = find_col(df_re, ['RESPONSABLE DE LA CARGA', 'RESPONSABLE'], 33)
             col_fwd      = find_col(df_re, ['FORWARDER', 'AGENTE'], 6)
@@ -2020,7 +1796,6 @@ border-radius:12px; border-top:2px solid {color};'>
             col_pack_lst = df_re.columns[36] if len(df_re.columns) > 36 else find_col(df_re, ['PACKING LIST'], 36)
             col_impo2    = df_re.columns[39] if len(df_re.columns) > 39 else find_col(df_re, ['PASAR A IMPO'], 39)
             col_t_consol = df_re.columns[29] if len(df_re.columns) > 29 else find_col(df_re, ['TIEMPO TOTAL', 'CONSOLIDACION'], 29)
-
             df_re['DT_Inst']       = pd.to_datetime(df_re[col_inst_re],  dayfirst=True, errors='coerce')
             df_re['DT_ETD']        = pd.to_datetime(df_re[col_etd_re],   dayfirst=True, errors='coerce')
             df_re['DT_PMin']       = pd.to_datetime(df_re[col_pack_min], dayfirst=True, errors='coerce')
@@ -2029,17 +1804,14 @@ border-radius:12px; border-top:2px solid {color};'>
             df_re['Dias_Esp']      = (hoy - df_re['DT_Inst']).dt.days
             df_re['Rango_Pack']    = (df_re['DT_PMax'] - df_re['DT_PMin']).dt.days
             df_re['Dias_ETD_venc'] = (hoy - df_re['DT_ETD']).dt.days
-
             TIPOS_MARITIMO = ['20 ST', '40 ST', '40 HQ', '40 NOR']
             col_tipo_carga = find_col(df_re, ['TIPO CARGA', 'TIPO DE CARGA'], 5)
-
             col_emb_pc    = df.columns[16]
             col_rank_pc   = df.columns[1]
             col_puerto_pc = df.columns[41]
             col_n_inv_pc  = df.columns[29]
             col_inst_pc   = find_col(df, ['INSTRUCCION', 'INSTRUCCIÓN'], 20)
             col_mono_pc   = find_col(df, ['MONOPROVEEDOR'], 31)
-
             def find_sku_nuevo_col(df):
                 for c in df.columns:
                     limpio = str(c).strip().replace('¿','').replace('?','').upper()
@@ -2049,12 +1821,9 @@ border-radius:12px; border-top:2px solid {color};'>
                     return df.columns[111]
                 return None
             col_nuevo = find_sku_nuevo_col(df)
-
             col_mod_pc    = find_col(df, ['MODALIDAD DE COSTEO', 'MODALIDAD COSTEO'], 68)
             col_pais_pc   = find_col(df, ['PAIS DESTINO', 'PAÍS DESTINO'], 0)
-
             PUERTOS_DAVID = ['SHANGHAI', 'QINGDAO', 'TIANJIN', 'NINGBO']
-
             def asignar_analista(modalidad, es_mono, puerto):
                 mod  = str(modalidad).strip().upper()
                 mono = str(es_mono).strip().upper()
@@ -2068,23 +1837,19 @@ border-radius:12px; border-top:2px solid {color};'>
                         if any(p in prt for p in PUERTOS_DAVID): return 'DAVID'
                         else: return 'SOFIA'
                 return 'SIN ASIGNAR'
-
             df_ni = df[
                 df[col_inst_pc].isna() |
                 df[col_inst_pc].astype(str).str.strip().isin(['', 'nan', 'SIN INSTRUCCION', 'sin instruccion'])
             ].copy()
             df_ni = df_ni[~df_ni.iloc[:, 39].astype(str).str.upper().str.contains('MUESTRA|MUESTRAS|REPUESTOS', na=False)]
             df_ni['Fecha_Prior_DT'] = pd.to_datetime(df.iloc[:, 99], dayfirst=True, errors='coerce')
-
             def filter_ni(row):
                 is_mono = "SÍ" in str(row[col_mono_pc]).upper() or "SI" in str(row[col_mono_pc]).upper()
                 return row['Fecha_Prior_DT'] <= hoy + timedelta(days=25 if is_mono else 10)
             df_a1 = df_ni[df_ni.apply(filter_ni, axis=1)].copy()
-
             def safe_rank(val):
                 try: return float(str(val).replace('.', '').replace(',', '.').strip())
                 except: return 999999
-
             df_a1['Rank_Num'] = df_a1[col_rank_pc].apply(safe_rank)
             df_a1['Analista'] = df_a1.apply(lambda r: asignar_analista(r[col_mod_pc], r[col_mono_pc], r[col_puerto_pc]), axis=1)
             df_a1['Top Ranking'] = df_a1['Rank_Num'].apply(lambda x: "🏆 SÍ" if x < 300 else "—")
@@ -2092,19 +1857,15 @@ border-radius:12px; border-top:2px solid {color};'>
                 df_a1['SKU Nuevo'] = df_a1[col_nuevo].apply(lambda x: "✨ SÍ" if str(x).strip().upper() == 'SI' else "—")
             else:
                 df_a1['SKU Nuevo'] = "—"
-
             def clean_num_consol(val):
                 try: return float(str(val).replace(',', '.').replace(' ', '').strip())
                 except: return 0.0
-
             df_re['T_Consol'] = df_re[col_t_consol].apply(clean_num_consol)
             col_mono_re = find_col(df_re, ['MONOPROVEEDOR'], 31)
             df_re['Es_Mono'] = df_re[col_mono_re].astype(str).str.strip().str.upper().isin(['SI', 'SÍ', 'S', 'MONOPROVEEDOR'])
-
             df_mar_re = df_re[
                 df_re[col_tipo_carga].astype(str).str.strip().str.upper().isin([t.upper() for t in TIPOS_MARITIMO])
             ].copy()
-
             df_mar_re['DT_Inst']       = pd.to_datetime(df_mar_re[col_inst_re],  dayfirst=True, errors='coerce')
             df_mar_re['DT_ETD']        = pd.to_datetime(df_mar_re[col_etd_re],   dayfirst=True, errors='coerce')
             df_mar_re['DT_PMin']       = pd.to_datetime(df_mar_re[col_pack_min], dayfirst=True, errors='coerce')
@@ -2115,25 +1876,19 @@ border-radius:12px; border-top:2px solid {color};'>
             df_mar_re['Dias_ETD_venc'] = (hoy - df_mar_re['DT_ETD']).dt.days
             df_mar_re['T_Consol']      = df_re.loc[df_mar_re.index, 'T_Consol'] if 'T_Consol' in df_re.columns else 0
             df_mar_re['Es_Mono']       = df_re.loc[df_mar_re.index, 'Es_Mono'] if 'Es_Mono' in df_re.columns else False
-
             etd_ok_vacio_re = df_mar_re[col_etd_ok].astype(str).str.strip().str.upper() != 'OK'
             fuera_sla = (
                 (df_mar_re['Es_Mono'] & (df_mar_re['T_Consol'] > 7)) |
                 (~df_mar_re['Es_Mono'] & (df_mar_re['T_Consol'] > 25))
             )
-
             col_destino_re = df_re.columns[3] if len(df_re.columns) > 3 else find_col(df_re, ['DESTINO', 'PAIS'], 3)
             solo_argentina = df_mar_re[col_destino_re].astype(str).str.strip().str.upper() == 'ARGENTINA'
-
             df_a1b = df_mar_re[
                 etd_ok_vacio_re & fuera_sla & (df_mar_re['T_Consol'] > 0) & solo_argentina
             ].copy()
-
             df_a2 = df_mar_re[df_mar_re['Rango_Pack'].notna() & (df_mar_re['Rango_Pack'] > 7)].copy()
-
             col_etd_ok_pc = find_col(df, ['ETD OK FFWW', 'ETD OK'], 97)
             col_pais_dest = find_col(df, ['PAIS DESTINO', 'PAÍS DESTINO'], 0)
-
             def enrich_a2(row):
                 emb    = str(row[col_emb_re]).strip().upper()
                 df_emb = df[df[col_emb_pc].astype(str).str.strip().str.upper() == emb]
@@ -2141,7 +1896,6 @@ border-radius:12px; border-top:2px solid {color};'>
                 etd_ok = df_emb[col_etd_ok_pc].astype(str).str.upper().str.strip().iloc[0]
                 pais   = df_emb[col_pais_dest].astype(str).str.strip().iloc[0] if col_pais_dest in df_emb.columns else '—'
                 return pd.Series({'ETD OK FFWW': '✅ OK' if etd_ok == 'OK' else '❌ Sin OK', 'País Destino': pais})
-
             if not df_a2.empty:
                 enrich_cols = df_a2.apply(enrich_a2, axis=1)
                 df_a2['ETD OK FFWW']  = enrich_cols['ETD OK FFWW']
@@ -2149,18 +1903,14 @@ border-radius:12px; border-top:2px solid {color};'>
             else:
                 df_a2['ETD OK FFWW']  = []
                 df_a2['País Destino'] = []
-
             df['Rank_Num_PC'] = df[col_rank_pc].apply(safe_rank)
             col_etd_ok_pc  = find_col(df, ['ETD OK FFWW'], 97)
             col_fecha_inst = find_col(df, ['FECHA DE INSTRUCCION', 'FECHA INSTRUCCION', 'FECHA DE INSTRUCCIÓN'], 20)
-
             df['DT_Inst_PC']  = pd.to_datetime(df[col_fecha_inst], dayfirst=True, errors='coerce')
             df['ETD_OK_PC']   = df[col_etd_ok_pc].astype(str).str.upper().str.strip()
             df['Dias_sin_OK'] = (hoy - df['DT_Inst_PC']).dt.days
-
             etd_ok_vacio = df['ETD_OK_PC'].isin(['', 'NAN', 'NONE', 'NO', '—']) | df[col_etd_ok_pc].isna()
             df_a3_base = df[df['DT_Inst_PC'].notna() & etd_ok_vacio & (df['Dias_sin_OK'] > 7)].copy()
-
             alerta3_rows = []
             if not df_a3_base.empty:
                 for emb, grp in df_a3_base.groupby(col_emb_pc):
@@ -2188,9 +1938,7 @@ border-radius:12px; border-top:2px solid {color};'>
                         'Total SOs': total_sos, 'SOs Top Ranking': str(cant_top) if cant_top > 0 else '—',
                         'SKUs Nuevos': str(cant_nuevo) if cant_nuevo > 0 else '—', 'Prod. Críticos': flag,
                     })
-
             df_a3 = pd.DataFrame(alerta3_rows)
-
             impo2_sin_fecha = (
                 df_mar_re[col_impo2].isna() |
                 df_mar_re[col_impo2].astype(str).str.strip().isin(['', 'nan', 'NaN', 'NONE', '-', '—'])
@@ -2199,10 +1947,8 @@ border-radius:12px; border-top:2px solid {color};'>
                 df_mar_re['ETD_OK'] & df_mar_re['DT_ETD'].notna() &
                 (df_mar_re['Dias_ETD_venc'] > 7) & impo2_sin_fecha
             ].copy()
-
             def doc_falta(val):
                 return str(val).strip().upper() not in ['SI', 'SÍ', 'S']
-
             draft_vacio = df_mar_re[col_draft_bl].apply(doc_falta)
             pack_vacio  = df_mar_re[col_pack_lst].apply(doc_falta)
             df_a6 = df_mar_re[
@@ -2211,14 +1957,12 @@ border-radius:12px; border-top:2px solid {color};'>
             ].copy()
             df_a6['Falta_Draft'] = draft_vacio[df_a6.index]
             df_a6['Falta_Pack']  = pack_vacio[df_a6.index]
-
             st.markdown("""
 <div style='text-align:center; padding:25px; background:linear-gradient(135deg,rgba(255,75,75,0.08),rgba(255,170,0,0.05));
 border-radius:20px; border:1px solid rgba(255,75,75,0.2); margin-bottom:30px;'>
 <h2 style='color:#ff4b4b; font-weight:900; letter-spacing:6px; margin:0; font-size:26px;'>⚡ ALERTAS ESTRATÉGICAS</h2>
 <p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>MARÍTIMO · TIEMPO REAL</p>
 </div>""", unsafe_allow_html=True)
-
             def render_alerta(key, emoji, titulo, subtitulo, color, conteo, tabla_fn):
                 estado_key = f"alerta_open_{key}"
                 if estado_key not in st.session_state:
@@ -2247,18 +1991,15 @@ border-radius:12px; border:1px solid {color}44;'>
                     if conteo == 0: st.success("✅ Sin casos para esta alerta.")
                     else: tabla_fn()
                 st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
-
             def tabla_a1():
                 cols_show = [col_n_inv_pc, 'SO', 'Analista', col_puerto_pc, 'M3 Total', col_mono_pc, 'Top Ranking', 'SKU Nuevo', 'Fecha_Prior_DT']
                 df_show = df_a1[cols_show].copy()
                 df_show['Fecha_Prior_DT'] = df_show['Fecha_Prior_DT'].dt.strftime('%d/%m/%Y')
                 df_show = df_show.rename(columns={col_n_inv_pc: 'Invoice', col_puerto_pc: 'Puerto', col_mono_pc: '¿Mono?', 'Fecha_Prior_DT': 'F. Prioritaria'}).sort_values('F. Prioritaria')
                 st.dataframe(df_show, use_container_width=True, hide_index=True, column_config={'M3 Total': st.column_config.NumberColumn("M3", format="%.1f"), 'Top Ranking': st.column_config.TextColumn("🏆 Ranking"), 'SKU Nuevo': st.column_config.TextColumn("✨ Nuevo"), 'Analista': st.column_config.TextColumn("Analista")})
-
             render_alerta("a1", "🔴", "ALERTA 1 — SIN INSTRUIR",
                 "Gadnic + Argentina · ordenado por fecha prioritaria (más vieja primero) · con analista asignado",
                 "#ff4b4b", len(df_a1), tabla_a1)
-
             def tabla_a2():
                 df_show = df_a2.copy()
                 df_show['F_Min'] = df_a2['DT_PMin'].dt.strftime('%d/%m/%Y')
@@ -2266,7 +2007,6 @@ border-radius:12px; border:1px solid {color}44;'>
                 cols = [col_emb_re, col_resp, 'F_Min', 'F_Max', 'Rango_Pack', 'ETD OK FFWW', 'País Destino']
                 df_show = df_show[cols].rename(columns={col_emb_re: 'Embarque', col_resp: 'Responsable', 'F_Min': 'F. Packeo Min', 'F_Max': 'F. Packeo Max', 'Rango_Pack': 'Días Rango'}).sort_values('Días Rango', ascending=False)
                 st.dataframe(df_show, use_container_width=True, hide_index=True, column_config={'Días Rango': st.column_config.NumberColumn(format="%d días ⚡"), 'ETD OK FFWW': st.column_config.TextColumn("ETD OK"), 'País Destino': st.column_config.TextColumn("País")})
-
             def tabla_a1b():
                 df_show = df_a1b.copy()
                 df_show['F_ETD']   = df_a1b['DT_ETD'].dt.strftime('%d/%m/%Y')
@@ -2276,15 +2016,12 @@ border-radius:12px; border:1px solid {color}44;'>
                 df_show = df_show[[col_emb_re, col_resp, 'Tipo', 'F_ETD', 'T. Consol (días)', 'SLA']]
                 df_show = df_show.rename(columns={col_emb_re: 'Embarque', col_resp: 'Responsable', 'F_ETD': 'ETD'}).sort_values('T. Consol (días)', ascending=False)
                 st.dataframe(df_show, use_container_width=True, hide_index=True, column_config={'T. Consol (días)': st.column_config.NumberColumn(format="%d días ⚠️"), 'SLA': st.column_config.TextColumn("SLA Límite"), 'Tipo': st.column_config.TextColumn("Tipo Carga")})
-
             render_alerta("a1b", "🔴", "ALERTA 1B — TIEMPOS DE CONSOLIDACIÓN FUERA DE SLA",
                 "Sin ETD OK · Consolidado >25 días / Monoproveedor >7 días · Ordenado por mayor demora",
                 "#ff4b4b", len(df_a1b), tabla_a1b)
-
             render_alerta("a2", "🟠", "ALERTA 2 — VENTANA DE PRODUCCIÓN EXTENDIDA (>7 DÍAS)",
                 "Embarques con más de 7 días entre primer y último packeo · incluye estado ETD y país destino",
                 "#ffaa00", len(df_a2), tabla_a2)
-
             def tabla_a3():
                 if df_a3.empty:
                     st.success("✅ Sin casos.")
@@ -2297,22 +2034,18 @@ border-radius:12px; border:1px solid {color}44;'>
                 cant_criticos = (df_a3['Prod. Críticos'] == "🚨 SÍ").sum()
                 if cant_criticos > 0:
                     st.warning(f"💡 {cant_criticos} embarque(s) contienen productos top ranking o SKUs nuevos. Evaluar reasignación de carga.")
-
             render_alerta("a3", "🚨", "ALERTA 3 — INSTRUIDAS SIN ETD OK (>7 DÍAS) + PRODUCTOS CRÍTICOS",
                 "Sin confirmación ETD del forwarder · Días contados desde Fecha Instrucción · Incluye flag de productos importantes",
                 "#ff4b4b", len(df_a3), tabla_a3)
-
             def tabla_a5():
                 df_show = df_a5.copy()
                 df_show['F_ETD'] = df_a5['DT_ETD'].dt.strftime('%d/%m/%Y')
                 df_show = df_show[[col_emb_re, col_resp, 'F_ETD', 'Dias_ETD_venc']]
                 df_show = df_show.rename(columns={col_emb_re: 'Embarque', col_resp: 'Responsable', 'F_ETD': 'ETD', 'Dias_ETD_venc': 'Días vencida'}).sort_values('Días vencida', ascending=False)
                 st.dataframe(df_show, use_container_width=True, hide_index=True, column_config={'Días vencida': st.column_config.NumberColumn(format="%d días 🔴")})
-
             render_alerta("a5", "🔴", "ALERTA 5 — ETD VENCIDA SIN PASAR A IMPO2 (>7 DÍAS)",
                 "ETD confirmada · Zarpe hace más de 7 días · Columna 'Pasar a Impo2' vacía",
                 "#ff4b4b", len(df_a5), tabla_a5)
-
             def tabla_a6():
                 df_show = df_a6.copy()
                 df_show['ETD']                = df_a6['DT_ETD'].dt.strftime('%d/%m/%Y')
@@ -2323,23 +2056,18 @@ border-radius:12px; border:1px solid {color}44;'>
                 df_show['_sort'] = pd.to_datetime(df_a6['DT_ETD'].values)
                 df_show = df_show.sort_values('_sort', ascending=True).drop(columns=['_sort'])
                 st.dataframe(df_show, use_container_width=True, hide_index=True, column_config={'ETD': st.column_config.TextColumn("ETD (col M)")})
-
             render_alerta("a6", "📋", "ALERTA 6 — RESERVA OK PERO FALTAN DOCUMENTOS",
                 "ETD OK confirmada · Falta Draft BL y/o Packing List Final en Reservas",
                 "#ffaa00", len(df_a6), tabla_a6)
-
             def tabla_aereos():
                 st.info("✈️ Módulo de alertas para cargas aéreas en desarrollo. Próximamente disponible.")
-
             render_alerta("aereos", "✈️", "ALERTA 7 — AÉREOS",
                 "Módulo en desarrollo · Próximamente disponible",
                 "#94a3b8", 0, tabla_aereos)
-
         except Exception as e:
             st.error(f"Error en Alertas Estratégicas: {e}")
             import traceback
             st.code(traceback.format_exc())
-
     # --- SOLAPA 8: ASK COMEX ---
     with tabs[7]:
         st.markdown("<div style='text-align:center; padding: 40px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; border: 2px dashed rgba(0, 168, 255, 0.2);'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:10px;'>ASK COMEX</h2><p style='color:#94a3b8; font-size:18px; margin-top:20px;'>Inteligencia Operativa en Tiempo Real.</p></div>", unsafe_allow_html=True)
@@ -2372,9 +2100,7 @@ border-radius:12px; border:1px solid {color}44;'>
                             st.session_state.chat_history.append({"role": "assistant", "content": respuesta_ia})
         except AttributeError:
             st.error("⚠️ Para usar este chat flotante, necesitamos actualizar Streamlit. (Requiere versión 1.33 o superior).")
-
         st.markdown("<hr class='white-divider'>", unsafe_allow_html=True)
-
         @st.cache_data(ttl=60)
         def load_ask_comex_data():
             url_reserva = f"{base_url}/export?format=csv&gid=276804813"
@@ -2393,7 +2119,6 @@ border-radius:12px; border:1px solid {color}44;'>
             try: impo2 = pd.read_csv(url_impo2, engine='python', on_bad_lines='skip')
             except: impo2 = pd.DataFrame()
             return res, hi, emb_hi, ddp, impo2
-
         df_res_ask, df_hi_ask, df_emb_hi_ask, df_ddp_ask, df_impo2_ask = load_ask_comex_data()
         if not df_ddp_ask.empty:
             df_ddp_ask.columns = [str(c).strip() for c in df_ddp_ask.columns]
@@ -2401,7 +2126,6 @@ border-radius:12px; border:1px solid {color}44;'>
         if not df_impo2_ask.empty:
             df_impo2_ask.columns = [str(c).strip() for c in df_impo2_ask.columns]
             df_impo2_ask['_emb_key'] = df_impo2_ask.iloc[:, 0].astype(str).str.strip().str.upper()
-
         st.markdown("<br>", unsafe_allow_html=True)
         def get_estadio_impo2(emb, eta_str, df_impo2, hoy_d, historico=False):
             suffix = " (HISTORICO)" if historico else ""
@@ -2435,22 +2159,16 @@ border-radius:12px; border:1px solid {color}44;'>
                 return 6, "NACIONALIZADO / COORDINANDO RETIRO", "#a855f7", "Despacho oficializado el " + val_ofi + ". Pendiente coordinar retiro." + orden_txt + despacho_txt
             else:
                 return 5, "EN PROCESO DE NACIONALIZACION" + suffix, "#ffaa00", "Carga arribada. Pendiente de oficializacion del despacho." + orden_txt
-
         query = st.text_input("🔍 INGRESE SO O N° DE EMBARQUE:", placeholder="Ej: SO-12345 o EMB-999...")
-
         if query:
             query = str(query).strip().upper()
             col_so         = [c for c in df.columns if c.strip().upper() == 'SO'][0] if any(c.strip().upper() == 'SO' for c in df.columns) else df.columns[0]
             col_emb_pc     = df.columns[16]
-
             is_historical = False
             df_found = pd.DataFrame()
-
             mask_so  = df[col_so].astype(str).str.upper().str.contains(query, na=False)
             mask_emb_pc = df[col_emb_pc].astype(str).str.strip().str.upper() == query
-
             df_found = df[mask_so | mask_emb_pc]
-
             if df_found.empty and not df_emb_hi_ask.empty:
                 col_eh_emb = df_emb_hi_ask.columns[4]
                 col_eh_so  = df_emb_hi_ask.columns[0]
@@ -2458,7 +2176,6 @@ border-radius:12px; border:1px solid {color}44;'>
                 m_so  = df_emb_hi_ask[col_eh_so].astype(str).str.upper().str.contains(query, na=False)
                 df_found = df_emb_hi_ask[m_emb | m_so]
                 if not df_found.empty: is_historical = True
-
             if df_found.empty:
                 st.warning(f"No se encontraron registros para '{query}'.")
                 st.info("Verificá que el SO o número de embarque esté exactamente como aparece en el sistema (ej: FCL 2050, AIR 152).")
@@ -2468,7 +2185,6 @@ border-radius:12px; border:1px solid {color}44;'>
                 if len(df_found) > 50:
                     st.warning(f"⚠️ Se encontraron {len(df_found)} resultados. Procesando los primeros 50.")
                     df_found = df_found.head(50)
-
                 resultados_procesados = []
                 for i, row in df_found.iterrows():
                     if is_historical:
@@ -2562,7 +2278,6 @@ border-radius:12px; border:1px solid {color}44;'>
                         etd_ok     = val_etd_ok == "OK"
                         etd_display = val_etd_gso if val_etd_gso and str(val_etd_gso).lower() not in ["nan","none",""] else "Sin fecha"
                         eta_display = val_eta_gso if val_eta_gso and str(val_eta_gso).lower() not in ["nan","none",""] else "Sin fecha"
-
                         f_salida_origen = ""; f_arribo_aduana = ""
                         if not df_impo2_ask.empty and val_emb not in ["Sin Asignar","","nan","NAN"]:
                             impo2_match = df_impo2_ask[df_impo2_ask["_emb_key"] == val_emb.upper()]
@@ -2571,7 +2286,6 @@ border-radius:12px; border:1px solid {color}44;'>
                                 f_arribo_aduana = str(impo2_match.iloc[0].iloc[2]).strip()
                                 if f_salida_origen.lower() in ["nan","none",""]: f_salida_origen = ""
                                 if f_arribo_aduana.lower() in ["nan","none",""]: f_arribo_aduana = ""
-
                         if in_historical or (dt_eta_gso and dt_eta_gso <= hoy_d):
                             estadio_ddp, desc_ddp, color_ddp, info_ddp = get_estadio_impo2(val_emb, val_eta_gso, df_ddp_ask, hoy_d, historico=False)
                             if estadio_ddp == 5:
@@ -2605,10 +2319,8 @@ border-radius:12px; border:1px solid {color}44;'>
                         "label_cant": label_cant, "fecha_inst": val_fecha_inst, "fin_prod": val_fin_prod,
                         "etd": etd_display, "eta": eta_display
                     })
-
                 st.session_state.ultimos_resultados = resultados_procesados
                 st.success(f"📌 {len(resultados_procesados)} SO(s) encontrados.")
-
                 for r in resultados_procesados:
                     etd_val = r.get('etd', 'Sin fecha')
                     eta_val = r.get('eta', 'Sin fecha')
@@ -2662,8 +2374,6 @@ border-radius:12px; border:1px solid {color}44;'>
                         "</div><br>",
                         unsafe_allow_html=True
                     )
-
-
 except Exception as e:
     st.error(f"Error general al cargar el dashboard: {e}")
     import traceback
