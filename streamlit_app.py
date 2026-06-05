@@ -379,12 +379,12 @@ try:
 
             # ── Niveles pendiente (todo el universo, sin filtro país) ─────────
             cond_vencida       = cond_pendiente & (df['Fecha_Prior_DT'] < hoy)
-            # Vencida Urgente: repuestos vacío (pasa por planeamiento)
-            cond_venc_urgente  = cond_vencida & df['_rep_vacio']
-            # Vencida No Prioritaria: repuestos con algo O país ≠ Argentina
-            cond_venc_no_prio  = cond_vencida & (
-                ~df['_rep_vacio'] | (df['Pais Destino'].str.upper() != 'ARGENTINA')
-            )
+            es_argentina       = df['Pais Destino'].str.strip().str.upper() == 'ARGENTINA'
+            es_dji             = df['Proveedor'].astype(str).str.strip().str.upper() == 'DJI'
+            # Vencida Urgente: pasa por planeamiento + Argentina + no DJI
+            cond_venc_urgente  = cond_vencida & df['_rep_vacio'] & es_argentina & ~es_dji
+            # Vencida No Prioritaria: todo lo demás vencido
+            cond_venc_no_prio  = cond_vencida & ~cond_venc_urgente
             cond_pd_futura     = cond_pendiente & (df['Fecha_Prior_DT'] >= hoy)
             cond_acc_mono      = cond_pd_futura & (df['Tipo_Carga'] == 'MONOPROVEEDOR') & (df['Fecha_Prior_DT'] <= hoy + timedelta(days=25))
             cond_acc_consol    = cond_pd_futura & (df['Tipo_Carga'] == 'CONSOLIDADO')   & (df['Fecha_Prior_DT'] <= hoy + timedelta(days=10))
