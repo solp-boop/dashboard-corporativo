@@ -241,23 +241,12 @@ try:
     df['ETD_DT'] = pd.to_datetime(df.iloc[:, 23], dayfirst=True, errors='coerce')
     df['ETA_DT'] = pd.to_datetime(df.iloc[:, 24], dayfirst=True, errors='coerce')
     df['Fecha_Prior_DT'] = pd.to_datetime(df.iloc[:, 99], dayfirst=True, errors='coerce')
+    df['Fecha_Inst_DT']  = pd.to_datetime(df.iloc[:, 20], dayfirst=True, errors='coerce')
 
     hoy = pd.Timestamp(datetime.now().date())
     inicio_mes = hoy.replace(day=1)
     limite_proximo = hoy + timedelta(days=30)
 
-    def label_proyeccion(fecha, pivot):
-        if pd.isna(fecha): return "SIN FECHA"
-        if fecha.year < 2024: return "PASADO/REALIZADO"
-        if fecha < pivot: return "PASADO/REALIZADO"
-        return fecha.strftime('%m/%Y')
-
-    df['Mes_ETD_Full'] = df['ETD_DT'].apply(lambda x: label_proyeccion(x, inicio_mes))
-    df['Mes_ETA_Full'] = df['ETA_DT'].apply(lambda x: label_proyeccion(x, hoy))
-    meses_eta = [m for m in df['Mes_ETA_Full'].unique() if m not in ["PASADO/REALIZADO", "SIN FECHA"]]
-    meses_eta_ordenados = sorted(meses_eta, key=lambda x: datetime.strptime(x, '%m/%Y'))
-    orden_final_eta = ["PASADO/REALIZADO"] + meses_eta_ordenados + ["SIN FECHA"]
-    df['Mes_ETA_Full'] = pd.Categorical(df['Mes_ETA_Full'], categories=orden_final_eta, ordered=True)
     df = df[df['SO'].notna() & (df['SO'].astype(str).str.strip() != "") & (df['SO'].astype(str).str.strip().str.lower() != "nan")]
 
     m3_totales_global    = round(df['M3 Total'].sum())
@@ -353,66 +342,78 @@ try:
     # =========================================================================
     with tabs[0]:
         try:
-            df['Fecha_Inst_DT'] = pd.to_datetime(df['Fecha de Instruccion'], dayfirst=True, errors='coerce')
+            # ── Columnas Planif Cargas ────────────────────────────────────────
+            col_rank      = df.columns[1]    # B  → Ranking
+            col_emb_pc    = df.columns[16]   # Q  → Embarque
+            col_inst_pc   = df.columns[20]   # U  → Fecha de Instruccion
+            col_mono_pc   = df.columns[93]   # CP → ¿ES MONOPROVEEDOR?
+            col_mod_pc    = df.columns[68]   # BQ → Modalidad de Costeo
+            col_puerto_pc = df.columns[41]   # AP → Puerto de Salida
+            col_etd_ok_pc = df.columns[97]   # CT → ¿ETD OK FFWW?
+            col_n_inv_pc  = df.columns[29]   # AD → N Invoice
+            col_repuestos = df.columns[39]   # AN → Repuestos
 
-            # Planif Cargas — índices fijos
-            col_rank    = df.columns[1]    # B  → Demanda Efectiva - Ranking
-            col_emb_pc  = df.columns[16]   # Q  → Embarque
-            col_inst_pc = df.columns[20]   # U  → Fecha de Instruccion
-            col_mono_pc = df.columns[93]   # CP → ¿ES MONOPROVEEDOR?
-            col_mod_pc  = df.columns[68]   # BQ → Modalidad de Costeo Reposicion
-            col_puerto_pc = df.columns[41] # AP → Puerto de Salida
-            col_etd_ok_pc = df.columns[97] # CT → ¿ETD OK FFWW?
-            col_n_inv_pc  = df.columns[29] # AD → N Invoice
+            # ── M3 Total por nombre de columna (AY) ──────────────────────────
+            # Ya procesado arriba como 'M3 Total'
 
-            df['Rank_Num'] = df[col_rank].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
-            df['Rank_Num'] = pd.to_numeric(df['Rank_Num'], errors='coerce').fillna(999999)
+            # ── Tipo carga e instrucción ──────────────────────────────────────
+            df['Tipo_Carga'] = df[col_mono_pc].apply(
+                lambda x: 'MONOPROVEEDOR' if str(x).strip().upper() in ['SI','SÍ','S'] else 'CONSOLIDADO'
+            )
+            df['Rank_Num'] = pd.to_numeric(
+                df[col_rank].astype(str).str.replace('.','',regex=False).str.replace(',','.',regex=False),
+                errors='coerce'
+            ).fillna(999999)
 
-            col_cp = df.columns[93]   # CP → ¿ES MONOPROVEEDOR?
-            df['Tipo_Carga'] = df[col_cp].apply(lambda x: 'MONOPROVEEDOR' if str(x).upper() == 'SI' else 'CONSOLIDADO')
-
-            def get_tipo_repuesto(val):
-                val_str = str(val).strip().lower()
-                if val_str in ['', 'nan', 'none'] or pd.isna(val) or val_str == 'nan': return "Gadnic"
-                if "muestra" in val_str: return "Muestras"
-                if "sin planeamiento" in val_str: return "Marcas"
-                return "Gadnic"
-            df['Tipo_Repuesto'] = df['Repuestos'].apply(get_tipo_repuesto) if 'Repuestos' in df.columns else 'Gadnic'
+            # Repuestos: vacío = pasa por planeamiento
+            df['_rep_vacio'] = df[col_repuestos].astype(str).str.strip().isin(['', 'nan', 'NaN', 'None', '-'])
 
             df['Pais Destino'] = df['Pais Destino'].fillna('SIN DEFINIR').astype(str).str.strip()
-            df['Repuestos']    = df['Repuestos'].fillna('').astype(str).str.strip()
 
-            cond_prioridad = (df['Pais Destino'].str.upper() == 'ARGENTINA') & (df['Tipo_Repuesto'] == 'Gadnic')
-            cond_instruido = df['Fecha_Inst_DT'].notna() & ~(df['Fecha de Instruccion'].astype(str).str.upper().str.contains("SIN INSTRUCCION", na=False))
+            # Instruido: tiene fecha en col U, no dice "SIN INSTRUCCION"
+            cond_instruido = (
+                df['Fecha_Inst_DT'].notna() &
+                ~df[col_inst_pc].astype(str).str.upper().str.contains("SIN INSTRUCCION", na=False)
+            )
             cond_pendiente = ~cond_instruido
-            cond_urgente   = cond_pendiente & (df['Fecha_Prior_DT'] < hoy)
-            cond_pd_futura = cond_pendiente & (df['Fecha_Prior_DT'] >= hoy)
-            cond_acc_mono  = cond_pd_futura & (df['Tipo_Carga'] == 'MONOPROVEEDOR') & (df['Fecha_Prior_DT'] <= hoy + timedelta(days=25))
-            cond_acc_consol= cond_pd_futura & (df['Tipo_Carga'] == 'CONSOLIDADO') & (df['Fecha_Prior_DT'] <= hoy + timedelta(days=10))
-            cond_accionar  = cond_acc_mono | cond_acc_consol
-            cond_futura    = cond_pendiente & (~cond_urgente) & (~cond_accionar)
 
-            df_inst    = df[cond_instruido & cond_prioridad].sort_values(by='Rank_Num').copy()
-            df_urgente = df[cond_urgente   & cond_prioridad].sort_values(by='Rank_Num').copy()
-            df_accionar= df[cond_accionar  & cond_prioridad].sort_values(by='Rank_Num').copy()
-            df_futura  = df[cond_futura    & cond_prioridad].sort_values(by='Rank_Num').copy()
+            # ── Niveles pendiente (todo el universo, sin filtro país) ─────────
+            cond_vencida       = cond_pendiente & (df['Fecha_Prior_DT'] < hoy)
+            # Vencida Urgente: repuestos vacío (pasa por planeamiento)
+            cond_venc_urgente  = cond_vencida & df['_rep_vacio']
+            # Vencida No Prioritaria: repuestos con algo O país ≠ Argentina
+            cond_venc_no_prio  = cond_vencida & (
+                ~df['_rep_vacio'] | (df['Pais Destino'].str.upper() != 'ARGENTINA')
+            )
+            cond_pd_futura     = cond_pendiente & (df['Fecha_Prior_DT'] >= hoy)
+            cond_acc_mono      = cond_pd_futura & (df['Tipo_Carga'] == 'MONOPROVEEDOR') & (df['Fecha_Prior_DT'] <= hoy + timedelta(days=25))
+            cond_acc_consol    = cond_pd_futura & (df['Tipo_Carga'] == 'CONSOLIDADO')   & (df['Fecha_Prior_DT'] <= hoy + timedelta(days=10))
+            cond_accionar      = cond_acc_mono | cond_acc_consol
+            cond_futura        = cond_pendiente & ~cond_vencida & ~cond_accionar
 
-            cond_complementario = cond_pendiente & (~cond_prioridad)
-            df_complem  = df[cond_complementario].sort_values(by=['Fecha_Prior_DT', 'Rank_Num']).copy()
-            df_otros_p  = df_complem[df_complem['Pais Destino'].str.upper() != 'ARGENTINA'].copy()
-            df_repuestos= df_complem[df_complem['Tipo_Repuesto'] != 'Gadnic'].copy()
-            cant_demorados_comp = df_complem[df_complem['Fecha_Prior_DT'] < hoy]['SO'].nunique()
+            df_inst         = df[cond_instruido].sort_values('Rank_Num').copy()
+            df_venc_urg     = df[cond_venc_urgente].sort_values('Rank_Num').copy()
+            df_venc_no_prio = df[cond_venc_no_prio].sort_values('Rank_Num').copy()
+            df_accionar     = df[cond_accionar].sort_values('Rank_Num').copy()
+            df_futura       = df[cond_futura].sort_values('Rank_Num').copy()
+            df_pend_all     = df[cond_pendiente].copy()
 
-            m3_inst     = df_inst['M3 Total'].sum()
-            m3_urgente  = df_urgente['M3 Total'].sum()
-            m3_accionar = df_accionar['M3 Total'].sum()
-            m3_futura   = df_futura['M3 Total'].sum()
-            m3_pend_total = m3_urgente + m3_accionar + m3_futura
+            m3_inst        = df_inst['M3 Total'].sum()
+            m3_venc_urg    = df_venc_urg['M3 Total'].sum()
+            m3_venc_no     = df_venc_no_prio['M3 Total'].sum()
+            m3_accionar    = df_accionar['M3 Total'].sum()
+            m3_futura      = df_futura['M3 Total'].sum()
+            m3_pend_total  = df_pend_all['M3 Total'].sum()
 
             p_inst_val = int(round(m3_inst / m3_totales_global * 100)) if m3_totales_global > 0 else 0
             p_pend_val = 100 - p_inst_val
             fob_total_global = df['Fob total Origen'].sum()
 
+            # ── Desglose mono/consolidado pendiente ───────────────────────────
+            pend_mono  = df_pend_all[df_pend_all['Tipo_Carga'] == 'MONOPROVEEDOR']
+            pend_cons  = df_pend_all[df_pend_all['Tipo_Carga'] == 'CONSOLIDADO']
+
+            # ── KPIs globales ─────────────────────────────────────────────────
             st.markdown("<br>", unsafe_allow_html=True)
             o1, o2, o3, o4 = st.columns(4)
             with o1: st.markdown(f"<div class='metric-container'><p>CANTIDAD DE SO</p><p>{int(cant_so_global)}</p></div>", unsafe_allow_html=True)
@@ -426,28 +427,29 @@ try:
             s1, s2 = st.columns([1.2, 1])
             filtro_actual = st.session_state.get('f')
 
+            # ── INSTRUIDA ─────────────────────────────────────────────────────
             with s1:
+                inst_mono = df_inst[df_inst['Tipo_Carga'] == 'MONOPROVEEDOR']
+                inst_cons = df_inst[df_inst['Tipo_Carga'] == 'CONSOLIDADO']
                 st.markdown(f"""
                     <div class="custom-card" style="border-top: 5px solid #00ff88; background: rgba(0,255,136,0.02);">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
-                            <p class="custom-card-title" style="color:#00ff88; font-size:18px;">MERCADERÍA INSTRUIDA (LOGRADO)</p>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <p class="custom-card-title" style="color:#00ff88; font-size:18px;">MERCADERÍA INSTRUIDA</p>
                             <p style="color:#00ff88; font-weight:900; font-size:32px; margin:0;">{p_inst_val}% <span style="font-size:14px; color:#94a3b8; font-weight:400;">M3</span></p>
                         </div>
-                        <div class="grid-2">
+                        <div class="grid-2" style="margin-bottom:15px;">
                             <div><p class="minicard-title">CANTIDAD SO</p><p class="minicard-value" style="color:#00ff88;">{df_inst['SO'].nunique()}</p></div>
                             <div><p class="minicard-title">VOLUMEN TOTAL</p><p class="minicard-value">{int(round(m3_inst)):,} M3</p></div>
                         </div>
-                        <hr style="border:none; border-top:1px solid rgba(255,255,255,0.08); margin:20px 0;">
+                        <hr style="border:none; border-top:1px solid rgba(255,255,255,0.08); margin:12px 0;">
                         <div class="grid-2">
                             <div>
-                                <p class="minicard-title" style="color:#00a8ff;">ESTRUCTURA DE CARGA</p>
-                                <p style="font-size:12px; margin:5px 0;">MONOPROVEEDOR: <b>{df_inst[df_inst['Tipo_Carga']=='MONOPROVEEDOR']['SO'].nunique()} SO</b> ({int(round(df_inst[df_inst['Tipo_Carga']=='MONOPROVEEDOR']['M3 Total'].sum()))} m3)</p>
-                                <p style="font-size:12px; margin:5px 0;">CONSOLIDADOS: <b>{df_inst[df_inst['Tipo_Carga']=='CONSOLIDADO']['SO'].nunique()} SO</b> ({int(round(df_inst[df_inst['Tipo_Carga']=='CONSOLIDADO']['M3 Total'].sum()))} m3)</p>
+                                <p class="minicard-title" style="color:#00a8ff;">MONOPROVEEDOR</p>
+                                <p style="font-size:13px; margin:4px 0; color:#f8fafc;"><b>{inst_mono['SO'].nunique()} SO</b> · {int(round(inst_mono['M3 Total'].sum())):,} m3</p>
                             </div>
                             <div>
-                                <p class="minicard-title" style="color:#ffaa00;">TIPO DE INGRESO</p>
-                                <p style="font-size:12px; margin:5px 0;">GADNIC: <b>{df_inst[df_inst['Tipo_Repuesto']=='Gadnic']['SO'].nunique()} SO</b></p>
-                                <p style="font-size:12px; margin:5px 0;">MUESTRAS: <b>{df_inst[df_inst['Tipo_Repuesto']=='Muestras']['SO'].nunique()} SO</b></p>
+                                <p class="minicard-title" style="color:#94a3b8;">CONSOLIDADO</p>
+                                <p style="font-size:13px; margin:4px 0; color:#f8fafc;"><b>{inst_cons['SO'].nunique()} SO</b> · {int(round(inst_cons['M3 Total'].sum())):,} m3</p>
                             </div>
                         </div>
                 """, unsafe_allow_html=True)
@@ -456,135 +458,77 @@ try:
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 
+            # ── PENDIENTE ─────────────────────────────────────────────────────
             with s2:
-                df_pend_view = df[cond_pendiente]
                 st.markdown(f"""
                     <div class="custom-card" style="border-top: 5px solid #94a3b8;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                             <p class="custom-card-title" style="color:#f8fafc; font-size:18px;">MERCADERÍA PENDIENTE</p>
                             <p style="color:#f8fafc; font-weight:900; font-size:32px; margin:0;">{p_pend_val}% <span style="font-size:14px; color:#94a3b8; font-weight:400;">M3</span></p>
                         </div>
-                        <div class="grid-2" style="margin-bottom:20px;">
-                            <div><p class="minicard-title">CANTIDAD SO</p><p class="minicard-value">{df_pend_view['SO'].nunique()}</p></div>
+                        <div class="grid-2" style="margin-bottom:12px;">
+                            <div><p class="minicard-title">CANTIDAD SO</p><p class="minicard-value">{df_pend_all['SO'].nunique()}</p></div>
                             <div><p class="minicard-title">VOLUMEN TOTAL</p><p class="minicard-value">{int(round(m3_pend_total)):,} M3</p></div>
+                        </div>
+                        <hr style="border:none; border-top:1px solid rgba(255,255,255,0.08); margin:12px 0;">
+                        <div class="grid-2">
+                            <div>
+                                <p class="minicard-title" style="color:#00a8ff;">MONOPROVEEDOR</p>
+                                <p style="font-size:13px; margin:4px 0; color:#f8fafc;"><b>{pend_mono['SO'].nunique()} SO</b> · {int(round(pend_mono['M3 Total'].sum())):,} m3</p>
+                            </div>
+                            <div>
+                                <p class="minicard-title" style="color:#94a3b8;">CONSOLIDADO</p>
+                                <p style="font-size:13px; margin:4px 0; color:#f8fafc;"><b>{pend_cons['SO'].nunique()} SO</b> · {int(round(pend_cons['M3 Total'].sum())):,} m3</p>
+                            </div>
                         </div>
                     </div>
                 """, unsafe_allow_html=True)
-                if st.button(f"🔴 NIVEL 1: VENCIDA (URGENTE) - {int(round(df_urgente['M3 Total'].sum()))} M3", key="btn_urg_new", use_container_width=True):
-                    st.session_state.f = 'venc' if filtro_actual != 'venc' else None
+                if st.button(f"🔴 NIVEL 1A: VENCIDA URGENTE — {int(round(m3_venc_urg)):,} M3", key="btn_urg_new", use_container_width=True):
+                    st.session_state.f = 'venc_urg' if filtro_actual != 'venc_urg' else None
                     st.rerun()
-                if st.button(f"🟠 NIVEL 2: ACCIONAR (PRÓXIMA) - {int(round(df_accionar['M3 Total'].sum()))} M3", key="btn_acc_new", use_container_width=True):
+                if st.button(f"🟡 NIVEL 1B: VENCIDA NO PRIORITARIA — {int(round(m3_venc_no)):,} M3", key="btn_venc_no_new", use_container_width=True):
+                    st.session_state.f = 'venc_no' if filtro_actual != 'venc_no' else None
+                    st.rerun()
+                if st.button(f"🟠 NIVEL 2: ACCIONAR (PRÓXIMA) — {int(round(m3_accionar)):,} M3", key="btn_acc_new", use_container_width=True):
                     st.session_state.f = 'px25' if filtro_actual != 'px25' else None
                     st.rerun()
-                if st.button(f"🔵 NIVEL 3: PROGRAMADA (FUTURA) - {int(round(df_futura['M3 Total'].sum()))} M3", key="btn_rest_new", use_container_width=True):
+                if st.button(f"🔵 NIVEL 3: PROGRAMADA (FUTURA) — {int(round(m3_futura)):,} M3", key="btn_rest_new", use_container_width=True):
                     st.session_state.f = 'rest' if filtro_actual != 'rest' else None
                     st.rerun()
 
-            st.markdown("<br>", unsafe_allow_html=True)
-            c_sec1, c_sec2, c_sec3 = st.columns(3)
-            with c_sec1:
-                st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
-                if st.button("🏆 TOP 100 RANKING", key="btn_rank_new", use_container_width=True):
-                    st.session_state.f = 'rank' if filtro_actual != 'rank' else None
-                    st.rerun()
-            with c_sec2:
-                st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
-                if st.button(f"🔎 SEGUIMIENTO COMPLEMENTARIO ({df_complem['SO'].nunique()})", key="btn_comp_new", use_container_width=True):
-                    st.session_state.f = 'comp' if filtro_actual != 'comp' else None
-                    st.rerun()
-            with c_sec3:
-                st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
-                if st.button("🏗️ ESTRUCTURA DE CARGA", key="btn_estr_new", use_container_width=True):
-                    st.session_state.f = 'estr' if filtro_actual != 'estr' else None
-                    st.rerun()
-
+            # ── DETALLES EXPANDIBLES ──────────────────────────────────────────
             f = st.session_state.get('f')
             if f:
                 st.markdown("<br>", unsafe_allow_html=True)
-                if f in ["inst", "venc", "px25", "rest", "comp"]:
-                    if f == "inst":  titulo, dff, color = "MERCADERIA INSTRUIDA (PRIORIDAD)", df_inst, "#00ff88"
-                    elif f == "venc": titulo, dff, color = "MERCADERIA VENCIDA (URGENTE)", df_urgente, "#ff4b4b"
-                    elif f == "px25": titulo, dff, color = "PROXIMA A INSTRUIR (ACCIÓN)", df_accionar, "#ffaa00"
-                    elif f == "rest": titulo, dff, color = "MERCADERIA PROGRAMADA (FUTURA)", df_futura, "#94a3b8"
-                    elif f == "comp": titulo, dff, color = "SEGUIMIENTO ESPECIAL (OTROS PAÍSES / REPUESTOS)", df_complem, "#00a8ff"
-
+                mapa = {
+                    'inst'    : ("MERCADERÍA INSTRUIDA",           df_inst,         "#00ff88"),
+                    'venc_urg': ("VENCIDA URGENTE (PLANEAMIENTO)", df_venc_urg,     "#ff4b4b"),
+                    'venc_no' : ("VENCIDA NO PRIORITARIA",         df_venc_no_prio, "#ffdd57"),
+                    'px25'    : ("PRÓXIMA A INSTRUIR (ACCIÓN)",    df_accionar,     "#ffaa00"),
+                    'rest'    : ("PROGRAMADA (FUTURA)",            df_futura,       "#94a3b8"),
+                }
+                if f in mapa:
+                    titulo, dff, color = mapa[f]
                     cant_so_f = dff['SO'].nunique()
-                    m3_f = int(round(dff['M3 Total'].sum()))
-
-                    if f == "comp":
-                        msg_extra = f"<p style='color:#ff4b4b; font-size:14px; font-weight:700;'>🚨 {cant_demorados_comp} SO DEMORADAS EN SEGUIMIENTO</p>"
-                        st.markdown(f"""
-                            <div class="custom-card" style="border-left: 5px solid {color};">
-                                <p class="custom-card-title" style="color:{color};">{titulo}</p>
-                                {msg_extra}
-                                <div class="grid-2">
-                                    <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:10px;">
-                                        <p class="minicard-title">DESTINOS EXTERNOS</p>
-                                        <p style="font-size:20px; font-weight:700; color:#fff; margin:0;">{df_otros_p['SO'].nunique()} SO | {int(round(df_otros_p['M3 Total'].sum()))} M3</p>
-                                    </div>
-                                    <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:10px;">
-                                        <p class="minicard-title">REPUESTOS / MUESTRAS</p>
-                                        <p style="font-size:20px; font-weight:700; color:#fff; margin:0;">{df_repuestos['SO'].nunique()} SO | {int(round(df_repuestos['M3 Total'].sum()))} M3</p>
-                                    </div>
-                                </div>
-                            </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        st.markdown(f"""
-                            <div class="custom-card" style="border-left: 5px solid {color};">
-                                <p class="custom-card-title" style="color:{color};">{titulo} ({int(round(m3_f/m3_totales_global*100)) if m3_totales_global > 0 else 0}%)</p>
-                                <div class="grid-2">
-                                    <div><p class="minicard-title">CANTIDAD SO</p><p class="minicard-value">{cant_so_f}</p></div>
-                                    <div><p class="minicard-title">VOLUMEN TOTAL</p><p class="minicard-value">{m3_f:,} M3</p></div>
-                                </div>
-                            </div>
-                        """, unsafe_allow_html=True)
-
-                    cols_to_show = ['SO', col_rank, 'Proveedor', col_puerto_pc, 'Pais Destino', 'M3 Total', df.columns[99], 'Fecha de Instruccion']
-                    if 'Repuestos' in df.columns:
-                        cols_to_show.insert(4, 'Repuestos')
-                    st.dataframe(dff[cols_to_show], use_container_width=True)
-
-                elif f == "rank":
-                    col_prior = df.columns[99]
-                    df_rank = df[df['Rank_Num'] <= 100].sort_values(by='Rank_Num').copy()
-                    df_rank['Status'] = df_rank['Fecha_Inst_DT'].apply(lambda x: "✅ OK" if pd.notna(x) else "❌ PEND")
+                    m3_f      = int(round(dff['M3 Total'].sum()))
+                    pct_f     = int(round(m3_f / m3_totales_global * 100)) if m3_totales_global > 0 else 0
                     st.markdown(f"""
-                        <div class="custom-card" style="border-left: 5px solid #00a8ff;">
-                            <p class="custom-card-title" style="color:#00a8ff;">TOP 100 RANKING - RESUMEN</p>
+                        <div class="custom-card" style="border-left: 5px solid {color};">
+                            <p class="custom-card-title" style="color:{color};">{titulo} ({pct_f}%)</p>
                             <div class="grid-2">
-                                <div><p class="minicard-title">EMBARQUES EN RANGO</p><p class="minicard-value">{df_rank['SO'].nunique()}</p></div>
-                                <div><p class="minicard-title">M3 TOTAL PRIORITARIO</p><p class="minicard-value">{int(df_rank['M3 Total'].sum()):,} M3</p></div>
+                                <div><p class="minicard-title">CANTIDAD SO</p><p class="minicard-value">{cant_so_f}</p></div>
+                                <div><p class="minicard-title">VOLUMEN TOTAL</p><p class="minicard-value">{m3_f:,} M3</p></div>
                             </div>
                         </div>
                     """, unsafe_allow_html=True)
-                    cols_rank = ['SO', col_rank, 'Proveedor', col_puerto_pc, 'Pais Destino', col_prior, 'M3 Total', 'Status']
-                    if 'Repuestos' in df.columns: cols_rank.insert(3, 'Repuestos')
-                    st.dataframe(df_rank[cols_rank], use_container_width=True)
+                    cols_show = ['SO', col_rank, 'Proveedor', col_puerto_pc, 'Pais Destino', col_repuestos, 'M3 Total', df.columns[99], col_inst_pc]
+                    st.dataframe(dff[[c for c in cols_show if c in dff.columns]], use_container_width=True)
 
-                elif f == "estr":
-                    df['Tipo_Carga'] = df[col_cp].apply(lambda x: 'MONOPROVEEDOR' if str(x).upper() == 'SI' else 'CONSOLIDADO')
-                    st.markdown("<p style='color:#00a8ff; font-weight:700; letter-spacing:4px; margin-bottom:20px; font-size:18px;'>ANALISIS ESTRUCTURA DE CARGA</p>", unsafe_allow_html=True)
-                    e1, e2 = st.columns(2)
-                    tipos = ["CONSOLIDADO", "MONOPROVEEDOR"]
-                    colores_e = ["#94a3b8", "#00a8ff"]
-                    for i, t_carga in enumerate(tipos):
-                        df_c = df[df['Tipo_Carga'] == t_carga]
-                        with [e1, e2][i]:
-                            st.markdown(f"""
-                                <div class="custom-card" style="border-left: 5px solid {colores_e[i]};">
-                                    <p class="custom-card-title" style="color:{colores_e[i]};">{t_carga}</p>
-                                    <div class="grid-2">
-                                        <div><p class="minicard-title">CANT. SO</p><p class="minicard-value">{df_c['SO'].nunique()}</p></div>
-                                        <div><p class="minicard-title">TOTAL M3</p><p class="minicard-value">{int(df_c['M3 Total'].sum()):,}</p></div>
-                                    </div>
-                                </div>
-                            """, unsafe_allow_html=True)
-
+            # ── DISTRIBUCIÓN GEOGRÁFICA ───────────────────────────────────────
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
             st.markdown("<p style='color:#00a8ff; font-weight:700; letter-spacing:4px; font-size:18px; margin-bottom:25px; text-align:center;'>DISTRIBUCIÓN GEOGRÁFICA</p>", unsafe_allow_html=True)
 
-            res_p = df.groupby('Pais Destino').agg({'SO': 'nunique', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT_SO', 'M3 Total': 'M3'}).sort_values(by='M3', ascending=False)
+            res_p      = df.groupby('Pais Destino').agg({'SO': 'nunique', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT_SO', 'M3 Total': 'M3'}).sort_values(by='M3', ascending=False)
             total_so_p = res_p['CANT_SO'].sum()
             total_m3_p = res_p['M3'].sum()
 
@@ -613,71 +557,120 @@ try:
             tp3.markdown(f"<p style='color:#f8fafc; font-weight:800; font-size:22px; text-align:center;'>{int(total_so_p)}</p>", unsafe_allow_html=True)
             tp4.markdown("<p style='color:#00ff88; font-weight:900; font-size:20px; text-align:right;'>100%</p>", unsafe_allow_html=True)
 
+            # ── VOLUMEN POR PUERTO (con % M3) ────────────────────────────────
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
             p_df = df.groupby(col_puerto_pc).agg({'M3 Total': 'sum'}).reset_index().sort_values(by='M3 Total')
-            st.markdown(f"<p style='color:#00a8ff; font-weight:700; font-size:18px; text-align:center; letter-spacing:4px; margin-bottom:20px;'>VOLUMEN POR PUERTO DE SALIDA <span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>| TOTAL: {int(round(p_df['M3 Total'].sum())):,} M3</span></p>", unsafe_allow_html=True)
-            fig_p = px.bar(p_df, y=col_puerto_pc, x='M3 Total', orientation='h', text_auto=',.0f', color_discrete_sequence=['#00a8ff'])
-            fig_p.update_traces(textposition='outside', cliponaxis=False, textfont_size=16, textfont_color="#f8fafc", marker=dict(cornerradius=5))
-            fig_p.update_layout(xaxis_visible=True, xaxis_title="Total M3", yaxis_title="Puerto", height=500, margin=dict(l=150, r=100, t=20, b=20), font=dict(size=14, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            p_total_puerto = p_df['M3 Total'].sum()
+            p_df['Pct'] = (p_df['M3 Total'] / p_total_puerto * 100).round(1) if p_total_puerto > 0 else 0
+            p_df['Label'] = p_df.apply(lambda r: f"{int(round(r['M3 Total'])):,} M3  ({r['Pct']:.1f}%)", axis=1)
+            st.markdown(f"<p style='color:#00a8ff; font-weight:700; font-size:18px; text-align:center; letter-spacing:4px; margin-bottom:20px;'>VOLUMEN POR PUERTO DE SALIDA <span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>| TOTAL: {int(round(p_total_puerto)):,} M3</span></p>", unsafe_allow_html=True)
+            fig_p = px.bar(p_df, y=col_puerto_pc, x='M3 Total', orientation='h', text='Label', color_discrete_sequence=['#00a8ff'])
+            fig_p.update_traces(textposition='outside', cliponaxis=False, textfont_size=13, textfont_color="#f8fafc", marker=dict(cornerradius=5))
+            fig_p.update_layout(xaxis_visible=True, xaxis_title="Total M3", yaxis_title="Puerto", height=500, margin=dict(l=150, r=180, t=20, b=20), font=dict(size=14, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
             fig_p.update_xaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)')
             st.plotly_chart(fig_p, use_container_width=True)
 
+            # ── PROYECCIONES: solo meses futuros (desde inicio_mes en adelante)
+            # Calculamos el historico para el mini resumen
+            df_etd_pasado = df[df['ETD_DT'] < inicio_mes]
+            df_eta_pasado = df[df['ETA_DT'] < hoy]
+            m3_etd_pasado  = df_etd_pasado['M3 Total'].sum()
+            m3_eta_pasado  = df_eta_pasado['M3 Total'].sum()
+
+            # Solo futuro
+            df_etd_fut = df[df['ETD_DT'] >= inicio_mes].copy()
+            df_eta_fut = df[df['ETA_DT'] >= hoy].copy()
+            df_etd_fut['Mes_ETD_Graf'] = df_etd_fut['ETD_DT'].dt.strftime('%m/%Y')
+            df_eta_fut['Mes_ETA_Graf'] = df_eta_fut['ETA_DT'].dt.strftime('%m/%Y')
+
+            etd_p_fut = df_etd_fut.groupby('Mes_ETD_Graf')['M3 Total'].sum().reset_index()
+            eta_p_fut = df_eta_fut.groupby('Mes_ETA_Graf')['M3 Total'].sum().reset_index()
+
+            # Ordenar cronológicamente
+            etd_p_fut = etd_p_fut.sort_values('Mes_ETD_Graf', key=lambda s: pd.to_datetime(s, format='%m/%Y'))
+            eta_p_fut = eta_p_fut.sort_values('Mes_ETA_Graf', key=lambda s: pd.to_datetime(s, format='%m/%Y'))
+
+            def mini_resumen_hist(m3_hist, label_fechas):
+                if m3_hist > 0:
+                    st.markdown(
+                        f"<p style='color:#475569; font-size:11px; text-align:center; margin-top:4px; letter-spacing:1px;'>"
+                        f"YA {label_fechas}: {int(round(m3_hist)):,} M3 no incluidos en el gráfico</p>",
+                        unsafe_allow_html=True
+                    )
+
             ga, gb = st.columns(2)
             with ga:
-                etd_p = df.groupby('Mes_ETD_Full').agg({'M3 Total': 'sum'}).reset_index()
-                st.markdown(f"<p style='color:#00ff88; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:20px;'>PROYECCIÓN MENSUAL ETD<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL: {int(round(etd_p['M3 Total'].sum())):,} M3</span></p>", unsafe_allow_html=True)
-                fig_e = px.bar(etd_p, x='Mes_ETD_Full', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#00ff88'])
-                fig_e.update_traces(textfont_size=16, textposition='outside', textfont_color="#f8fafc", marker=dict(cornerradius=5))
-                fig_e.update_layout(yaxis_visible=True, yaxis_title="Total M3", xaxis_title="Mes ETD", height=450, margin=dict(l=20, r=20, t=20, b=20), font=dict(size=14, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                m3_etd_fut = etd_p_fut['M3 Total'].sum()
+                st.markdown(f"<p style='color:#00ff88; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:10px;'>PROYECCIÓN MENSUAL ETD<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL: {int(round(m3_etd_fut)):,} M3</span></p>", unsafe_allow_html=True)
+                fig_e = px.bar(etd_p_fut, x='Mes_ETD_Graf', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#00ff88'])
+                fig_e.update_traces(textfont_size=14, textposition='outside', textfont_color="#f8fafc", marker=dict(cornerradius=5))
+                fig_e.update_layout(yaxis_visible=True, yaxis_title="Total M3", xaxis_title="Mes ETD", height=420, margin=dict(l=20, r=20, t=20, b=20), font=dict(size=13, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                 fig_e.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)')
                 st.plotly_chart(fig_e, use_container_width=True)
+                mini_resumen_hist(m3_etd_pasado, "EMBARCADO")
             with gb:
-                eta_p = df.groupby('Mes_ETA_Full', observed=True).agg({'M3 Total': 'sum'}).reset_index()
-                st.markdown(f"<p style='color:#ff4b4b; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:20px;'>PROYECCIÓN MENSUAL ETA<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL: {int(round(eta_p['M3 Total'].sum())):,} M3</span></p>", unsafe_allow_html=True)
-                fig_a = px.bar(eta_p, x='Mes_ETA_Full', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#ff4b4b'])
-                fig_a.update_traces(textfont_size=16, textposition='outside', textfont_color="#f8fafc", marker=dict(cornerradius=5))
-                fig_a.update_layout(yaxis_visible=True, yaxis_title="Total M3", xaxis_title="Mes ETA", height=450, margin=dict(l=20, r=20, t=20, b=20), font=dict(size=14, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                m3_eta_fut = eta_p_fut['M3 Total'].sum()
+                st.markdown(f"<p style='color:#ff4b4b; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:10px;'>PROYECCIÓN MENSUAL ETA<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL: {int(round(m3_eta_fut)):,} M3</span></p>", unsafe_allow_html=True)
+                fig_a = px.bar(eta_p_fut, x='Mes_ETA_Graf', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#ff4b4b'])
+                fig_a.update_traces(textfont_size=14, textposition='outside', textfont_color="#f8fafc", marker=dict(cornerradius=5))
+                fig_a.update_layout(yaxis_visible=True, yaxis_title="Total M3", xaxis_title="Mes ETA", height=420, margin=dict(l=20, r=20, t=20, b=20), font=dict(size=13, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                 fig_a.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)')
                 st.plotly_chart(fig_a, use_container_width=True)
+                mini_resumen_hist(m3_eta_pasado, "ARRIBADO")
 
+            # ── CONTENEDORES (solo futuro, Argentina + barco) ─────────────────
             st.markdown("<hr class='white-divider'>", unsafe_allow_html=True)
-            gc, gd = st.columns(2)
-            with gc:
-                col_mod_opciones = [c for c in df.columns if 'MODALIDAD' in str(c).upper() and 'COSTEO' in str(c).upper()]
-                col_mod = col_mod_opciones[0] if col_mod_opciones else df.columns[68]
-                if col_mod in df.columns:
-                    mask_arg   = df['Pais Destino'].astype(str).str.strip().str.upper() == 'ARGENTINA'
-                    mask_barco = (
-                        df[col_mod].astype(str).str.upper().str.startswith("BARCO") |
-                        df[col_mod].astype(str).str.upper().str.contains("COSTO HIBRIDO PUERTO ZFLP", na=False)
-                    )
-                    mask_cntr = mask_arg & mask_barco
-                    df_c_etd = df[mask_cntr].groupby('Mes_ETD_Full').agg({'M3 Total': 'sum'}).reset_index()
-                    df_c_etd['Contenedores'] = (df_c_etd['M3 Total'] / 60).round().astype(int)
-                    tot_cont_etd = df_c_etd['Contenedores'].sum()
-                    st.markdown(f"<p style='color:#ffaa00; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:20px;'>PROYECCIÓN CONTENEDORES (ETD)<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL: {int(tot_cont_etd):,} CNTR</span></p>", unsafe_allow_html=True)
-                    fig_cetd = px.bar(df_c_etd, x='Mes_ETD_Full', y='Contenedores', text_auto=',.0f', color_discrete_sequence=['#ffaa00'])
-                    fig_cetd.update_traces(textfont_size=16, textposition='outside', textfont_color="#f8fafc", marker=dict(cornerradius=5))
-                    fig_cetd.update_layout(yaxis_visible=True, yaxis_title="Cant. Cont", xaxis_title="Mes ETD", height=450, margin=dict(l=20, r=20, t=20, b=20), font=dict(size=14, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            col_mod_opciones = [c for c in df.columns if 'MODALIDAD' in str(c).upper() and 'COSTEO' in str(c).upper()]
+            col_mod = col_mod_opciones[0] if col_mod_opciones else df.columns[68]
+
+            if col_mod in df.columns:
+                mask_arg   = df['Pais Destino'].astype(str).str.strip().str.upper() == 'ARGENTINA'
+                mask_barco = (
+                    df[col_mod].astype(str).str.upper().str.startswith("BARCO") |
+                    df[col_mod].astype(str).str.upper().str.contains("COSTO HIBRIDO PUERTO ZFLP", na=False)
+                )
+                df_cntr_base = df[mask_arg & mask_barco].copy()
+
+                # Historico contenedores
+                df_cntr_pas_etd = df_cntr_base[df_cntr_base['ETD_DT'] < inicio_mes]
+                df_cntr_pas_eta = df_cntr_base[df_cntr_base['ETA_DT'] < hoy]
+                cntr_etd_pas = round(df_cntr_pas_etd['M3 Total'].sum() / 60)
+                cntr_eta_pas = round(df_cntr_pas_eta['M3 Total'].sum() / 60)
+
+                # Futuro contenedores
+                df_cntr_etd_fut = df_cntr_base[df_cntr_base['ETD_DT'] >= inicio_mes].copy()
+                df_cntr_eta_fut = df_cntr_base[df_cntr_base['ETA_DT'] >= hoy].copy()
+                df_cntr_etd_fut['Mes'] = df_cntr_etd_fut['ETD_DT'].dt.strftime('%m/%Y')
+                df_cntr_eta_fut['Mes'] = df_cntr_eta_fut['ETA_DT'].dt.strftime('%m/%Y')
+
+                c_etd_g = df_cntr_etd_fut.groupby('Mes')['M3 Total'].sum().reset_index()
+                c_eta_g = df_cntr_eta_fut.groupby('Mes')['M3 Total'].sum().reset_index()
+                c_etd_g = c_etd_g.sort_values('Mes', key=lambda s: pd.to_datetime(s, format='%m/%Y'))
+                c_eta_g = c_eta_g.sort_values('Mes', key=lambda s: pd.to_datetime(s, format='%m/%Y'))
+                c_etd_g['Contenedores'] = (c_etd_g['M3 Total'] / 60).round().astype(int)
+                c_eta_g['Contenedores'] = (c_eta_g['M3 Total'] / 60).round().astype(int)
+
+                gc2, gd2 = st.columns(2)
+                with gc2:
+                    tot_c_etd = c_etd_g['Contenedores'].sum()
+                    st.markdown(f"<p style='color:#ffaa00; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:10px;'>PROYECCIÓN CONTENEDORES (ETD)<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL: {int(tot_c_etd):,} CNTR</span></p>", unsafe_allow_html=True)
+                    fig_cetd = px.bar(c_etd_g, x='Mes', y='Contenedores', text_auto=',.0f', color_discrete_sequence=['#ffaa00'])
+                    fig_cetd.update_traces(textfont_size=14, textposition='outside', textfont_color="#f8fafc", marker=dict(cornerradius=5))
+                    fig_cetd.update_layout(yaxis_visible=True, yaxis_title="Cant. Cont", xaxis_title="Mes ETD", height=420, margin=dict(l=20, r=20, t=20, b=20), font=dict(size=13, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                     fig_cetd.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)')
                     st.plotly_chart(fig_cetd, use_container_width=True)
-            with gd:
-                if col_mod in df.columns:
-                    mask_arg   = df['Pais Destino'].astype(str).str.strip().str.upper() == 'ARGENTINA'
-                    mask_barco = (
-                        df[col_mod].astype(str).str.upper().str.startswith("BARCO") |
-                        df[col_mod].astype(str).str.upper().str.contains("COSTO HIBRIDO PUERTO ZFLP", na=False)
-                    )
-                    mask_cntr = mask_arg & mask_barco
-                    df_c_eta = df[mask_cntr].groupby('Mes_ETA_Full', observed=True).agg({'M3 Total': 'sum'}).reset_index()
-                    df_c_eta['Contenedores'] = (df_c_eta['M3 Total'] / 60).round().astype(int)
-                    tot_cont_eta = df_c_eta['Contenedores'].sum()
-                    st.markdown(f"<p style='color:#ffaa00; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:20px;'>PROYECCIÓN CONTENEDORES (ETA)<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL: {int(tot_cont_eta):,} CNTR</span></p>", unsafe_allow_html=True)
-                    fig_ceta = px.bar(df_c_eta, x='Mes_ETA_Full', y='Contenedores', text_auto=',.0f', color_discrete_sequence=['#ffaa00'])
-                    fig_ceta.update_traces(textfont_size=16, textposition='outside', textfont_color="#f8fafc", marker=dict(cornerradius=5))
-                    fig_ceta.update_layout(yaxis_visible=True, yaxis_title="Cant. Cont", xaxis_title="Mes ETA", height=450, margin=dict(l=20, r=20, t=20, b=20), font=dict(size=14, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                    if cntr_etd_pas > 0:
+                        st.markdown(f"<p style='color:#475569; font-size:11px; text-align:center; margin-top:4px; letter-spacing:1px;'>YA EMBARCADO: ~{int(cntr_etd_pas):,} CNTR no incluidos en el gráfico</p>", unsafe_allow_html=True)
+                with gd2:
+                    tot_c_eta = c_eta_g['Contenedores'].sum()
+                    st.markdown(f"<p style='color:#ffaa00; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:10px;'>PROYECCIÓN CONTENEDORES (ETA)<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL: {int(tot_c_eta):,} CNTR</span></p>", unsafe_allow_html=True)
+                    fig_ceta = px.bar(c_eta_g, x='Mes', y='Contenedores', text_auto=',.0f', color_discrete_sequence=['#ffaa00'])
+                    fig_ceta.update_traces(textfont_size=14, textposition='outside', textfont_color="#f8fafc", marker=dict(cornerradius=5))
+                    fig_ceta.update_layout(yaxis_visible=True, yaxis_title="Cant. Cont", xaxis_title="Mes ETA", height=420, margin=dict(l=20, r=20, t=20, b=20), font=dict(size=13, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                     fig_ceta.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)')
                     st.plotly_chart(fig_ceta, use_container_width=True)
+                    if cntr_eta_pas > 0:
+                        st.markdown(f"<p style='color:#475569; font-size:11px; text-align:center; margin-top:4px; letter-spacing:1px;'>YA ARRIBADO: ~{int(cntr_eta_pas):,} CNTR no incluidos en el gráfico</p>", unsafe_allow_html=True)
         except Exception as e:
             st.error(f"Error en Solapa Origen: {e}")
 
