@@ -1722,7 +1722,7 @@ border-left:4px solid #475569;'>
 </div>
 </div>""", unsafe_allow_html=True)
 
-                for rank, (_, row) in enumerate(ag_summary.iterrows()):
+                for rank, (_, row) in enumerate(ag_summary.head(4).iterrows()):
                     ag      = row['Agente']
                     tarifa  = row['Tarifa']
                     pct_bar = round(tarifa / max_tar * 100) if max_tar > 0 else 0
@@ -1771,6 +1771,23 @@ border-left:5px solid {color_ag};'>
 
             df_hist = df_fl[df_fl['_cnt'] == cnt_hist].copy()
             df_hist = df_hist[df_hist['_anio'].isin([2025, 2026])].copy()
+
+            # Nota de filtros aplicados
+            st.markdown("""
+<div style='display:flex; align-items:flex-start; gap:10px; padding:10px 16px;
+background:rgba(255,255,255,0.02); border-radius:10px;
+border-left:3px solid #334155; margin-bottom:20px;'>
+<p style='color:#334155; font-size:18px; margin:0;'>🔍</p>
+<div>
+<p style='color:#475569; font-size:11px; font-weight:700; letter-spacing:1px; margin:0 0 3px 0;'>FILTROS APLICADOS</p>
+<p style='color:#334155; font-size:11px; margin:0; line-height:1.6;'>
+Destino: <b style='color:#475569;'>Argentina</b> · 
+Excluidos: <b style='color:#475569;'>Lázaro Cárdenas · Manzanillo · Montevideo · Santos · Uruguay · MVD/SSZ</b> · 
+Tipo de flete: <b style='color:#475569;'>Marítimo</b> · 
+Métrica: <b style='color:#475569;'>Mediana mensual</b>
+</p>
+</div>
+</div>""", unsafe_allow_html=True)
 
             if df_hist.empty:
                 st.info("Sin datos históricos suficientes.")
@@ -1891,7 +1908,7 @@ border:1px solid rgba(255,255,255,0.07); border-top:4px solid {color};'>
                 ag_loc = ag_loc.sort_values('Gasto Local').reset_index(drop=True)
                 max_gl = ag_loc['Gasto Local'].max()
 
-                for rank, (_, row) in enumerate(ag_loc.iterrows()):
+                for rank, (_, row) in enumerate(ag_loc.head(4).iterrows()):
                     pct_gl  = round(row['Gasto Local'] / max_gl * 100) if max_gl > 0 else 0
                     color_gl = '#00ff88' if rank == 0 else ('#ffaa00' if row['Gasto Local'] <= med_loc else '#ff4b4b')
                     dif_gl  = int(round(row['Gasto Local'] - ag_loc['Gasto Local'].iloc[0]))
