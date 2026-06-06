@@ -682,21 +682,28 @@ try:
             pct_adv  = round(msk_adv.sum() / total_mar * 100) if total_mar > 0 else 0
             pct_spot = 100 - pct_adv
 
-            # Medianas de consolidación (col 28)
-            dias_consol_raw = df_mar.iloc[:, 28].apply(safe_float_f)
-            dias_consol_raw = dias_consol_raw[dias_consol_raw > 0]
+            # Medianas de consolidación
+            # Buscamos la columna por nombre para evitar desplazamiento de índices
+            # La columna es "Tiempo total consolidacion" → AC en Reservas = col 28 del df_res original
+            # Usamos df_res original (antes de agregar columnas calculadas) con col nombre
+            _col_cons_name = df_res.columns[28]  # AC = Tiempo total consolidacion
+            # Agregamos la columna al df_mar alineando por índice con df_g
+            df_mar['_dias_cons'] = df_res.loc[df_mar.index, _col_cons_name].apply(safe_float_f) if _col_cons_name in df_res.columns else pd.Series(0.0, index=df_mar.index)
 
             def safe_median(series):
-                return series.median() if not series.empty else 0
+                s = series[series > 0]
+                return s.median() if not s.empty else 0
 
-            dias_mono_raw = dias_consol_raw[msk_mono[dias_consol_raw.index]] if not dias_consol_raw.empty else pd.Series([], dtype=float)
-            dias_cons_raw = dias_consol_raw[~msk_mono[dias_consol_raw.index]] if not dias_consol_raw.empty else pd.Series([], dtype=float)
-            dias_adv_raw  = dias_consol_raw[msk_adv[dias_consol_raw.index]] if not dias_consol_raw.empty else pd.Series([], dtype=float)
-            dias_spot_raw = dias_consol_raw[~msk_adv[dias_consol_raw.index]] if not dias_consol_raw.empty else pd.Series([], dtype=float)
-            mediana_mono  = safe_median(dias_mono_raw)
-            mediana_cons  = safe_median(dias_cons_raw)
-            mediana_adv   = safe_median(dias_adv_raw)
-            mediana_spot  = safe_median(dias_spot_raw)
+            # Máscaras ya definidas sobre df_mar — reutilizamos sus índices directamente
+            dias_consol_raw = df_mar['_dias_cons']
+            dias_mono_raw   = df_mar.loc[msk_mono, '_dias_cons']
+            dias_cons_raw   = df_mar.loc[~msk_mono, '_dias_cons']
+            dias_adv_raw    = df_mar.loc[msk_adv, '_dias_cons']
+            dias_spot_raw   = df_mar.loc[~msk_adv, '_dias_cons']
+            mediana_mono    = safe_median(dias_mono_raw)
+            mediana_cons    = safe_median(dias_cons_raw)
+            mediana_adv     = safe_median(dias_adv_raw)
+            mediana_spot    = safe_median(dias_spot_raw)
 
             # ETD esta semana (lunes a domingo)
             lunes_semana   = hoy - timedelta(days=hoy.weekday())
@@ -716,12 +723,8 @@ try:
             df_adv_sem   = df_etd_semana[msk_adv_sem]
             df_spot_sem  = df_etd_semana[~msk_adv_sem]
 
-            dias_adv_sem_raw  = df_adv_sem.iloc[:, 28].apply(safe_float_f) if not df_adv_sem.empty else pd.Series([], dtype=float)
-            dias_spot_sem_raw = df_spot_sem.iloc[:, 28].apply(safe_float_f) if not df_spot_sem.empty else pd.Series([], dtype=float)
-            dias_adv_sem_raw  = dias_adv_sem_raw[dias_adv_sem_raw > 0]
-            dias_spot_sem_raw = dias_spot_sem_raw[dias_spot_sem_raw > 0]
-            med_adv_sem  = safe_median(dias_adv_sem_raw)
-            med_spot_sem = safe_median(dias_spot_sem_raw)
+            med_adv_sem  = safe_median(df_adv_sem['_dias_cons']) if not df_adv_sem.empty else 0
+            med_spot_sem = safe_median(df_spot_sem['_dias_cons']) if not df_spot_sem.empty else 0
 
             # Semaforo ETD
             if pct_ok_mar >= 70:
