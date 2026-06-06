@@ -661,14 +661,13 @@ try:
             cntr_mar   = df_mar.iloc[:, 1].apply(safe_float_f).sum()
             pct_ok_mar = round(ok_mar / total_mar * 100) if total_mar > 0 else 0
 
-            # Destinos Argentina vs otros
-            col_pais_s2 = df.columns[18]
-            mask_arg_s2 = df_inst_s2[col_pais_s2].astype(str).str.strip().str.upper() == 'ARGENTINA'
-            total_so_s2 = df_inst_s2['SO'].nunique()
-            so_arg      = df_inst_s2[mask_arg_s2]['SO'].nunique()
-            so_otros    = total_so_s2 - so_arg
-            pct_arg     = round(so_arg / total_so_s2 * 100) if total_so_s2 > 0 else 0
-            pct_otros   = 100 - pct_arg
+            # Destinos Argentina vs otros — embarques de df_mar (Reservas), col 3 = destino
+            mask_arg_mar  = df_mar.iloc[:, 3].astype(str).str.strip().str.upper() == 'ARGENTINA'
+            emb_arg       = df_mar[mask_arg_mar].iloc[:, 0].nunique()
+            emb_otros     = df_mar[~mask_arg_mar].iloc[:, 0].nunique()
+            total_emb_dest = emb_arg + emb_otros
+            pct_arg       = round(emb_arg / total_emb_dest * 100) if total_emb_dest > 0 else 0
+            pct_otros     = 100 - pct_arg
 
             # Estructura de carga
             msk_mono  = df_mar.iloc[:, 32].astype(str).str.strip().str.upper().isin(['SI', 'SÍ', 'S', 'MONOPROVEEDOR'])
@@ -796,11 +795,11 @@ height:{H_ROW1}; box-sizing:border-box; display:flex; flex-direction:column; jus
 <div style='border-top:1px solid rgba(255,255,255,0.07); padding-top:14px; display:flex; gap:24px;'>
     <div>
         <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 3px 0;'>ARGENTINA</p>
-        <p style='color:#f8fafc; font-size:17px; font-weight:800; margin:0;'>{pct_arg}% <span style='font-size:12px; color:#475569; font-weight:400;'>({so_arg} SO)</span></p>
+        <p style='color:#f8fafc; font-size:17px; font-weight:800; margin:0;'>{pct_arg}% <span style='font-size:12px; color:#475569; font-weight:400;'>({emb_arg} emb)</span></p>
     </div>
     <div>
         <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 3px 0;'>OTROS DESTINOS</p>
-        <p style='color:#f8fafc; font-size:17px; font-weight:800; margin:0;'>{pct_otros}% <span style='font-size:12px; color:#475569; font-weight:400;'>({so_otros} SO)</span></p>
+        <p style='color:#f8fafc; font-size:17px; font-weight:800; margin:0;'>{pct_otros}% <span style='font-size:12px; color:#475569; font-weight:400;'>({emb_otros} emb)</span></p>
     </div>
 </div>
 </div>""", unsafe_allow_html=True)
