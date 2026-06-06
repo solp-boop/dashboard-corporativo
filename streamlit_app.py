@@ -331,7 +331,7 @@ try:
             st.cache_data.clear()
             st.rerun()
     tabs = st.tabs(["ORIGEN", "MERCADERÍA EN PROCESO", "PERFORMANCE DE AGENTES Y ANALISTAS", "FLETES, GASTOS Y CERTIFICACIONES", "PROYECCIÓN SEMANAL ETD", "INDICADORES", "ALERTAS ESTRATÉGICAS", "ASK COMEX"])
-    # --- SOLAPA 1: ORIGEN ---
+ # --- SOLAPA 1: ORIGEN ---
     with tabs[0]:
         try:
             df['Fecha_Inst_DT'] = pd.to_datetime(df['Fecha de Instruccion'], dayfirst=True, errors='coerce')
@@ -340,16 +340,25 @@ try:
             df['Rank_Num'] = pd.to_numeric(df['Rank_Num'], errors='coerce').fillna(999999)
             col_cp = df.columns[93]
             df['Tipo_Carga'] = df[col_cp].apply(lambda x: 'MONOPROVEEDOR' if str(x).upper() == 'SI' else 'CONSOLIDADO')
-            def get_tipo_repuesto(val):
-                val_str = str(val).strip().lower()
-                if val_str in ['', 'nan', 'none'] or pd.isna(val) or val_str == 'nan': return "Gadnic"
-                if "muestra" in val_str: return "Muestras"
-                if "sin planeamiento" in val_str: return "Marcas"
-                return "Gadnic"
-            df['Tipo_Repuesto'] = df['Repuestos'].apply(get_tipo_repuesto) if 'Repuestos' in df.columns else 'Gadnic'
+
+            # ── CLASIFICACIÓN TIPO DE NEGOCIO ──────────────────────────────
+            def get_tipo_negocio(row):
+                col_prov = df.columns[30]  # AE = Proveedor
+                val_rep  = str(row['Repuestos']).strip().lower() if 'Repuestos' in df.columns else ''
+                val_prov = str(row[col_prov]).strip().upper()    if len(df.columns) > 30 else ''
+                if val_rep in ['', 'nan', 'none']:
+                    if 'DJI' in val_prov:                       return 'DJI'
+                    if 'IFLIGHT TECHNOLOGY CO LTD' in val_prov: return 'AGRAS'
+                    return 'GADNIC'
+                if 'repuesto' in val_rep:         return 'REPUESTOS'
+                if 'muestra'  in val_rep:         return 'MUESTRAS'
+                if 'sin planeamiento' in val_rep: return 'MARCAS'
+                return 'GADNIC'
+            df['Tipo_Repuesto'] = df.apply(get_tipo_negocio, axis=1) if 'Repuestos' in df.columns else 'GADNIC'
+
             df['Pais Destino'] = df['Pais Destino'].fillna('SIN DEFINIR').astype(str).str.strip()
             df['Repuestos'] = df['Repuestos'].fillna('').astype(str).str.strip()
-            cond_prioridad = (df['Pais Destino'].str.upper() == 'ARGENTINA') & (df['Tipo_Repuesto'] == 'Gadnic')
+            cond_prioridad = (df['Pais Destino'].str.upper() == 'ARGENTINA') & (df['Tipo_Repuesto'] == 'GADNIC')
             cond_instruido = df['Fecha_Inst_DT'].notna() & ~(df['Fecha de Instruccion'].astype(str).str.upper().str.contains("SIN INSTRUCCION", na=False))
             cond_pendiente = ~cond_instruido
             cond_urgente = cond_pendiente & (df['Fecha_Prior_DT'] < hoy)
@@ -359,7 +368,6 @@ try:
             cond_accionar = cond_acc_mono | cond_acc_consol
             cond_futura = cond_pendiente & (~cond_urgente) & (~cond_accionar)
             df_inst = df[cond_instruido & cond_prioridad].sort_values(by='Rank_Num').copy()
-            # Vencidos CON prioridad: Argentina + Gadnic + NO es DJI ni IFLIGHT
             cond_prov_no_prior = (
                 df['Proveedor'].astype(str).str.upper().str.contains('DJI', na=False) |
                 (df['Proveedor'].astype(str).str.strip().str.upper() == 'IFLIGHT TECHNOLOGY CO LTD')
@@ -367,14 +375,13 @@ try:
             cond_venc_prior = (
                 cond_urgente &
                 (df['Pais Destino'].str.upper() == 'ARGENTINA') &
-                (df['Tipo_Repuesto'] == 'Gadnic') &
+                (df['Tipo_Repuesto'] == 'GADNIC') &
                 ~cond_prov_no_prior
             )
-            # Vencidos SIN prioridad: resto (otros países, repuestos, muestras, DJI, IFLIGHT, etc.)
             cond_venc_sinprior = cond_urgente & ~cond_venc_prior
             df_urgente_prior = df[cond_venc_prior].sort_values(by='Rank_Num').copy()
             df_urgente_sinprior = df[cond_venc_sinprior].sort_values(by=['Fecha_Prior_DT', 'Rank_Num']).copy()
-            df_urgente = df_urgente_prior  # compatibilidad con m3_urgente abajo
+            df_urgente = df_urgente_prior
             df_accionar = df[cond_accionar & cond_prioridad].sort_values(by='Rank_Num').copy()
             df_futura = df[cond_futura & cond_prioridad].sort_values(by='Rank_Num').copy()
             m3_inst = df_inst['M3 Total'].sum()
@@ -396,34 +403,65 @@ try:
             s1, s2 = st.columns([1.2, 1])
             filtro_actual = st.session_state.get('f')
             with s1:
-                st.markdown(f"""
-                    <div class="custom-card" style="border-top: 5px solid #00ff88; background: rgba(0,255,136,0.02);">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
-                            <p class="custom-card-title" style="color:#00ff88; font-size:18px;">MERCADERÍA INSTRUIDA (LOGRADO)</p>
-                            <p style="color:#00ff88; font-weight:900; font-size:32px; margin:0;">{p_inst_val}% <span style="font-size:14px; color:#94a3b8; font-weight:400;">M3</span></p>
-                        </div>
-                        <div class="grid-2">
-                            <div><p class="minicard-title">CANTIDAD SO</p><p class="minicard-value" style="color:#00ff88;">{df_inst['SO'].nunique()}</p></div>
-                            <div><p class="minicard-title">VOLUMEN TOTAL</p><p class="minicard-value">{int(round(m3_inst)):,} M3</p></div>
-                        </div>
-                        <hr style="border:none; border-top:1px solid rgba(255,255,255,0.08); margin:20px 0;">
-                        <div class="grid-2">
-                            <div>
-                                <p class="minicard-title" style="color:#00a8ff;">ESTRUCTURA DE CARGA</p>
-                                <p style="font-size:12px; margin:5px 0;">MONOPROVEEDOR: <b>{df_inst[df_inst['Tipo_Carga']=='MONOPROVEEDOR']['SO'].nunique()} SO</b> ({int(round(df_inst[df_inst['Tipo_Carga']=='MONOPROVEEDOR']['M3 Total'].sum()))} m3)</p>
-                                <p style="font-size:12px; margin:5px 0;">CONSOLIDADOS: <b>{df_inst[df_inst['Tipo_Carga']=='CONSOLIDADO']['SO'].nunique()} SO</b> ({int(round(df_inst[df_inst['Tipo_Carga']=='CONSOLIDADO']['M3 Total'].sum()))} m3)</p>
-                            </div>
-                            <div>
-                                <p class="minicard-title" style="color:#ffaa00;">TIPO DE INGRESO</p>
-                                <p style="font-size:12px; margin:5px 0;">GADNIC: <b>{df_inst[df_inst['Tipo_Repuesto']=='Gadnic']['SO'].nunique()} SO</b></p>
-                                <p style="font-size:12px; margin:5px 0;">MUESTRAS: <b>{df_inst[df_inst['Tipo_Repuesto']=='Muestras']['SO'].nunique()} SO</b></p>
-                            </div>
-                        </div>
-                """, unsafe_allow_html=True)
+                # ── CALCULAR % POR TIPO DE NEGOCIO ─────────────────────────
+                _tipos_orden  = ['GADNIC', 'REPUESTOS', 'MUESTRAS', 'MARCAS', 'DJI', 'AGRAS']
+                _colores_tipo = {
+                    'GADNIC'   : '#00ff88',
+                    'REPUESTOS': '#00a8ff',
+                    'MUESTRAS' : '#ffaa00',
+                    'MARCAS'   : '#a855f7',
+                    'DJI'      : '#06b6d4',
+                    'AGRAS'    : '#f97316',
+                }
+                _total_so_inst = df_inst['SO'].nunique()
+                _filas_tipo = ''
+                for _t in _tipos_orden:
+                    _n   = df_inst[df_inst['Tipo_Repuesto'] == _t]['SO'].nunique()
+                    if _n == 0: continue
+                    _pct = round(_n / _total_so_inst * 100) if _total_so_inst > 0 else 0
+                    _c   = _colores_tipo.get(_t, '#94a3b8')
+                    _filas_tipo += (
+                        f"<div style='margin-bottom:8px;'>"
+                        f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;'>"
+                        f"<p style='color:{_c};font-size:12px;font-weight:700;margin:0;'>{_t}</p>"
+                        f"<p style='color:{_c};font-size:15px;font-weight:900;margin:0;'>{_pct}%"
+                        f"<span style='color:#475569;font-size:11px;font-weight:400;margin-left:6px;'>({_n} SO)</span></p>"
+                        f"</div>"
+                        f"<div style='height:4px;background:rgba(255,255,255,0.06);border-radius:2px;'>"
+                        f"<div style='height:4px;width:{_pct}%;background:{_c};border-radius:2px;'></div>"
+                        f"</div></div>"
+                    )
+                st.markdown(
+                    f"<div class='custom-card' style='border-top:5px solid #00ff88;background:rgba(0,255,136,0.02);'>"
+                    f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:25px;'>"
+                    f"<p class='custom-card-title' style='color:#00ff88;font-size:18px;'>MERCANDAR\u00cdA INSTRUIDA</p>"
+                    f"<p style='color:#00ff88;font-weight:900;font-size:32px;margin:0;'>{p_inst_val}%"
+                    f"<span style='font-size:14px;color:#94a3b8;font-weight:400;'> M3</span></p>"
+                    f"</div>"
+                    f"<div class='grid-2'>"
+                    f"<div><p class='minicard-title'>CANTIDAD SO</p><p class='minicard-value' style='color:#00ff88;'>{df_inst['SO'].nunique()}</p></div>"
+                    f"<div><p class='minicard-title'>VOLUMEN TOTAL</p><p class='minicard-value'>{int(round(m3_inst)):,} M3</p></div>"
+                    f"</div>"
+                    f"<hr style='border:none;border-top:1px solid rgba(255,255,255,0.08);margin:20px 0;'>"
+                    f"<div class='grid-2'>"
+                    f"<div>"
+                    f"<p class='minicard-title' style='color:#00a8ff;'>ESTRUCTURA DE CARGA</p>"
+                    f"<p style='font-size:12px;margin:5px 0;'>MONOPROVEEDOR: <b>{df_inst[df_inst['Tipo_Carga']=='MONOPROVEEDOR']['SO'].nunique()} SO</b>"
+                    f" ({int(round(df_inst[df_inst['Tipo_Carga']=='MONOPROVEEDOR']['M3 Total'].sum()))} m3)</p>"
+                    f"<p style='font-size:12px;margin:5px 0;'>CONSOLIDADOS: <b>{df_inst[df_inst['Tipo_Carga']=='CONSOLIDADO']['SO'].nunique()} SO</b>"
+                    f" ({int(round(df_inst[df_inst['Tipo_Carga']=='CONSOLIDADO']['M3 Total'].sum()))} m3)</p>"
+                    f"</div>"
+                    f"<div>"
+                    f"<p class='minicard-title' style='color:#ffaa00;'>TIPO DE NEGOCIO</p>"
+                    f"{_filas_tipo}"
+                    f"</div>"
+                    f"</div>"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
                 if st.button("VER DETALLE INSTRUIDO", key="btn_inst_new", use_container_width=True):
                     st.session_state.f = 'inst' if filtro_actual != 'inst' else None
                     st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
             with s2:
                 df_pend_view = df[cond_pendiente]
                 st.markdown(f"""
@@ -523,7 +561,7 @@ try:
                 etd_p = etd_all[~etd_all['Mes_ETD_Full'].isin(['PASADO/REALIZADO', 'SIN FECHA'])]
                 if not etd_vencido.empty and etd_vencido['M3 Total'].sum() > 0:
                     m3_venc_etd = int(round(etd_vencido['M3 Total'].sum()))
-                    st.markdown(f"<div style='background:rgba(255,75,75,0.08); border-radius:8px; padding:8px 14px; border-left:3px solid #ff4b4b; margin-bottom:10px;'><p style='color:#ff4b4b; font-size:12px; font-weight:700; margin:0;'>⚠️ VENCIDO/REALIZADO: {m3_venc_etd:,} M3 en meses anteriores (no se muestran en el gráfico)</p></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='background:rgba(255,75,75,0.08); border-radius:8px; padding:8px 14px; border-left:3px solid #ff4b4b; margin-bottom:10px;'><p style='color:#ff4b4b; font-size:12px; font-weight:700; margin:0;'>VENCIDO/REALIZADO: {m3_venc_etd:,} M3 en meses anteriores (no se muestran en el gráfico)</p></div>", unsafe_allow_html=True)
                 st.markdown(f"<p style='color:#00ff88; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:20px;'>PROYECCIÓN MENSUAL ETD<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL FUTURO: {int(round(etd_p['M3 Total'].sum())):,} M3</span></p>", unsafe_allow_html=True)
                 fig_e = px.bar(etd_p, x='Mes_ETD_Full', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#00ff88'])
                 fig_e.update_traces(textfont_size=16, textposition='outside', textfont_color="#f8fafc", marker=dict(cornerradius=5))
@@ -536,7 +574,7 @@ try:
                 eta_p = eta_all[~eta_all['Mes_ETA_Full'].isin(['PASADO/REALIZADO', 'SIN FECHA'])]
                 if not eta_vencido.empty and eta_vencido['M3 Total'].sum() > 0:
                     m3_venc_eta = int(round(eta_vencido['M3 Total'].sum()))
-                    st.markdown(f"<div style='background:rgba(255,75,75,0.08); border-radius:8px; padding:8px 14px; border-left:3px solid #ff4b4b; margin-bottom:10px;'><p style='color:#ff4b4b; font-size:12px; font-weight:700; margin:0;'>⚠️ VENCIDO/REALIZADO: {m3_venc_eta:,} M3 en meses anteriores (no se muestran en el gráfico)</p></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='background:rgba(255,75,75,0.08); border-radius:8px; padding:8px 14px; border-left:3px solid #ff4b4b; margin-bottom:10px;'><p style='color:#ff4b4b; font-size:12px; font-weight:700; margin:0;'>VENCIDO/REALIZADO: {m3_venc_eta:,} M3 en meses anteriores (no se muestran en el gráfico)</p></div>", unsafe_allow_html=True)
                 st.markdown(f"<p style='color:#ff4b4b; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:20px;'>PROYECCIÓN MENSUAL ETA<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL FUTURO: {int(round(eta_p['M3 Total'].sum())):,} M3</span></p>", unsafe_allow_html=True)
                 fig_a = px.bar(eta_p, x='Mes_ETA_Full', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#ff4b4b'])
                 fig_a.update_traces(textfont_size=16, textposition='outside', textfont_color="#f8fafc", marker=dict(cornerradius=5))
@@ -562,7 +600,7 @@ try:
                     tot_cont_etd = df_c_etd['Contenedores'].sum()
                     if not df_c_etd_venc.empty and df_c_etd_venc['M3 Total'].sum() > 0:
                         cont_venc_etd = int(round(df_c_etd_venc['M3 Total'].sum() / 60))
-                        st.markdown(f"<div style='background:rgba(255,75,75,0.08); border-radius:8px; padding:8px 14px; border-left:3px solid #ff4b4b; margin-bottom:10px;'><p style='color:#ff4b4b; font-size:12px; font-weight:700; margin:0;'>⚠️ VENCIDO: ~{cont_venc_etd} CNTR en meses anteriores (no se muestran)</p></div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='background:rgba(255,75,75,0.08); border-radius:8px; padding:8px 14px; border-left:3px solid #ff4b4b; margin-bottom:10px;'><p style='color:#ff4b4b; font-size:12px; font-weight:700; margin:0;'>VENCIDO: ~{cont_venc_etd} CNTR en meses anteriores (no se muestran)</p></div>", unsafe_allow_html=True)
                     st.markdown(f"<p style='color:#ffaa00; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:20px;'>PROYECCIÓN CONTENEDORES (ETD)<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL FUTURO: {int(tot_cont_etd):,} CNTR</span></p>", unsafe_allow_html=True)
                     fig_cetd = px.bar(df_c_etd, x='Mes_ETD_Full', y='Contenedores', text_auto=',.0f', color_discrete_sequence=['#ffaa00'])
                     fig_cetd.update_traces(textfont_size=16, textposition='outside', textfont_color="#f8fafc", marker=dict(cornerradius=5))
@@ -586,7 +624,7 @@ try:
                     tot_cont_eta = df_c_eta['Contenedores'].sum()
                     if not df_c_eta_venc.empty and df_c_eta_venc['M3 Total'].sum() > 0:
                         cont_venc_eta = int(round(df_c_eta_venc['M3 Total'].sum() / 60))
-                        st.markdown(f"<div style='background:rgba(255,75,75,0.08); border-radius:8px; padding:8px 14px; border-left:3px solid #ff4b4b; margin-bottom:10px;'><p style='color:#ff4b4b; font-size:12px; font-weight:700; margin:0;'>⚠️ VENCIDO: ~{cont_venc_eta} CNTR en meses anteriores (no se muestran)</p></div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='background:rgba(255,75,75,0.08); border-radius:8px; padding:8px 14px; border-left:3px solid #ff4b4b; margin-bottom:10px;'><p style='color:#ff4b4b; font-size:12px; font-weight:700; margin:0;'>VENCIDO: ~{cont_venc_eta} CNTR en meses anteriores (no se muestran)</p></div>", unsafe_allow_html=True)
                     st.markdown(f"<p style='color:#ffaa00; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:20px;'>PROYECCIÓN CONTENEDORES (ETA)<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL FUTURO: {int(tot_cont_eta):,} CNTR</span></p>", unsafe_allow_html=True)
                     fig_ceta = px.bar(df_c_eta, x='Mes_ETA_Full', y='Contenedores', text_auto=',.0f', color_discrete_sequence=['#ffaa00'])
                     fig_ceta.update_traces(textfont_size=16, textposition='outside', textfont_color="#f8fafc", marker=dict(cornerradius=5))
