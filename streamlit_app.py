@@ -359,9 +359,18 @@ try:
             cond_accionar = cond_acc_mono | cond_acc_consol
             cond_futura = cond_pendiente & (~cond_urgente) & (~cond_accionar)
             df_inst = df[cond_instruido & cond_prioridad].sort_values(by='Rank_Num').copy()
-            # Vencidos CON prioridad: Argentina + Repuestos vacío (Gadnic)
-            cond_venc_prior = cond_urgente & (df['Pais Destino'].str.upper() == 'ARGENTINA') & (df['Tipo_Repuesto'] == 'Gadnic')
-            # Vencidos SIN prioridad: el resto (otros países, repuestos, muestras, etc.)
+            # Vencidos CON prioridad: Argentina + Gadnic + NO es DJI ni IFLIGHT
+            cond_prov_no_prior = (
+                df['Proveedor'].astype(str).str.upper().str.contains('DJI', na=False) |
+                (df['Proveedor'].astype(str).str.strip().str.upper() == 'IFLIGHT TECHNOLOGY CO LTD')
+            )
+            cond_venc_prior = (
+                cond_urgente &
+                (df['Pais Destino'].str.upper() == 'ARGENTINA') &
+                (df['Tipo_Repuesto'] == 'Gadnic') &
+                ~cond_prov_no_prior
+            )
+            # Vencidos SIN prioridad: resto (otros países, repuestos, muestras, DJI, IFLIGHT, etc.)
             cond_venc_sinprior = cond_urgente & ~cond_venc_prior
             df_urgente_prior = df[cond_venc_prior].sort_values(by='Rank_Num').copy()
             df_urgente_sinprior = df[cond_venc_sinprior].sort_values(by=['Fecha_Prior_DT', 'Rank_Num']).copy()
