@@ -595,25 +595,36 @@ try:
                     st.plotly_chart(fig_ceta, use_container_width=True)
         except Exception as e:
             st.error(f"Error en Solapa Origen: {e}")
-    # --- SOLAPA 2: CONTROL GESTIÓN RESERVAS ---
+    # =========================================================================
+    # --- SOLAPA 2: MERCADERÍA EN COORDINACIÓN ---
+    # =========================================================================
     with tabs[1]:
         try:
             url_reserva = f"{base_url}/export?format=csv&gid=276804813&nocache={time.time()}"
+
             @st.cache_data(ttl=60)
-            def load_reserva_data(url): return pd.read_csv(url, engine='python', on_bad_lines='skip')
-            try: df_res = load_reserva_data(url_reserva)
-            except Exception: df_res = pd.read_csv(url_reserva)
+            def load_reserva_data(url):
+                return pd.read_csv(url, engine='python', on_bad_lines='skip')
+
+            try:
+                df_res = load_reserva_data(url_reserva)
+            except Exception:
+                df_res = pd.read_csv(url_reserva)
             df_res.columns = df_res.columns.str.strip()
-            df_res['Fecha_Inst_H'] = df_res.iloc[:, 7].astype(str).str.strip()
-            df_g = df_res[df_res['Fecha_Inst_H'].apply(lambda x: len(str(x)) > 4)].copy()
-            df_g['DT_Inst'] = pd.to_datetime(df_g.iloc[:, 7], dayfirst=True, errors='coerce')
+
+            df_g = df_res[df_res.iloc[:, 7].astype(str).apply(lambda x: len(str(x)) > 4)].copy()
+            df_g['DT_Inst']      = pd.to_datetime(df_g.iloc[:, 7], dayfirst=True, errors='coerce')
             df_g['ETD_Status_K'] = df_g.iloc[:, 10].astype(str).str.upper().str.strip()
-            df_g['Espera'] = (pd.to_datetime('today') - df_g['DT_Inst']).dt.days
-            df_g['Critico'] = (df_g['ETD_Status_K'] != "OK") & (df_g['Espera'] > 5)
-            col_so_res = [c for c in df_g.columns if 'SO' in str(c).upper()][0] if any('SO' in str(c).upper() for c in df_g.columns) else df_g.columns[2]
-            df_plan_res = df_inst[df_inst.iloc[:, 20].notna() & (df_inst.iloc[:, 20].astype(str).str.strip() != "")].copy()
-            col_etd_plan = '¿ETD OK FFWW?' if '¿ETD OK FFWW?' in df_plan_res.columns else df_plan_res.columns[97]
-            df_plan_res['Status_P'] = df_plan_res[col_etd_plan].astype(str).str.lower().str.strip()
+            df_g['Espera']       = (pd.to_datetime('today') - df_g['DT_Inst']).dt.days
+            df_g['Critico']      = (df_g['ETD_Status_K'] != "OK") & (df_g['Espera'] > 5)
+
+            df_inst_s2  = df[cond_instruido].copy()
+            df_plan_res = df_inst_s2[
+                df_inst_s2.iloc[:, 20].notna() &
+                (df_inst_s2.iloc[:, 20].astype(str).str.strip() != "")
+            ].copy()
+            df_plan_res['Status_P'] = df_plan_res.iloc[:, 97].astype(str).str.lower().str.strip()
+
             def safe_float_f(val):
                 if isinstance(val, (int, float)): return float(val)
                 if pd.isna(val) or str(val).strip() in ['', 'nan']: return 0.0
@@ -625,147 +636,450 @@ try:
                     elif ',' in s: s = s.replace(',', '.')
                     return float(s)
                 except: return 0.0
+
+            m3_total_clean  = df_inst_s2['M3 Total'].apply(safe_float_f).sum()
+            fob_total_clean = df_inst_s2['Fob total Origen'].apply(safe_float_f).sum()
+
+            # ── KPIs SUPERIORES ───────────────────────────────────────────────
             st.markdown("<br>", unsafe_allow_html=True)
             k1, k2, k3, k4 = st.columns(4)
-            m3_total_clean = df_inst['M3 Total'].apply(safe_float_f).sum()
-            fob_total_clean = df_inst['Fob total Origen'].apply(safe_float_f).sum()
-            with k1: st.markdown(f"<div class='metric-container'><p>SO INSTRUIDAS</p><p>{int(df_inst['SO'].nunique())}</p></div>", unsafe_allow_html=True)
+            with k1: st.markdown(f"<div class='metric-container'><p>SO EN PROCESO</p><p>{int(df_inst_s2['SO'].nunique())}</p></div>", unsafe_allow_html=True)
             with k2: st.markdown(f"<div class='metric-container'><p>VOLUMEN (M3)</p><p>{int(round(m3_total_clean)):,}</p></div>", unsafe_allow_html=True)
-            with k3: st.markdown(f"<div class='metric-container'><p>PROVEEDORES</p><p>{int(df_inst['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
+            with k3: st.markdown(f"<div class='metric-container'><p>PROVEEDORES</p><p>{int(df_inst_s2['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
             with k4: st.markdown(f"<div class='metric-container'><p>FOB TOTAL (USD)</p><p>${int(round(fob_total_clean)):,}</p></div>", unsafe_allow_html=True)
-            st.markdown("<div style='text-align:center; padding: 20px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; margin: 30px 0;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>CONTROL GESTIÓN RESERVAS</h2></div>", unsafe_allow_html=True)
-            st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
-            df_p_ok = df_plan_res[df_plan_res['Status_P'] == "ok"]
-            df_p_pend = df_plan_res[df_plan_res['Status_P'] != "ok"]
-            c_so_ok = df_p_ok.iloc[:, 0].nunique()
-            c_emb_ok = df_p_ok.iloc[:, 16].nunique()
-            prov_ok_p = df_p_ok.iloc[:, 30].nunique()
-            m3_ok_p = df_p_ok['M3 Total'].apply(safe_float_f).sum()
-            c_so_pend = df_p_pend.iloc[:, 0].nunique()
-            c_emb_pend = df_p_pend.iloc[:, 16].nunique()
-            prov_pend_p = df_p_pend.iloc[:, 30].nunique()
-            m3_pend_p = df_p_pend['M3 Total'].apply(safe_float_f).sum()
-            total_emb_p = df_plan_res.iloc[:, 16].nunique()
-            pct_ok_p = round((c_emb_ok / total_emb_p * 100)) if total_emb_p > 0 else 0
-            pct_pend_p = 100 - pct_ok_p if total_emb_p > 0 else 0
-            st.markdown(f"""
-                <div class="grid-2">
-                    <div class="custom-card" style="border: 2px solid rgba(0,255,136,0.5); box-shadow: 0 0 30px rgba(0,255,136,0.15);">
-                        <p style="font-size: 22px; font-weight: 800; color: #00ff88; margin-bottom: 20px; letter-spacing: 2px; text-transform: uppercase;">EMBARQUES CON ETD OK ({pct_ok_p}%)</p>
-                        <div class="grid-2" style="text-align: center;">
-                            <div><p class="minicard-title">CANTIDAD SOs</p><p style="font-size:45px; font-weight:900; color:#f8fafc; margin:0; text-shadow:0 0 15px rgba(0,255,136,0.4);">{c_so_ok}</p></div>
-                            <div><p class="minicard-title">EMBARQUES</p><p style="font-size:45px; font-weight:600; color:#f8fafc; margin:0;">{c_emb_ok}</p></div>
-                            <div><p class="minicard-title">PROVEEDORES</p><p style="font-size:45px; font-weight:600; color:#00ff88; margin:0;">{prov_ok_p}</p></div>
-                            <div><p class="minicard-title">VOLUMEN TOTAL</p><p style="font-size:35px; font-weight:800; color:#f8fafc; margin:0;">{int(round(m3_ok_p)):,} <span style="font-size:16px;">M3</span></p></div>
-                        </div>
-                    </div>
-                    <div class="custom-card" style="border: 2px solid rgba(255,75,75,0.5); box-shadow: 0 0 30px rgba(255,75,75,0.15);">
-                        <p style="font-size: 22px; font-weight: 800; color: #ff4b4b; margin-bottom: 20px; letter-spacing: 2px; text-transform: uppercase;">EMBARQUES PENDIENTES ({pct_pend_p}%)</p>
-                        <div class="grid-2" style="text-align: center;">
-                            <div><p class="minicard-title">CANTIDAD SOs</p><p style="font-size:45px; font-weight:900; color:#f8fafc; margin:0; text-shadow:0 0 15px rgba(255,75,75,0.4);">{c_so_pend}</p></div>
-                            <div><p class="minicard-title">EMBARQUES</p><p style="font-size:45px; font-weight:600; color:#f8fafc; margin:0;">{c_emb_pend}</p></div>
-                            <div><p class="minicard-title">PROVEEDORES</p><p style="font-size:45px; font-weight:600; color:#ff4b4b; margin:0;">{prov_pend_p}</p></div>
-                            <div><p class="minicard-title">VOLUMEN TOTAL</p><p style="font-size:35px; font-weight:800; color:#f8fafc; margin:0;">{int(round(m3_pend_p)):,} <span style="font-size:16px;">M3</span></p></div>
-                        </div>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-            st.markdown("<br><br>", unsafe_allow_html=True)
-            st.markdown("<p style='text-align:center; color:#00a8ff; font-weight:700; letter-spacing:4px; font-size:16px;'>DESGLOSE POR TIPO DE TRANSPORTE</p>", unsafe_allow_html=True)
+
+            # ── TÍTULO PRINCIPAL ─────────────────────────────────────────────
+            st.markdown("""
+<div style='text-align:center; padding:30px 20px; margin:35px 0 10px 0;
+background:linear-gradient(135deg, rgba(0,168,255,0.07) 0%, rgba(0,255,136,0.04) 100%);
+border-radius:24px; border:1px solid rgba(0,168,255,0.15);'>
+<p style='color:#94a3b8; font-size:11px; letter-spacing:5px; margin:0 0 8px 0; text-transform:uppercase;'>ESTADO OPERATIVO EN TIEMPO REAL</p>
+<h2 style='color:#f8fafc; font-weight:900; letter-spacing:6px; margin:0; font-size:28px;'>MERCADERÍA EN COORDINACIÓN</h2>
+<p style='color:#94a3b8; font-size:12px; letter-spacing:3px; margin:10px 0 0 0;'>MARÍTIMO · AÉREO · SEGUIMIENTO ACTIVO</p>
+</div>""", unsafe_allow_html=True)
+
+            # =================================================================
+            # ██████████████████  SECCIÓN MARÍTIMOS  ██████████████████████████
+            # =================================================================
+            st.markdown("""
+<div style='display:flex; align-items:center; gap:20px; padding:22px 30px;
+background:linear-gradient(135deg, rgba(0,168,255,0.1) 0%, rgba(0,168,255,0.03) 100%);
+border-radius:20px; border-left:6px solid #00a8ff; margin:40px 0 30px 0;'>
+<div>
+<span style='font-size:42px; line-height:1;'>🚢</span>
+</div>
+<div>
+<p style='color:#94a3b8; font-size:10px; letter-spacing:4px; margin:0 0 4px 0; text-transform:uppercase;'>Gestión Operativa</p>
+<p style='color:#00a8ff; font-size:26px; font-weight:900; letter-spacing:6px; margin:0; text-transform:uppercase;'>MARÍTIMOS</p>
+<p style='color:#64748b; font-size:11px; letter-spacing:2px; margin:4px 0 0 0;'>RESERVAS ACTIVAS · CONTROL DE BOOKING · CONSOLIDACIÓN</p>
+</div>
+</div>""", unsafe_allow_html=True)
+
             def clasificar_transp_res(x):
                 x = str(x).upper().strip()
                 if any(m in x for m in ["40 HQ", "40 ST", "40 NOR", "20 ST", "40NOR"]): return "MARITIMO"
                 if any(a in x for a in ["AVION", "COURIER", "COURRIER"]): return "AVION / COURIER"
                 return "OTROS"
+
             df_g['Transporte'] = df_g.iloc[:, 5].apply(clasificar_transp_res)
-            t1, t2 = st.columns(2)
-            for i, tipo in enumerate(["MARITIMO", "AVION / COURIER"]):
-                df_tipo = df_g[df_g['Transporte'] == tipo]
-                total_t = df_tipo.iloc[:, 0].nunique()
-                ok_t = df_tipo[df_tipo['ETD_Status_K'] == "OK"].iloc[:, 0].nunique()
-                pend_t = total_t - ok_t
-                crit_t = df_tipo[df_tipo['Critico']].iloc[:, 0].nunique()
-                m3_t = df_tipo.iloc[:, 24].apply(safe_float_f).sum()
-                cntr_t = df_tipo.iloc[:, 1].apply(safe_float_f).sum()
-                pct_ok = round((ok_t / total_t * 100)) if total_t > 0 else 0
-                pct_pend = 100 - pct_ok if total_t > 0 else 0
-                color_status = "#00ff88" if ok_t >= pend_t and total_t > 0 else "#ff4b4b"
-                flecha = "▲" if ok_t >= pend_t else "▼"
-                with [t1, t2][i]:
-                    st.markdown(f"""
-                    <div class="custom-card">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                            <p class="custom-card-title" style="color: #00a8ff;">{tipo}</p>
-                            <div style="text-align: right;">
-                                <p style="color: {color_status}; font-weight: 700; margin: 0; font-size: 22px;">{flecha} {int(pct_ok)}% <span style="font-size:12px; color:#94a3b8;">OK</span></p>
-                                <p style="color: #ff4b4b; font-weight: 600; margin: 0; font-size: 16px; opacity: 0.8;">{int(pct_pend)}% <span style="font-size:11px; color:#94a3b8;">PEND</span></p>
-                            </div>
-                        </div>
-                        <p style="font-size: 35px; font-weight: 300; color: #f8fafc; margin-top: 15px; margin-bottom: 5px;">Emb: <span style="font-weight:700;">{total_t}</span></p>
-                        <div style="display: flex; gap: 15px; margin-top: 5px;">
-                            <p style="color: #94a3b8; font-size: 13px;">CTNRS: <span style="color: #f8fafc; font-weight: 600;">{int(cntr_t)}</span></p>
-                            <p style="color: #94a3b8; font-size: 13px;">VOL: <span style="color: #f8fafc; font-weight: 600;">{int(round(m3_t)):,} M3</span></p>
-                        </div>
-                        <p style="font-size: 14px; color: #94a3b8; font-weight: 600; margin: 0;">
-                            <span style="color: #00ff88;">Confirmados: {ok_t}</span> | <span style="color: #ff4b4b;">Pendientes: {pend_t}</span>
-                        </p>
-                        {f'<p style="font-size:13px; color:#ff4b4b; font-weight:700; margin-top:10px;">🚨 CRÍTICOS (>5d): {crit_t}</p>' if crit_t > 0 else ""}
-                    </div>""", unsafe_allow_html=True)
-            st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
-            st.markdown("<br>", unsafe_allow_html=True)
             df_mar = df_g[df_g['Transporte'] == "MARITIMO"].copy()
+            df_mar.iloc[:, 1] = pd.to_numeric(df_mar.iloc[:, 1], errors='coerce').fillna(0)
+
             def clean_val_mar(value):
                 if pd.isna(value): return 0
                 s = str(value).replace('.', '').replace(',', '.')
                 num = ''.join(c for c in s if c.isdigit() or c == '.')
                 return pd.to_numeric(num, errors='coerce') if num else 0
-            df_mar.iloc[:, 1] = pd.to_numeric(df_mar.iloc[:, 1], errors='coerce').fillna(0)
-            df_mar.iloc[:, 29] = pd.to_numeric(df_mar.iloc[:, 29], errors='coerce').fillna(0)
+
             df_mar.iloc[:, 21] = df_mar.iloc[:, 21].apply(clean_val_mar).fillna(0)
-            st.markdown("<div style='margin-bottom:10px;'>", unsafe_allow_html=True)
-            if st.button("ANALISIS BOOKING IN ADVANCE", key="btn_adv", use_container_width=True): st.session_state.mode = 'adv' if st.session_state.get('mode') != 'adv' else None
-            st.markdown("</div>", unsafe_allow_html=True)
-            def renderizar_detalle(mask, etiquetas, is_adv):
-                col_a, col_b = st.columns(2)
-                tot_local = len(df_mar) if len(df_mar) > 0 else 1
-                for i_b, (titulo, dff_loc) in enumerate(etiquetas):
-                    c_emb = len(dff_loc)
-                    c_rel = round((c_emb / tot_local) * 100)
-                    c_adv = len(dff_loc[dff_loc.iloc[:, 8].astype(str).str.strip() == "Booked in Advance"])
-                    p_adv = round((c_adv / c_emb * 100)) if c_emb > 0 else 0
-                    c_box = "#00a8ff" if i_b == 0 else "#94a3b8"
-                    with [col_a, col_b][i_b]:
-                        st.markdown(f"""
-                            <div class="custom-card" style="border-left: 5px solid {c_box}; margin-bottom: 20px;">
-                                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px;">
-                                    <p class="custom-card-title" style="color:{c_box};">{titulo} ({int(c_rel)}%)</p>
-                                    <div style="text-align: right;">
-                                        <p style="font-size:11px; color:#00ff88; font-weight:700; margin:0; letter-spacing:1px;">ADVANCE: {int(p_adv)}%</p>
-                                        <p style="font-size:11px; color:#ff4b4b; font-weight:700; margin:0; letter-spacing:1px;">SPOT: {int(100 - p_adv)}%</p>
-                                    </div>
-                                </div>
-                                <div class="grid-4">
-                                    <div><p class="minicard-title">CANT. SOs</p><p class="minicard-value" style="font-weight:600;">{int(c_emb)}</p></div>
-                                    <div><p class="minicard-title">CONTS.</p><p class="minicard-value" style="font-weight:600;">{int(round(dff_loc.iloc[:, 1].sum()))}</p></div>
-                                    <div><p class="minicard-title">PROM. CONS.</p><p class="minicard-value" style="font-weight:600; color:#00ff88;">{int(round(dff_loc.iloc[:, 29].mean() if c_emb > 0 else 0))}d</p></div>
-                                    <div><p class="minicard-title">FOB USD</p><p class="minicard-value" style="font-size:22px;">{int(round(dff_loc.iloc[:, 21].sum())):,}</p></div>
-                                </div>
-                            </div>
-                        """, unsafe_allow_html=True)
-            mode = st.session_state.get('mode')
-            if mode == 'adv':
-                msk_adv = df_mar.iloc[:, 8].astype(str).str.strip() == "Booked in Advance"
-                lbl_adv = [("Booked in Advance", df_mar[msk_adv]), ("No Booked in Advance", df_mar[~msk_adv])]
-                renderizar_detalle(msk_adv, lbl_adv, True)
-            st.markdown("<div style='margin-bottom:10px;'>", unsafe_allow_html=True)
-            if st.button("ANALISIS MONOPROVEEDOR / CONSOLIDADO", key="btn_mono", use_container_width=True): st.session_state.mode = 'mono' if st.session_state.get('mode') != 'mono' else None
-            st.markdown("</div>", unsafe_allow_html=True)
-            if mode == 'mono':
-                msk_mon = df_mar.iloc[:, 34].astype(str).str.strip() == "Monoproveedor"
-                lbl_mon = [("Monoproveedor", df_mar[msk_mon]), ("Consolidado", df_mar[~msk_mon])]
-                renderizar_detalle(msk_mon, lbl_mon, False)
+
+            total_mar  = df_mar.iloc[:, 0].nunique()
+            ok_mar     = df_mar[df_mar['ETD_Status_K'] == "OK"].iloc[:, 0].nunique()
+            pend_mar   = total_mar - ok_mar
+            crit_mar   = df_mar[df_mar['Critico']].iloc[:, 0].nunique()
+            m3_mar     = df_mar.iloc[:, 23].apply(safe_float_f).sum()
+            cntr_mar   = df_mar.iloc[:, 1].apply(safe_float_f).sum()
+            pct_ok_mar = round(ok_mar / total_mar * 100) if total_mar > 0 else 0
+            color_etd  = "#00ff88" if pct_ok_mar >= 50 else "#ff4b4b"
+
+            # ── PANEL EJECUTIVO MARÍTIMOS ─────────────────────────────────────
+            st.markdown(f"""
+<div style='background:linear-gradient(145deg, rgba(0,168,255,0.06) 0%, rgba(255,255,255,0.02) 100%);
+border-radius:20px; border:1px solid rgba(0,168,255,0.12); padding:30px; margin-bottom:25px;'>
+    <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:28px; flex-wrap:wrap; gap:16px;'>
+        <div>
+            <p style='color:#64748b; font-size:10px; letter-spacing:3px; margin:0 0 6px 0; text-transform:uppercase;'>Total embarques gestionados</p>
+            <p style='color:#f8fafc; font-size:72px; font-weight:900; margin:0; line-height:1; letter-spacing:-2px;'>{total_mar}</p>
+        </div>
+        <div style='text-align:right;'>
+            <p style='color:{color_etd}; font-size:48px; font-weight:900; margin:0; line-height:1;'>{pct_ok_mar}%</p>
+            <p style='color:#94a3b8; font-size:12px; letter-spacing:2px; margin:6px 0 0 0;'>ETD CONFIRMADO</p>
+            {f'<div style="margin-top:10px; display:inline-block; padding:6px 14px; background:rgba(255,75,75,0.12); border-radius:20px; border:1px solid rgba(255,75,75,0.3);"><p style="color:#ff4b4b; font-size:12px; font-weight:800; margin:0; letter-spacing:1px;">🚨 {crit_mar} CRÍTICOS SIN RESPUESTA +5d</p></div>' if crit_mar > 0 else ""}
+        </div>
+    </div>
+    <div style='display:grid; grid-template-columns:repeat(4,1fr); gap:16px;'>
+        <div style='background:rgba(0,168,255,0.08); border-radius:16px; padding:18px; border:1px solid rgba(0,168,255,0.15); text-align:center;'>
+            <p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 8px 0; text-transform:uppercase;'>Contenedores</p>
+            <p style='color:#00a8ff; font-size:36px; font-weight:900; margin:0; line-height:1;'>{int(cntr_mar)}</p>
+            <p style='color:#475569; font-size:10px; margin:6px 0 0 0;'>CTNRS activos</p>
+        </div>
+        <div style='background:rgba(0,255,136,0.06); border-radius:16px; padding:18px; border:1px solid rgba(0,255,136,0.12); text-align:center;'>
+            <p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 8px 0; text-transform:uppercase;'>Volumen</p>
+            <p style='color:#00ff88; font-size:36px; font-weight:900; margin:0; line-height:1;'>{int(round(m3_mar)):,}</p>
+            <p style='color:#475569; font-size:10px; margin:6px 0 0 0;'>M3 en tránsito</p>
+        </div>
+        <div style='background:rgba(0,255,136,0.04); border-radius:16px; padding:18px; border:1px solid rgba(0,255,136,0.1); text-align:center;'>
+            <p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 8px 0; text-transform:uppercase;'>Confirmados</p>
+            <p style='color:#00ff88; font-size:36px; font-weight:900; margin:0; line-height:1;'>{ok_mar}</p>
+            <p style='color:#475569; font-size:10px; margin:6px 0 0 0;'>ETD OK</p>
+        </div>
+        <div style='background:rgba(255,75,75,0.06); border-radius:16px; padding:18px; border:1px solid rgba(255,75,75,0.12); text-align:center;'>
+            <p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 8px 0; text-transform:uppercase;'>Pendientes</p>
+            <p style='color:#ff4b4b; font-size:36px; font-weight:900; margin:0; line-height:1;'>{pend_mar}</p>
+            <p style='color:#475569; font-size:10px; margin:6px 0 0 0;'>Sin ETD confirmado</p>
+        </div>
+    </div>
+</div>""", unsafe_allow_html=True)
+
+            # ── BOOKING IN ADVANCE ────────────────────────────────────────────
+            st.markdown("""
+<p style='color:#94a3b8; font-size:11px; letter-spacing:4px; font-weight:700;
+text-transform:uppercase; margin:0 0 16px 0; padding-left:4px;'>
+▸ BOOKING IN ADVANCE</p>""", unsafe_allow_html=True)
+
+            msk_adv  = df_mar.iloc[:, 8].astype(str).str.strip() == "Booked in Advance"
+            df_adv   = df_mar[msk_adv];  df_spot = df_mar[~msk_adv]
+            tot_adv  = len(df_adv);      tot_spot = len(df_spot);  tot_tot = tot_adv + tot_spot
+            pct_adv  = round(tot_adv / tot_tot * 100) if tot_tot > 0 else 0
+            pct_spot = 100 - pct_adv
+            m3_adv   = df_adv.iloc[:, 23].apply(safe_float_f).sum()
+            m3_spot  = df_spot.iloc[:, 23].apply(safe_float_f).sum()
+            cntr_adv = df_adv.iloc[:, 1].sum()
+            cntr_spot= df_spot.iloc[:, 1].sum()
+            fob_adv  = df_adv.iloc[:, 21].sum()
+            fob_spot = df_spot.iloc[:, 21].sum()
+
+            ba1, ba2 = st.columns(2)
+            with ba1:
+                st.markdown(f"""
+<div style='background:linear-gradient(145deg, rgba(0,168,255,0.08), rgba(0,168,255,0.02));
+border-radius:18px; border:1px solid rgba(0,168,255,0.2); padding:24px; margin-bottom:20px;'>
+    <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;'>
+        <div>
+            <p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 4px 0;'>MODALIDAD DE BOOKING</p>
+            <p style='color:#00a8ff; font-size:18px; font-weight:800; letter-spacing:3px; margin:0;'>BOOKED IN ADVANCE</p>
+        </div>
+        <div style='text-align:right;'>
+            <p style='color:#00a8ff; font-size:40px; font-weight:900; margin:0; line-height:1;'>{pct_adv}%</p>
+            <p style='color:#64748b; font-size:10px; margin:4px 0 0 0;'>del total marítimo</p>
+        </div>
+    </div>
+    <div style='display:grid; grid-template-columns:1fr 1fr; gap:12px;'>
+        <div style='background:rgba(0,168,255,0.08); border-radius:12px; padding:14px; text-align:center;'>
+            <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>EMBARQUES</p>
+            <p style='color:#f8fafc; font-size:30px; font-weight:900; margin:0;'>{tot_adv}</p>
+        </div>
+        <div style='background:rgba(0,168,255,0.08); border-radius:12px; padding:14px; text-align:center;'>
+            <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>CONTENEDORES</p>
+            <p style='color:#00a8ff; font-size:30px; font-weight:900; margin:0;'>{int(cntr_adv)}</p>
+        </div>
+        <div style='background:rgba(0,168,255,0.05); border-radius:12px; padding:14px; text-align:center;'>
+            <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>VOLUMEN M3</p>
+            <p style='color:#f8fafc; font-size:26px; font-weight:700; margin:0;'>{int(round(m3_adv)):,}</p>
+        </div>
+        <div style='background:rgba(0,168,255,0.05); border-radius:12px; padding:14px; text-align:center;'>
+            <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>FOB USD</p>
+            <p style='color:#f8fafc; font-size:24px; font-weight:700; margin:0;'>{int(round(fob_adv)):,}</p>
+        </div>
+    </div>
+</div>""", unsafe_allow_html=True)
+
+            with ba2:
+                st.markdown(f"""
+<div style='background:linear-gradient(145deg, rgba(148,163,184,0.07), rgba(148,163,184,0.02));
+border-radius:18px; border:1px solid rgba(148,163,184,0.15); padding:24px; margin-bottom:20px;'>
+    <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;'>
+        <div>
+            <p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 4px 0;'>MODALIDAD DE BOOKING</p>
+            <p style='color:#94a3b8; font-size:18px; font-weight:800; letter-spacing:3px; margin:0;'>SPOT</p>
+        </div>
+        <div style='text-align:right;'>
+            <p style='color:#94a3b8; font-size:40px; font-weight:900; margin:0; line-height:1;'>{pct_spot}%</p>
+            <p style='color:#64748b; font-size:10px; margin:4px 0 0 0;'>del total marítimo</p>
+        </div>
+    </div>
+    <div style='display:grid; grid-template-columns:1fr 1fr; gap:12px;'>
+        <div style='background:rgba(148,163,184,0.08); border-radius:12px; padding:14px; text-align:center;'>
+            <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>EMBARQUES</p>
+            <p style='color:#f8fafc; font-size:30px; font-weight:900; margin:0;'>{tot_spot}</p>
+        </div>
+        <div style='background:rgba(148,163,184,0.08); border-radius:12px; padding:14px; text-align:center;'>
+            <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>CONTENEDORES</p>
+            <p style='color:#94a3b8; font-size:30px; font-weight:900; margin:0;'>{int(cntr_spot)}</p>
+        </div>
+        <div style='background:rgba(148,163,184,0.05); border-radius:12px; padding:14px; text-align:center;'>
+            <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>VOLUMEN M3</p>
+            <p style='color:#f8fafc; font-size:26px; font-weight:700; margin:0;'>{int(round(m3_spot)):,}</p>
+        </div>
+        <div style='background:rgba(148,163,184,0.05); border-radius:12px; padding:14px; text-align:center;'>
+            <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>FOB USD</p>
+            <p style='color:#f8fafc; font-size:24px; font-weight:700; margin:0;'>{int(round(fob_spot)):,}</p>
+        </div>
+    </div>
+</div>""", unsafe_allow_html=True)
+
+            # ── MONOPROVEEDOR VS CONSOLIDADO ──────────────────────────────────
+            st.markdown("""
+<p style='color:#94a3b8; font-size:11px; letter-spacing:4px; font-weight:700;
+text-transform:uppercase; margin:10px 0 16px 0; padding-left:4px;'>
+▸ ESTRUCTURA DE CARGA</p>""", unsafe_allow_html=True)
+
+            msk_mono = df_mar.iloc[:, 32].astype(str).str.strip().str.upper().isin(['SI', 'SÍ', 'S', 'MONOPROVEEDOR'])
+            df_mono_m= df_mar[msk_mono];  df_cons_m = df_mar[~msk_mono]
+            tot_mc   = len(df_mono_m) + len(df_cons_m)
+            pct_mono_m = round(len(df_mono_m) / tot_mc * 100) if tot_mc > 0 else 0
+            pct_cons_m = 100 - pct_mono_m
+            prom_cons_d    = df_mar.iloc[:, 28].apply(safe_float_f)
+            prom_cons_mono = prom_cons_d[msk_mono].mean()
+            prom_cons_cons = prom_cons_d[~msk_mono].mean()
+
+            bm1, bm2 = st.columns(2)
+            for col_mc, df_mc, label_mc, color_mc, pct_mc, prom_mc in [
+                (bm1, df_mono_m, "MONOPROVEEDOR", "#00a8ff", pct_mono_m, prom_cons_mono),
+                (bm2, df_cons_m, "CONSOLIDADO",   "#ffaa00", pct_cons_m, prom_cons_cons),
+            ]:
+                m3_mc   = df_mc.iloc[:, 23].apply(safe_float_f).sum()
+                cntr_mc = df_mc.iloc[:, 1].sum()
+                ok_mc   = df_mc[df_mc['ETD_Status_K'] == "OK"].iloc[:, 0].nunique()
+                tot_mc2 = df_mc.iloc[:, 0].nunique()
+                pct_ok_mc = round(ok_mc / tot_mc2 * 100) if tot_mc2 > 0 else 0
+                prom_str  = f"{int(round(prom_mc))} días" if pd.notna(prom_mc) else "—"
+                with col_mc:
+                    st.markdown(f"""
+<div style='background:linear-gradient(145deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
+border-radius:18px; border:1px solid rgba(255,255,255,0.08); padding:24px; margin-bottom:20px;
+border-left:5px solid {color_mc};'>
+    <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;'>
+        <p style='color:{color_mc}; font-size:16px; font-weight:800; letter-spacing:3px; margin:0;'>{label_mc}</p>
+        <p style='color:{color_mc}; font-size:36px; font-weight:900; margin:0;'>{pct_mc}%</p>
+    </div>
+    <div style='display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;'>
+        <div style='background:rgba(255,255,255,0.04); border-radius:12px; padding:14px; text-align:center;'>
+            <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>EMBARQUES</p>
+            <p style='color:#f8fafc; font-size:30px; font-weight:900; margin:0;'>{tot_mc2}</p>
+        </div>
+        <div style='background:rgba(255,255,255,0.04); border-radius:12px; padding:14px; text-align:center;'>
+            <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>CONTENEDORES</p>
+            <p style='color:{color_mc}; font-size:30px; font-weight:900; margin:0;'>{int(cntr_mc)}</p>
+        </div>
+        <div style='background:rgba(255,255,255,0.03); border-radius:12px; padding:14px; text-align:center;'>
+            <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>VOLUMEN M3</p>
+            <p style='color:#f8fafc; font-size:24px; font-weight:700; margin:0;'>{int(round(m3_mc)):,}</p>
+        </div>
+        <div style='background:rgba(255,255,255,0.03); border-radius:12px; padding:14px; text-align:center;'>
+            <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>ETD OK</p>
+            <p style='color:#00ff88; font-size:24px; font-weight:700; margin:0;'>{pct_ok_mc}%</p>
+        </div>
+    </div>
+    <div style='background:rgba(255,255,255,0.03); border-radius:10px; padding:10px 14px;'>
+        <p style='color:#64748b; font-size:11px; margin:0;'>
+        Promedio de consolidación: <b style='color:{color_mc};'>{prom_str}</b></p>
+    </div>
+</div>""", unsafe_allow_html=True)
+
+            # =================================================================
+            # ██████████████████  SECCIÓN AÉREOS  █████████████████████████████
+            # =================================================================
+            st.markdown("""
+<div style='display:flex; align-items:center; gap:20px; padding:22px 30px;
+background:linear-gradient(135deg, rgba(168,85,247,0.1) 0%, rgba(168,85,247,0.03) 100%);
+border-radius:20px; border-left:6px solid #a855f7; margin:50px 0 30px 0;'>
+<div>
+<span style='font-size:42px; line-height:1;'>✈️</span>
+</div>
+<div>
+<p style='color:#94a3b8; font-size:10px; letter-spacing:4px; margin:0 0 4px 0; text-transform:uppercase;'>Gestión Operativa</p>
+<p style='color:#a855f7; font-size:26px; font-weight:900; letter-spacing:6px; margin:0; text-transform:uppercase;'>AÉREOS</p>
+<p style='color:#64748b; font-size:11px; letter-spacing:2px; margin:4px 0 0 0;'>SEGUIMIENTO ESTADIO A ESTADIO · TIEMPO REAL</p>
+</div>
+</div>""", unsafe_allow_html=True)
+
+            try:
+                @st.cache_data(ttl=60)
+                def load_aereos(base):
+                    url_ae = f"{base}/export?format=csv&gid=88538385"
+                    df_ae  = pd.read_csv(url_ae, engine='python', on_bad_lines='skip', header=0)
+                    df_ae.columns = [str(c).strip() for c in df_ae.columns]
+                    return df_ae
+
+                df_ae = load_aereos(base_url)
+
+                col_ae_estadio  = df_ae.columns[0]
+                col_ae_emb      = df_ae.columns[1]
+                col_ae_empresa  = df_ae.columns[2]
+                col_ae_fwd      = df_ae.columns[7]
+                col_ae_partic   = df_ae.columns[8]
+                col_ae_etd      = df_ae.columns[14]
+                col_ae_eta      = df_ae.columns[15]
+                col_ae_m3       = df_ae.columns[21]
+                col_ae_cant     = df_ae.columns[23]
+                col_ae_analista = df_ae.columns[55] if len(df_ae.columns) > 55 else df_ae.columns[-1]
+
+                ORDEN_ESTADIOS = ['WAREHOUSE','EN ORIGEN','COORDINANDO','EN TRÁNSITO','EN TRANSITO','ARRIBADO','NACIONAZALIDO','NACIONALIZADO']
+                COLORES_ESTADIOS = {
+                    'WAREHOUSE'    : '#06b6d4',
+                    'EN ORIGEN'    : '#ffaa00',
+                    'COORDINANDO'  : '#f97316',
+                    'EN TRÁNSITO'  : '#00a8ff',
+                    'EN TRANSITO'  : '#00a8ff',
+                    'ARRIBADO'     : '#a855f7',
+                    'NACIONAZALIDO': '#00ff88',
+                    'NACIONALIZADO': '#00ff88',
+                }
+
+                df_ae_clean = df_ae.copy()
+                df_ae_clean[col_ae_estadio] = df_ae_clean[col_ae_estadio].astype(str).str.strip().str.upper()
+                df_ae_activos = df_ae_clean[
+                    df_ae_clean[col_ae_estadio].notna() &
+                    (df_ae_clean[col_ae_estadio] != '') &
+                    (df_ae_clean[col_ae_estadio] != 'NAN') &
+                    (~df_ae_clean[col_ae_estadio].isin(['ENTREGADO']))
+                ].copy()
+
+                def safe_num_ae(v):
+                    try: return float(str(v).replace(',', '.').strip())
+                    except: return 0.0
+
+                df_ae_activos[col_ae_m3]   = df_ae_activos[col_ae_m3].apply(safe_num_ae)
+                df_ae_activos[col_ae_cant]  = df_ae_activos[col_ae_cant].apply(safe_num_ae)
+
+                total_ae    = df_ae_activos[col_ae_emb].nunique()
+                m3_ae       = df_ae_activos[col_ae_m3].sum()
+                cant_ae     = df_ae_activos[col_ae_cant].sum()
+                empresas_ae = df_ae_activos[col_ae_empresa].nunique()
+
+                # ── PANEL EJECUTIVO AÉREOS ────────────────────────────────────
+                st.markdown(f"""
+<div style='background:linear-gradient(145deg, rgba(168,85,247,0.07) 0%, rgba(255,255,255,0.02) 100%);
+border-radius:20px; border:1px solid rgba(168,85,247,0.12); padding:30px; margin-bottom:25px;'>
+    <div style='display:grid; grid-template-columns:repeat(4,1fr); gap:16px;'>
+        <div style='background:rgba(168,85,247,0.1); border-radius:16px; padding:20px; border:1px solid rgba(168,85,247,0.2); text-align:center;'>
+            <p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 8px 0; text-transform:uppercase;'>Embarques activos</p>
+            <p style='color:#a855f7; font-size:48px; font-weight:900; margin:0; line-height:1;'>{total_ae}</p>
+        </div>
+        <div style='background:rgba(168,85,247,0.07); border-radius:16px; padding:20px; border:1px solid rgba(168,85,247,0.12); text-align:center;'>
+            <p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 8px 0; text-transform:uppercase;'>Volumen M3</p>
+            <p style='color:#a855f7; font-size:48px; font-weight:900; margin:0; line-height:1;'>{int(round(m3_ae)):,}</p>
+        </div>
+        <div style='background:rgba(168,85,247,0.07); border-radius:16px; padding:20px; border:1px solid rgba(168,85,247,0.12); text-align:center;'>
+            <p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 8px 0; text-transform:uppercase;'>Unidades</p>
+            <p style='color:#a855f7; font-size:48px; font-weight:900; margin:0; line-height:1;'>{int(cant_ae):,}</p>
+        </div>
+        <div style='background:rgba(168,85,247,0.07); border-radius:16px; padding:20px; border:1px solid rgba(168,85,247,0.12); text-align:center;'>
+            <p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 8px 0; text-transform:uppercase;'>Empresas</p>
+            <p style='color:#a855f7; font-size:48px; font-weight:900; margin:0; line-height:1;'>{empresas_ae}</p>
+        </div>
+    </div>
+</div>""", unsafe_allow_html=True)
+
+                # ── PIPELINE DE ESTADIOS ──────────────────────────────────────
+                st.markdown("""
+<p style='color:#94a3b8; font-size:11px; letter-spacing:4px; font-weight:700;
+text-transform:uppercase; margin:0 0 16px 0; padding-left:4px;'>
+▸ PIPELINE OPERATIVO — ESTADIO A ESTADIO</p>""", unsafe_allow_html=True)
+
+                conteo_e = df_ae_activos.groupby(col_ae_estadio)[col_ae_emb].nunique().reset_index()
+                conteo_e.columns = ['Estadio', 'Embarques']
+                conteo_e['M3']  = conteo_e['Estadio'].map(df_ae_activos.groupby(col_ae_estadio)[col_ae_m3].sum()).fillna(0)
+                conteo_e['Pct'] = (conteo_e['Embarques'] / conteo_e['Embarques'].sum() * 100).round(1)
+                orden_idx = {e: i for i, e in enumerate(ORDEN_ESTADIOS)}
+                conteo_e['_ord'] = conteo_e['Estadio'].map(lambda x: orden_idx.get(x, 99))
+                conteo_e = conteo_e.sort_values('_ord')
+
+                rows_e = [conteo_e.iloc[i:i+4] for i in range(0, len(conteo_e), 4)]
+                for row_group in rows_e:
+                    cols_e = st.columns(len(row_group))
+                    for idx, (_, row_e) in enumerate(row_group.iterrows()):
+                        elbl    = row_e['Estadio']
+                        color_e = COLORES_ESTADIOS.get(elbl, '#94a3b8')
+                        with cols_e[idx]:
+                            st.markdown(f"""
+<div style='text-align:center; padding:20px 12px;
+background:linear-gradient(145deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
+border-radius:16px; border-top:4px solid {color_e};
+border:1px solid rgba(255,255,255,0.06); margin-bottom:12px;'>
+<p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 8px 0; text-transform:uppercase;'>{elbl}</p>
+<p style='color:{color_e}; font-size:44px; font-weight:900; margin:0; line-height:1;'>{int(row_e['Embarques'])}</p>
+<p style='color:#94a3b8; font-size:16px; font-weight:700; margin:6px 0 4px 0;'>{row_e['Pct']:.1f}%</p>
+<p style='color:#475569; font-size:11px; margin:0;'>{int(round(row_e['M3'])):,} M3</p>
+</div>""", unsafe_allow_html=True)
+
+                # ── TIPO DE NEGOCIO ───────────────────────────────────────────
+                st.markdown("""
+<p style='color:#94a3b8; font-size:11px; letter-spacing:4px; font-weight:700;
+text-transform:uppercase; margin:20px 0 16px 0; padding-left:4px;'>
+▸ TIPO DE NEGOCIO — PARTICIPACIÓN</p>""", unsafe_allow_html=True)
+
+                df_ae_activos['_partic'] = df_ae_activos[col_ae_partic].astype(str).str.strip()
+                df_ae_activos['_partic'] = df_ae_activos['_partic'].replace({'': 'SIN CLASIFICAR', 'nan': 'SIN CLASIFICAR', 'NaN': 'SIN CLASIFICAR'})
+                conteo_p = df_ae_activos.groupby('_partic')[col_ae_emb].nunique().reset_index()
+                conteo_p.columns = ['Tipo', 'Embarques']
+                conteo_p['M3']  = conteo_p['Tipo'].map(df_ae_activos.groupby('_partic')[col_ae_m3].sum()).fillna(0)
+                conteo_p['Pct'] = (conteo_p['Embarques'] / conteo_p['Embarques'].sum() * 100).round(1)
+                conteo_p = conteo_p.sort_values('Embarques', ascending=False)
+
+                COLS_P = ['#a855f7', '#00a8ff', '#00ff88', '#ffaa00', '#ff4b4b', '#06b6d4', '#f97316']
+                rows_p = [conteo_p.iloc[i:i+4] for i in range(0, len(conteo_p), 4)]
+                for row_group_p in rows_p:
+                    cols_p = st.columns(len(row_group_p))
+                    for ip, (_, row_p) in enumerate(row_group_p.iterrows()):
+                        cp = COLS_P[ip % len(COLS_P)]
+                        with cols_p[ip]:
+                            st.markdown(f"""
+<div style='text-align:center; padding:20px 12px;
+background:linear-gradient(145deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
+border-radius:16px; border-top:4px solid {cp};
+border:1px solid rgba(255,255,255,0.06); margin-bottom:12px;'>
+<p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 8px 0; text-transform:uppercase;'>{row_p['Tipo']}</p>
+<p style='color:{cp}; font-size:44px; font-weight:900; margin:0; line-height:1;'>{int(row_p['Embarques'])}</p>
+<p style='color:#94a3b8; font-size:16px; font-weight:700; margin:6px 0 4px 0;'>{row_p['Pct']:.1f}%</p>
+<p style='color:#475569; font-size:11px; margin:0;'>{int(round(row_p['M3'])):,} M3</p>
+</div>""", unsafe_allow_html=True)
+
+                # ── TABLA DETALLE ─────────────────────────────────────────────
+                st.markdown("""
+<p style='color:#94a3b8; font-size:11px; letter-spacing:4px; font-weight:700;
+text-transform:uppercase; margin:20px 0 12px 0; padding-left:4px;'>
+▸ DETALLE DE EMBARQUES ACTIVOS</p>""", unsafe_allow_html=True)
+
+                cols_ae_show = [col_ae_estadio, col_ae_emb, col_ae_empresa, col_ae_fwd, col_ae_etd, col_ae_eta, col_ae_m3, col_ae_cant, col_ae_analista]
+                df_ae_tabla  = df_ae_activos[[c for c in cols_ae_show if c in df_ae_activos.columns]].copy()
+                df_ae_tabla  = df_ae_tabla.rename(columns={
+                    col_ae_estadio : 'Estadio',
+                    col_ae_emb     : 'Embarque',
+                    col_ae_empresa : 'Empresa',
+                    col_ae_fwd     : 'Forwarder',
+                    col_ae_etd     : 'ETD',
+                    col_ae_eta     : 'ETA',
+                    col_ae_m3      : 'M3',
+                    col_ae_cant    : 'Unidades',
+                    col_ae_analista: 'Analista',
+                })
+                df_ae_tabla['_ord'] = df_ae_tabla['Estadio'].map(lambda x: orden_idx.get(x.upper(), 99))
+                df_ae_tabla = df_ae_tabla.sort_values('_ord').drop(columns=['_ord'])
+                st.dataframe(df_ae_tabla, use_container_width=True, hide_index=True,
+                    column_config={
+                        'M3'      : st.column_config.NumberColumn("M3", format="%.1f"),
+                        'Unidades': st.column_config.NumberColumn("Unidades", format="%d"),
+                    })
+
+            except Exception as e_ae:
+                st.error(f"Error en sección Aéreos: {e_ae}")
+                import traceback; st.code(traceback.format_exc())
+
         except Exception as e:
-            st.error(f"Error en Gestión de Reservas: {e}")
+            st.error(f"Error en Mercadería en Coordinación: {e}")
+            import traceback; st.code(traceback.format_exc())
     # --- SOLAPA 3: PERFORMANCE DE ANALISTAS ---
     with tabs[2]:
         st.markdown("<div style='text-align:center; padding: 20px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; margin: 30px 0;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>PERFORMANCE DE ANALISTAS</h2><p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>BASADO EN RESERVAS HISTÓRICAS · 2026</p></div>", unsafe_allow_html=True)
