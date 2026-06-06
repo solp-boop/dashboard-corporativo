@@ -774,26 +774,6 @@ st.markdown(f"""
                     </div>
                 </div>
             """, unsafe_allow_html=True)
-<div class="grid-2">
-    <div class="custom-card" style="border:2px solid rgba(0,255,136,0.5); box-shadow:0 0 30px rgba(0,255,136,0.15);">
-        <p style="font-size:20px; font-weight:800; color:#00ff88; margin-bottom:18px; letter-spacing:2px;">✅ CONFIRMADOS CON ETD OK ({pct_ok_p}%)</p>
-        <div class="grid-2" style="text-align:center;">
-            <div><p class="minicard-title">SOs</p><p style="font-size:44px; font-weight:900; color:#f8fafc; margin:0;">{c_so_ok}</p></div>
-            <div><p class="minicard-title">EMBARQUES</p><p style="font-size:44px; font-weight:600; color:#f8fafc; margin:0;">{c_emb_ok}</p></div>
-            <div><p class="minicard-title">PROVEEDORES</p><p style="font-size:40px; font-weight:600; color:#00ff88; margin:0;">{prov_ok_p}</p></div>
-            <div><p class="minicard-title">VOLUMEN</p><p style="font-size:32px; font-weight:800; color:#f8fafc; margin:0;">{int(round(m3_ok_p)):,} <span style="font-size:14px;">M3</span></p></div>
-        </div>
-    </div>
-    <div class="custom-card" style="border:2px solid rgba(255,75,75,0.5); box-shadow:0 0 30px rgba(255,75,75,0.15);">
-        <p style="font-size:20px; font-weight:800; color:#ff4b4b; margin-bottom:18px; letter-spacing:2px;">⏳ PENDIENTES DE CONFIRMACIÓN ({pct_pend_p}%)</p>
-        <div class="grid-2" style="text-align:center;">
-            <div><p class="minicard-title">SOs</p><p style="font-size:44px; font-weight:900; color:#f8fafc; margin:0;">{c_so_pend}</p></div>
-            <div><p class="minicard-title">EMBARQUES</p><p style="font-size:44px; font-weight:600; color:#f8fafc; margin:0;">{c_emb_pend}</p></div>
-            <div><p class="minicard-title">PROVEEDORES</p><p style="font-size:40px; font-weight:600; color:#ff4b4b; margin:0;">{prov_pend_p}</p></div>
-            <div><p class="minicard-title">VOLUMEN</p><p style="font-size:32px; font-weight:800; color:#f8fafc; margin:0;">{int(round(m3_pend_p)):,} <span style="font-size:14px;">M3</span></p></div>
-        </div>
-    </div>
-</div>""", unsafe_allow_html=True)
 
             st.markdown("<br><br>", unsafe_allow_html=True)
             st.markdown("<p style='text-align:center; color:#00a8ff; font-weight:700; letter-spacing:4px; font-size:16px;'>DESGLOSE POR TIPO DE TRANSPORTE</p>", unsafe_allow_html=True)
