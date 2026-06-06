@@ -359,16 +359,17 @@ try:
             cond_accionar = cond_acc_mono | cond_acc_consol
             cond_futura = cond_pendiente & (~cond_urgente) & (~cond_accionar)
             df_inst = df[cond_instruido & cond_prioridad].sort_values(by='Rank_Num').copy()
-            df_urgente = df[cond_urgente & cond_prioridad].sort_values(by='Rank_Num').copy()
+            # Vencidos CON prioridad: Argentina + Repuestos vacío (Gadnic)
+            cond_venc_prior = cond_urgente & (df['Pais Destino'].str.upper() == 'ARGENTINA') & (df['Tipo_Repuesto'] == 'Gadnic')
+            # Vencidos SIN prioridad: el resto (otros países, repuestos, muestras, etc.)
+            cond_venc_sinprior = cond_urgente & ~cond_venc_prior
+            df_urgente_prior = df[cond_venc_prior].sort_values(by='Rank_Num').copy()
+            df_urgente_sinprior = df[cond_venc_sinprior].sort_values(by=['Fecha_Prior_DT', 'Rank_Num']).copy()
+            df_urgente = df_urgente_prior  # compatibilidad con m3_urgente abajo
             df_accionar = df[cond_accionar & cond_prioridad].sort_values(by='Rank_Num').copy()
             df_futura = df[cond_futura & cond_prioridad].sort_values(by='Rank_Num').copy()
-            cond_complementario = cond_pendiente & (~cond_prioridad)
-            df_complem = df[cond_complementario].sort_values(by=['Fecha_Prior_DT', 'Rank_Num']).copy()
-            df_otros_p = df_complem[df_complem['Pais Destino'].str.upper() != 'ARGENTINA'].copy()
-            df_repuestos = df_complem[df_complem['Tipo_Repuesto'] != 'Gadnic'].copy()
-            cant_demorados_comp = df_complem[df_complem['Fecha_Prior_DT'] < hoy]['SO'].nunique()
             m3_inst = df_inst['M3 Total'].sum()
-            m3_urgente = df_urgente['M3 Total'].sum()
+            m3_urgente = df_urgente_prior['M3 Total'].sum() + df_urgente_sinprior['M3 Total'].sum()
             m3_accionar = df_accionar['M3 Total'].sum()
             m3_futura = df_futura['M3 Total'].sum()
             m3_pend_total = m3_urgente + m3_accionar + m3_futura
@@ -428,8 +429,11 @@ try:
                         </div>
                     </div>
                 """, unsafe_allow_html=True)
-                if st.button(f"🔴 NIVEL 1: VENCIDA (URGENTE) - {int(round(df_urgente['M3 Total'].sum()))} M3", key="btn_urg_new", use_container_width=True):
+                if st.button(f"🔴 NIVEL 1A: VENCIDA PRIORITARIA (ARG·GADNIC) - {int(round(df_urgente_prior['M3 Total'].sum()))} M3", key="btn_urg_new", use_container_width=True):
                     st.session_state.f = 'venc' if filtro_actual != 'venc' else None
+                    st.rerun()
+                if st.button(f"🟥 NIVEL 1B: VENCIDA SIN PRIORIDAD - {int(round(df_urgente_sinprior['M3 Total'].sum()))} M3", key="btn_urg_sp_new", use_container_width=True):
+                    st.session_state.f = 'venc_sp' if filtro_actual != 'venc_sp' else None
                     st.rerun()
                 if st.button(f"🟠 NIVEL 2: ACCIONAR (PRÓXIMA) - {int(round(df_accionar['M3 Total'].sum()))} M3", key="btn_acc_new", use_container_width=True):
                     st.session_state.f = 'px25' if filtro_actual != 'px25' else None
@@ -437,54 +441,19 @@ try:
                 if st.button(f"🔵 NIVEL 3: PROGRAMADA (FUTURA) - {int(round(df_futura['M3 Total'].sum()))} M3", key="btn_rest_new", use_container_width=True):
                     st.session_state.f = 'rest' if filtro_actual != 'rest' else None
                     st.rerun()
-            st.markdown("<br>", unsafe_allow_html=True)
-            c_sec1, c_sec2, c_sec3 = st.columns(3)
-            with c_sec1:
-                st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
-                if st.button("🏆 TOP 100 RANKING", key="btn_rank_new", use_container_width=True):
-                    st.session_state.f = 'rank' if filtro_actual != 'rank' else None
-                    st.rerun()
-            with c_sec2:
-                st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
-                if st.button(f"🔎 SEGUIMIENTO COMPLEMENTARIO ({df_complem['SO'].nunique()})", key="btn_comp_new", use_container_width=True):
-                    st.session_state.f = 'comp' if filtro_actual != 'comp' else None
-                    st.rerun()
-            with c_sec3:
-                st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
-                if st.button("🏗️ ESTRUCTURA DE CARGA", key="btn_estr_new", use_container_width=True):
-                    st.session_state.f = 'estr' if filtro_actual != 'estr' else None
-                    st.rerun()
+
             f = st.session_state.get('f')
             if f:
                 st.markdown("<br>", unsafe_allow_html=True)
-                if f in ["inst", "venc", "px25", "rest", "comp"]:
+                if f in ["inst", "venc", "venc_sp", "px25", "rest"]:
                     if f == "inst": titulo, dff, color = "MERCADERIA INSTRUIDA (PRIORIDAD)", df_inst, "#00ff88"
-                    elif f == "venc": titulo, dff, color = "MERCADERIA VENCIDA (URGENTE)", df_urgente, "#ff4b4b"
+                    elif f == "venc": titulo, dff, color = "VENCIDA CON PRIORIDAD (ARG · SIN REPUESTO)", df_urgente_prior, "#ff4b4b"
+                    elif f == "venc_sp": titulo, dff, color = "VENCIDA SIN PRIORIDAD", df_urgente_sinprior, "#ff8c42"
                     elif f == "px25": titulo, dff, color = "PROXIMA A INSTRUIR (ACCIÓN)", df_accionar, "#ffaa00"
                     elif f == "rest": titulo, dff, color = "MERCADERIA PROGRAMADA (FUTURA)", df_futura, "#94a3b8"
-                    elif f == "comp": titulo, dff, color = "SEGUIMIENTO ESPECIAL (OTROS PAÍSES / REPUESTOS)", df_complem, "#00a8ff"
                     cant_so_f = dff['SO'].nunique()
                     m3_f = int(round(dff['M3 Total'].sum()))
-                    if f == "comp":
-                        msg_extra = f"<p style='color:#ff4b4b; font-size:14px; font-weight:700;'>🚨 {cant_demorados_comp} SO DEMORADAS EN SEGUIMIENTO</p>"
-                        st.markdown(f"""
-                            <div class="custom-card" style="border-left: 5px solid {color};">
-                                <p class="custom-card-title" style="color:{color};">{titulo}</p>
-                                {msg_extra}
-                                <div class="grid-2">
-                                    <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:10px;">
-                                        <p class="minicard-title">DESTINOS EXTERNOS</p>
-                                        <p style="font-size:20px; font-weight:700; color:#fff; margin:0;">{df_otros_p['SO'].nunique()} SO | {int(round(df_otros_p['M3 Total'].sum()))} M3</p>
-                                    </div>
-                                    <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:10px;">
-                                        <p class="minicard-title">REPUESTOS / MUESTRAS</p>
-                                        <p style="font-size:20px; font-weight:700; color:#fff; margin:0;">{df_repuestos['SO'].nunique()} SO | {int(round(df_repuestos['M3 Total'].sum()))} M3</p>
-                                    </div>
-                                </div>
-                            </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        st.markdown(f"""
+                    st.markdown(f"""
                             <div class="custom-card" style="border-left: 5px solid {color};">
                                 <p class="custom-card-title" style="color:{color};">{titulo} ({int(round(m3_f/m3_totales_global*100)) if m3_totales_global > 0 else 0}%)</p>
                                 <div class="grid-2">
@@ -498,43 +467,7 @@ try:
                     if 'Repuestos' in df.columns:
                         cols_to_show.insert(4, 'Repuestos')
                     st.dataframe(dff[cols_to_show], use_container_width=True)
-                elif f == "rank":
-                    col_rank = df.columns[1]
-                    col_prior = df.columns[99]
-                    df_rank = df[df['Rank_Num'] <= 100].sort_values(by='Rank_Num').copy()
-                    df_rank['Status'] = df_rank['Fecha_Inst_DT'].apply(lambda x: "✅ OK" if pd.notna(x) else "❌ PEND")
-                    st.markdown(f"""
-                        <div class="custom-card" style="border-left: 5px solid #00a8ff;">
-                            <p class="custom-card-title" style="color:#00a8ff;">TOP 100 RANKING - RESUMEN</p>
-                            <div class="grid-2">
-                                <div><p class="minicard-title">EMBARQUES EN RANGO</p><p class="minicard-value">{df_rank['SO'].nunique()}</p></div>
-                                <div><p class="minicard-title">M3 TOTAL PRIORITARIO</p><p class="minicard-value">{int(df_rank['M3 Total'].sum()):,} M3</p></div>
-                            </div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                    col_puerto = df.columns[41]
-                    cols_rank = ['SO', col_rank, 'Proveedor', col_puerto, 'Pais Destino', col_prior, 'M3 Total', 'Status']
-                    if 'Repuestos' in df.columns: cols_rank.insert(3, 'Repuestos')
-                    st.dataframe(df_rank[cols_rank], use_container_width=True)
-                elif f == "estr":
-                    col_cp = df.columns[93]
-                    df['Tipo_Carga'] = df[col_cp].apply(lambda x: 'MONOPROVEEDOR' if str(x).upper() == 'SI' else 'CONSOLIDADO')
-                    st.markdown("<p style='color:#00a8ff; font-weight:700; letter-spacing:4px; margin-bottom:20px; font-size:18px;'>ANALISIS ESTRUCTURA DE CARGA</p>", unsafe_allow_html=True)
-                    e1, e2 = st.columns(2)
-                    tipos = ["CONSOLIDADO", "MONOPROVEEDOR"]
-                    colores_e = ["#94a3b8", "#00a8ff"]
-                    for i, t_carga in enumerate(tipos):
-                        df_c = df[df['Tipo_Carga'] == t_carga]
-                        with [e1, e2][i]:
-                            st.markdown(f"""
-                                <div class="custom-card" style="border-left: 5px solid {colores_e[i]};">
-                                    <p class="custom-card-title" style="color:{colores_e[i]};">{t_carga}</p>
-                                    <div class="grid-2">
-                                        <div><p class="minicard-title">CANT. SO</p><p class="minicard-value">{df_c['SO'].nunique()}</p></div>
-                                        <div><p class="minicard-title">TOTAL M3</p><p class="minicard-value">{int(df_c['M3 Total'].sum()):,}</p></div>
-                                    </div>
-                                </div>
-                            """, unsafe_allow_html=True)
+
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
             st.markdown("<p style='color:#00a8ff; font-weight:700; letter-spacing:4px; font-size:18px; margin-bottom:25px; text-align:center;'>DISTRIBUCIÓN GEOGRÁFICA</p>", unsafe_allow_html=True)
             res_p = df.groupby('Pais Destino').agg({'SO': 'nunique', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT_SO', 'M3 Total': 'M3'}).sort_values(by='M3', ascending=False)
@@ -565,24 +498,37 @@ try:
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
             col_puerto = df.columns[41]
             p_df = df.groupby(col_puerto).agg({'M3 Total': 'sum'}).reset_index().sort_values(by='M3 Total')
-            st.markdown(f"<p style='color:#00a8ff; font-weight:700; font-size:18px; text-align:center; letter-spacing:4px; margin-bottom:20px;'>VOLUMEN POR PUERTO DE SALIDA <span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>| TOTAL: {int(round(p_df['M3 Total'].sum())):,} M3</span></p>", unsafe_allow_html=True)
-            fig_p = px.bar(p_df, y=col_puerto, x='M3 Total', orientation='h', text_auto=',.0f', color_discrete_sequence=['#00a8ff'])
-            fig_p.update_traces(textposition='outside', cliponaxis=False, textfont_size=16, textfont_color="#f8fafc", marker=dict(cornerradius=5))
-            fig_p.update_layout(xaxis_visible=True, xaxis_title="Total M3", yaxis_title="Puerto", height=500, margin=dict(l=150, r=100, t=20, b=20), font=dict(size=14, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            total_m3_puertos = p_df['M3 Total'].sum()
+            p_df['Pct'] = (p_df['M3 Total'] / total_m3_puertos * 100).round(1) if total_m3_puertos > 0 else 0
+            p_df['label'] = p_df.apply(lambda r: f"{int(round(r['M3 Total'])):,} M3  ({r['Pct']}%)", axis=1)
+            st.markdown(f"<p style='color:#00a8ff; font-weight:700; font-size:18px; text-align:center; letter-spacing:4px; margin-bottom:20px;'>VOLUMEN POR PUERTO DE SALIDA <span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>| TOTAL: {int(round(total_m3_puertos)):,} M3</span></p>", unsafe_allow_html=True)
+            fig_p = px.bar(p_df, y=col_puerto, x='M3 Total', orientation='h', text='label', color_discrete_sequence=['#00a8ff'])
+            fig_p.update_traces(textposition='outside', cliponaxis=False, textfont_size=14, textfont_color="#f8fafc", marker=dict(cornerradius=5))
+            fig_p.update_layout(xaxis_visible=True, xaxis_title="Total M3", yaxis_title="Puerto", height=500, margin=dict(l=150, r=160, t=20, b=20), font=dict(size=14, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
             fig_p.update_xaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)')
             st.plotly_chart(fig_p, use_container_width=True)
             ga, gb = st.columns(2)
             with ga:
-                etd_p = df.groupby('Mes_ETD_Full').agg({'M3 Total': 'sum'}).reset_index()
-                st.markdown(f"<p style='color:#00ff88; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:20px;'>PROYECCIÓN MENSUAL ETD<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL: {int(round(etd_p['M3 Total'].sum())):,} M3</span></p>", unsafe_allow_html=True)
+                etd_all = df.groupby('Mes_ETD_Full').agg({'M3 Total': 'sum'}).reset_index()
+                etd_vencido = etd_all[etd_all['Mes_ETD_Full'] == 'PASADO/REALIZADO']
+                etd_p = etd_all[~etd_all['Mes_ETD_Full'].isin(['PASADO/REALIZADO', 'SIN FECHA'])]
+                if not etd_vencido.empty and etd_vencido['M3 Total'].sum() > 0:
+                    m3_venc_etd = int(round(etd_vencido['M3 Total'].sum()))
+                    st.markdown(f"<div style='background:rgba(255,75,75,0.08); border-radius:8px; padding:8px 14px; border-left:3px solid #ff4b4b; margin-bottom:10px;'><p style='color:#ff4b4b; font-size:12px; font-weight:700; margin:0;'>⚠️ VENCIDO/REALIZADO: {m3_venc_etd:,} M3 en meses anteriores (no se muestran en el gráfico)</p></div>", unsafe_allow_html=True)
+                st.markdown(f"<p style='color:#00ff88; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:20px;'>PROYECCIÓN MENSUAL ETD<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL FUTURO: {int(round(etd_p['M3 Total'].sum())):,} M3</span></p>", unsafe_allow_html=True)
                 fig_e = px.bar(etd_p, x='Mes_ETD_Full', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#00ff88'])
                 fig_e.update_traces(textfont_size=16, textposition='outside', textfont_color="#f8fafc", marker=dict(cornerradius=5))
                 fig_e.update_layout(yaxis_visible=True, yaxis_title="Total M3", xaxis_title="Mes ETD", height=450, margin=dict(l=20, r=20, t=20, b=20), font=dict(size=14, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                 fig_e.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)')
                 st.plotly_chart(fig_e, use_container_width=True)
             with gb:
-                eta_p = df.groupby('Mes_ETA_Full', observed=True).agg({'M3 Total': 'sum'}).reset_index()
-                st.markdown(f"<p style='color:#ff4b4b; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:20px;'>PROYECCIÓN MENSUAL ETA<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL: {int(round(eta_p['M3 Total'].sum())):,} M3</span></p>", unsafe_allow_html=True)
+                eta_all = df.groupby('Mes_ETA_Full', observed=True).agg({'M3 Total': 'sum'}).reset_index()
+                eta_vencido = eta_all[eta_all['Mes_ETA_Full'] == 'PASADO/REALIZADO']
+                eta_p = eta_all[~eta_all['Mes_ETA_Full'].isin(['PASADO/REALIZADO', 'SIN FECHA'])]
+                if not eta_vencido.empty and eta_vencido['M3 Total'].sum() > 0:
+                    m3_venc_eta = int(round(eta_vencido['M3 Total'].sum()))
+                    st.markdown(f"<div style='background:rgba(255,75,75,0.08); border-radius:8px; padding:8px 14px; border-left:3px solid #ff4b4b; margin-bottom:10px;'><p style='color:#ff4b4b; font-size:12px; font-weight:700; margin:0;'>⚠️ VENCIDO/REALIZADO: {m3_venc_eta:,} M3 en meses anteriores (no se muestran en el gráfico)</p></div>", unsafe_allow_html=True)
+                st.markdown(f"<p style='color:#ff4b4b; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:20px;'>PROYECCIÓN MENSUAL ETA<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL FUTURO: {int(round(eta_p['M3 Total'].sum())):,} M3</span></p>", unsafe_allow_html=True)
                 fig_a = px.bar(eta_p, x='Mes_ETA_Full', y='M3 Total', text_auto=',.0f', color_discrete_sequence=['#ff4b4b'])
                 fig_a.update_traces(textfont_size=16, textposition='outside', textfont_color="#f8fafc", marker=dict(cornerradius=5))
                 fig_a.update_layout(yaxis_visible=True, yaxis_title="Total M3", xaxis_title="Mes ETA", height=450, margin=dict(l=20, r=20, t=20, b=20), font=dict(size=14, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
@@ -600,10 +546,15 @@ try:
                         df[col_mod].astype(str).str.upper().str.contains("COSTO HIBRIDO PUERTO ZFLP", na=False)
                     )
                     mask_cntr = mask_arg & mask_barco
-                    df_c_etd = df[mask_cntr].groupby('Mes_ETD_Full').agg({'M3 Total': 'sum'}).reset_index()
+                    df_c_etd_all = df[mask_cntr].groupby('Mes_ETD_Full').agg({'M3 Total': 'sum'}).reset_index()
+                    df_c_etd_venc = df_c_etd_all[df_c_etd_all['Mes_ETD_Full'] == 'PASADO/REALIZADO']
+                    df_c_etd = df_c_etd_all[~df_c_etd_all['Mes_ETD_Full'].isin(['PASADO/REALIZADO', 'SIN FECHA'])]
                     df_c_etd['Contenedores'] = (df_c_etd['M3 Total'] / 60).round().astype(int)
                     tot_cont_etd = df_c_etd['Contenedores'].sum()
-                    st.markdown(f"<p style='color:#ffaa00; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:20px;'>PROYECCIÓN CONTENEDORES (ETD)<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL: {int(tot_cont_etd):,} CNTR</span></p>", unsafe_allow_html=True)
+                    if not df_c_etd_venc.empty and df_c_etd_venc['M3 Total'].sum() > 0:
+                        cont_venc_etd = int(round(df_c_etd_venc['M3 Total'].sum() / 60))
+                        st.markdown(f"<div style='background:rgba(255,75,75,0.08); border-radius:8px; padding:8px 14px; border-left:3px solid #ff4b4b; margin-bottom:10px;'><p style='color:#ff4b4b; font-size:12px; font-weight:700; margin:0;'>⚠️ VENCIDO: ~{cont_venc_etd} CNTR en meses anteriores (no se muestran)</p></div>", unsafe_allow_html=True)
+                    st.markdown(f"<p style='color:#ffaa00; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:20px;'>PROYECCIÓN CONTENEDORES (ETD)<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL FUTURO: {int(tot_cont_etd):,} CNTR</span></p>", unsafe_allow_html=True)
                     fig_cetd = px.bar(df_c_etd, x='Mes_ETD_Full', y='Contenedores', text_auto=',.0f', color_discrete_sequence=['#ffaa00'])
                     fig_cetd.update_traces(textfont_size=16, textposition='outside', textfont_color="#f8fafc", marker=dict(cornerradius=5))
                     fig_cetd.update_layout(yaxis_visible=True, yaxis_title="Cant. Cont", xaxis_title="Mes ETD", height=450, margin=dict(l=20, r=20, t=20, b=20), font=dict(size=14, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
@@ -619,10 +570,15 @@ try:
                         df[col_mod].astype(str).str.upper().str.contains("COSTO HIBRIDO PUERTO ZFLP", na=False)
                     )
                     mask_cntr = mask_arg & mask_barco
-                    df_c_eta = df[mask_cntr].groupby('Mes_ETA_Full', observed=True).agg({'M3 Total': 'sum'}).reset_index()
+                    df_c_eta_all = df[mask_cntr].groupby('Mes_ETA_Full', observed=True).agg({'M3 Total': 'sum'}).reset_index()
+                    df_c_eta_venc = df_c_eta_all[df_c_eta_all['Mes_ETA_Full'] == 'PASADO/REALIZADO']
+                    df_c_eta = df_c_eta_all[~df_c_eta_all['Mes_ETA_Full'].isin(['PASADO/REALIZADO', 'SIN FECHA'])]
                     df_c_eta['Contenedores'] = (df_c_eta['M3 Total'] / 60).round().astype(int)
                     tot_cont_eta = df_c_eta['Contenedores'].sum()
-                    st.markdown(f"<p style='color:#ffaa00; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:20px;'>PROYECCIÓN CONTENEDORES (ETA)<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL: {int(tot_cont_eta):,} CNTR</span></p>", unsafe_allow_html=True)
+                    if not df_c_eta_venc.empty and df_c_eta_venc['M3 Total'].sum() > 0:
+                        cont_venc_eta = int(round(df_c_eta_venc['M3 Total'].sum() / 60))
+                        st.markdown(f"<div style='background:rgba(255,75,75,0.08); border-radius:8px; padding:8px 14px; border-left:3px solid #ff4b4b; margin-bottom:10px;'><p style='color:#ff4b4b; font-size:12px; font-weight:700; margin:0;'>⚠️ VENCIDO: ~{cont_venc_eta} CNTR en meses anteriores (no se muestran)</p></div>", unsafe_allow_html=True)
+                    st.markdown(f"<p style='color:#ffaa00; font-weight:700; font-size:16px; text-align:center; letter-spacing:2px; margin-bottom:20px;'>PROYECCIÓN CONTENEDORES (ETA)<br><span style='font-size:14px; font-weight:400; color:#f8fafc; text-shadow:none;'>TOTAL FUTURO: {int(tot_cont_eta):,} CNTR</span></p>", unsafe_allow_html=True)
                     fig_ceta = px.bar(df_c_eta, x='Mes_ETA_Full', y='Contenedores', text_auto=',.0f', color_discrete_sequence=['#ffaa00'])
                     fig_ceta.update_traces(textfont_size=16, textposition='outside', textfont_color="#f8fafc", marker=dict(cornerradius=5))
                     fig_ceta.update_layout(yaxis_visible=True, yaxis_title="Cant. Cont", xaxis_title="Mes ETA", height=450, margin=dict(l=20, r=20, t=20, b=20), font=dict(size=14, family='Outfit, sans-serif'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
