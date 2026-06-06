@@ -596,7 +596,7 @@ try:
         except Exception as e:
             st.error(f"Error en Solapa Origen: {e}")
 # =========================================================================
-    # --- SOLAPA 2: MERCADERÍA EN COORDINACIÓN ---
+    # --- SOLAPA 2: COORDINACIÓN ACTIVA ---
     # =========================================================================
     with tabs[1]:
         try:
@@ -616,13 +616,8 @@ try:
             df_g['DT_Inst']      = pd.to_datetime(df_g.iloc[:, 7], dayfirst=True, errors='coerce')
             df_g['ETD_Status_K'] = df_g.iloc[:, 10].astype(str).str.upper().str.strip()
             df_g['Espera']       = (pd.to_datetime('today') - df_g['DT_Inst']).dt.days
-            df_g['Critico']      = (df_g['ETD_Status_K'] != "OK") & (df_g['Espera'] > 5)
 
             df_inst_s2  = df[cond_instruido].copy()
-            df_plan_res = df_inst_s2[
-                df_inst_s2.iloc[:, 20].notna() &
-                (df_inst_s2.iloc[:, 20].astype(str).str.strip() != "")
-            ].copy()
 
             def safe_float_f(val):
                 if isinstance(val, (int, float)): return float(val)
@@ -657,202 +652,236 @@ try:
 
             df_mar.iloc[:, 21] = df_mar.iloc[:, 21].apply(clean_val_mar).fillna(0)
 
+            # --- Métricas marítimas ---
             total_mar  = df_mar.iloc[:, 0].nunique()
             ok_mar     = df_mar[df_mar['ETD_Status_K'] == "OK"].iloc[:, 0].nunique()
             pend_mar   = total_mar - ok_mar
-            crit_mar   = df_mar[df_mar['Critico']].iloc[:, 0].nunique()
             m3_mar     = df_mar.iloc[:, 23].apply(safe_float_f).sum()
             cntr_mar   = df_mar.iloc[:, 1].apply(safe_float_f).sum()
             pct_ok_mar = round(ok_mar / total_mar * 100) if total_mar > 0 else 0
 
+            # Destinos Argentina vs otros (desde df_inst_s2, columna pais destino idx 18)
+            col_pais_s2 = df.columns[18]
+            mask_arg_s2 = df_inst_s2[col_pais_s2].astype(str).str.strip().str.upper() == 'ARGENTINA'
+            total_so_s2 = df_inst_s2['SO'].nunique()
+            so_arg      = df_inst_s2[mask_arg_s2]['SO'].nunique()
+            so_otros    = total_so_s2 - so_arg
+            pct_arg     = round(so_arg / total_so_s2 * 100) if total_so_s2 > 0 else 0
+            pct_otros   = 100 - pct_arg
+
+            # Estructura de carga
             msk_mono = df_mar.iloc[:, 32].astype(str).str.strip().str.upper().isin(['SI', 'SÍ', 'S', 'MONOPROVEEDOR'])
-            df_mono_m = df_mar[msk_mono];  df_cons_m = df_mar[~msk_mono]
+            df_mono_m = df_mar[msk_mono]; df_cons_m = df_mar[~msk_mono]
             tot_mc = len(df_mono_m) + len(df_cons_m)
             pct_mono_m = round(len(df_mono_m) / tot_mc * 100) if tot_mc > 0 else 0
             pct_cons_m = 100 - pct_mono_m
 
+            # Booking
+            msk_adv  = df_mar.iloc[:, 8].astype(str).str.strip() == "Booked in Advance"
+            pct_adv  = round(msk_adv.sum() / total_mar * 100) if total_mar > 0 else 0
+            pct_spot = 100 - pct_adv
+
+            # Medianas de consolidación
             dias_consol_raw = df_mar.iloc[:, 28].apply(safe_float_f)
             dias_consol_raw = dias_consol_raw[dias_consol_raw > 0]
             mediana_consol  = dias_consol_raw.median() if not dias_consol_raw.empty else 0
+            dias_mono_raw   = dias_consol_raw[msk_mono[dias_consol_raw.index]] if not dias_consol_raw.empty else pd.Series([], dtype=float)
+            dias_cons_raw   = dias_consol_raw[~msk_mono[dias_consol_raw.index]] if not dias_consol_raw.empty else pd.Series([], dtype=float)
+            dias_adv_raw    = dias_consol_raw[msk_adv[dias_consol_raw.index]] if not dias_consol_raw.empty else pd.Series([], dtype=float)
+            dias_spot_raw   = dias_consol_raw[~msk_adv[dias_consol_raw.index]] if not dias_consol_raw.empty else pd.Series([], dtype=float)
+            mediana_mono    = dias_mono_raw.median() if not dias_mono_raw.empty else 0
+            mediana_cons    = dias_cons_raw.median() if not dias_cons_raw.empty else 0
+            mediana_adv     = dias_adv_raw.median() if not dias_adv_raw.empty else 0
+            mediana_spot    = dias_spot_raw.median() if not dias_spot_raw.empty else 0
 
-            dias_mono_raw = dias_consol_raw[msk_mono[dias_consol_raw.index]]
-            dias_cons_raw = dias_consol_raw[~msk_mono[dias_consol_raw.index]]
-            mediana_mono  = dias_mono_raw.median() if not dias_mono_raw.empty else 0
-            mediana_cons  = dias_cons_raw.median() if not dias_cons_raw.empty else 0
-
-            msk_adv   = df_mar.iloc[:, 8].astype(str).str.strip() == "Booked in Advance"
-            pct_adv   = round(msk_adv.sum() / total_mar * 100) if total_mar > 0 else 0
-            pct_spot  = 100 - pct_adv
-
-            # ── SEMÁFORO ETD ─────────────────────────────────────────────────
+            # Semaforo ETD
             if pct_ok_mar >= 70:
-                semaforo_color = "#00ff88"; semaforo_label = "SITUACIÓN CONTROLADA"; semaforo_icon = "🟢"
+                semaforo_color = "#00ff88"; semaforo_label = "SITUACION CONTROLADA"
             elif pct_ok_mar >= 40:
-                semaforo_color = "#ffaa00"; semaforo_label = "ATENCIÓN REQUERIDA"; semaforo_icon = "🟡"
+                semaforo_color = "#ffaa00"; semaforo_label = "ATENCION REQUERIDA"
             else:
-                semaforo_color = "#ff4b4b"; semaforo_label = "ALERTA OPERATIVA"; semaforo_icon = "🔴"
+                semaforo_color = "#ff4b4b"; semaforo_label = "ALERTA OPERATIVA"
 
-            # ═════════════════════════════════════════════════════════════════
+            # ═══════════════════════════════════════════════════════
             # HEADER GENERAL
-            # ═════════════════════════════════════════════════════════════════
+            # ═══════════════════════════════════════════════════════
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown(f"""
-<div style='text-align:center; padding:28px 20px 20px 20px; margin-bottom:8px;'>
+            st.markdown("""
+<div style='text-align:center; padding:24px 20px 16px 20px; margin-bottom:4px;'>
 <p style='color:#475569; font-size:11px; letter-spacing:6px; margin:0 0 6px 0; text-transform:uppercase;'>Panel Ejecutivo · Tiempo Real</p>
-<h2 style='color:#f8fafc; font-weight:900; letter-spacing:8px; margin:0; font-size:30px;'>MERCADERÍA EN MOVIMIENTO</h2>
+<h2 style='color:#f8fafc; font-weight:900; letter-spacing:8px; margin:0; font-size:28px;'>COORDINACION ACTIVA</h2>
 </div>""", unsafe_allow_html=True)
 
             k1, k2, k3, k4 = st.columns(4)
             with k1: st.markdown(f"<div class='metric-container'><p>SO EN PROCESO</p><p>{int(df_inst_s2['SO'].nunique())}</p></div>", unsafe_allow_html=True)
             with k2: st.markdown(f"<div class='metric-container'><p>VOLUMEN TOTAL</p><p>{int(round(m3_total_clean)):,} <span style='font-size:30px;'>M3</span></p></div>", unsafe_allow_html=True)
             with k3: st.markdown(f"<div class='metric-container'><p>PROVEEDORES</p><p>{int(df_inst_s2['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
-            with k4: st.markdown(f"<div class='metric-container'><p>FOB EN PROCESO</p><p><span style='font-size:38px;'>USD {int(round(fob_total_clean/1_000_000, 1))}M</span></p></div>", unsafe_allow_html=True)
+            with k4: st.markdown(f"<div class='metric-container'><p>FOB EN PROCESO</p><p><span style='font-size:38px;'>USD {round(fob_total_clean/1_000_000, 1)}M</span></p></div>", unsafe_allow_html=True)
 
-            # ═════════════════════════════════════════════════════════════════
-            # BLOQUE MARÍTIMO
-            # ═════════════════════════════════════════════════════════════════
+            # ═══════════════════════════════════════════════════════
+            # BLOQUE MARITIMO
+            # ═══════════════════════════════════════════════════════
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("""
 <div style='border-bottom:2px solid rgba(0,168,255,0.3); padding-bottom:10px; margin-bottom:28px;'>
-<span style='color:#00a8ff; font-size:13px; font-weight:800; letter-spacing:5px; text-transform:uppercase;'>🚢  MARÍTIMO</span>
+<span style='color:#00a8ff; font-size:13px; font-weight:800; letter-spacing:5px; text-transform:uppercase;'>MARITIMO</span>
 <span style='color:#475569; font-size:11px; letter-spacing:2px; margin-left:16px;'>RESERVAS ACTIVAS</span>
 </div>""", unsafe_allow_html=True)
 
-            # Fila 1: El número que importa + semáforo ETD
+            CARD_H = "260px"
+
             col_big, col_sem = st.columns([1.2, 1])
 
             with col_big:
                 st.markdown(f"""
 <div style='background:linear-gradient(145deg, rgba(0,168,255,0.07), rgba(0,168,255,0.02));
-border-radius:20px; border:1px solid rgba(0,168,255,0.15); padding:32px; height:100%;'>
-<p style='color:#64748b; font-size:11px; letter-spacing:3px; margin:0 0 8px 0; text-transform:uppercase;'>Embarques bajo gestión</p>
-<p style='color:#f8fafc; font-size:96px; font-weight:900; margin:0; line-height:1; letter-spacing:-4px;'>{total_mar}</p>
-<div style='display:flex; gap:24px; margin-top:20px;'>
+border-radius:20px; border:1px solid rgba(0,168,255,0.15); padding:28px; min-height:{CARD_H}; box-sizing:border-box;'>
+<p style='color:#64748b; font-size:11px; letter-spacing:3px; margin:0 0 6px 0; text-transform:uppercase;'>Embarques bajo gestion</p>
+<p style='color:#f8fafc; font-size:88px; font-weight:900; margin:0; line-height:1; letter-spacing:-4px;'>{total_mar}</p>
+<div style='display:flex; gap:28px; margin-top:16px; margin-bottom:16px;'>
     <div>
-        <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>CONTENEDORES</p>
-        <p style='color:#00a8ff; font-size:28px; font-weight:800; margin:0;'>{int(cntr_mar)}</p>
+        <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 3px 0;'>CONTENEDORES</p>
+        <p style='color:#00a8ff; font-size:24px; font-weight:800; margin:0;'>{int(cntr_mar)}</p>
     </div>
     <div>
-        <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>VOLUMEN</p>
-        <p style='color:#00a8ff; font-size:28px; font-weight:800; margin:0;'>{int(round(m3_mar)):,} M3</p>
+        <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 3px 0;'>VOLUMEN</p>
+        <p style='color:#00a8ff; font-size:24px; font-weight:800; margin:0;'>{int(round(m3_mar)):,} M3</p>
+    </div>
+</div>
+<div style='border-top:1px solid rgba(255,255,255,0.07); padding-top:14px; display:flex; gap:20px;'>
+    <div>
+        <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 3px 0;'>ARGENTINA</p>
+        <p style='color:#f8fafc; font-size:18px; font-weight:800; margin:0;'>{pct_arg}% <span style='font-size:12px; color:#475569; font-weight:400;'>({so_arg} SO)</span></p>
+    </div>
+    <div>
+        <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 3px 0;'>OTROS DESTINOS</p>
+        <p style='color:#f8fafc; font-size:18px; font-weight:800; margin:0;'>{pct_otros}% <span style='font-size:12px; color:#475569; font-weight:400;'>({so_otros} SO)</span></p>
     </div>
 </div>
 </div>""", unsafe_allow_html=True)
 
             with col_sem:
-                crit_html = f"""
-<div style='margin-top:16px; padding:12px 16px;
-background:rgba(255,75,75,0.1); border-radius:12px; border:1px solid rgba(255,75,75,0.25);'>
-<p style='color:#ff4b4b; font-size:12px; font-weight:800; margin:0; letter-spacing:1px;'>
-🚨 {crit_mar} embarques sin respuesta hace más de 5 días</p>
-</div>""" if crit_mar > 0 else ""
-
                 st.markdown(f"""
-<div style='background:linear-gradient(145deg, rgba({semaforo_color.replace("#","").replace("ff","255,").replace("88","136,").replace("4b","75,")}0.08), rgba(255,255,255,0.02));
-border-radius:20px; border:1px solid rgba(255,255,255,0.08); padding:32px; height:100%;'>
-<p style='color:#64748b; font-size:11px; letter-spacing:3px; margin:0 0 16px 0; text-transform:uppercase;'>Estado ETD</p>
-<div style='display:flex; align-items:baseline; gap:12px; margin-bottom:8px;'>
-    <p style='color:{semaforo_color}; font-size:72px; font-weight:900; margin:0; line-height:1;'>{pct_ok_mar}%</p>
-    <p style='color:{semaforo_color}; font-size:20px; font-weight:700; margin:0;'>{semaforo_icon}</p>
+<div style='background:rgba(255,255,255,0.02); border-radius:20px;
+border:1px solid rgba(255,255,255,0.07); padding:28px; min-height:{CARD_H}; box-sizing:border-box;'>
+<p style='color:#64748b; font-size:11px; letter-spacing:3px; margin:0 0 14px 0; text-transform:uppercase;'>Estado ETD</p>
+<div style='display:flex; align-items:baseline; gap:10px; margin-bottom:6px;'>
+    <p style='color:{semaforo_color}; font-size:68px; font-weight:900; margin:0; line-height:1;'>{pct_ok_mar}%</p>
 </div>
-<p style='color:{semaforo_color}; font-size:13px; font-weight:800; letter-spacing:3px; margin:0 0 4px 0;'>{semaforo_label}</p>
-<p style='color:#475569; font-size:11px; margin:0;'>{ok_mar} confirmados · {pend_mar} pendientes de booking</p>
-{crit_html}
+<p style='color:{semaforo_color}; font-size:13px; font-weight:800; letter-spacing:3px; margin:0 0 6px 0;'>{semaforo_label}</p>
+<p style='color:#475569; font-size:11px; margin:0 0 20px 0;'>{ok_mar} confirmados · {pend_mar} pendientes de booking</p>
+<div style='height:6px; background:rgba(255,255,255,0.07); border-radius:3px; margin-bottom:8px;'>
+    <div style='height:6px; width:{pct_ok_mar}%; background:{semaforo_color}; border-radius:3px;'></div>
+</div>
+<p style='color:#334155; font-size:10px; margin:0;'>{pct_ok_mar}% del total con ETD confirmado</p>
 </div>""", unsafe_allow_html=True)
 
             st.markdown("<br>", unsafe_allow_html=True)
 
-            # Fila 2: Estructura + Booking + Consolidación
+            # Fila 2: 3 cards armonizadas — misma altura fija
+            CARD_H2 = "220px"
             col_est, col_book, col_cons = st.columns(3)
 
             with col_est:
                 st.markdown(f"""
 <div style='background:rgba(255,255,255,0.03); border-radius:16px;
-border:1px solid rgba(255,255,255,0.07); padding:24px;'>
-<p style='color:#64748b; font-size:10px; letter-spacing:3px; margin:0 0 18px 0; text-transform:uppercase;'>Estructura de carga</p>
-<div style='margin-bottom:12px;'>
-    <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;'>
-        <p style='color:#00a8ff; font-size:13px; font-weight:700; margin:0;'>MONOPROVEEDOR</p>
-        <p style='color:#00a8ff; font-size:22px; font-weight:900; margin:0;'>{pct_mono_m}%</p>
+border:1px solid rgba(255,255,255,0.07); padding:24px; min-height:{CARD_H2}; box-sizing:border-box;'>
+<p style='color:#64748b; font-size:10px; letter-spacing:3px; margin:0 0 16px 0; text-transform:uppercase;'>Estructura de carga</p>
+<div style='margin-bottom:14px;'>
+    <div style='display:flex; justify-content:space-between; margin-bottom:5px;'>
+        <p style='color:#00a8ff; font-size:12px; font-weight:700; margin:0;'>MONOPROVEEDOR</p>
+        <p style='color:#00a8ff; font-size:20px; font-weight:900; margin:0;'>{pct_mono_m}%</p>
     </div>
-    <div style='height:6px; background:rgba(255,255,255,0.06); border-radius:3px;'>
-        <div style='height:6px; width:{pct_mono_m}%; background:#00a8ff; border-radius:3px;'></div>
+    <div style='height:5px; background:rgba(255,255,255,0.06); border-radius:3px;'>
+        <div style='height:5px; width:{pct_mono_m}%; background:#00a8ff; border-radius:3px;'></div>
     </div>
-    <p style='color:#475569; font-size:11px; margin:4px 0 0 0;'>{len(df_mono_m)} embarques</p>
+    <p style='color:#334155; font-size:11px; margin:4px 0 0 0;'>{len(df_mono_m)} embarques</p>
 </div>
 <div>
-    <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;'>
-        <p style='color:#ffaa00; font-size:13px; font-weight:700; margin:0;'>CONSOLIDADO</p>
-        <p style='color:#ffaa00; font-size:22px; font-weight:900; margin:0;'>{pct_cons_m}%</p>
+    <div style='display:flex; justify-content:space-between; margin-bottom:5px;'>
+        <p style='color:#ffaa00; font-size:12px; font-weight:700; margin:0;'>CONSOLIDADO</p>
+        <p style='color:#ffaa00; font-size:20px; font-weight:900; margin:0;'>{pct_cons_m}%</p>
     </div>
-    <div style='height:6px; background:rgba(255,255,255,0.06); border-radius:3px;'>
-        <div style='height:6px; width:{pct_cons_m}%; background:#ffaa00; border-radius:3px;'></div>
+    <div style='height:5px; background:rgba(255,255,255,0.06); border-radius:3px;'>
+        <div style='height:5px; width:{pct_cons_m}%; background:#ffaa00; border-radius:3px;'></div>
     </div>
-    <p style='color:#475569; font-size:11px; margin:4px 0 0 0;'>{len(df_cons_m)} embarques</p>
+    <p style='color:#334155; font-size:11px; margin:4px 0 0 0;'>{len(df_cons_m)} embarques</p>
 </div>
 </div>""", unsafe_allow_html=True)
 
             with col_book:
                 st.markdown(f"""
 <div style='background:rgba(255,255,255,0.03); border-radius:16px;
-border:1px solid rgba(255,255,255,0.07); padding:24px;'>
-<p style='color:#64748b; font-size:10px; letter-spacing:3px; margin:0 0 18px 0; text-transform:uppercase;'>Modalidad de booking</p>
-<div style='margin-bottom:12px;'>
-    <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;'>
-        <p style='color:#00ff88; font-size:13px; font-weight:700; margin:0;'>IN ADVANCE</p>
-        <p style='color:#00ff88; font-size:22px; font-weight:900; margin:0;'>{pct_adv}%</p>
+border:1px solid rgba(255,255,255,0.07); padding:24px; min-height:{CARD_H2}; box-sizing:border-box;'>
+<p style='color:#64748b; font-size:10px; letter-spacing:3px; margin:0 0 16px 0; text-transform:uppercase;'>Modalidad de booking</p>
+<div style='margin-bottom:14px;'>
+    <div style='display:flex; justify-content:space-between; margin-bottom:5px;'>
+        <p style='color:#00ff88; font-size:12px; font-weight:700; margin:0;'>IN ADVANCE</p>
+        <p style='color:#00ff88; font-size:20px; font-weight:900; margin:0;'>{pct_adv}%</p>
     </div>
-    <div style='height:6px; background:rgba(255,255,255,0.06); border-radius:3px;'>
-        <div style='height:6px; width:{pct_adv}%; background:#00ff88; border-radius:3px;'></div>
+    <div style='height:5px; background:rgba(255,255,255,0.06); border-radius:3px;'>
+        <div style='height:5px; width:{pct_adv}%; background:#00ff88; border-radius:3px;'></div>
     </div>
-    <p style='color:#475569; font-size:11px; margin:4px 0 0 0;'>Espacio negociado anticipado</p>
+    <p style='color:#334155; font-size:11px; margin:4px 0 0 0;'>Espacio negociado anticipado</p>
 </div>
 <div>
-    <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;'>
-        <p style='color:#94a3b8; font-size:13px; font-weight:700; margin:0;'>SPOT</p>
-        <p style='color:#94a3b8; font-size:22px; font-weight:900; margin:0;'>{pct_spot}%</p>
+    <div style='display:flex; justify-content:space-between; margin-bottom:5px;'>
+        <p style='color:#94a3b8; font-size:12px; font-weight:700; margin:0;'>SPOT</p>
+        <p style='color:#94a3b8; font-size:20px; font-weight:900; margin:0;'>{pct_spot}%</p>
     </div>
-    <div style='height:6px; background:rgba(255,255,255,0.06); border-radius:3px;'>
-        <div style='height:6px; width:{pct_spot}%; background:#94a3b8; border-radius:3px;'></div>
+    <div style='height:5px; background:rgba(255,255,255,0.06); border-radius:3px;'>
+        <div style='height:5px; width:{pct_spot}%; background:#94a3b8; border-radius:3px;'></div>
     </div>
-    <p style='color:#475569; font-size:11px; margin:4px 0 0 0;'>Mercado abierto</p>
+    <p style='color:#334155; font-size:11px; margin:4px 0 0 0;'>Mercado abierto</p>
 </div>
 </div>""", unsafe_allow_html=True)
 
             with col_cons:
-                color_med = "#00ff88" if mediana_consol <= 20 else ("#ffaa00" if mediana_consol <= 30 else "#ff4b4b")
-                color_mono_c = "#00ff88" if mediana_mono <= 7 else ("#ffaa00" if mediana_mono <= 12 else "#ff4b4b")
-                color_cons_c = "#00ff88" if mediana_cons <= 25 else ("#ffaa00" if mediana_cons <= 35 else "#ff4b4b")
+                def color_dias(d, sla):
+                    if d <= sla: return "#00ff88"
+                    elif d <= sla * 1.4: return "#ffaa00"
+                    else: return "#ff4b4b"
+
+                cm = color_dias(mediana_mono, 7)
+                cc = color_dias(mediana_cons, 25)
+                ca = color_dias(mediana_adv, 20)
+                cs = color_dias(mediana_spot, 20)
+
                 st.markdown(f"""
 <div style='background:rgba(255,255,255,0.03); border-radius:16px;
-border:1px solid rgba(255,255,255,0.07); padding:24px;'>
-<p style='color:#64748b; font-size:10px; letter-spacing:3px; margin:0 0 18px 0; text-transform:uppercase;'>Tiempo de consolidación <span style='color:#475569;'>(mediana)</span></p>
-<div style='text-align:center; margin-bottom:18px;'>
-    <p style='color:#64748b; font-size:11px; margin:0 0 4px 0;'>GENERAL</p>
-    <p style='color:{color_med}; font-size:52px; font-weight:900; margin:0; line-height:1;'>{int(round(mediana_consol))}</p>
-    <p style='color:#475569; font-size:12px; margin:4px 0 0 0;'>días · el 50% de los embarques</p>
-</div>
-<div style='display:flex; gap:12px;'>
-    <div style='flex:1; background:rgba(0,168,255,0.06); border-radius:10px; padding:10px; text-align:center; border:1px solid rgba(0,168,255,0.1);'>
-        <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 4px 0;'>MONO</p>
-        <p style='color:{color_mono_c}; font-size:24px; font-weight:900; margin:0;'>{int(round(mediana_mono))}d</p>
-        <p style='color:#475569; font-size:9px; margin:2px 0 0 0;'>SLA: 7d</p>
+border:1px solid rgba(255,255,255,0.07); padding:24px; min-height:{CARD_H2}; box-sizing:border-box;'>
+<p style='color:#64748b; font-size:10px; letter-spacing:3px; margin:0 0 14px 0; text-transform:uppercase;'>Tiempo de consolidacion <span style='color:#334155; font-weight:400; letter-spacing:0;'>(mediana)</span></p>
+<div style='display:grid; grid-template-columns:1fr 1fr; gap:10px;'>
+    <div style='background:rgba(0,168,255,0.07); border-radius:10px; padding:10px; text-align:center; border:1px solid rgba(0,168,255,0.1);'>
+        <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;'>MONO</p>
+        <p style='color:{cm}; font-size:26px; font-weight:900; margin:0; line-height:1;'>{int(round(mediana_mono))}d</p>
+        <p style='color:#334155; font-size:9px; margin:3px 0 0 0;'>SLA: 7d</p>
     </div>
-    <div style='flex:1; background:rgba(255,170,0,0.06); border-radius:10px; padding:10px; text-align:center; border:1px solid rgba(255,170,0,0.1);'>
-        <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 4px 0;'>CONSOL</p>
-        <p style='color:{color_cons_c}; font-size:24px; font-weight:900; margin:0;'>{int(round(mediana_cons))}d</p>
-        <p style='color:#475569; font-size:9px; margin:2px 0 0 0;'>SLA: 25d</p>
+    <div style='background:rgba(255,170,0,0.07); border-radius:10px; padding:10px; text-align:center; border:1px solid rgba(255,170,0,0.1);'>
+        <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;'>CONSOLIDADO</p>
+        <p style='color:{cc}; font-size:26px; font-weight:900; margin:0; line-height:1;'>{int(round(mediana_cons))}d</p>
+        <p style='color:#334155; font-size:9px; margin:3px 0 0 0;'>SLA: 25d</p>
+    </div>
+    <div style='background:rgba(0,255,136,0.06); border-radius:10px; padding:10px; text-align:center; border:1px solid rgba(0,255,136,0.08);'>
+        <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;'>IN ADVANCE</p>
+        <p style='color:{ca}; font-size:26px; font-weight:900; margin:0; line-height:1;'>{int(round(mediana_adv))}d</p>
+        <p style='color:#334155; font-size:9px; margin:3px 0 0 0;'>ref: 20d</p>
+    </div>
+    <div style='background:rgba(148,163,184,0.06); border-radius:10px; padding:10px; text-align:center; border:1px solid rgba(148,163,184,0.08);'>
+        <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;'>SPOT</p>
+        <p style='color:{cs}; font-size:26px; font-weight:900; margin:0; line-height:1;'>{int(round(mediana_spot))}d</p>
+        <p style='color:#334155; font-size:9px; margin:3px 0 0 0;'>ref: 20d</p>
     </div>
 </div>
 </div>""", unsafe_allow_html=True)
 
-            # ═════════════════════════════════════════════════════════════════
-            # BLOQUE AÉREO
-            # ═════════════════════════════════════════════════════════════════
+            # ═══════════════════════════════════════════════════════
+            # BLOQUE AEREO
+            # ═══════════════════════════════════════════════════════
             st.markdown("<br><br>", unsafe_allow_html=True)
             st.markdown("""
 <div style='border-bottom:2px solid rgba(168,85,247,0.3); padding-bottom:10px; margin-bottom:28px;'>
-<span style='color:#a855f7; font-size:13px; font-weight:800; letter-spacing:5px; text-transform:uppercase;'>✈️  AÉREO</span>
+<span style='color:#a855f7; font-size:13px; font-weight:800; letter-spacing:5px; text-transform:uppercase;'>AEREO</span>
 <span style='color:#475569; font-size:11px; letter-spacing:2px; margin-left:16px;'>SEGUIMIENTO ACTIVO</span>
 </div>""", unsafe_allow_html=True)
 
@@ -866,36 +895,26 @@ border:1px solid rgba(255,255,255,0.07); padding:24px;'>
 
                 df_ae = load_aereos(base_url)
 
-                col_ae_estadio  = df_ae.columns[0]
-                col_ae_emb      = df_ae.columns[1]
-                col_ae_empresa  = df_ae.columns[2]
-                col_ae_fwd      = df_ae.columns[7]
-                col_ae_partic   = df_ae.columns[8]
-                col_ae_etd      = df_ae.columns[14]
-                col_ae_eta      = df_ae.columns[15]
-                col_ae_m3       = df_ae.columns[21]
-                col_ae_cant     = df_ae.columns[23]
+                col_ae_estadio = df_ae.columns[0]
+                col_ae_emb     = df_ae.columns[1]
+                col_ae_empresa = df_ae.columns[2]
+                col_ae_fwd     = df_ae.columns[7]
+                col_ae_partic  = df_ae.columns[8]
+                col_ae_etd     = df_ae.columns[14]
+                col_ae_eta     = df_ae.columns[15]
+                col_ae_m3      = df_ae.columns[21]
+                col_ae_cant    = df_ae.columns[23]
 
-                ORDEN_ESTADIOS = ['WAREHOUSE', 'EN ORIGEN', 'COORDINANDO', 'EN TRÁNSITO', 'EN TRANSITO', 'ARRIBADO', 'NACIONAZALIDO', 'NACIONALIZADO']
+                ORDEN_ESTADIOS = ['WAREHOUSE', 'EN ORIGEN', 'COORDINANDO', 'EN TRANSITO', 'EN TRÁNSITO', 'ARRIBADO', 'NACIONALIZADO', 'NACIONAZALIDO']
                 COLORES_ESTADIOS = {
                     'WAREHOUSE'    : '#06b6d4',
                     'EN ORIGEN'    : '#ffaa00',
                     'COORDINANDO'  : '#f97316',
-                    'EN TRÁNSITO'  : '#00a8ff',
                     'EN TRANSITO'  : '#00a8ff',
+                    'EN TRÁNSITO'  : '#00a8ff',
                     'ARRIBADO'     : '#a855f7',
-                    'NACIONAZALIDO': '#00ff88',
                     'NACIONALIZADO': '#00ff88',
-                }
-                ICONOS_ESTADIOS = {
-                    'WAREHOUSE'    : '📦',
-                    'EN ORIGEN'    : '🏭',
-                    'COORDINANDO'  : '📋',
-                    'EN TRÁNSITO'  : '✈️',
-                    'EN TRANSITO'  : '✈️',
-                    'ARRIBADO'     : '🛬',
-                    'NACIONAZALIDO': '✅',
-                    'NACIONALIZADO': '✅',
+                    'NACIONAZALIDO': '#00ff88',
                 }
 
                 df_ae_clean = df_ae.copy()
@@ -911,41 +930,40 @@ border:1px solid rgba(255,255,255,0.07); padding:24px;'>
                     try: return float(str(v).replace(',', '.').strip())
                     except: return 0.0
 
-                df_ae_activos[col_ae_m3]   = df_ae_activos[col_ae_m3].apply(safe_num_ae)
-                df_ae_activos[col_ae_cant]  = df_ae_activos[col_ae_cant].apply(safe_num_ae)
+                df_ae_activos[col_ae_m3]  = df_ae_activos[col_ae_m3].apply(safe_num_ae)
+                df_ae_activos[col_ae_cant] = df_ae_activos[col_ae_cant].apply(safe_num_ae)
 
                 total_ae    = df_ae_activos[col_ae_emb].nunique()
                 m3_ae       = df_ae_activos[col_ae_m3].sum()
                 cant_ae     = df_ae_activos[col_ae_cant].sum()
                 empresas_ae = df_ae_activos[col_ae_empresa].nunique()
 
-                # Fila 1: Número grande + resumen
+                # Fila superior: numero grande + tipo de negocio
                 col_ae_big, col_ae_info = st.columns([1.2, 1])
 
                 with col_ae_big:
                     st.markdown(f"""
 <div style='background:linear-gradient(145deg, rgba(168,85,247,0.07), rgba(168,85,247,0.02));
-border-radius:20px; border:1px solid rgba(168,85,247,0.15); padding:32px; height:100%;'>
-<p style='color:#64748b; font-size:11px; letter-spacing:3px; margin:0 0 8px 0; text-transform:uppercase;'>Embarques aéreos activos</p>
-<p style='color:#f8fafc; font-size:96px; font-weight:900; margin:0; line-height:1; letter-spacing:-4px;'>{total_ae}</p>
-<div style='display:flex; gap:24px; margin-top:20px;'>
+border-radius:20px; border:1px solid rgba(168,85,247,0.15); padding:28px; min-height:{CARD_H}; box-sizing:border-box;'>
+<p style='color:#64748b; font-size:11px; letter-spacing:3px; margin:0 0 6px 0; text-transform:uppercase;'>Embarques aereos activos</p>
+<p style='color:#f8fafc; font-size:88px; font-weight:900; margin:0; line-height:1; letter-spacing:-4px;'>{total_ae}</p>
+<div style='display:flex; gap:28px; margin-top:16px;'>
     <div>
-        <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>VOLUMEN</p>
-        <p style='color:#a855f7; font-size:28px; font-weight:800; margin:0;'>{int(round(m3_ae)):,} M3</p>
+        <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 3px 0;'>VOLUMEN</p>
+        <p style='color:#a855f7; font-size:24px; font-weight:800; margin:0;'>{int(round(m3_ae)):,} M3</p>
     </div>
     <div>
-        <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>UNIDADES</p>
-        <p style='color:#a855f7; font-size:28px; font-weight:800; margin:0;'>{int(cant_ae):,}</p>
+        <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 3px 0;'>UNIDADES</p>
+        <p style='color:#a855f7; font-size:24px; font-weight:800; margin:0;'>{int(cant_ae):,}</p>
     </div>
     <div>
-        <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>EMPRESAS</p>
-        <p style='color:#a855f7; font-size:28px; font-weight:800; margin:0;'>{empresas_ae}</p>
+        <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 3px 0;'>EMPRESAS</p>
+        <p style='color:#a855f7; font-size:24px; font-weight:800; margin:0;'>{empresas_ae}</p>
     </div>
 </div>
 </div>""", unsafe_allow_html=True)
 
                 with col_ae_info:
-                    # Tipo de negocio
                     df_ae_activos['_partic'] = df_ae_activos[col_ae_partic].astype(str).str.strip()
                     df_ae_activos['_partic'] = df_ae_activos['_partic'].replace({'': 'SIN CLASIFICAR', 'nan': 'SIN CLASIFICAR', 'NaN': 'SIN CLASIFICAR'})
                     conteo_p = df_ae_activos.groupby('_partic')[col_ae_emb].nunique().reset_index()
@@ -958,7 +976,7 @@ border-radius:20px; border:1px solid rgba(168,85,247,0.15); padding:32px; height
                     for i, (_, rp) in enumerate(conteo_p.iterrows()):
                         cp = COLS_P[i % len(COLS_P)]
                         filas_tipo += f"""
-<div style='margin-bottom:10px;'>
+<div style='margin-bottom:12px;'>
     <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;'>
         <p style='color:#94a3b8; font-size:12px; font-weight:600; margin:0;'>{rp['Tipo']}</p>
         <p style='color:{cp}; font-size:16px; font-weight:900; margin:0;'>{int(rp['Embarques'])} <span style='font-size:11px; color:#475569;'>({int(rp['Pct'])}%)</span></p>
@@ -970,72 +988,77 @@ border-radius:20px; border:1px solid rgba(168,85,247,0.15); padding:32px; height
 
                     st.markdown(f"""
 <div style='background:rgba(255,255,255,0.03); border-radius:20px;
-border:1px solid rgba(255,255,255,0.07); padding:24px; height:100%;'>
-<p style='color:#64748b; font-size:10px; letter-spacing:3px; margin:0 0 18px 0; text-transform:uppercase;'>Distribución por tipo de negocio</p>
+border:1px solid rgba(255,255,255,0.07); padding:28px; min-height:{CARD_H}; box-sizing:border-box;'>
+<p style='color:#64748b; font-size:10px; letter-spacing:3px; margin:0 0 18px 0; text-transform:uppercase;'>Tipo de negocio</p>
 {filas_tipo}
 </div>""", unsafe_allow_html=True)
 
-                # Fila 2: Pipeline de estadios
+                # Grafico de estadios
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.markdown("""
 <p style='color:#64748b; font-size:10px; letter-spacing:4px; font-weight:700;
-text-transform:uppercase; margin:0 0 14px 0;'>PIPELINE OPERATIVO — ¿DÓNDE ESTÁ CADA CARGA?</p>""", unsafe_allow_html=True)
+text-transform:uppercase; margin:0 0 14px 0;'>ESTADIOS DE LAS CARGAS</p>""", unsafe_allow_html=True)
 
-                conteo_e = df_ae_activos.groupby(col_ae_estadio)[col_ae_emb].nunique().reset_index()
-                conteo_e.columns = ['Estadio', 'Embarques']
-                conteo_e['M3']  = conteo_e['Estadio'].map(df_ae_activos.groupby(col_ae_estadio)[col_ae_m3].sum()).fillna(0)
-                conteo_e['Pct'] = (conteo_e['Embarques'] / conteo_e['Embarques'].sum() * 100).round(1)
                 orden_idx = {e: i for i, e in enumerate(ORDEN_ESTADIOS)}
+                conteo_e = df_ae_activos.groupby(col_ae_estadio).agg(
+                    Embarques=(col_ae_emb, 'nunique'),
+                    M3=(col_ae_m3, 'sum')
+                ).reset_index()
+                conteo_e.columns = ['Estadio', 'Embarques', 'M3']
                 conteo_e['_ord'] = conteo_e['Estadio'].map(lambda x: orden_idx.get(x, 99))
-                conteo_e = conteo_e.sort_values('_ord')
+                conteo_e = conteo_e.sort_values('_ord').reset_index(drop=True)
+                conteo_e['Color'] = conteo_e['Estadio'].map(lambda x: COLORES_ESTADIOS.get(x, '#94a3b8'))
+                conteo_e['Label'] = conteo_e.apply(
+                    lambda r: f"  {int(r['Embarques'])} emb · {int(round(r['M3']))} M3", axis=1
+                )
 
-                n_cols = min(len(conteo_e), 5)
-                if n_cols > 0:
-                    cols_pipe = st.columns(n_cols)
-                    for idx, (_, row_e) in enumerate(conteo_e.head(n_cols).iterrows()):
-                        elbl    = row_e['Estadio']
-                        color_e = COLORES_ESTADIOS.get(elbl, '#94a3b8')
-                        icono_e = ICONOS_ESTADIOS.get(elbl, '📦')
-                        with cols_pipe[idx % n_cols]:
-                            st.markdown(f"""
-<div style='text-align:center; padding:22px 10px;
-background:rgba(255,255,255,0.03);
-border-radius:16px; border-top:4px solid {color_e};
-border:1px solid rgba(255,255,255,0.06); margin-bottom:8px;'>
-<p style='font-size:22px; margin:0 0 8px 0;'>{icono_e}</p>
-<p style='color:{color_e}; font-size:44px; font-weight:900; margin:0; line-height:1;'>{int(row_e['Embarques'])}</p>
-<p style='color:#94a3b8; font-size:13px; font-weight:700; margin:8px 0 4px 0;'>{row_e['Pct']:.0f}%</p>
-<p style='color:#475569; font-size:10px; letter-spacing:1px; margin:0; text-transform:uppercase;'>{elbl}</p>
-<p style='color:#334155; font-size:10px; margin:4px 0 0 0;'>{int(round(row_e["M3"])):,} M3</p>
-</div>""", unsafe_allow_html=True)
-
-                    # Segunda fila si hay más de 5 estadios
-                    if len(conteo_e) > 5:
-                        resto = conteo_e.iloc[5:]
-                        cols_pipe2 = st.columns(min(len(resto), 5))
-                        for idx2, (_, row_e2) in enumerate(resto.iterrows()):
-                            elbl2    = row_e2['Estadio']
-                            color_e2 = COLORES_ESTADIOS.get(elbl2, '#94a3b8')
-                            icono_e2 = ICONOS_ESTADIOS.get(elbl2, '📦')
-                            with cols_pipe2[idx2 % 5]:
-                                st.markdown(f"""
-<div style='text-align:center; padding:22px 10px;
-background:rgba(255,255,255,0.03);
-border-radius:16px; border-top:4px solid {color_e2};
-border:1px solid rgba(255,255,255,0.06); margin-bottom:8px;'>
-<p style='font-size:22px; margin:0 0 8px 0;'>{icono_e2}</p>
-<p style='color:{color_e2}; font-size:44px; font-weight:900; margin:0; line-height:1;'>{int(row_e2['Embarques'])}</p>
-<p style='color:#94a3b8; font-size:13px; font-weight:700; margin:8px 0 4px 0;'>{row_e2['Pct']:.0f}%</p>
-<p style='color:#475569; font-size:10px; letter-spacing:1px; margin:0; text-transform:uppercase;'>{elbl2}</p>
-<p style='color:#334155; font-size:10px; margin:4px 0 0 0;'>{int(round(row_e2["M3"])):,} M3</p>
-</div>""", unsafe_allow_html=True)
+                fig_ae = px.bar(
+                    conteo_e,
+                    y='Estadio',
+                    x='Embarques',
+                    orientation='h',
+                    text='Label',
+                    color='Estadio',
+                    color_discrete_map={row['Estadio']: row['Color'] for _, row in conteo_e.iterrows()},
+                )
+                fig_ae.update_traces(
+                    textposition='outside',
+                    cliponaxis=False,
+                    textfont=dict(size=13, color='#94a3b8', family='Outfit, sans-serif'),
+                    marker=dict(cornerradius=6),
+                    hovertemplate='<b>%{y}</b><br>Embarques: %{x}<extra></extra>'
+                )
+                fig_ae.update_layout(
+                    height=max(220, len(conteo_e) * 52),
+                    showlegend=False,
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    font=dict(family='Outfit, sans-serif', color='#94a3b8', size=12),
+                    margin=dict(l=10, r=160, t=10, b=10),
+                    xaxis=dict(
+                        showgrid=True,
+                        gridwidth=1,
+                        gridcolor='rgba(255,255,255,0.05)',
+                        zeroline=False,
+                        showticklabels=False,
+                        title=''
+                    ),
+                    yaxis=dict(
+                        showgrid=False,
+                        title='',
+                        tickfont=dict(size=12, color='#94a3b8'),
+                        categoryorder='array',
+                        categoryarray=conteo_e['Estadio'].tolist()[::-1]
+                    ),
+                )
+                st.plotly_chart(fig_ae, use_container_width=True)
 
             except Exception as e_ae:
-                st.error(f"Error en sección Aéreos: {e_ae}")
+                st.error(f"Error en seccion Aereos: {e_ae}")
                 import traceback; st.code(traceback.format_exc())
 
         except Exception as e:
-            st.error(f"Error en Mercadería en Coordinación: {e}")
+            st.error(f"Error en Coordinacion Activa: {e}")
             import traceback; st.code(traceback.format_exc())
     # --- SOLAPA 3: PERFORMANCE DE ANALISTAS ---
     with tabs[2]:
