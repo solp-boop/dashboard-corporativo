@@ -2012,7 +2012,7 @@ background:rgba(255,255,255,0.03); border-radius:20px; border:1px solid rgba(255
                     marker=dict(cornerradius=4),
                 )
                 fig.update_layout(
-                    height=500,
+                    height=650,
                     paper_bgcolor='rgba(0,0,0,0)',
                     plot_bgcolor='rgba(0,0,0,0)',
                     font=dict(family='Outfit, sans-serif', color='#94a3b8', size=13),
