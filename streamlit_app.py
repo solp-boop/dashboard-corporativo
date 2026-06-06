@@ -2049,9 +2049,9 @@ border-radius:12px; border-top:2px solid {color};'>
             st.error(f"Error en Proyeccion Semanal ETD: {e}")
             import traceback
             st.code(traceback.format_exc())
-    # --- SOLAPA 6: INDICADORES (SLA & CONSOLIDACIÓN) ---
+ # --- SOLAPA 6: INDICADORES (SLA & CONSOLIDACIÓN) ---
     with tabs[5]:
-        st.markdown("<div style='text-align:center; padding: 20px; background: rgba(0, 255, 136, 0.05); border-radius: 20px; margin: 30px 0;'><h2 style='color:#00ff88; font-weight:800; letter-spacing:5px; margin:0;'>INDICADORES DE CONSOLIDACIÓN Y SLA</h2></div>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align:center; padding: 20px; background: rgba(0, 255, 136, 0.05); border-radius: 20px; margin: 30px 0;'><h2 style='color:#00ff88; font-weight:800; letter-spacing:5px; margin:0;'>INDICADORES DE CONSOLIDACIÓN Y SLA</h2><p style='color:#64748b; font-size:11px; letter-spacing:2px; margin:10px 0 0 0;'>📊 DÍAS MOSTRADOS: MEDIANA · SLA MONO: 15d (ene-feb) / 10d (resto) · SLA CONSOLIDADO: 25d</p></div>", unsafe_allow_html=True)
         try:
             url_hi = f"{base_url}/export?format=csv&gid=32771816&nocache={time.time()}"
             @st.cache_data(ttl=60)
@@ -2092,7 +2092,7 @@ border-radius:12px; border-top:2px solid {color};'>
                 @st.dialog("🚢 DETALLE POR PUERTO Y SLA", width="large")
                 def show_detalle_mes(df_sub, mes_lbl, mode="mixed"):
                     st.markdown(f"### Análisis {mes_lbl.upper()}")
-                    res_p = df_sub.groupby(col_puerto_hi).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
+                    res_p = df_sub.groupby(col_puerto_hi).agg({df_hi.columns[0]: 'count', col_cons_hi: 'median'}).reset_index()
                     p_rows = []
                     for _, r in res_p.iterrows():
                         df_p_t = df_sub[df_sub[col_puerto_hi] == r[col_puerto_hi]].copy()
@@ -2104,7 +2104,7 @@ border-radius:12px; border-top:2px solid {color};'>
                                 mes_num = int(row['Mes'])
                             except:
                                 mes_num = 3
-                            limit = (15 if mes_num <= 2 else 7) if is_mono else 25
+                            limit = (15 if mes_num <= 2 else 10) if is_mono else 25
                             return days <= limit
                         df_p_t['SLA_OK'] = df_p_t.apply(check_sla, axis=1)
                         pct_sla = int((len(df_p_t[df_p_t['SLA_OK']]) / tp_p) * 100) if tp_p > 0 else 0
@@ -2117,9 +2117,9 @@ border-radius:12px; border-top:2px solid {color};'>
                     st.dataframe(pd.DataFrame(p_rows).sort_values("Embs", ascending=False), use_container_width=True, hide_index=True)
                 st.markdown("<div style='background: rgba(0, 168, 255, 0.05); padding: 15px 25px; border-radius: 20px; border: 1px solid rgba(0, 168, 255, 0.2); margin: 15px 0;'><h3 style='color:#00a8ff; margin:0; text-align:center; letter-spacing:5px; text-transform:uppercase; font-weight:900;'>RESUMEN MES CERRADO (MARÍTIMOS 2026)</h3></div>", unsafe_allow_html=True)
                 thc = st.columns([1.5, 1, 1.2, 1, 1, 0.8])
-                for i, h in enumerate(["MES ETD", "EMBS", "DIAS AVG", "% MONO", "% CONS", "DETALLE"]):
+                for i, h in enumerate(["MES ETD", "EMBS", "MEDIANA", "% MONO", "% CONS", "DETALLE"]):
                     thc[i].markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:800; text-align:center;'>{h}</p>", unsafe_allow_html=True)
-                res_mensual = df_mar.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
+                res_mensual = df_mar.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'median'}).reset_index()
                 for _, row in res_mensual.iterrows():
                     df_m_temp = df_mar[df_mar['Mes'] == row['Mes']].copy()
                     tot_m = len(df_m_temp)
@@ -2138,12 +2138,12 @@ border-radius:12px; border-top:2px solid {color};'>
                 df_mono_v4 = df_mar[df_mar[col_mono_hi].astype(str).str.upper().str.contains('MONOPROVEEDOR', na=False)].copy()
                 if not df_mono_v4.empty:
                     mhc = st.columns([1.5, 1, 1.2, 2, 0.8])
-                    for i, h in enumerate(["MES ETD", "EMBS", "DIAS AVG", "CUMPLIMIENTO SLA", "DETALLE"]):
+                    for i, h in enumerate(["MES ETD", "EMBS", "MEDIANA", "CUMPLIMIENTO SLA", "DETALLE"]):
                         mhc[i].markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:800; text-align:center;'>{h}</p>", unsafe_allow_html=True)
-                    res_m = df_mono_v4.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
+                    res_m = df_mono_v4.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'median'}).reset_index()
                     for _, rm in res_m.iterrows():
                         df_sub_m = df_mono_v4[df_mono_v4['Mes'] == rm['Mes']].copy()
-                        lim_m = 15 if rm['Mes'] <= 2 else 7
+                        lim_m = 15 if rm['Mes'] <= 2 else 10
                         pct_m = int((len(df_sub_m[df_sub_m[col_cons_hi] <= lim_m]) / len(df_sub_m)) * 100) if len(df_sub_m) > 0 else 0
                         mr1, mr2, mr3, mr4, mr5 = st.columns([1.5, 1, 1.2, 2, 0.8])
                         mr1.markdown(f"<p style='font-weight:700; color:#fff; text-align:center;'>{rm['Mes_Nombre'].upper()}</p>", unsafe_allow_html=True)
@@ -2157,9 +2157,9 @@ border-radius:12px; border-top:2px solid {color};'>
                 df_cons_v4 = df_mar[~df_mar[col_mono_hi].astype(str).str.upper().str.contains('MONOPROVEEDOR', na=False)].copy()
                 if not df_cons_v4.empty:
                     chc = st.columns([1.5, 1, 1.2, 2, 0.8])
-                    for i, h in enumerate(["MES ETD", "EMBS", "DIAS AVG", "CUMPLIMIENTO SLA", "DETALLE"]):
+                    for i, h in enumerate(["MES ETD", "EMBS", "MEDIANA", "CUMPLIMIENTO SLA", "DETALLE"]):
                         chc[i].markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:800; text-align:center;'>{h}</p>", unsafe_allow_html=True)
-                    res_c = df_cons_v4.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
+                    res_c = df_cons_v4.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'median'}).reset_index()
                     for _, rc in res_c.iterrows():
                         df_sub_c = df_cons_v4[df_cons_v4['Mes'] == rc['Mes']].copy()
                         pct_c = int((len(df_sub_c[df_sub_c[col_cons_hi] <= 25]) / len(df_sub_c)) * 100) if len(df_sub_c) > 0 else 0
