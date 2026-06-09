@@ -634,7 +634,6 @@ try:
         except Exception as e:
             st.error(f"Error en Solapa Origen: {e}")
 # =========================================================================
- # =========================================================================
     # --- SOLAPA 2: COORDINACIÓN ACTIVA ---
     # =========================================================================
     with tabs[1]:
@@ -1169,117 +1168,89 @@ text-transform:uppercase; margin:0 0 10px 0;'>ESTADIOS DE LAS CARGAS</p>""",
                     )
                     st.plotly_chart(fig_ae, use_container_width=True)
 
-                # ── FILA 2: tipo de negocio + mediana tiempo total ─────
+                # ── FILA 2: tipo de negocio ────────────────────────
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.markdown("""
-<p style='color:#64748b; font-size:10px; letter-spacing:4px; font-weight:700;
-text-transform:uppercase; margin:0 0 16px 0;'>TIPO DE NEGOCIO · TIEMPO PUNTA A PUNTA (MEDIANA)</p>""",
-                    unsafe_allow_html=True)
+<div style='border-bottom:1px solid rgba(168,85,247,0.2); padding-bottom:8px; margin-bottom:20px;'>
+<span style='color:#64748b; font-size:10px; font-weight:700; letter-spacing:4px; text-transform:uppercase;'>CARGAS POR TIPO DE NEGOCIO</span>
+<span style='color:#334155; font-size:10px; letter-spacing:2px; margin-left:14px;'>embarques activos · dias habituales de entrega</span>
+</div>""", unsafe_allow_html=True)
 
-                # Ordenar: GADNIC primero, luego por cantidad de embarques
+                # GADNIC primero, luego por embarques desc
                 conteo_tipos = df_ae_activos.groupby('_partic').agg(
                     Embarques=(col_ae_emb, 'nunique'),
-                    M3_sum=(col_ae_m3, 'sum'),
                 ).reset_index()
-                conteo_tipos.columns = ['Tipo', 'Embarques', 'M3']
+                conteo_tipos.columns = ['Tipo', 'Embarques']
                 conteo_tipos['_ord'] = conteo_tipos['Tipo'].apply(
                     lambda x: 0 if x.upper() == 'GADNIC' else 1)
-                conteo_tipos = conteo_tipos.sort_values(['_ord', 'Embarques'],
-                                                        ascending=[True, False]).reset_index(drop=True)
+                conteo_tipos = conteo_tipos.sort_values(
+                    ['_ord', 'Embarques'], ascending=[True, False]).reset_index(drop=True)
 
-                total_embs_tipo = conteo_tipos['Embarques'].sum()
+                total_embs_tipo  = conteo_tipos['Embarques'].sum()
                 med_total_global = pd.Series(
                     df_ae_activos['_tt_total'].dropna().tolist()).median()
 
                 COLS_TIPO = ['#00ff88', '#a855f7', '#00a8ff', '#ffaa00', '#f97316', '#06b6d4']
 
-                n_cols_tipo = min(len(conteo_tipos), 4)
-                if n_cols_tipo > 0:
-                    cols_tipo = st.columns(n_cols_tipo)
-                    for i, (_, row_t) in enumerate(conteo_tipos.head(n_cols_tipo).iterrows()):
-                        tipo    = row_t['Tipo']
-                        n_embs  = row_t['Embarques']
-                        pct_emb = round(n_embs / total_embs_tipo * 100) if total_embs_tipo > 0 else 0
-                        ct      = COLS_TIPO[i % len(COLS_TIPO)]
+                # Renderizar en filas de 3
+                for fila_start in range(0, len(conteo_tipos), 3):
+                    fila_items = conteo_tipos.iloc[fila_start:fila_start + 3]
+                    cols_fila  = st.columns(3)
+                    for idx in range(3):
+                        with cols_fila[idx]:
+                            if idx >= len(fila_items):
+                                st.markdown("<div></div>", unsafe_allow_html=True)
+                                continue
+                            row_t   = fila_items.iloc[idx]
+                            tipo    = row_t['Tipo']
+                            n_embs  = row_t['Embarques']
+                            pct_emb = round(n_embs / total_embs_tipo * 100) if total_embs_tipo > 0 else 0
+                            i_global = fila_start + idx
+                            ct       = COLS_TIPO[i_global % len(COLS_TIPO)]
 
-                        df_t    = df_ae_activos[df_ae_activos['_partic'] == tipo]
-                        tt_vals = df_t['_tt_total'].dropna().tolist()
-                        med_tt  = pd.Series(tt_vals).median() if tt_vals else None
+                            df_t    = df_ae_activos[df_ae_activos['_partic'] == tipo]
+                            tt_vals = df_t['_tt_total'].dropna().tolist()
+                            med_tt  = pd.Series(tt_vals).median() if tt_vals else None
 
-                        if med_tt is not None and not pd.isna(med_tt):
-                            tt_str = f"{int(round(med_tt))}d"
-                            if med_total_global and not pd.isna(med_total_global):
-                                if med_tt <= med_total_global * 0.9:   c_tt = '#00ff88'
-                                elif med_tt <= med_total_global * 1.1: c_tt = '#ffaa00'
-                                else:                                   c_tt = '#ff4b4b'
+                            if med_tt is not None and not pd.isna(med_tt):
+                                tt_str = f"{int(round(med_tt))}"
+                                if med_total_global and not pd.isna(med_total_global):
+                                    if med_tt <= med_total_global * 0.9:   c_tt = '#00ff88'
+                                    elif med_tt <= med_total_global * 1.1: c_tt = '#ffaa00'
+                                    else:                                   c_tt = '#ff4b4b'
+                                else:
+                                    c_tt = '#f8fafc'
+                                tt_html = f"""
+<div style='border-top:1px solid rgba(255,255,255,0.07); padding-top:14px; margin-top:14px;'>
+    <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 4px 0; text-transform:uppercase;'>Dias habituales de entrega</p>
+    <div style='display:flex; align-items:baseline; gap:6px;'>
+        <p style='color:{c_tt}; font-size:38px; font-weight:900; margin:0; line-height:1;'>{tt_str}</p>
+        <p style='color:#475569; font-size:13px; font-weight:600; margin:0;'>dias</p>
+    </div>
+    <p style='color:#334155; font-size:10px; margin:4px 0 0 0;'>desde produccion hasta llegada</p>
+</div>"""
                             else:
-                                c_tt = '#f8fafc'
-                        else:
-                            tt_str = '—'
-                            c_tt   = '#475569'
+                                tt_html = f"""
+<div style='border-top:1px solid rgba(255,255,255,0.07); padding-top:14px; margin-top:14px;'>
+    <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 4px 0; text-transform:uppercase;'>Dias habituales de entrega</p>
+    <p style='color:#334155; font-size:20px; font-weight:700; margin:0;'>Sin datos</p>
+</div>"""
 
-                        with cols_tipo[i]:
                             st.markdown(f"""
-<div style='background:rgba(255,255,255,0.03); border-radius:16px;
-border:1px solid rgba(255,255,255,0.07); border-top:4px solid {ct};
-padding:20px 16px; box-sizing:border-box;'>
-<p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0; text-transform:uppercase;'>{tipo}</p>
-<div style='display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:14px;'>
-    <div>
-        <p style='color:{ct}; font-size:40px; font-weight:900; margin:0; line-height:1;'>{n_embs}</p>
-        <p style='color:#475569; font-size:11px; margin:4px 0 0 0;'>{pct_emb}% del total</p>
-    </div>
-    <div style='text-align:right;'>
-        <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;'>PUNTA A PUNTA</p>
-        <p style='color:{c_tt}; font-size:28px; font-weight:900; margin:0; line-height:1;'>{tt_str}</p>
-        <p style='color:#334155; font-size:9px; margin:3px 0 0 0;'>mediana dias</p>
-    </div>
+<div style='background:linear-gradient(145deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+border-radius:18px; border:1px solid rgba(255,255,255,0.08);
+border-top:5px solid {ct}; padding:22px 20px; margin-bottom:14px;
+box-shadow:0 10px 30px rgba(0,0,0,0.3);'>
+<p style='color:{ct}; font-size:13px; font-weight:800; letter-spacing:2px;
+margin:0 0 16px 0; text-transform:uppercase;'>{tipo}</p>
+<div style='display:flex; align-items:baseline; gap:8px; margin-bottom:4px;'>
+    <p style='color:#f8fafc; font-size:48px; font-weight:900; margin:0; line-height:1; letter-spacing:-2px;'>{n_embs}</p>
+    <p style='color:#475569; font-size:13px; font-weight:600; margin:0;'>embarques</p>
 </div>
-<div style='height:5px; background:rgba(255,255,255,0.06); border-radius:3px;'>
-    <div style='height:5px; width:{pct_emb}%; background:{ct}; border-radius:3px;'></div>
-</div>
+<p style='color:#475569; font-size:11px; margin:0 0 2px 0;'>{pct_emb}% del total aéreo</p>
+{tt_html}
 </div>""", unsafe_allow_html=True)
-
-                    # Si hay más de 4 tipos, segunda fila
-                    if len(conteo_tipos) > 4:
-                        st.markdown("<br>", unsafe_allow_html=True)
-                        resto = conteo_tipos.iloc[4:]
-                        cols_tipo2 = st.columns(min(len(resto), 4))
-                        for i2, (_, row_t2) in enumerate(resto.iterrows()):
-                            tipo2   = row_t2['Tipo']
-                            n_embs2 = row_t2['Embarques']
-                            pct2    = round(n_embs2 / total_embs_tipo * 100) if total_embs_tipo > 0 else 0
-                            ct2     = COLS_TIPO[(i2 + 4) % len(COLS_TIPO)]
-                            df_t2   = df_ae_activos[df_ae_activos['_partic'] == tipo2]
-                            tt_v2   = df_t2['_tt_total'].dropna().tolist()
-                            med2    = pd.Series(tt_v2).median() if tt_v2 else None
-                            if med2 is not None and not pd.isna(med2):
-                                tt2_str = f"{int(round(med2))}d"
-                                c_tt2   = '#00ff88' if med2 <= (med_total_global or 999) * 0.9 else (
-                                          '#ffaa00' if med2 <= (med_total_global or 999) * 1.1 else '#ff4b4b')
-                            else:
-                                tt2_str = '—'; c_tt2 = '#475569'
-                            with cols_tipo2[i2]:
-                                st.markdown(f"""
-<div style='background:rgba(255,255,255,0.03); border-radius:16px;
-border:1px solid rgba(255,255,255,0.07); border-top:4px solid {ct2};
-padding:20px 16px; box-sizing:border-box;'>
-<p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0; text-transform:uppercase;'>{tipo2}</p>
-<div style='display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:14px;'>
-    <div>
-        <p style='color:{ct2}; font-size:40px; font-weight:900; margin:0; line-height:1;'>{n_embs2}</p>
-        <p style='color:#475569; font-size:11px; margin:4px 0 0 0;'>{pct2}% del total</p>
-    </div>
-    <div style='text-align:right;'>
-        <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;'>PUNTA A PUNTA</p>
-        <p style='color:{c_tt2}; font-size:28px; font-weight:900; margin:0; line-height:1;'>{tt2_str}</p>
-        <p style='color:#334155; font-size:9px; margin:3px 0 0 0;'>mediana dias</p>
-    </div>
-</div>
-<div style='height:5px; background:rgba(255,255,255,0.06); border-radius:3px;'>
-    <div style='height:5px; width:{pct2}%; background:{ct2}; border-radius:3px;'></div>
-</div>
-</div>""", unsafe_allow_html=True)
+                    st.markdown("<br>", unsafe_allow_html=True)
 
             except Exception as e_ae:
                 st.error(f"Error en seccion Aereos: {e_ae}")
