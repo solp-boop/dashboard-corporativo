@@ -1094,13 +1094,16 @@ height:{H_ROW3}; box-sizing:border-box; display:flex; flex-direction:column; jus
                 empresas_ae = df_ae_activos[col_ae_empresa].nunique()
 
                 # ── FILA 1: número grande + gráfico estadios ──────────
+                # Altura fija igual para ambos recuadros
+                H_AE_PX = 300
                 col_ae_num, col_ae_estadios = st.columns([1, 2])
 
                 with col_ae_num:
                     st.markdown(f"""
-<div style='background:linear-gradient(145deg, rgba(168,85,247,0.07), rgba(168,85,247,0.02));
+<div style='background:linear-gradient(145deg,rgba(168,85,247,0.07),rgba(168,85,247,0.02));
 border-radius:20px; border:1px solid rgba(168,85,247,0.15); padding:28px;
-height:{H_AE}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between;'>
+height:{H_AE_PX}px; box-sizing:border-box;
+display:flex; flex-direction:column; justify-content:space-between;'>
 <div>
     <p style='color:#64748b; font-size:11px; letter-spacing:3px; margin:0 0 6px 0; text-transform:uppercase;'>Embarques aereos activos</p>
     <p style='color:#f8fafc; font-size:88px; font-weight:900; margin:0; line-height:1; letter-spacing:-4px;'>{total_ae}</p>
@@ -1152,7 +1155,7 @@ text-transform:uppercase; margin:0 0 10px 0;'>ESTADIOS DE LAS CARGAS</p>""",
                         hovertemplate='<b>%{y}</b><br>Embarques: %{x}<extra></extra>'
                     )
                     fig_ae.update_layout(
-                        height=max(int(H_AE.replace('px','')), len(conteo_e) * 50),
+                        height=H_AE_PX,
                         showlegend=False,
                         paper_bgcolor='rgba(0,0,0,0)',
                         plot_bgcolor='rgba(0,0,0,0)',
@@ -1168,12 +1171,12 @@ text-transform:uppercase; margin:0 0 10px 0;'>ESTADIOS DE LAS CARGAS</p>""",
                     )
                     st.plotly_chart(fig_ae, use_container_width=True)
 
-                # ── FILA 2: tipo de negocio ────────────────────────
+                # ── FILA 2: tipo de negocio en cards estilo ETD semana ──
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.markdown("""
 <div style='border-bottom:1px solid rgba(168,85,247,0.2); padding-bottom:8px; margin-bottom:20px;'>
 <span style='color:#64748b; font-size:10px; font-weight:700; letter-spacing:4px; text-transform:uppercase;'>CARGAS POR TIPO DE NEGOCIO</span>
-<span style='color:#334155; font-size:10px; letter-spacing:2px; margin-left:14px;'>embarques activos · dias habituales de entrega</span>
+<span style='color:#334155; font-size:10px; letter-spacing:2px; margin-left:14px;'>embarques activos · dias desde produccion hasta deposito</span>
 </div>""", unsafe_allow_html=True)
 
                 # GADNIC primero, luego por embarques desc
@@ -1189,10 +1192,9 @@ text-transform:uppercase; margin:0 0 10px 0;'>ESTADIOS DE LAS CARGAS</p>""",
                 total_embs_tipo  = conteo_tipos['Embarques'].sum()
                 med_total_global = pd.Series(
                     df_ae_activos['_tt_total'].dropna().tolist()).median()
-
                 COLS_TIPO = ['#00ff88', '#a855f7', '#00a8ff', '#ffaa00', '#f97316', '#06b6d4']
+                H_CARD_AE = "190px"
 
-                # Renderizar en filas de 3
                 for fila_start in range(0, len(conteo_tipos), 3):
                     fila_items = conteo_tipos.iloc[fila_start:fila_start + 3]
                     cols_fila  = st.columns(3)
@@ -1201,10 +1203,10 @@ text-transform:uppercase; margin:0 0 10px 0;'>ESTADIOS DE LAS CARGAS</p>""",
                             if idx >= len(fila_items):
                                 st.markdown("<div></div>", unsafe_allow_html=True)
                                 continue
-                            row_t   = fila_items.iloc[idx]
-                            tipo    = row_t['Tipo']
-                            n_embs  = row_t['Embarques']
-                            pct_emb = round(n_embs / total_embs_tipo * 100) if total_embs_tipo > 0 else 0
+                            row_t    = fila_items.iloc[idx]
+                            tipo     = row_t['Tipo']
+                            n_embs   = row_t['Embarques']
+                            pct_emb  = round(n_embs / total_embs_tipo * 100) if total_embs_tipo > 0 else 0
                             i_global = fila_start + idx
                             ct       = COLS_TIPO[i_global % len(COLS_TIPO)]
 
@@ -1213,42 +1215,38 @@ text-transform:uppercase; margin:0 0 10px 0;'>ESTADIOS DE LAS CARGAS</p>""",
                             med_tt  = pd.Series(tt_vals).median() if tt_vals else None
 
                             if med_tt is not None and not pd.isna(med_tt):
-                                tt_str = f"{int(round(med_tt))}"
+                                tt_num = int(round(med_tt))
                                 if med_total_global and not pd.isna(med_total_global):
                                     if med_tt <= med_total_global * 0.9:   c_tt = '#00ff88'
                                     elif med_tt <= med_total_global * 1.1: c_tt = '#ffaa00'
                                     else:                                   c_tt = '#ff4b4b'
                                 else:
                                     c_tt = '#f8fafc'
-                                tt_html = f"""
-<div style='border-top:1px solid rgba(255,255,255,0.07); padding-top:14px; margin-top:14px;'>
-    <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 4px 0; text-transform:uppercase;'>Dias habituales de entrega</p>
-    <div style='display:flex; align-items:baseline; gap:6px;'>
-        <p style='color:{c_tt}; font-size:38px; font-weight:900; margin:0; line-height:1;'>{tt_str}</p>
-        <p style='color:#475569; font-size:13px; font-weight:600; margin:0;'>dias</p>
-    </div>
-    <p style='color:#334155; font-size:10px; margin:4px 0 0 0;'>desde produccion hasta llegada</p>
-</div>"""
+                                dias_html = f"""<p style='color:{c_tt}; font-size:44px; font-weight:900;
+margin:0; line-height:1; letter-spacing:-2px;'>{tt_num}</p>
+<p style='color:#475569; font-size:11px; font-weight:600; margin:4px 0 0 0;'>dias prod → deposito</p>"""
                             else:
-                                tt_html = f"""
-<div style='border-top:1px solid rgba(255,255,255,0.07); padding-top:14px; margin-top:14px;'>
-    <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 4px 0; text-transform:uppercase;'>Dias habituales de entrega</p>
-    <p style='color:#334155; font-size:20px; font-weight:700; margin:0;'>Sin datos</p>
-</div>"""
+                                c_tt = '#475569'
+                                dias_html = """<p style='color:#334155; font-size:20px; font-weight:700;
+margin:0;'>Sin datos</p>
+<p style='color:#334155; font-size:11px; margin:4px 0 0 0;'>dias prod → deposito</p>"""
 
                             st.markdown(f"""
-<div style='background:linear-gradient(145deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
-border-radius:18px; border:1px solid rgba(255,255,255,0.08);
-border-top:5px solid {ct}; padding:22px 20px; margin-bottom:14px;
-box-shadow:0 10px 30px rgba(0,0,0,0.3);'>
-<p style='color:{ct}; font-size:13px; font-weight:800; letter-spacing:2px;
-margin:0 0 16px 0; text-transform:uppercase;'>{tipo}</p>
-<div style='display:flex; align-items:baseline; gap:8px; margin-bottom:4px;'>
-    <p style='color:#f8fafc; font-size:48px; font-weight:900; margin:0; line-height:1; letter-spacing:-2px;'>{n_embs}</p>
-    <p style='color:#475569; font-size:13px; font-weight:600; margin:0;'>embarques</p>
+<div style='background:rgba(255,255,255,0.03); border-radius:16px;
+border:1px solid rgba(255,255,255,0.07); border-top:4px solid {ct};
+padding:22px 20px; height:{H_CARD_AE}; box-sizing:border-box;
+display:flex; flex-direction:column; justify-content:space-between;
+margin-bottom:14px;'>
+<div>
+    <p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 10px 0;
+    text-transform:uppercase;'>{tipo}</p>
+    <p style='color:#f8fafc; font-size:44px; font-weight:900; margin:0; line-height:1;
+    letter-spacing:-2px;'>{n_embs}</p>
+    <p style='color:#475569; font-size:11px; font-weight:600; margin:4px 0 0 0;'>{pct_emb}% · embarques activos</p>
 </div>
-<p style='color:#475569; font-size:11px; margin:0 0 2px 0;'>{pct_emb}% del total aéreo</p>
-{tt_html}
+<div style='border-top:1px solid rgba(255,255,255,0.06); padding-top:10px;'>
+{dias_html}
+</div>
 </div>""", unsafe_allow_html=True)
                     st.markdown("<br>", unsafe_allow_html=True)
 
