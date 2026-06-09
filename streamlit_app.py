@@ -633,7 +633,7 @@ try:
                     st.plotly_chart(fig_ceta, use_container_width=True)
         except Exception as e:
             st.error(f"Error en Solapa Origen: {e}")
-# =========================================================================
+ # =========================================================================
     # --- SOLAPA 2: COORDINACIÓN ACTIVA ---
     # =========================================================================
     with tabs[1]:
@@ -1257,6 +1257,7 @@ margin-bottom:14px;'>
         except Exception as e:
             st.error(f"Error en Coordinacion Activa: {e}")
             import traceback; st.code(traceback.format_exc())
+
     # --- SOLAPA 3: PERFORMANCE DE ANALISTAS ---
     with tabs[2]:
         try:
