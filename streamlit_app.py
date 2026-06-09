@@ -633,7 +633,7 @@ try:
                     st.plotly_chart(fig_ceta, use_container_width=True)
         except Exception as e:
             st.error(f"Error en Solapa Origen: {e}")
- # =========================================================================
+# =========================================================================
     # --- SOLAPA 2: COORDINACIÓN ACTIVA ---
     # =========================================================================
     with tabs[1]:
@@ -1094,40 +1094,42 @@ height:{H_ROW3}; box-sizing:border-box; display:flex; flex-direction:column; jus
                 empresas_ae = df_ae_activos[col_ae_empresa].nunique()
 
                 # ── FILA 1: número grande + gráfico estadios ──────────
-                # Altura fija igual para ambos recuadros
-                H_AE_PX = 300
+                # Altura fija compartida — el gráfico Plotly usa el mismo valor
+                H_AE_PX = 280
+
                 col_ae_num, col_ae_estadios = st.columns([1, 2])
 
                 with col_ae_num:
                     st.markdown(f"""
 <div style='background:linear-gradient(145deg,rgba(168,85,247,0.07),rgba(168,85,247,0.02));
-border-radius:20px; border:1px solid rgba(168,85,247,0.15); padding:28px;
+border-radius:20px; border:1px solid rgba(168,85,247,0.15); padding:24px;
 height:{H_AE_PX}px; box-sizing:border-box;
 display:flex; flex-direction:column; justify-content:space-between;'>
 <div>
-    <p style='color:#64748b; font-size:11px; letter-spacing:3px; margin:0 0 6px 0; text-transform:uppercase;'>Embarques aereos activos</p>
-    <p style='color:#f8fafc; font-size:88px; font-weight:900; margin:0; line-height:1; letter-spacing:-4px;'>{total_ae}</p>
+    <p style='color:#64748b; font-size:10px; letter-spacing:3px; margin:0 0 4px 0; text-transform:uppercase;'>Embarques aereos activos</p>
+    <p style='color:#f8fafc; font-size:80px; font-weight:900; margin:0; line-height:1; letter-spacing:-4px;'>{total_ae}</p>
 </div>
-<div style='display:flex; gap:20px; flex-wrap:wrap;'>
+<div style='display:flex; gap:16px; flex-wrap:wrap;'>
     <div>
-        <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 3px 0;'>VOLUMEN</p>
-        <p style='color:#a855f7; font-size:20px; font-weight:800; margin:0;'>{int(round(m3_ae)):,} M3</p>
+        <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 2px 0;'>VOLUMEN</p>
+        <p style='color:#a855f7; font-size:18px; font-weight:800; margin:0;'>{int(round(m3_ae)):,} M3</p>
     </div>
     <div>
-        <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 3px 0;'>UNIDADES</p>
-        <p style='color:#a855f7; font-size:20px; font-weight:800; margin:0;'>{int(cant_ae):,}</p>
+        <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 2px 0;'>UNIDADES</p>
+        <p style='color:#a855f7; font-size:18px; font-weight:800; margin:0;'>{int(cant_ae):,}</p>
     </div>
     <div>
-        <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 3px 0;'>EMPRESAS</p>
-        <p style='color:#a855f7; font-size:20px; font-weight:800; margin:0;'>{empresas_ae}</p>
+        <p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 2px 0;'>EMPRESAS</p>
+        <p style='color:#a855f7; font-size:18px; font-weight:800; margin:0;'>{empresas_ae}</p>
     </div>
 </div>
 </div>""", unsafe_allow_html=True)
 
                 with col_ae_estadios:
+                    # Label fuera del contenedor para no afectar la altura
                     st.markdown("""
 <p style='color:#64748b; font-size:10px; letter-spacing:4px; font-weight:700;
-text-transform:uppercase; margin:0 0 10px 0;'>ESTADIOS DE LAS CARGAS</p>""",
+text-transform:uppercase; margin:0 0 6px 0;'>ESTADIOS DE LAS CARGAS</p>""",
                         unsafe_allow_html=True)
 
                     orden_idx = {e: i for i, e in enumerate(ORDEN_ESTADIOS)}
@@ -1150,8 +1152,8 @@ text-transform:uppercase; margin:0 0 10px 0;'>ESTADIOS DE LAS CARGAS</p>""",
                     )
                     fig_ae.update_traces(
                         textposition='outside', cliponaxis=False,
-                        textfont=dict(size=12, color='#94a3b8', family='Outfit, sans-serif'),
-                        marker=dict(cornerradius=6),
+                        textfont=dict(size=11, color='#94a3b8', family='Outfit, sans-serif'),
+                        marker=dict(cornerradius=5),
                         hovertemplate='<b>%{y}</b><br>Embarques: %{x}<extra></extra>'
                     )
                     fig_ae.update_layout(
@@ -1159,27 +1161,25 @@ text-transform:uppercase; margin:0 0 10px 0;'>ESTADIOS DE LAS CARGAS</p>""",
                         showlegend=False,
                         paper_bgcolor='rgba(0,0,0,0)',
                         plot_bgcolor='rgba(0,0,0,0)',
-                        font=dict(family='Outfit, sans-serif', color='#94a3b8', size=12),
-                        margin=dict(l=10, r=160, t=10, b=10),
+                        font=dict(family='Outfit, sans-serif', color='#94a3b8', size=11),
+                        margin=dict(l=0, r=150, t=0, b=0),
                         xaxis=dict(showgrid=True, gridwidth=1,
                                    gridcolor='rgba(255,255,255,0.05)',
                                    zeroline=False, showticklabels=False, title=''),
                         yaxis=dict(showgrid=False, title='',
-                                   tickfont=dict(size=12, color='#94a3b8'),
+                                   tickfont=dict(size=11, color='#94a3b8'),
                                    categoryorder='array',
                                    categoryarray=conteo_e['Estadio'].tolist()[::-1]),
                     )
                     st.plotly_chart(fig_ae, use_container_width=True)
 
-                # ── FILA 2: tipo de negocio en cards estilo ETD semana ──
+                # ── FILA 2: cards tipo negocio estilo ETD semana ──────
                 st.markdown("<br>", unsafe_allow_html=True)
-                st.markdown("""
-<div style='border-bottom:1px solid rgba(168,85,247,0.2); padding-bottom:8px; margin-bottom:20px;'>
-<span style='color:#64748b; font-size:10px; font-weight:700; letter-spacing:4px; text-transform:uppercase;'>CARGAS POR TIPO DE NEGOCIO</span>
-<span style='color:#334155; font-size:10px; letter-spacing:2px; margin-left:14px;'>embarques activos · dias desde produccion hasta deposito</span>
+                st.markdown(f"""
+<div style='border-bottom:1px solid rgba(168,85,247,0.15); padding-bottom:8px; margin-bottom:20px;'>
+<span style='color:#64748b; font-size:11px; font-weight:700; letter-spacing:4px; text-transform:uppercase;'>CARGAS POR TIPO DE NEGOCIO</span>
 </div>""", unsafe_allow_html=True)
 
-                # GADNIC primero, luego por embarques desc
                 conteo_tipos = df_ae_activos.groupby('_partic').agg(
                     Embarques=(col_ae_emb, 'nunique'),
                 ).reset_index()
@@ -1193,15 +1193,14 @@ text-transform:uppercase; margin:0 0 10px 0;'>ESTADIOS DE LAS CARGAS</p>""",
                 med_total_global = pd.Series(
                     df_ae_activos['_tt_total'].dropna().tolist()).median()
                 COLS_TIPO = ['#00ff88', '#a855f7', '#00a8ff', '#ffaa00', '#f97316', '#06b6d4']
-                H_CARD_AE = "190px"
+                H_CARD_AE = "200px"
 
-                for fila_start in range(0, len(conteo_tipos), 3):
-                    fila_items = conteo_tipos.iloc[fila_start:fila_start + 3]
-                    cols_fila  = st.columns(3)
-                    for idx in range(3):
+                for fila_start in range(0, len(conteo_tipos), 4):
+                    fila_items = conteo_tipos.iloc[fila_start:fila_start + 4]
+                    cols_fila  = st.columns(4)
+                    for idx in range(4):
                         with cols_fila[idx]:
                             if idx >= len(fila_items):
-                                st.markdown("<div></div>", unsafe_allow_html=True)
                                 continue
                             row_t    = fila_items.iloc[idx]
                             tipo     = row_t['Tipo']
@@ -1222,30 +1221,27 @@ text-transform:uppercase; margin:0 0 10px 0;'>ESTADIOS DE LAS CARGAS</p>""",
                                     else:                                   c_tt = '#ff4b4b'
                                 else:
                                     c_tt = '#f8fafc'
-                                dias_html = f"""<p style='color:{c_tt}; font-size:44px; font-weight:900;
-margin:0; line-height:1; letter-spacing:-2px;'>{tt_num}</p>
-<p style='color:#475569; font-size:11px; font-weight:600; margin:4px 0 0 0;'>dias prod → deposito</p>"""
+                                dias_val  = f"{tt_num}"
+                                dias_sub  = "dias prod. → depósito"
                             else:
-                                c_tt = '#475569'
-                                dias_html = """<p style='color:#334155; font-size:20px; font-weight:700;
-margin:0;'>Sin datos</p>
-<p style='color:#334155; font-size:11px; margin:4px 0 0 0;'>dias prod → deposito</p>"""
+                                c_tt      = '#475569'
+                                dias_val  = "—"
+                                dias_sub  = "sin datos"
 
                             st.markdown(f"""
-<div style='background:rgba(255,255,255,0.03); border-radius:16px;
-border:1px solid rgba(255,255,255,0.07); border-top:4px solid {ct};
-padding:22px 20px; height:{H_CARD_AE}; box-sizing:border-box;
+<div style='background:linear-gradient(145deg,rgba(0,168,255,0.07),rgba(0,168,255,0.02));
+border-radius:16px; border:1px solid rgba(255,255,255,0.07); border-left:4px solid {ct};
+padding:22px 18px; height:{H_CARD_AE}; box-sizing:border-box;
 display:flex; flex-direction:column; justify-content:space-between;
 margin-bottom:14px;'>
 <div>
-    <p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 10px 0;
-    text-transform:uppercase;'>{tipo}</p>
-    <p style='color:#f8fafc; font-size:44px; font-weight:900; margin:0; line-height:1;
-    letter-spacing:-2px;'>{n_embs}</p>
-    <p style='color:#475569; font-size:11px; font-weight:600; margin:4px 0 0 0;'>{pct_emb}% · embarques activos</p>
+    <p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 4px 0; text-transform:uppercase;'>{tipo}</p>
+    <p style='color:#f8fafc; font-size:48px; font-weight:900; margin:0; line-height:1; letter-spacing:-2px;'>{n_embs}</p>
+    <p style='color:#475569; font-size:11px; margin:4px 0 0 0;'>{pct_emb}% del total</p>
 </div>
-<div style='border-top:1px solid rgba(255,255,255,0.06); padding-top:10px;'>
-{dias_html}
+<div>
+    <p style='color:#64748b; font-size:10px; margin:0 0 2px 0;'>PROD. → DEPÓSITO</p>
+    <p style='color:{c_tt}; font-size:24px; font-weight:800; margin:0;'>{dias_val} <span style='font-size:13px; color:#475569; font-weight:400;'>{dias_sub}</span></p>
 </div>
 </div>""", unsafe_allow_html=True)
                     st.markdown("<br>", unsafe_allow_html=True)
