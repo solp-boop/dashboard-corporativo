@@ -1228,49 +1228,67 @@ display:flex; flex-direction:column; justify-content:space-between;'>
                 conteo_partic = conteo_partic.merge(tt_por_tipo, on='_partic', how='left')
                 total_emb_ae = conteo_partic['Embarques'].sum()
 
-                col_partic, col_chart = st.columns([1, 1])
+                # Cards por tipo para director comercial
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("""
+<div style='border-bottom:1px solid rgba(168,85,247,0.2); padding-bottom:8px; margin-bottom:20px;'>
+<span style='color:#a855f7; font-size:11px; font-weight:800; letter-spacing:4px; text-transform:uppercase;'>PARTICIPACIÓN POR TIPO DE NEGOCIO</span>
+</div>""", unsafe_allow_html=True)
 
-                with col_partic:
-                    st.markdown("<p style='color:#64748b; font-size:11px; letter-spacing:3px; font-weight:700; text-transform:uppercase; margin:0 0 14px 0;'>PARTICIPACIÓN POR TIPO</p>", unsafe_allow_html=True)
-                    import plotly.graph_objects as go
-                    fig_partic = go.Figure(go.Bar(
-                        y=conteo_partic['_partic'],
-                        x=conteo_partic['Embarques'],
-                        orientation='h',
-                        marker_color=[COLORES_PARTIC[i % len(COLORES_PARTIC)] for i in range(len(conteo_partic))],
-                        text=conteo_partic['Embarques'].apply(lambda x: f"{int(x)} emb"),
-                        textposition='outside',
-                        textfont=dict(size=12, color='#f8fafc'),
-                    ))
-                    fig_partic.update_layout(
-                        height=220,
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        showlegend=False,
-                        font=dict(family='Outfit, sans-serif', color='#94a3b8', size=11),
-                        xaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.06)',
-                                   zeroline=False, showticklabels=False),
-                        yaxis=dict(showgrid=False, tickfont=dict(size=12, color='#94a3b8')),
-                        margin=dict(l=10, r=60, t=5, b=5),
-                        bargap=0.3,
-                    )
-                    st.plotly_chart(fig_partic, use_container_width=True)
+                # Calcular promedio de P2P para semaforo
+                tt_global_med = conteo_partic['TT_Med'].median()
 
-                    # Tabla resumen
-                    df_tabla_partic = conteo_partic[['_partic','Embarques','M3','Unidades','TT_Med']].copy()
-                    df_tabla_partic.columns = ['Tipo', 'Emb', 'M3', 'Unidades', 'P2P']
-                    df_tabla_partic['M3']      = df_tabla_partic['M3'].apply(lambda x: f"{int(round(x)):,}")
-                    df_tabla_partic['Unidades'] = df_tabla_partic['Unidades'].apply(lambda x: f"{int(round(x)):,}")
-                    df_tabla_partic['P2P']      = df_tabla_partic['P2P'].apply(
-                        lambda x: f"{int(round(x))}d" if pd.notna(x) else '—')
-                    st.dataframe(df_tabla_partic, use_container_width=True, hide_index=True,
-                        column_config={
-                            'Tipo'    : st.column_config.TextColumn("Tipo"),
-                            'Emb'     : st.column_config.NumberColumn("Emb", format="%d"),
-                            'M3'      : st.column_config.TextColumn("M3"),
-                            'Unidades': st.column_config.TextColumn("Unidades"),
-                            'P2P'     : st.column_config.TextColumn("✈️ P2P"),
-                        })
+                n_cols = min(len(conteo_partic), 4)
+                rows_cards = [conteo_partic.iloc[i:i+n_cols] for i in range(0, len(conteo_partic), n_cols)]
+
+                for chunk in rows_cards:
+                    card_cols = st.columns(n_cols)
+                    for ci, (_, rp) in enumerate(chunk.iterrows()):
+                        col_p = COLORES_PARTIC[list(conteo_partic.index).index(rp.name) % len(COLORES_PARTIC)]
+                        pct_p = round(rp['Embarques'] / total_emb_ae * 100) if total_emb_ae > 0 else 0
+                        tt_val = rp.get('TT_Med')
+                        if pd.notna(tt_val) and tt_val:
+                            tt_num = int(round(tt_val))
+                            # Semaforo: verde <= promedio, amarillo <= promedio*1.3, rojo > promedio*1.3
+                            if tt_global_med and pd.notna(tt_global_med):
+                                if tt_num <= tt_global_med:        tt_color = '#00ff88'
+                                elif tt_num <= tt_global_med*1.3:  tt_color = '#ffaa00'
+                                else:                              tt_color = '#ff4b4b'
+                            else:
+                                tt_color = '#94a3b8'
+                            tt_str = f"{tt_num}d"
+                        else:
+                            tt_str = '—'; tt_color = '#475569'
+
+                        m3_val  = int(round(rp['M3']))
+                        uni_val = int(round(rp['Unidades']))
+                        emb_val = int(rp['Embarques'])
+
+                        with card_cols[ci]:
+                            st.markdown(f"""
+<div style='background:rgba(255,255,255,0.02); border-radius:16px;
+border:1px solid rgba(255,255,255,0.07); border-top:4px solid {col_p};
+padding:20px 16px; margin-bottom:12px;'>
+<p style='color:#64748b; font-size:9px; letter-spacing:2px; margin:0 0 6px 0; text-transform:uppercase;'>{rp['_partic']}</p>
+<p style='color:{col_p}; font-size:42px; font-weight:900; margin:0; line-height:1;'>{emb_val}</p>
+<p style='color:#475569; font-size:10px; margin:4px 0 14px 0;'>{pct_p}% del total</p>
+<hr style='border:none; border-top:1px solid rgba(255,255,255,0.06); margin:0 0 12px 0;'>
+<div style='display:flex; justify-content:space-between;'>
+    <div>
+        <p style='color:#64748b; font-size:9px; margin:0 0 2px 0;'>M3</p>
+        <p style='color:#f8fafc; font-size:14px; font-weight:700; margin:0;'>{m3_val:,}</p>
+    </div>
+    <div>
+        <p style='color:#64748b; font-size:9px; margin:0 0 2px 0;'>UNIDADES</p>
+        <p style='color:#f8fafc; font-size:14px; font-weight:700; margin:0;'>{uni_val:,}</p>
+    </div>
+    <div>
+        <p style='color:#64748b; font-size:9px; margin:0 0 2px 0;'>✈️ P2P</p>
+        <p style='color:{tt_color}; font-size:16px; font-weight:900; margin:0;'>{tt_str}</p>
+    </div>
+</div>
+</div>""", unsafe_allow_html=True)
+
 
 
                 with col_ae_estadios:
