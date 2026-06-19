@@ -1222,6 +1222,10 @@ display:flex; flex-direction:column; justify-content:space-between;'>
                     M3=(col_ae_m3, 'sum'),
                     Unidades=(col_ae_cant, 'sum')
                 ).reset_index().sort_values('Embarques', ascending=False).reset_index(drop=True)
+                # Agregar tiempo punta a punta (col BB idx 53)
+                tt_por_tipo = df_ae_activos.groupby('_partic')['_tt_total'].median().reset_index()
+                tt_por_tipo.columns = ['_partic', 'TT_Med']
+                conteo_partic = conteo_partic.merge(tt_por_tipo, on='_partic', how='left')
                 total_emb_ae = conteo_partic['Embarques'].sum()
 
                 col_partic, col_chart = st.columns([1, 1])
@@ -1236,6 +1240,7 @@ display:flex; flex-direction:column; justify-content:space-between;'>
 <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;'>
     <p style='color:{col_p}; font-size:13px; font-weight:800; margin:0;'>{rp['_partic']}</p>
     <p style='color:#f8fafc; font-size:15px; font-weight:900; margin:0;'>{int(rp['Embarques'])} <span style='color:#475569; font-size:11px; font-weight:400;'>emb · {pct_p}%</span></p>
+    <p style='color:#64748b; font-size:10px; margin:3px 0 0 0;'>✈️ Tiempo punta a punta: <span style='color:#a855f7; font-weight:700;'>{int(round(rp['TT_Med'])) if pd.notna(rp.get('TT_Med')) else '—'}d</span></p>
 </div>
 <div style='height:6px; background:rgba(255,255,255,0.06); border-radius:3px;'>
     <div style='height:6px; width:{pct_p}%; background:{col_p}; border-radius:3px;'></div>
