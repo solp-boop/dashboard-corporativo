@@ -1232,66 +1232,46 @@ display:flex; flex-direction:column; justify-content:space-between;'>
 
                 with col_partic:
                     st.markdown("<p style='color:#64748b; font-size:11px; letter-spacing:3px; font-weight:700; text-transform:uppercase; margin:0 0 14px 0;'>PARTICIPACIÓN POR TIPO</p>", unsafe_allow_html=True)
-                    for pi, (_, rp) in enumerate(conteo_partic.iterrows()):
-                        pct_p = round(rp['Embarques'] / total_emb_ae * 100) if total_emb_ae > 0 else 0
-                        col_p = COLORES_PARTIC[pi % len(COLORES_PARTIC)]
-                        st.markdown(f"""
-<div style='margin-bottom:14px;'>
-<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;'>
-    <p style='color:{col_p}; font-size:13px; font-weight:800; margin:0;'>{rp['_partic']}</p>
-    <p style='color:#f8fafc; font-size:15px; font-weight:900; margin:0;'>{int(rp['Embarques'])} <span style='color:#475569; font-size:11px; font-weight:400;'>emb · {pct_p}%</span></p>
-    <p style='color:#64748b; font-size:10px; margin:3px 0 0 0;'>✈️ Tiempo punta a punta: <span style='color:#a855f7; font-weight:700;'>{int(round(rp['TT_Med'])) if pd.notna(rp.get('TT_Med')) else '—'}d</span></p>
-</div>
-<div style='height:6px; background:rgba(255,255,255,0.06); border-radius:3px;'>
-    <div style='height:6px; width:{pct_p}%; background:{col_p}; border-radius:3px;'></div>
-</div>
-</div>""", unsafe_allow_html=True)
-
-                with col_chart:
-                    st.markdown("<p style='color:#64748b; font-size:11px; letter-spacing:3px; font-weight:700; text-transform:uppercase; margin:0 0 14px 0;'>M3 Y UNIDADES POR TIPO</p>", unsafe_allow_html=True)
                     import plotly.graph_objects as go
-                    fig_partic = go.Figure()
-                    fig_partic.add_trace(go.Bar(
-                        name='M3',
-                        x=conteo_partic['_partic'],
-                        y=conteo_partic['M3'].round(0),
+                    fig_partic = go.Figure(go.Bar(
+                        y=conteo_partic['_partic'],
+                        x=conteo_partic['Embarques'],
+                        orientation='h',
                         marker_color=[COLORES_PARTIC[i % len(COLORES_PARTIC)] for i in range(len(conteo_partic))],
-                        text=conteo_partic['M3'].apply(lambda x: f"{int(round(x)):,}"),
+                        text=conteo_partic['Embarques'].apply(lambda x: f"{int(x)} emb"),
                         textposition='outside',
                         textfont=dict(size=12, color='#f8fafc'),
-                        yaxis='y1',
-                    ))
-                    fig_partic.add_trace(go.Scatter(
-                        name='Unidades',
-                        x=conteo_partic['_partic'],
-                        y=conteo_partic['Unidades'].round(0),
-                        mode='markers+text',
-                        marker=dict(size=12, color='#00ff88', symbol='diamond',
-                                    line=dict(color='#fff', width=1.5)),
-                        text=conteo_partic['Unidades'].apply(lambda x: f"{int(round(x)):,}"),
-                        textposition='top center',
-                        textfont=dict(size=11, color='#00ff88'),
-                        yaxis='y2',
                     ))
                     fig_partic.update_layout(
-                        height=300,
+                        height=220,
                         paper_bgcolor='rgba(0,0,0,0)',
                         plot_bgcolor='rgba(0,0,0,0)',
+                        showlegend=False,
                         font=dict(family='Outfit, sans-serif', color='#94a3b8', size=11),
-                        showlegend=True,
-                        legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1,
-                                    font=dict(size=11), bgcolor='rgba(0,0,0,0)'),
-                        xaxis=dict(showgrid=False, tickfont=dict(size=11, color='#94a3b8')),
-                        yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.06)',
-                                   title=dict(text='M3', font=dict(color='#94a3b8')),
-                                   tickfont=dict(size=10)),
-                        yaxis2=dict(overlaying='y', side='right', showgrid=False,
-                                    title=dict(text='Unidades', font=dict(color='#00ff88')),
-                                    tickfont=dict(size=10, color='#00ff88')),
-                        margin=dict(l=10, r=40, t=30, b=10),
+                        xaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.06)',
+                                   zeroline=False, showticklabels=False),
+                        yaxis=dict(showgrid=False, tickfont=dict(size=12, color='#94a3b8')),
+                        margin=dict(l=10, r=60, t=5, b=5),
                         bargap=0.3,
                     )
                     st.plotly_chart(fig_partic, use_container_width=True)
+
+                    # Tabla resumen
+                    df_tabla_partic = conteo_partic[['_partic','Embarques','M3','Unidades','TT_Med']].copy()
+                    df_tabla_partic.columns = ['Tipo', 'Emb', 'M3', 'Unidades', 'P2P']
+                    df_tabla_partic['M3']      = df_tabla_partic['M3'].apply(lambda x: f"{int(round(x)):,}")
+                    df_tabla_partic['Unidades'] = df_tabla_partic['Unidades'].apply(lambda x: f"{int(round(x)):,}")
+                    df_tabla_partic['P2P']      = df_tabla_partic['P2P'].apply(
+                        lambda x: f"{int(round(x))}d" if pd.notna(x) else '—')
+                    st.dataframe(df_tabla_partic, use_container_width=True, hide_index=True,
+                        column_config={
+                            'Tipo'    : st.column_config.TextColumn("Tipo"),
+                            'Emb'     : st.column_config.NumberColumn("Emb", format="%d"),
+                            'M3'      : st.column_config.TextColumn("M3"),
+                            'Unidades': st.column_config.TextColumn("Unidades"),
+                            'P2P'     : st.column_config.TextColumn("✈️ P2P"),
+                        })
+
 
                 with col_ae_estadios:
                     st.markdown("<p style='color:#64748b; font-size:10px; letter-spacing:4px; font-weight:700; text-transform:uppercase; margin:0 0 6px 0;'>ESTADIOS DE LAS CARGAS</p>", unsafe_allow_html=True)
