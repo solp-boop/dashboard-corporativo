@@ -1214,6 +1214,29 @@ display:flex; flex-direction:column; justify-content:space-between;'>
 </div>
 </div>""", unsafe_allow_html=True)
 
+                    # Participación por tipo de negocio (col I = índice 8)
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.markdown("<p style='color:#64748b; font-size:10px; letter-spacing:3px; font-weight:700; text-transform:uppercase; margin:0 0 10px 0;'>PARTICIPACIÓN POR TIPO</p>", unsafe_allow_html=True)
+                    COLORES_PARTIC = ['#a855f7', '#00a8ff', '#ffaa00', '#00ff88', '#ff4b4b', '#06b6d4']
+                    conteo_partic = df_ae_activos.groupby('_partic').agg(
+                        Embarques=(col_ae_emb, 'nunique'),
+                        M3=(col_ae_m3, 'sum')
+                    ).reset_index().sort_values('Embarques', ascending=False)
+                    total_emb_ae = conteo_partic['Embarques'].sum()
+                    for pi, (_, rp) in enumerate(conteo_partic.iterrows()):
+                        pct_p = round(rp['Embarques'] / total_emb_ae * 100) if total_emb_ae > 0 else 0
+                        col_p = COLORES_PARTIC[pi % len(COLORES_PARTIC)]
+                        st.markdown(f"""
+<div style='margin-bottom:8px;'>
+<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;'>
+    <p style='color:{col_p}; font-size:11px; font-weight:700; margin:0;'>{rp['_partic']}</p>
+    <p style='color:#f8fafc; font-size:12px; font-weight:800; margin:0;'>{int(rp['Embarques'])} <span style='color:#475569; font-size:10px; font-weight:400;'>emb · {pct_p}%</span></p>
+</div>
+<div style='height:4px; background:rgba(255,255,255,0.06); border-radius:2px;'>
+    <div style='height:4px; width:{pct_p}%; background:{col_p}; border-radius:2px;'></div>
+</div>
+</div>""", unsafe_allow_html=True)
+
                 with col_ae_estadios:
                     st.markdown("<p style='color:#64748b; font-size:10px; letter-spacing:4px; font-weight:700; text-transform:uppercase; margin:0 0 6px 0;'>ESTADIOS DE LAS CARGAS</p>", unsafe_allow_html=True)
                     orden_idx = {e: i for i, e in enumerate(ORDEN_ESTADIOS)}
