@@ -652,35 +652,41 @@ try:
 
                     color_map = {'MONOPROVEEDOR': '#00a8ff', 'CONSOLIDADO': '#ffaa00'}
 
-                    ge1, ge2 = st.columns(2)
+                    # ── UN SOLO RESUMEN ARRIBA ───────────────────────────
+                    resumen_unico = df_mono_proy_etd.groupby('Estructura').agg(
+                        M3_Total=('M3 Total', 'sum'), SOs=('SO', 'nunique')
+                    ).reset_index() if not df_mono_proy_etd.empty else pd.DataFrame()
 
-                    # ── GRÁFICO ETD ──────────────────────────────────────
-                    with ge1:
-                        if not df_mono_proy_etd.empty:
-                            # Tarjetas resumen ETD arriba
-                            resumen_etd = df_mono_proy_etd.groupby('Estructura').agg(
-                                M3_Total=('M3 Total', 'sum'), SOs=('SO', 'nunique')
-                            ).reset_index()
-                            resumen_etd['Share %'] = (resumen_etd['M3_Total'] / resumen_etd['M3_Total'].sum() * 100).round(1)
-                            resumen_etd['CNTRS']   = (resumen_etd['M3_Total'] / 60).round(0).astype(int)
-                            cols_etd_r = st.columns(len(resumen_etd))
-                            for idx, (_, row_r) in enumerate(resumen_etd.iterrows()):
-                                color_r = '#00a8ff' if row_r['Estructura'] == 'MONOPROVEEDOR' else '#ffaa00'
-                                with cols_etd_r[idx]:
-                                    st.markdown(f"""
-<div style='text-align:center; padding:12px 8px; background:rgba(255,255,255,0.02);
-border-radius:12px; border-top:3px solid {color_r}; border:1px solid rgba(255,255,255,0.06); margin-bottom:10px;'>
+                    if not resumen_unico.empty:
+                        resumen_unico['Share %'] = (resumen_unico['M3_Total'] / resumen_unico['M3_Total'].sum() * 100).round(1)
+                        resumen_unico['CNTRS']   = (resumen_unico['M3_Total'] / 60).round(0).astype(int)
+                        cols_res = st.columns(len(resumen_unico))
+                        for idx, (_, row_r) in enumerate(resumen_unico.iterrows()):
+                            color_r = '#00a8ff' if row_r['Estructura'] == 'MONOPROVEEDOR' else '#ffaa00'
+                            with cols_res[idx]:
+                                st.markdown(f"""
+<div style='text-align:center; padding:14px 12px; background:rgba(255,255,255,0.02);
+border-radius:12px; border-top:3px solid {color_r}; border:1px solid rgba(255,255,255,0.06); margin-bottom:14px;'>
 <p style='color:#64748b; font-size:9px; letter-spacing:2px; margin:0 0 4px 0; text-transform:uppercase;'>{row_r['Estructura']}</p>
-<p style='color:{color_r}; font-size:22px; font-weight:900; margin:0; line-height:1;'>{int(round(row_r['M3_Total'])):,} <span style='font-size:11px; color:#475569;'>M3</span></p>
-<div style='display:flex; justify-content:center; gap:12px; margin-top:6px;'>
+<p style='color:{color_r}; font-size:26px; font-weight:900; margin:0; line-height:1;'>{int(round(row_r['M3_Total'])):,} <span style='font-size:11px; color:#475569;'>M3</span></p>
+<div style='display:flex; justify-content:center; gap:14px; margin-top:6px;'>
     <span style='color:#94a3b8; font-size:10px;'>{row_r['Share %']}%</span>
     <span style='color:#94a3b8; font-size:10px;'>{row_r['CNTRS']} CNTRS</span>
     <span style='color:#94a3b8; font-size:10px;'>{row_r['SOs']} SOs</span>
 </div>
 </div>""", unsafe_allow_html=True)
 
+                    ge1, ge2 = st.columns(2)
+
+                    # ── GRÁFICO ETD con total M3 por mes ─────────────────
+                    with ge1:
+                        if not df_mono_proy_etd.empty:
                             df_stack_etd = df_mono_proy_etd.groupby(['Mes_ETD_Full', 'Estructura'])['M3 Total'].sum().reset_index()
                             df_stack_etd.columns = ['Mes', 'Estructura', 'M3']
+                            # Total por mes para anotación
+                            total_etd_mes = df_stack_etd.groupby('Mes')['M3'].sum().reset_index()
+                            total_etd_mes.columns = ['Mes', 'Total']
+
                             fig_etd_m = px.bar(df_stack_etd, x='Mes', y='M3', color='Estructura',
                                 barmode='stack', text='M3', color_discrete_map=color_map,
                                 labels={'M3': 'M3 Total', 'Mes': '', 'Estructura': ''},
@@ -688,7 +694,15 @@ border-radius:12px; border-top:3px solid {color_r}; border:1px solid rgba(255,25
                             fig_etd_m.update_traces(texttemplate='%{text:,.0f}', textposition='inside',
                                 textfont=dict(size=11, color='#fff', family='Outfit, sans-serif'),
                                 marker=dict(cornerradius=4))
-                            fig_etd_m.update_layout(height=380, paper_bgcolor='rgba(0,0,0,0)',
+                            # Agregar total encima de cada barra
+                            for _, r in total_etd_mes.iterrows():
+                                fig_etd_m.add_annotation(
+                                    x=r['Mes'], y=r['Total'],
+                                    text=f"<b>{int(round(r['Total'])):,}</b>",
+                                    showarrow=False, yshift=10,
+                                    font=dict(size=11, color='#f8fafc', family='Outfit, sans-serif')
+                                )
+                            fig_etd_m.update_layout(height=400, paper_bgcolor='rgba(0,0,0,0)',
                                 plot_bgcolor='rgba(0,0,0,0)',
                                 font=dict(size=12, family='Outfit, sans-serif', color='#94a3b8'),
                                 title_font_color='#00ff88', title_font_size=13,
@@ -698,33 +712,14 @@ border-radius:12px; border-top:3px solid {color_r}; border:1px solid rgba(255,25
                                 margin=dict(l=10, r=10, t=50, b=20))
                             st.plotly_chart(fig_etd_m, use_container_width=True)
 
-                    # ── GRÁFICO ETA ──────────────────────────────────────
+                    # ── GRÁFICO ETA con total M3 por mes ─────────────────
                     with ge2:
                         if not df_mono_proy_eta.empty:
-                            # Tarjetas resumen ETA arriba
-                            resumen_eta = df_mono_proy_eta.groupby('Estructura').agg(
-                                M3_Total=('M3 Total', 'sum'), SOs=('SO', 'nunique')
-                            ).reset_index()
-                            resumen_eta['Share %'] = (resumen_eta['M3_Total'] / resumen_eta['M3_Total'].sum() * 100).round(1)
-                            resumen_eta['CNTRS']   = (resumen_eta['M3_Total'] / 60).round(0).astype(int)
-                            cols_eta_r = st.columns(len(resumen_eta))
-                            for idx, (_, row_r) in enumerate(resumen_eta.iterrows()):
-                                color_r = '#00a8ff' if row_r['Estructura'] == 'MONOPROVEEDOR' else '#ffaa00'
-                                with cols_eta_r[idx]:
-                                    st.markdown(f"""
-<div style='text-align:center; padding:12px 8px; background:rgba(255,255,255,0.02);
-border-radius:12px; border-top:3px solid {color_r}; border:1px solid rgba(255,255,255,0.06); margin-bottom:10px;'>
-<p style='color:#64748b; font-size:9px; letter-spacing:2px; margin:0 0 4px 0; text-transform:uppercase;'>{row_r['Estructura']}</p>
-<p style='color:{color_r}; font-size:22px; font-weight:900; margin:0; line-height:1;'>{int(round(row_r['M3_Total'])):,} <span style='font-size:11px; color:#475569;'>M3</span></p>
-<div style='display:flex; justify-content:center; gap:12px; margin-top:6px;'>
-    <span style='color:#94a3b8; font-size:10px;'>{row_r['Share %']}%</span>
-    <span style='color:#94a3b8; font-size:10px;'>{row_r['CNTRS']} CNTRS</span>
-    <span style='color:#94a3b8; font-size:10px;'>{row_r['SOs']} SOs</span>
-</div>
-</div>""", unsafe_allow_html=True)
-
                             df_stack_eta = df_mono_proy_eta.groupby(['Mes_ETA_Full', 'Estructura'], observed=True)['M3 Total'].sum().reset_index()
                             df_stack_eta.columns = ['Mes', 'Estructura', 'M3']
+                            total_eta_mes = df_stack_eta.groupby('Mes')['M3'].sum().reset_index()
+                            total_eta_mes.columns = ['Mes', 'Total']
+
                             fig_eta_m = px.bar(df_stack_eta, x='Mes', y='M3', color='Estructura',
                                 barmode='stack', text='M3', color_discrete_map=color_map,
                                 labels={'M3': 'M3 Total', 'Mes': '', 'Estructura': ''},
@@ -732,7 +727,14 @@ border-radius:12px; border-top:3px solid {color_r}; border:1px solid rgba(255,25
                             fig_eta_m.update_traces(texttemplate='%{text:,.0f}', textposition='inside',
                                 textfont=dict(size=11, color='#fff', family='Outfit, sans-serif'),
                                 marker=dict(cornerradius=4))
-                            fig_eta_m.update_layout(height=380, paper_bgcolor='rgba(0,0,0,0)',
+                            for _, r in total_eta_mes.iterrows():
+                                fig_eta_m.add_annotation(
+                                    x=r['Mes'], y=r['Total'],
+                                    text=f"<b>{int(round(r['Total'])):,}</b>",
+                                    showarrow=False, yshift=10,
+                                    font=dict(size=11, color='#f8fafc', family='Outfit, sans-serif')
+                                )
+                            fig_eta_m.update_layout(height=400, paper_bgcolor='rgba(0,0,0,0)',
                                 plot_bgcolor='rgba(0,0,0,0)',
                                 font=dict(size=12, family='Outfit, sans-serif', color='#94a3b8'),
                                 title_font_color='#ff4b4b', title_font_size=13,
