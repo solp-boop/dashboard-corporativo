@@ -1214,28 +1214,78 @@ display:flex; flex-direction:column; justify-content:space-between;'>
 </div>
 </div>""", unsafe_allow_html=True)
 
-                    # Participación por tipo de negocio (col I = índice 8)
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    st.markdown("<p style='color:#64748b; font-size:10px; letter-spacing:3px; font-weight:700; text-transform:uppercase; margin:0 0 10px 0;'>PARTICIPACIÓN POR TIPO</p>", unsafe_allow_html=True)
-                    COLORES_PARTIC = ['#a855f7', '#00a8ff', '#ffaa00', '#00ff88', '#ff4b4b', '#06b6d4']
-                    conteo_partic = df_ae_activos.groupby('_partic').agg(
-                        Embarques=(col_ae_emb, 'nunique'),
-                        M3=(col_ae_m3, 'sum')
-                    ).reset_index().sort_values('Embarques', ascending=False)
-                    total_emb_ae = conteo_partic['Embarques'].sum()
+                # Participación por tipo — fila completa debajo
+                st.markdown("<br>", unsafe_allow_html=True)
+                COLORES_PARTIC = ['#a855f7', '#00a8ff', '#ffaa00', '#00ff88', '#ff4b4b', '#06b6d4']
+                conteo_partic = df_ae_activos.groupby('_partic').agg(
+                    Embarques=(col_ae_emb, 'nunique'),
+                    M3=(col_ae_m3, 'sum'),
+                    Unidades=(col_ae_cant, 'sum')
+                ).reset_index().sort_values('Embarques', ascending=False).reset_index(drop=True)
+                total_emb_ae = conteo_partic['Embarques'].sum()
+
+                col_partic, col_chart = st.columns([1, 1])
+
+                with col_partic:
+                    st.markdown("<p style='color:#64748b; font-size:11px; letter-spacing:3px; font-weight:700; text-transform:uppercase; margin:0 0 14px 0;'>PARTICIPACIÓN POR TIPO</p>", unsafe_allow_html=True)
                     for pi, (_, rp) in enumerate(conteo_partic.iterrows()):
                         pct_p = round(rp['Embarques'] / total_emb_ae * 100) if total_emb_ae > 0 else 0
                         col_p = COLORES_PARTIC[pi % len(COLORES_PARTIC)]
                         st.markdown(f"""
-<div style='margin-bottom:8px;'>
-<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;'>
-    <p style='color:{col_p}; font-size:11px; font-weight:700; margin:0;'>{rp['_partic']}</p>
-    <p style='color:#f8fafc; font-size:12px; font-weight:800; margin:0;'>{int(rp['Embarques'])} <span style='color:#475569; font-size:10px; font-weight:400;'>emb · {pct_p}%</span></p>
+<div style='margin-bottom:14px;'>
+<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;'>
+    <p style='color:{col_p}; font-size:13px; font-weight:800; margin:0;'>{rp['_partic']}</p>
+    <p style='color:#f8fafc; font-size:15px; font-weight:900; margin:0;'>{int(rp['Embarques'])} <span style='color:#475569; font-size:11px; font-weight:400;'>emb · {pct_p}%</span></p>
 </div>
-<div style='height:4px; background:rgba(255,255,255,0.06); border-radius:2px;'>
-    <div style='height:4px; width:{pct_p}%; background:{col_p}; border-radius:2px;'></div>
+<div style='height:6px; background:rgba(255,255,255,0.06); border-radius:3px;'>
+    <div style='height:6px; width:{pct_p}%; background:{col_p}; border-radius:3px;'></div>
 </div>
 </div>""", unsafe_allow_html=True)
+
+                with col_chart:
+                    st.markdown("<p style='color:#64748b; font-size:11px; letter-spacing:3px; font-weight:700; text-transform:uppercase; margin:0 0 14px 0;'>M3 Y UNIDADES POR TIPO</p>", unsafe_allow_html=True)
+                    import plotly.graph_objects as go
+                    fig_partic = go.Figure()
+                    fig_partic.add_trace(go.Bar(
+                        name='M3',
+                        x=conteo_partic['_partic'],
+                        y=conteo_partic['M3'].round(0),
+                        marker_color=[COLORES_PARTIC[i % len(COLORES_PARTIC)] for i in range(len(conteo_partic))],
+                        text=conteo_partic['M3'].apply(lambda x: f"{int(round(x)):,}"),
+                        textposition='outside',
+                        textfont=dict(size=12, color='#f8fafc'),
+                        yaxis='y1',
+                    ))
+                    fig_partic.add_trace(go.Scatter(
+                        name='Unidades',
+                        x=conteo_partic['_partic'],
+                        y=conteo_partic['Unidades'].round(0),
+                        mode='markers+text',
+                        marker=dict(size=12, color='#00ff88', symbol='diamond',
+                                    line=dict(color='#fff', width=1.5)),
+                        text=conteo_partic['Unidades'].apply(lambda x: f"{int(round(x)):,}"),
+                        textposition='top center',
+                        textfont=dict(size=11, color='#00ff88'),
+                        yaxis='y2',
+                    ))
+                    fig_partic.update_layout(
+                        height=300,
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        font=dict(family='Outfit, sans-serif', color='#94a3b8', size=11),
+                        showlegend=True,
+                        legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1,
+                                    font=dict(size=11), bgcolor='rgba(0,0,0,0)'),
+                        xaxis=dict(showgrid=False, tickfont=dict(size=11, color='#94a3b8')),
+                        yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.06)',
+                                   title='M3', titlefont=dict(color='#94a3b8'), tickfont=dict(size=10)),
+                        yaxis2=dict(overlaying='y', side='right', showgrid=False,
+                                    title='Unidades', titlefont=dict(color='#00ff88'),
+                                    tickfont=dict(size=10, color='#00ff88')),
+                        margin=dict(l=10, r=40, t=30, b=10),
+                        bargap=0.3,
+                    )
+                    st.plotly_chart(fig_partic, use_container_width=True)
 
                 with col_ae_estadios:
                     st.markdown("<p style='color:#64748b; font-size:10px; letter-spacing:4px; font-weight:700; text-transform:uppercase; margin:0 0 6px 0;'>ESTADIOS DE LAS CARGAS</p>", unsafe_allow_html=True)
