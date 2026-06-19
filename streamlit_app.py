@@ -628,18 +628,14 @@ try:
                 col_mono_orig = df.columns[93]  # ¿ES MONOPROVEEDOR?
 
                 if col_mod_mono in df.columns:
-                    mask_arg_m   = df['Pais Destino'].astype(str).str.strip().str.upper() == 'ARGENTINA'
-                    mask_barco_m = (
-                        df[col_mod_mono].astype(str).str.upper().str.startswith("BARCO") |
-                        df[col_mod_mono].astype(str).str.upper().str.contains("COSTO HIBRIDO PUERTO ZFLP", na=False)
-                    )
-                    df_mono_proy = df[mask_arg_m & mask_barco_m].copy()
+                    # Mismo dataset que PROYECCIÓN MENSUAL ETD/ETA — sin filtro adicional
+                    df_mono_proy = df.copy()
 
-                    # Solo meses futuros ETD
+                    # Solo meses futuros ETD — igual que el gráfico ETD general
                     df_mono_proy_etd = df_mono_proy[
                         ~df_mono_proy['Mes_ETD_Full'].astype(str).isin(['PASADO/REALIZADO', 'SIN FECHA'])
                     ].copy()
-                    # Solo meses futuros ETA
+                    # Solo meses futuros ETA — igual que el gráfico ETA general
                     df_mono_proy_eta = df_mono_proy[
                         ~df_mono_proy['Mes_ETA_Full'].astype(str).isin(['PASADO/REALIZADO', 'SIN FECHA'])
                     ].copy()
