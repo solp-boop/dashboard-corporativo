@@ -635,66 +635,83 @@ try:
                     )
                     df_mono_proy = df[mask_arg_m & mask_barco_m].copy()
 
-                    # Solo meses futuros (excluir PASADO/REALIZADO y SIN FECHA)
-                    df_mono_proy = df_mono_proy[
+                    # Solo meses futuros ETD
+                    df_mono_proy_etd = df_mono_proy[
                         ~df_mono_proy['Mes_ETD_Full'].astype(str).isin(['PASADO/REALIZADO', 'SIN FECHA'])
                     ].copy()
+                    # Solo meses futuros ETA
+                    df_mono_proy_eta = df_mono_proy[
+                        ~df_mono_proy['Mes_ETA_Full'].astype(str).isin(['PASADO/REALIZADO', 'SIN FECHA'])
+                    ].copy()
 
-                    # Clasificar estructura
-                    df_mono_proy['Estructura'] = df_mono_proy[col_mono_orig].astype(str).str.strip().str.upper().apply(
-                        lambda x: 'MONOPROVEEDOR' if x in ['SI', 'SÍ', 'S', 'MONOPROVEEDOR'] else 'CONSOLIDADO'
-                    )
-
-                    if not df_mono_proy.empty:
-                        df_stack_mono = df_mono_proy.groupby(['Mes_ETD_Full', 'Estructura'])['M3 Total'].sum().reset_index()
-                        df_stack_mono.columns = ['Mes', 'Estructura', 'M3']
-
-                        fig_mono = px.bar(
-                            df_stack_mono,
-                            x='Mes', y='M3', color='Estructura',
-                            barmode='stack',
-                            text='M3',
-                            color_discrete_map={
-                                'MONOPROVEEDOR': '#00a8ff',
-                                'CONSOLIDADO'  : '#ffaa00',
-                            },
-                            labels={'M3': 'M3 Total', 'Mes': '', 'Estructura': ''},
+                    # Clasificar estructura en ambos
+                    for dff in [df_mono_proy_etd, df_mono_proy_eta]:
+                        dff['Estructura'] = dff[col_mono_orig].astype(str).str.strip().str.upper().apply(
+                            lambda x: 'MONOPROVEEDOR' if x in ['SI', 'SÍ', 'S', 'MONOPROVEEDOR'] else 'CONSOLIDADO'
                         )
-                        fig_mono.update_traces(
-                            texttemplate='%{text:,.0f}',
-                            textposition='inside',
-                            textfont=dict(size=11, color='#fff', family='Outfit, sans-serif'),
-                            marker=dict(cornerradius=4),
-                        )
-                        fig_mono.update_layout(
-                            height=420,
-                            paper_bgcolor='rgba(0,0,0,0)',
-                            plot_bgcolor='rgba(0,0,0,0)',
-                            font=dict(size=13, family='Outfit, sans-serif', color='#94a3b8'),
-                            legend=dict(
-                                orientation='h', yanchor='bottom', y=1.02,
-                                xanchor='right', x=1, title_text='',
-                                font=dict(size=13),
-                            ),
-                            xaxis=dict(showgrid=False),
-                            yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)', title='M3'),
-                            margin=dict(l=20, r=20, t=40, b=20),
-                        )
-                        st.plotly_chart(fig_mono, use_container_width=True)
 
-                        # Mini tabla resumen
-                        resumen_mono = df_mono_proy.groupby('Estructura').agg(
-                            M3_Total=('M3 Total', 'sum'),
-                            SOs=('SO', 'nunique')
-                        ).reset_index()
-                        resumen_mono['Share %'] = (resumen_mono['M3_Total'] / resumen_mono['M3_Total'].sum() * 100).round(1)
-                        resumen_mono['CNTRS']   = (resumen_mono['M3_Total'] / 60).round(0).astype(int)
+                    color_map = {'MONOPROVEEDOR': '#00a8ff', 'CONSOLIDADO': '#ffaa00'}
 
-                        rm1, rm2 = st.columns(2)
-                        for i, (_, row_r) in enumerate(resumen_mono.iterrows()):
-                            color_r = '#00a8ff' if row_r['Estructura'] == 'MONOPROVEEDOR' else '#ffaa00'
-                            with [rm1, rm2][i]:
-                                st.markdown(f"""
+                    ge1, ge2 = st.columns(2)
+
+                    # ── GRÁFICO ETD ──────────────────────────────────────
+                    with ge1:
+                        if not df_mono_proy_etd.empty:
+                            df_stack_etd = df_mono_proy_etd.groupby(['Mes_ETD_Full', 'Estructura'])['M3 Total'].sum().reset_index()
+                            df_stack_etd.columns = ['Mes', 'Estructura', 'M3']
+                            fig_etd_m = px.bar(df_stack_etd, x='Mes', y='M3', color='Estructura',
+                                barmode='stack', text='M3', color_discrete_map=color_map,
+                                labels={'M3': 'M3 Total', 'Mes': '', 'Estructura': ''},
+                                title='Por ETD')
+                            fig_etd_m.update_traces(texttemplate='%{text:,.0f}', textposition='inside',
+                                textfont=dict(size=11, color='#fff', family='Outfit, sans-serif'),
+                                marker=dict(cornerradius=4))
+                            fig_etd_m.update_layout(height=380, paper_bgcolor='rgba(0,0,0,0)',
+                                plot_bgcolor='rgba(0,0,0,0)',
+                                font=dict(size=12, family='Outfit, sans-serif', color='#94a3b8'),
+                                title_font_color='#00ff88', title_font_size=13,
+                                legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, title_text=''),
+                                xaxis=dict(showgrid=False, tickangle=-30),
+                                yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)', title='M3'),
+                                margin=dict(l=10, r=10, t=50, b=20))
+                            st.plotly_chart(fig_etd_m, use_container_width=True)
+
+                    # ── GRÁFICO ETA ──────────────────────────────────────
+                    with ge2:
+                        if not df_mono_proy_eta.empty:
+                            df_stack_eta = df_mono_proy_eta.groupby(['Mes_ETA_Full', 'Estructura'], observed=True)['M3 Total'].sum().reset_index()
+                            df_stack_eta.columns = ['Mes', 'Estructura', 'M3']
+                            fig_eta_m = px.bar(df_stack_eta, x='Mes', y='M3', color='Estructura',
+                                barmode='stack', text='M3', color_discrete_map=color_map,
+                                labels={'M3': 'M3 Total', 'Mes': '', 'Estructura': ''},
+                                title='Por ETA')
+                            fig_eta_m.update_traces(texttemplate='%{text:,.0f}', textposition='inside',
+                                textfont=dict(size=11, color='#fff', family='Outfit, sans-serif'),
+                                marker=dict(cornerradius=4))
+                            fig_eta_m.update_layout(height=380, paper_bgcolor='rgba(0,0,0,0)',
+                                plot_bgcolor='rgba(0,0,0,0)',
+                                font=dict(size=12, family='Outfit, sans-serif', color='#94a3b8'),
+                                title_font_color='#ff4b4b', title_font_size=13,
+                                legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, title_text=''),
+                                xaxis=dict(showgrid=False, tickangle=-30),
+                                yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)', title='M3'),
+                                margin=dict(l=10, r=10, t=50, b=20))
+                            st.plotly_chart(fig_eta_m, use_container_width=True)
+
+                    # ── TARJETAS RESUMEN ─────────────────────────────────
+                    df_mono_proy_etd_nonempty = df_mono_proy_etd if not df_mono_proy_etd.empty else df_mono_proy_eta
+                    resumen_mono = df_mono_proy_etd_nonempty.groupby('Estructura').agg(
+                        M3_Total=('M3 Total', 'sum'),
+                        SOs=('SO', 'nunique')
+                    ).reset_index()
+                    resumen_mono['Share %'] = (resumen_mono['M3_Total'] / resumen_mono['M3_Total'].sum() * 100).round(1)
+                    resumen_mono['CNTRS']   = (resumen_mono['M3_Total'] / 60).round(0).astype(int)
+
+                    rm1, rm2 = st.columns(2)
+                    for i, (_, row_r) in enumerate(resumen_mono.iterrows()):
+                        color_r = '#00a8ff' if row_r['Estructura'] == 'MONOPROVEEDOR' else '#ffaa00'
+                        with [rm1, rm2][i]:
+                            st.markdown(f"""
 <div style='text-align:center; padding:18px 12px;
 background:rgba(255,255,255,0.02); border-radius:14px;
 border-top:4px solid {color_r}; border:1px solid rgba(255,255,255,0.06);'>
@@ -706,7 +723,8 @@ border-top:4px solid {color_r}; border:1px solid rgba(255,255,255,0.06);'>
     <div><p style='color:#64748b; font-size:10px; margin:0 0 2px 0;'>SOs</p><p style='color:#f8fafc; font-size:16px; font-weight:700; margin:0;'>{row_r['SOs']}</p></div>
 </div>
 </div>""", unsafe_allow_html=True)
-                    else:
+
+                    if df_mono_proy_etd.empty and df_mono_proy_eta.empty:
                         st.info("No hay carga futura proyectada con los filtros aplicados.")
             except Exception as e_mono:
                 st.error(f"Error en proyección Mono/Consolidado: {e_mono}")
