@@ -657,6 +657,28 @@ try:
                     # ── GRÁFICO ETD ──────────────────────────────────────
                     with ge1:
                         if not df_mono_proy_etd.empty:
+                            # Tarjetas resumen ETD arriba
+                            resumen_etd = df_mono_proy_etd.groupby('Estructura').agg(
+                                M3_Total=('M3 Total', 'sum'), SOs=('SO', 'nunique')
+                            ).reset_index()
+                            resumen_etd['Share %'] = (resumen_etd['M3_Total'] / resumen_etd['M3_Total'].sum() * 100).round(1)
+                            resumen_etd['CNTRS']   = (resumen_etd['M3_Total'] / 60).round(0).astype(int)
+                            cols_etd_r = st.columns(len(resumen_etd))
+                            for idx, (_, row_r) in enumerate(resumen_etd.iterrows()):
+                                color_r = '#00a8ff' if row_r['Estructura'] == 'MONOPROVEEDOR' else '#ffaa00'
+                                with cols_etd_r[idx]:
+                                    st.markdown(f"""
+<div style='text-align:center; padding:12px 8px; background:rgba(255,255,255,0.02);
+border-radius:12px; border-top:3px solid {color_r}; border:1px solid rgba(255,255,255,0.06); margin-bottom:10px;'>
+<p style='color:#64748b; font-size:9px; letter-spacing:2px; margin:0 0 4px 0; text-transform:uppercase;'>{row_r['Estructura']}</p>
+<p style='color:{color_r}; font-size:22px; font-weight:900; margin:0; line-height:1;'>{int(round(row_r['M3_Total'])):,} <span style='font-size:11px; color:#475569;'>M3</span></p>
+<div style='display:flex; justify-content:center; gap:12px; margin-top:6px;'>
+    <span style='color:#94a3b8; font-size:10px;'>{row_r['Share %']}%</span>
+    <span style='color:#94a3b8; font-size:10px;'>{row_r['CNTRS']} CNTRS</span>
+    <span style='color:#94a3b8; font-size:10px;'>{row_r['SOs']} SOs</span>
+</div>
+</div>""", unsafe_allow_html=True)
+
                             df_stack_etd = df_mono_proy_etd.groupby(['Mes_ETD_Full', 'Estructura'])['M3 Total'].sum().reset_index()
                             df_stack_etd.columns = ['Mes', 'Estructura', 'M3']
                             fig_etd_m = px.bar(df_stack_etd, x='Mes', y='M3', color='Estructura',
@@ -679,6 +701,28 @@ try:
                     # ── GRÁFICO ETA ──────────────────────────────────────
                     with ge2:
                         if not df_mono_proy_eta.empty:
+                            # Tarjetas resumen ETA arriba
+                            resumen_eta = df_mono_proy_eta.groupby('Estructura').agg(
+                                M3_Total=('M3 Total', 'sum'), SOs=('SO', 'nunique')
+                            ).reset_index()
+                            resumen_eta['Share %'] = (resumen_eta['M3_Total'] / resumen_eta['M3_Total'].sum() * 100).round(1)
+                            resumen_eta['CNTRS']   = (resumen_eta['M3_Total'] / 60).round(0).astype(int)
+                            cols_eta_r = st.columns(len(resumen_eta))
+                            for idx, (_, row_r) in enumerate(resumen_eta.iterrows()):
+                                color_r = '#00a8ff' if row_r['Estructura'] == 'MONOPROVEEDOR' else '#ffaa00'
+                                with cols_eta_r[idx]:
+                                    st.markdown(f"""
+<div style='text-align:center; padding:12px 8px; background:rgba(255,255,255,0.02);
+border-radius:12px; border-top:3px solid {color_r}; border:1px solid rgba(255,255,255,0.06); margin-bottom:10px;'>
+<p style='color:#64748b; font-size:9px; letter-spacing:2px; margin:0 0 4px 0; text-transform:uppercase;'>{row_r['Estructura']}</p>
+<p style='color:{color_r}; font-size:22px; font-weight:900; margin:0; line-height:1;'>{int(round(row_r['M3_Total'])):,} <span style='font-size:11px; color:#475569;'>M3</span></p>
+<div style='display:flex; justify-content:center; gap:12px; margin-top:6px;'>
+    <span style='color:#94a3b8; font-size:10px;'>{row_r['Share %']}%</span>
+    <span style='color:#94a3b8; font-size:10px;'>{row_r['CNTRS']} CNTRS</span>
+    <span style='color:#94a3b8; font-size:10px;'>{row_r['SOs']} SOs</span>
+</div>
+</div>""", unsafe_allow_html=True)
+
                             df_stack_eta = df_mono_proy_eta.groupby(['Mes_ETA_Full', 'Estructura'], observed=True)['M3 Total'].sum().reset_index()
                             df_stack_eta.columns = ['Mes', 'Estructura', 'M3']
                             fig_eta_m = px.bar(df_stack_eta, x='Mes', y='M3', color='Estructura',
@@ -697,32 +741,6 @@ try:
                                 yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)', title='M3'),
                                 margin=dict(l=10, r=10, t=50, b=20))
                             st.plotly_chart(fig_eta_m, use_container_width=True)
-
-                    # ── TARJETAS RESUMEN ─────────────────────────────────
-                    df_mono_proy_etd_nonempty = df_mono_proy_etd if not df_mono_proy_etd.empty else df_mono_proy_eta
-                    resumen_mono = df_mono_proy_etd_nonempty.groupby('Estructura').agg(
-                        M3_Total=('M3 Total', 'sum'),
-                        SOs=('SO', 'nunique')
-                    ).reset_index()
-                    resumen_mono['Share %'] = (resumen_mono['M3_Total'] / resumen_mono['M3_Total'].sum() * 100).round(1)
-                    resumen_mono['CNTRS']   = (resumen_mono['M3_Total'] / 60).round(0).astype(int)
-
-                    rm1, rm2 = st.columns(2)
-                    for i, (_, row_r) in enumerate(resumen_mono.iterrows()):
-                        color_r = '#00a8ff' if row_r['Estructura'] == 'MONOPROVEEDOR' else '#ffaa00'
-                        with [rm1, rm2][i]:
-                            st.markdown(f"""
-<div style='text-align:center; padding:18px 12px;
-background:rgba(255,255,255,0.02); border-radius:14px;
-border-top:4px solid {color_r}; border:1px solid rgba(255,255,255,0.06);'>
-<p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 8px 0; text-transform:uppercase;'>{row_r['Estructura']}</p>
-<p style='color:{color_r}; font-size:36px; font-weight:900; margin:0; line-height:1;'>{int(round(row_r['M3_Total'])):,} <span style='font-size:16px; font-weight:400; color:#475569;'>M3</span></p>
-<div style='display:flex; justify-content:center; gap:20px; margin-top:10px;'>
-    <div><p style='color:#64748b; font-size:10px; margin:0 0 2px 0;'>SHARE</p><p style='color:#f8fafc; font-size:16px; font-weight:700; margin:0;'>{row_r['Share %']}%</p></div>
-    <div><p style='color:#64748b; font-size:10px; margin:0 0 2px 0;'>CNTRS</p><p style='color:#f8fafc; font-size:16px; font-weight:700; margin:0;'>{row_r['CNTRS']}</p></div>
-    <div><p style='color:#64748b; font-size:10px; margin:0 0 2px 0;'>SOs</p><p style='color:#f8fafc; font-size:16px; font-weight:700; margin:0;'>{row_r['SOs']}</p></div>
-</div>
-</div>""", unsafe_allow_html=True)
 
                     if df_mono_proy_etd.empty and df_mono_proy_eta.empty:
                         st.info("No hay carga futura proyectada con los filtros aplicados.")
