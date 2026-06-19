@@ -285,49 +285,32 @@ try:
 
     with st.expander("⚠️  ALERTA DE MERCADO — JUNIO 2026  |  Navieras activan alzas · USD 9.500/40HC · Feriado China activo · Clic para ver detalle", expanded=False):
         st.markdown("""
-<div style='padding:20px; background:rgba(255,170,0,0.04); border-radius:14px;'>
-
-<div style='display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:20px;'>
-    <div style='text-align:center; padding:12px; background:rgba(255,75,75,0.08); border-radius:10px; border-top:3px solid #ff4b4b;'>
+<div style='padding:16px 20px; background:rgba(255,170,0,0.03); border-radius:12px;'>
+<div style='display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px;'>
+    <div style='text-align:center; padding:14px; background:rgba(255,75,75,0.08); border-radius:10px; border-top:3px solid #ff4b4b;'>
         <p style='color:#94a3b8; font-size:9px; letter-spacing:1px; margin:0 0 4px 0;'>FLETE 20' JUNIO</p>
-        <p style='color:#ff4b4b; font-size:20px; font-weight:900; margin:0;'>USD 9.300</p>
+        <p style='color:#ff4b4b; font-size:22px; font-weight:900; margin:0;'>USD 9.300</p>
     </div>
-    <div style='text-align:center; padding:12px; background:rgba(255,75,75,0.08); border-radius:10px; border-top:3px solid #ff4b4b;'>
+    <div style='text-align:center; padding:14px; background:rgba(255,75,75,0.08); border-radius:10px; border-top:3px solid #ff4b4b;'>
         <p style='color:#94a3b8; font-size:9px; letter-spacing:1px; margin:0 0 4px 0;'>FLETE 40'/HQ JUNIO</p>
-        <p style='color:#ff4b4b; font-size:20px; font-weight:900; margin:0;'>USD 9.500</p>
+        <p style='color:#ff4b4b; font-size:22px; font-weight:900; margin:0;'>USD 9.500</p>
     </div>
-    <div style='text-align:center; padding:12px; background:rgba(255,170,0,0.08); border-radius:10px; border-top:3px solid #ffaa00;'>
-        <p style='color:#94a3b8; font-size:9px; letter-spacing:1px; margin:0 0 4px 0;'>VOLATILIDAD</p>
-        <p style='color:#ffaa00; font-size:20px; font-weight:900; margin:0;'>ALTA</p>
+    <div style='text-align:center; padding:14px; background:rgba(255,170,0,0.08); border-radius:10px; border-top:3px solid #ffaa00;'>
+        <p style='color:#94a3b8; font-size:9px; letter-spacing:1px; margin:0 0 4px 0;'>NAVIERAS</p>
+        <p style='color:#ffaa00; font-size:13px; font-weight:800; margin:4px 0 0 0;'>PSS · FAK · GRI activos</p>
+        <p style='color:#475569; font-size:10px; margin:3px 0 0 0;'>Maersk · CMA · MSC · Hapag</p>
     </div>
-    <div style='text-align:center; padding:12px; background:rgba(168,85,247,0.08); border-radius:10px; border-top:3px solid #a855f7;'>
-        <p style='color:#94a3b8; font-size:9px; letter-spacing:1px; margin:0 0 4px 0;'>FERIADO CHINA</p>
-        <p style='color:#a855f7; font-size:20px; font-weight:900; margin:0;'>ACTIVO</p>
+    <div style='text-align:center; padding:14px; background:rgba(168,85,247,0.08); border-radius:10px; border-top:3px solid #a855f7;'>
+        <p style='color:#94a3b8; font-size:9px; letter-spacing:1px; margin:0 0 4px 0;'>🇨🇳 FERIADO CHINA</p>
+        <p style='color:#a855f7; font-size:13px; font-weight:800; margin:4px 0 0 0;'>Demoras en ETD</p>
+        <p style='color:#475569; font-size:10px; margin:3px 0 0 0;'>Fábricas y warehouses cerrados</p>
     </div>
 </div>
-
-<p style='color:#cbd5e1; font-size:13px; line-height:1.9; margin:0 0 14px 0;'>
-<b style='color:#ffaa00;'>Maersk, CMA CGM, Hapag-Lloyd, MSC, COSCO y HMM</b> activaron <b style='color:#ff4b4b;'>PSS, FAK, GRI y recargos de combustible</b> en los principales corredores hacia Europa, Norteamérica y Latinoamérica, anticipando una temporada alta más cara y volátil. El movimiento confirma que el <b style='color:#ffaa00;'>peak season se adelanta</b> nuevamente.
-</p>
-
-<p style='color:#cbd5e1; font-size:13px; line-height:1.9; margin:0 0 14px 0;'>
-Las nuevas tarifas para la última quincena de junio impactarán también en <b style='color:#ffaa00;'>carga consolidada LCL</b>. La presión se extiende desde Asia hacia Europa, Mediterráneo, Norteamérica y Latinoamérica, con mayor demanda, congestión en hubs asiáticos, costos energéticos elevados y disrupciones geopolíticas.
-</p>
-
-<div style='background:rgba(168,85,247,0.08); border-radius:10px; padding:14px 18px; border-left:4px solid #a855f7; margin-bottom:14px;'>
-<p style='color:#a855f7; font-size:11px; font-weight:800; letter-spacing:1px; margin:0 0 6px 0;'>🇨🇳 FERIADO CHINA — IMPACTO OPERATIVO</p>
 <p style='color:#94a3b8; font-size:12px; line-height:1.7; margin:0;'>
-El feriado nacional en China genera <b style='color:#cbd5e1;'>cierre parcial de fábricas, warehouses y consolidadores</b>. Se esperan demoras en la preparación y salida de cargas, menor disponibilidad de turnos portuarios y posibles reprogramaciones de ETD. Recomendamos anticipar instrucciones y confirmar con proveedores el estado de producción y despacho.
+⚡ <b style='color:#ffaa00;'>Peak season adelantado.</b> Tarifas al alza en Asia → Latinoamérica. Impacto en LCL confirmado. &nbsp;|&nbsp;
+🇨🇳 <b style='color:#a855f7;'>Feriado China:</b> anticipar instrucciones y confirmar estado de producción con proveedores. &nbsp;|&nbsp;
+📅 <b style='color:#ff4b4b;'>Recomendación:</b> reservar espacio antes de julio para evitar sobrecostos.
 </p>
-</div>
-
-<div style='background:rgba(255,75,75,0.06); border-radius:10px; padding:14px 18px; border-left:4px solid #ff4b4b;'>
-<p style='color:#ff4b4b; font-size:11px; font-weight:800; letter-spacing:1px; margin:0 0 6px 0;'>⚡ IMPACTO PARA IMPORTADORES Y FORWARDERS</p>
-<p style='color:#94a3b8; font-size:12px; line-height:1.7; margin:0;'>
-El escenario exige <b style='color:#cbd5e1;'>anticipación</b>. Las nuevas tarifas pueden elevar costos de importación, reducir margen de negociación y acelerar decisiones de reserva antes de julio y agosto. El impacto será especialmente relevante para quienes dependen de servicios desde <b style='color:#cbd5e1;'>China, Sudeste Asiático, India y Pakistán</b>.
-</p>
-</div>
-
 </div>
 """, unsafe_allow_html=True)
     tabs = st.tabs(["ORIGEN", "MERCADERÍA EN PROCESO", "PERFORMANCE DE AGENTES Y ANALISTAS", "FLETES, GASTOS Y CERTIFICACIONES", "PROYECCIÓN SEMANAL ETD", "INDICADORES", "ALERTAS ESTRATÉGICAS", "ASK COMEX"])
