@@ -283,33 +283,35 @@ try:
             st.cache_data.clear()
             st.rerun()
 
-    with st.expander("⚠️  ALERTA DE MERCADO — JUNIO 2026  |  Navieras activan alzas · USD 9.500/40HC · Feriado China activo · Clic para ver detalle", expanded=False):
+    with st.expander("📡  PANORAMA DE MERCADO — JULIO 2026  |  Fletes a la baja · Feriado Hong Kong · Mayor estabilidad · Clic para ver detalle", expanded=False):
         st.markdown("""
-<div style='padding:16px 20px; background:rgba(255,170,0,0.03); border-radius:12px;'>
+<div style='padding:16px 20px; background:rgba(0,168,255,0.02); border-radius:12px;'>
 <div style='display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px;'>
-    <div style='text-align:center; padding:14px; background:rgba(255,75,75,0.08); border-radius:10px; border-top:3px solid #ff4b4b;'>
-        <p style='color:#94a3b8; font-size:9px; letter-spacing:1px; margin:0 0 4px 0;'>FLETE 20' JUNIO</p>
-        <p style='color:#ff4b4b; font-size:22px; font-weight:900; margin:0;'>USD 9.300</p>
+    <div style='text-align:center; padding:14px; background:rgba(0,255,136,0.07); border-radius:10px; border-top:3px solid #00ff88;'>
+        <p style='color:#94a3b8; font-size:9px; letter-spacing:1px; margin:0 0 4px 0;'>TENDENCIA FLETES</p>
+        <p style='color:#00ff88; font-size:20px; font-weight:900; margin:0;'>📉 A LA BAJA</p>
+        <p style='color:#475569; font-size:10px; margin:3px 0 0 0;'>Menor demanda desde China</p>
     </div>
-    <div style='text-align:center; padding:14px; background:rgba(255,75,75,0.08); border-radius:10px; border-top:3px solid #ff4b4b;'>
-        <p style='color:#94a3b8; font-size:9px; letter-spacing:1px; margin:0 0 4px 0;'>FLETE 40'/HQ JUNIO</p>
-        <p style='color:#ff4b4b; font-size:22px; font-weight:900; margin:0;'>USD 9.500</p>
+    <div style='text-align:center; padding:14px; background:rgba(0,168,255,0.07); border-radius:10px; border-top:3px solid #00a8ff;'>
+        <p style='color:#94a3b8; font-size:9px; letter-spacing:1px; margin:0 0 4px 0;'>PANORAMA GENERAL</p>
+        <p style='color:#00a8ff; font-size:20px; font-weight:900; margin:0;'>⚓ ESTABLE</p>
+        <p style='color:#475569; font-size:10px; margin:3px 0 0 0;'>Mayor disponibilidad contenedores</p>
     </div>
-    <div style='text-align:center; padding:14px; background:rgba(255,170,0,0.08); border-radius:10px; border-top:3px solid #ffaa00;'>
-        <p style='color:#94a3b8; font-size:9px; letter-spacing:1px; margin:0 0 4px 0;'>NAVIERAS</p>
-        <p style='color:#ffaa00; font-size:13px; font-weight:800; margin:4px 0 0 0;'>PSS · FAK · GRI activos</p>
-        <p style='color:#475569; font-size:10px; margin:3px 0 0 0;'>Maersk · CMA · MSC · Hapag</p>
+    <div style='text-align:center; padding:14px; background:rgba(255,170,0,0.07); border-radius:10px; border-top:3px solid #ffaa00;'>
+        <p style='color:#94a3b8; font-size:9px; letter-spacing:1px; margin:0 0 4px 0;'>RUTAS</p>
+        <p style='color:#ffaa00; font-size:13px; font-weight:800; margin:4px 0 0 0;'>Reorganización activa</p>
+        <p style='color:#475569; font-size:10px; margin:3px 0 0 0;'>Asia → Latam · Mayor frecuencia</p>
     </div>
-    <div style='text-align:center; padding:14px; background:rgba(168,85,247,0.08); border-radius:10px; border-top:3px solid #a855f7;'>
-        <p style='color:#94a3b8; font-size:9px; letter-spacing:1px; margin:0 0 4px 0;'>🇨🇳 FERIADO CHINA</p>
-        <p style='color:#a855f7; font-size:13px; font-weight:800; margin:4px 0 0 0;'>Demoras en ETD</p>
-        <p style='color:#475569; font-size:10px; margin:3px 0 0 0;'>Fábricas y warehouses cerrados</p>
+    <div style='text-align:center; padding:14px; background:rgba(168,85,247,0.07); border-radius:10px; border-top:3px solid #a855f7;'>
+        <p style='color:#94a3b8; font-size:9px; letter-spacing:1px; margin:0 0 4px 0;'>🇭🇰 FERIADO HONG KONG</p>
+        <p style='color:#a855f7; font-size:13px; font-weight:800; margin:4px 0 0 0;'>HKSAR Establishment Day</p>
+        <p style='color:#475569; font-size:10px; margin:3px 0 0 0;'>Posibles demoras administrativas</p>
     </div>
 </div>
-<p style='color:#94a3b8; font-size:12px; line-height:1.7; margin:0;'>
-⚡ <b style='color:#ffaa00;'>Peak season adelantado.</b> Tarifas al alza en Asia → Latinoamérica. Impacto en LCL confirmado. &nbsp;|&nbsp;
-🇨🇳 <b style='color:#a855f7;'>Feriado China:</b> anticipar instrucciones y confirmar estado de producción con proveedores. &nbsp;|&nbsp;
-📅 <b style='color:#ff4b4b;'>Recomendación:</b> reservar espacio antes de julio para evitar sobrecostos.
+<p style='color:#94a3b8; font-size:12px; line-height:1.8; margin:0;'>
+📉 <b style='color:#00ff88;'>Fletes a la baja:</b> tendencia descendente en tarifas marítimas desde puertos chinos impulsada por menor demanda y mayor disponibilidad de contenedores. &nbsp;|&nbsp;
+⚓ <b style='color:#00a8ff;'>Mercado estable:</b> mayor estabilidad respecto a semanas previas · oportunidad para negociar mejores condiciones. &nbsp;|&nbsp;
+🇭🇰 <b style='color:#a855f7;'>Hong Kong:</b> feriado HKSAR Establishment Day — gestiones administrativas y documentales pueden presentar demoras.
 </p>
 </div>
 """, unsafe_allow_html=True)
@@ -2716,11 +2718,12 @@ border-radius:12px; border:1px solid {color}44;'>
                 st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
 
             def tabla_a1():
-                cols_show = [col_n_inv_pc, 'SO', 'Analista', col_puerto_pc, 'M3 Total', col_mono_pc, 'Top Ranking', 'SKU Nuevo', 'Fecha_Prior_DT']
+                col_pais_dest_a1 = df.columns[18]  # col S = Pais Destino
+                cols_show = [col_n_inv_pc, 'SO', 'Analista', col_puerto_pc, col_pais_dest_a1, 'M3 Total', col_mono_pc, 'Top Ranking', 'SKU Nuevo', 'Fecha_Prior_DT']
                 df_show = df_a1[cols_show].copy()
                 df_show['Fecha_Prior_DT'] = df_show['Fecha_Prior_DT'].dt.strftime('%d/%m/%Y')
-                df_show = df_show.rename(columns={col_n_inv_pc: 'Invoice', col_puerto_pc: 'Puerto', col_mono_pc: '¿Mono?', 'Fecha_Prior_DT': 'F. Prioritaria'}).sort_values('F. Prioritaria')
-                st.dataframe(df_show, use_container_width=True, hide_index=True, column_config={'M3 Total': st.column_config.NumberColumn("M3", format="%.1f"), 'Top Ranking': st.column_config.TextColumn("🏆 Ranking"), 'SKU Nuevo': st.column_config.TextColumn("✨ Nuevo"), 'Analista': st.column_config.TextColumn("Analista")})
+                df_show = df_show.rename(columns={col_n_inv_pc: 'Invoice', col_puerto_pc: 'Puerto', col_pais_dest_a1: 'País Destino', col_mono_pc: '¿Mono?', 'Fecha_Prior_DT': 'F. Prioritaria'}).sort_values('F. Prioritaria')
+                st.dataframe(df_show, use_container_width=True, hide_index=True, column_config={'M3 Total': st.column_config.NumberColumn("M3", format="%.1f"), 'Top Ranking': st.column_config.TextColumn("🏆 Ranking"), 'SKU Nuevo': st.column_config.TextColumn("✨ Nuevo"), 'Analista': st.column_config.TextColumn("Analista"), 'País Destino': st.column_config.TextColumn("País Destino")})
 
             render_alerta("a1", "🔴", "ALERTA 1 — SIN INSTRUIR",
                 "Gadnic + Argentina · ordenado por fecha prioritaria (más vieja primero) · con analista asignado",
