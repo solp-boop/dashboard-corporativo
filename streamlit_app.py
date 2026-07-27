@@ -8,148 +8,202 @@ st.set_page_config(page_title="BIDCOM | Dashboard Ejecutivo", layout="wide")
 # --- 2. DISEÑO BIDCOM IMPACTO TOTAL (CSS) ---
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap');
-
-/* RESET & BASE */
-html, body, [class*="css"] { font-family: 'Inter', 'DM Sans', -apple-system, sans-serif !important; }
-.block-container { padding: 1.5rem 3rem 3rem 3rem !important; }
-.main { background-color: #070c18; }
-::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 2px; }
-
-/* TABS */
-.stTabs [data-baseweb="tab-list"] {
-    gap: 0; border-bottom: 1px solid rgba(255,255,255,0.06);
-    margin-bottom: 32px; background: transparent;
-    justify-content: center !important; overflow-x: auto;
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;900&display=swap');
+/* TIPO Y FONDO GENERAL */
+html, body, [class*="css"] {
+    font-family: 'Outfit', sans-serif !important;
 }
-.stTabs [data-baseweb="tab"] {
-    background: transparent !important; border: none !important;
-    border-bottom: 2px solid transparent !important; border-radius: 0 !important;
-    padding: 10px 18px !important; color: #475569 !important;
-    font-size: 11px !important; font-weight: 500 !important;
-    letter-spacing: 0.8px !important; text-transform: uppercase;
-    transition: all 0.2s ease; white-space: nowrap;
+.block-container { padding: 2rem 3rem; }
+.main { background-color: #020617;    color: #00ff88;
 }
-.stTabs [data-baseweb="tab"]:hover { color: #94a3b8 !important; }
-.stTabs [aria-selected="true"] {
-    background: transparent !important; border-bottom: 2px solid #3b82f6 !important;
-    color: #f1f5f9 !important; box-shadow: none !important;
-}
-
-/* BOTONES */
+/* BOTONES COMPACTOS INDICADORES */
 div[data-testid="stColumn"] div[data-testid="stButton"] button {
-    height: 28px !important; min-height: 28px !important;
-    padding: 0px 10px !important; font-size: 11px !important; border-radius: 5px !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    padding: 0px 8px !important;
+    font-size: 12px !important;
+    border-radius: 6px !important;
 }
-.stButton > button {
-    border-radius: 8px !important; color: #94a3b8 !important; width: 100%;
-    height: auto !important; min-height: 48px !important; font-weight: 500 !important;
-    font-size: 12px !important; background: rgba(255,255,255,0.03) !important;
-    border: 1px solid rgba(255,255,255,0.07) !important; transition: all 0.15s ease !important;
-    padding: 10px 16px !important; letter-spacing: 0.3px;
+/* DIVIDORES Y ESPACIOS */
+hr { margin: 1rem 0 !important; opacity: 0.1; }
+/* ANIMACIONES */
+@keyframes fadeInDown {
+    from { opacity: 0; transform: translateY(-40px); }
+    to { opacity: 1; transform: translateY(0); }
 }
-.stButton > button:hover {
-    background: rgba(59,130,246,0.08) !important; border-color: rgba(59,130,246,0.3) !important;
-    color: #e2e8f0 !important; transform: none !important; box-shadow: none !important;
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(40px); }
+    to { opacity: 1; transform: translateY(0); }
 }
-
-/* KPI CARD */
-.kpi-card {
-    background: #0d1424; border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 12px; padding: 20px 24px; position: relative; overflow: hidden;
+@keyframes pulseGlow {
+    0% { box-shadow: 0 0 20px rgba(0, 168, 255, 0.2); }
+    50% { box-shadow: 0 0 40px rgba(0, 168, 255, 0.4); }
+    100% { box-shadow: 0 0 20px rgba(0, 168, 255, 0.2); }
 }
-.kpi-card::before {
-    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(59,130,246,0.35), transparent);
+/* TABS */
+.stTabs [data-baseweb="tab-list"] { 
+    justify-content: center !important; 
+    gap: 20px; 
+    margin-bottom: 50px; 
+    animation: fadeInUp 0.8s ease-out;
 }
-.kpi-label {
-    font-size: 10px; font-weight: 600; color: #475569;
-    letter-spacing: 1.2px; text-transform: uppercase; margin: 0 0 10px 0;
+.stTabs [data-baseweb="tab"] { 
+    background-color: transparent !important;
+    border-radius: 8px !important;
+    border: 1px solid transparent !important;
+    transition: all 0.3s ease;
+    padding: 12px 24px;
+    color: #475569 !important;
+    font-weight: 700 !important;
+    letter-spacing: 2px;
 }
-.kpi-value {
-    font-size: 36px; font-weight: 700; color: #f1f5f9;
-    line-height: 1; margin: 0; letter-spacing: -0.5px; font-variant-numeric: tabular-nums;
+.stTabs [aria-selected="true"] {
+    background: rgba(0, 168, 255, 0.1) !important;
+    box-shadow: 0 0 25px rgba(0, 168, 255, 0.2) !important;
+    color: #00a8ff !important;
+    border: 1px solid rgba(0, 168, 255, 0.3) !important;
 }
-.kpi-sub { font-size: 11px; color: #334155; margin: 6px 0 0 0; font-weight: 400; }
-.kpi-delta-up { font-size: 11px; color: #22c55e; font-weight: 500; margin: 6px 0 0 0; }
-.kpi-delta-down { font-size: 11px; color: #ef4444; font-weight: 500; margin: 6px 0 0 0; }
-
-/* SECTION CARD */
-.section-card {
-    background: #0d1424; border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 12px; padding: 24px; margin-bottom: 20px;
+/* ENCABEZADO */
+.bidcom-header {
+    background: linear-gradient(135deg, rgba(0,31,63,0.7) 0%, rgba(0,51,102,0.8) 100%);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    padding: 50px; 
+    border-radius: 24px; 
+    border: 1px solid rgba(0, 168, 255, 0.2);
+    text-align: center; 
+    margin-bottom: 40px;
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6), inset 0 0 40px rgba(0,168,255,0.1);
+    animation: fadeInDown 1s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.section-title {
-    font-size: 10px; font-weight: 600; color: #334155; letter-spacing: 1.5px;
-    text-transform: uppercase; margin: 0 0 18px 0;
-    padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);
+.bidcom-header h1 { 
+    font-size: 80px; 
+    letter-spacing: 20px; 
+    font-weight: 900; 
+    margin: 0; 
+    background: linear-gradient(180deg, #ffffff 0%, #00a8ff 150%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0px 10px 40px rgba(0, 168, 255, 0.5); 
 }
-
-/* BADGES */
-.badge-green {
-    display: inline-block; background: rgba(34,197,94,0.08); color: #22c55e;
-    border: 1px solid rgba(34,197,94,0.2); border-radius: 4px; padding: 2px 8px;
-    font-size: 10px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;
+.bidcom-subtitle { 
+    font-size: 22px; 
+    color: #00a8ff; 
+    letter-spacing: 12px; 
+    text-transform: uppercase; 
+    font-weight: 600; 
+    margin-top: 15px; 
+    text-shadow: 0 0 15px rgba(0, 168, 255, 0.4);
 }
-.badge-yellow {
-    display: inline-block; background: rgba(245,158,11,0.08); color: #f59e0b;
-    border: 1px solid rgba(245,158,11,0.2); border-radius: 4px; padding: 2px 8px;
-    font-size: 10px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;
+/* KPIs PRINCIPALES MASIVOS */
+.metric-container { 
+    text-align: center; 
+    padding: 35px 20px; 
+    background: linear-gradient(145deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
+    border-radius: 24px;
+    border: 1px solid rgba(255,255,255,0.05);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: fadeInUp 0.8s backwards;
 }
-.badge-red {
-    display: inline-block; background: rgba(239,68,68,0.08); color: #ef4444;
-    border: 1px solid rgba(239,68,68,0.2); border-radius: 4px; padding: 2px 8px;
-    font-size: 10px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;
+.metric-container p:first-child { 
+    font-size: 18px !important;
+    color: #94a3b8 !important; 
+    letter-spacing: 6px !important;
+    font-weight: 700 !important;
+    margin-bottom: 15px !important;
+    text-transform: uppercase;
 }
-.badge-blue {
-    display: inline-block; background: rgba(59,130,246,0.08); color: #3b82f6;
-    border: 1px solid rgba(59,130,246,0.2); border-radius: 4px; padding: 2px 8px;
-    font-size: 10px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;
+.metric-container p:last-child { 
+    font-size: 85px !important; 
+    font-weight: 900 !important; 
+    color: #fff !important; 
+    line-height: 1 !important; 
+    margin: 0 !important; 
+    text-shadow: 0 0 40px rgba(0,168,255,0.7), 0 0 10px rgba(0,168,255,0.4) !important; 
 }
-
-/* METRIC CONTAINER (legacy) */
-.metric-container {
-    text-align: center; padding: 20px 16px; background: #0d1424;
-    border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);
-    position: relative; overflow: hidden;
-}
-.metric-container::before {
-    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(59,130,246,0.25), transparent);
-}
-.metric-container p:first-child {
-    font-size: 10px !important; color: #475569 !important; letter-spacing: 1.2px !important;
-    font-weight: 600 !important; margin-bottom: 10px !important; text-transform: uppercase;
-}
-.metric-container p:last-child {
-    font-size: 38px !important; font-weight: 700 !important; color: #f1f5f9 !important;
-    line-height: 1 !important; margin: 0 !important; letter-spacing: -0.5px !important;
-    text-shadow: none !important;
-}
-
-/* CUSTOM CARD (legacy) */
+/* TARJETAS GLASSMORPHISM STANDARDS */
 .custom-card {
-    background: #0d1424; padding: 24px; border-radius: 12px;
-    border: 1px solid rgba(255,255,255,0.06); margin-bottom: 20px;
+    background: linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%);
+    padding: 30px; 
+    border-radius: 20px; 
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 10px 35px rgba(0,0,0,0.35);
+    transition: all 0.4s ease;
+    margin-bottom: 25px;
+    animation: fadeInUp 1s backwards;
 }
 .custom-card-title {
-    font-weight: 600; font-size: 10px; letter-spacing: 1.5px;
-    margin-bottom: 16px; margin-top: 0; text-transform: uppercase; color: #475569;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: 3px;
+    margin-bottom: 20px;
+    margin-top: 0;
+    text-transform: uppercase;
 }
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px; }
+.grid-2 {
+    display: grid; 
+    grid-template-columns: 1fr 1fr; 
+    gap: 20px;
+}
+.grid-4 {
+    display: grid; 
+    grid-template-columns: 1fr 1fr 1fr 1fr; 
+    gap: 20px;
+}
 .minicard-title {
-    font-size: 10px; color: #475569; letter-spacing: 1px;
-    margin: 0 0 4px 0; font-weight: 500; text-transform: uppercase;
+    font-size: 11px; 
+    color: #94a3b8; 
+    letter-spacing: 2px;
+    margin: 0 0 5px 0;
+    font-weight: 600;
 }
-.minicard-value { font-size: 22px; font-weight: 600; margin: 0; color: #e2e8f0; }
-
-/* DIVIDERS */
-.glow-divider { border: none; height: 1px; background: rgba(255,255,255,0.05); margin: 28px 0; }
-.white-divider { border: none; height: 1px; background: rgba(255,255,255,0.04); margin: 20px 0; }
-hr { margin: 1rem 0 !important; opacity: 0.06; }
+.minicard-value {
+    font-size: 28px; 
+    font-weight: 300; 
+    margin: 0; 
+    color: #f8fafc;
+}
+/* BOTONES GLOBALES Y FILTROS */
+.stButton>button {
+    border-radius: 16px !important; 
+    color: #f8fafc !important;
+    width: 100%; 
+    height: 110px; 
+    font-weight: 700 !important; 
+    font-size: 15px !important;
+    background: rgba(15, 23, 42, 0.4) !important; 
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    line-height: 1.4 !important;
+    letter-spacing: 1px;
+}
+.stButton>button:hover { 
+    background-color: rgba(0, 168, 255, 0.15) !important; 
+    border-color: #00a8ff !important; 
+    color: #ffffff !important; 
+    box-shadow: 0 10px 30px rgba(0, 168, 255, 0.3), inset 0 0 20px rgba(0, 168, 255, 0.1) !important; 
+    transform: translateY(-4px);
+}
+/* DECORATIVOS: LINEAS DIVISORAS */
+.glow-divider {
+    border: none;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(0,168,255,0.4), transparent);
+    margin: 40px 0;
+    opacity: 0.6;
+}
+.white-divider {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    margin: 30px 0;
+}
 </style>
 """, unsafe_allow_html=True)
 try:
@@ -201,64 +255,82 @@ try:
     # ─────────────────────────────────────────────────────────────────────────────
     # --- POP-UP ALERTA DE MERCADO (aparece una vez por sesión al ingresar) ---
     # ─────────────────────────────────────────────────────────────────────────────
+    if 'alerta_mercado_mostrada' not in st.session_state:
+        st.session_state.alerta_mercado_mostrada = False
+    @st.dialog("⚠️ ALERTA DE MERCADO — JUNIO 2026", width="large")
+    def mostrar_alerta_mercado():
+        st.markdown("""
+        <div style='background: linear-gradient(135deg, rgba(255,170,0,0.1), rgba(255,75,75,0.05));
+        border-radius: 16px; padding: 25px; border: 1px solid rgba(255,170,0,0.3);'>
+        <p style='color:#ffaa00; font-weight:800; font-size:16px; letter-spacing:2px; margin-bottom:20px;'>
+        📌 ACTUALIZACIÓN MERCADO MARÍTIMO — JUNIO 2026</p>
+        <ul style='color:#cbd5e1; font-size:13px; line-height:2.2; padding-left:20px; margin:0 0 20px 0;'>
+            <li><b style='color:#ff4b4b;'>Espacio en buques limitado</b> y mayor riesgo de rollovers</li>
+            <li><b style='color:#ffaa00;'>Disponibilidad ajustada</b> de contenedores</li>
+            <li><b style='color:#ffaa00;'>Warehouses y consolidadores</b> operando con alto volumen de carga</li>
+            <li><b style='color:#ffaa00;'>Posibles demoras</b> en transbordos y puertos de origen</li>
+            <li><b style='color:#ffaa00;'>Navieras aplicando incrementos tarifarios</b> (GRI/PSS)</li>
+        </ul>
+        <div style='background:rgba(255,75,75,0.08); border-radius:10px; padding:14px; border-left:4px solid #ff4b4b; margin-bottom:14px;'>
+            <p style='color:#94a3b8; font-size:11px; letter-spacing:1px; margin:0 0 6px 0;'>IMPACTO ESPERADO</p>
+            <p style='color:#ff4b4b; font-size:13px; font-weight:600; margin:0; line-height:1.7;'>
+            Mayor presión operativa en origen · Posibles reprogramaciones de ETD · Costos de flete al alza durante junio
+            </p>
+        </div>
+        <div style='background:rgba(255,170,0,0.08); border-radius:10px; padding:14px; border-left:4px solid #ffaa00;'>
+            <p style='color:#94a3b8; font-size:11px; letter-spacing:1px; margin:0 0 5px 0;'>PRONÓSTICO DE FLETES — JUNIO 2026</p>
+            <p style='color:#ffaa00; font-size:26px; font-weight:900; margin:0;'>USD 8.900</p>
+            <p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>estimado por contenedor 40' HC · sujeto a naviera y disponibilidad</p>
+        </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("✅ ENTENDIDO — INGRESAR AL DASHBOARD", use_container_width=True):
+            st.session_state.alerta_mercado_mostrada = True
+            st.rerun()
+    if not st.session_state.alerta_mercado_mostrada:
+        mostrar_alerta_mercado()
     # ─────────────────────────────────────────────────────────────────────────────
     # --- HEADER BIDCOM ---
     # ─────────────────────────────────────────────────────────────────────────────
-    _fecha_hdr = hoy.strftime('%d %b %Y').upper()
-    st.markdown(f"""
-<div style='
-    background: linear-gradient(135deg, rgba(0,20,50,0.85) 0%, rgba(0,35,80,0.9) 100%);
-    border: 1px solid rgba(59,130,246,0.15);
-    border-radius: 16px;
-    padding: 40px 60px;
-    text-align: center;
-    margin-bottom: 32px;
-    position: relative;
-    overflow: hidden;
-'>
-<div style='
-    position: absolute; top: 0; left: 0; right: 0; height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(59,130,246,0.5), transparent);
-'></div>
-<h1 style='
-    font-size: 64px;
-    font-weight: 700;
-    letter-spacing: 16px;
-    margin: 0 0 12px 0;
-    color: #f1f5f9;
-    font-family: Inter, sans-serif;
-'>BIDCOM</h1>
-<p style='
-    font-size: 13px;
-    color: #3b82f6;
-    letter-spacing: 6px;
-    text-transform: uppercase;
-    font-weight: 500;
-    margin: 0 0 16px 0;
-'>Tablero Logística Internacional</p>
-<div style='
-    width: 40px; height: 1px;
-    background: rgba(59,130,246,0.3);
-    margin: 0 auto 12px auto;
-'></div>
-<p style='font-size: 11px; color: #334155; margin: 0; font-weight: 400;'>{_fecha_hdr}</p>
-</div>""", unsafe_allow_html=True)
+    st.markdown("<div class='bidcom-header'><h1>BIDCOM</h1><div class='bidcom-subtitle'>Tablero Logística Internacional</div></div>", unsafe_allow_html=True)
     # ─────────────────────────────────────────────────────────────────────────────
     # --- BANNER ALERTA MERCADO (colapsable, siempre visible debajo del header) ---
     # ─────────────────────────────────────────────────────────────────────────────
-    with st.expander("📡  PANORAMA DE MERCADO  ·  Actualizando datos...", expanded=False):
+    with st.expander("⚠️  ALERTA DE MERCADO ACTIVA — JUNIO 2026  |  Mercado marítimo bajo presión · USD 8.900/cntr estimado · Clic para ver detalle", expanded=False):
         st.markdown("""
-<div style='padding:20px; background:rgba(255,255,255,0.02); border-radius:10px;
-border:1px solid rgba(255,255,255,0.05); text-align:center;'>
-<p style='color:#334155; font-size:13px; margin:0 0 6px 0;'>🔄 Actualizando información de mercado</p>
-<p style='color:#1e293b; font-size:11px; margin:0;'>Los datos del panorama de mercado se actualizarán próximamente.</p>
-</div>""", unsafe_allow_html=True)
-    col_ref, _ = st.columns([1, 8])
+        <div style='padding: 20px; background: rgba(255,170,0,0.05); border-radius: 12px;'>
+        <div style='display:grid; grid-template-columns: repeat(3,1fr); gap:12px; margin-bottom:16px;'>
+            <div style='text-align:center; padding:12px; background:rgba(255,75,75,0.08); border-radius:10px; border-top:3px solid #ff4b4b;'>
+                <p style='color:#94a3b8; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>PRONÓSTICO FLETE (40'HC)</p>
+                <p style='color:#ff4b4b; font-size:20px; font-weight:900; margin:0;'>USD 8.900</p>
+            </div>
+            <div style='text-align:center; padding:12px; background:rgba(255,170,0,0.08); border-radius:10px; border-top:3px solid #ffaa00;'>
+                <p style='color:#94a3b8; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>DISPONIBILIDAD</p>
+                <p style='color:#ffaa00; font-size:20px; font-weight:900; margin:0;'>AJUSTADA</p>
+            </div>
+            <div style='text-align:center; padding:12px; background:rgba(255,75,75,0.08); border-radius:10px; border-top:3px solid #ff4b4b;'>
+                <p style='color:#94a3b8; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>RIESGO ROLLOVER</p>
+                <p style='color:#ff4b4b; font-size:20px; font-weight:900; margin:0;'>ALTO</p>
+            </div>
+        </div>
+        <p style='color:#cbd5e1; font-size:13px; line-height:1.8; margin:0;'>
+        🔴 <b style='color:#ff4b4b;'>Espacio en buques limitado</b> — mayor riesgo de rollovers &nbsp;|&nbsp;
+        🟠 <b style='color:#ffaa00;'>Disponibilidad ajustada de contenedores</b> &nbsp;|&nbsp;
+        🟠 <b style='color:#ffaa00;'>Warehouses y consolidadores</b> con alto volumen de carga &nbsp;|&nbsp;
+        🟠 <b style='color:#ffaa00;'>Posibles demoras</b> en transbordos y puertos de origen &nbsp;|&nbsp;
+        🟠 <b style='color:#ffaa00;'>Navieras aplicando GRI/PSS</b> — costos al alza &nbsp;|&nbsp;
+        ⚡ <b style='color:#ff4b4b;'>Pronóstico flete: USD 8.900/cntr 40'HC</b>
+        </p>
+        </div>
+        """, unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+    col_ref, _ = st.columns([1, 5])
     with col_ref:
-        if st.button("↻ Actualizar", key="btn_refresh", use_container_width=True):
+        if st.button("🔄 Actualizar datos", key="btn_refresh", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
-    tabs = st.tabs(["ORIGEN", "MERCADERÍA EN PROCESO", "PERFORMANCE ANALISTAS", "PERFORMANCE AGENTES", "FLETES & GASTOS", "PROYECCIÓN SEMANAL ETD", "INDICADORES", "ASK COMEX"])
+    tabs = st.tabs(["ORIGEN", "MERCADERÍA EN PROCESO", "PERFORMANCE DE AGENTES Y ANALISTAS", "FLETES, GASTOS Y CERTIFICACIONES", "PROYECCIÓN SEMANAL ETD", "INDICADORES", "ASK COMEX"])
     # --- SOLAPA 1: ORIGEN ---
     with tabs[0]:
         try:
@@ -266,8 +338,8 @@ border:1px solid rgba(255,255,255,0.05); text-align:center;'>
             col_rank = df.columns[1]
             df['Rank_Num'] = df[col_rank].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
             df['Rank_Num'] = pd.to_numeric(df['Rank_Num'], errors='coerce').fillna(999999)
-            col_cp = df.columns[94]  # CQ = ¿ES MONOPROVEEDOR?
-            df['Tipo_Carga'] = df[col_cp].apply(lambda x: 'MONOPROVEEDOR' if str(x).strip().upper() in ['SI', 'SÍ', 'MONOPROVEEDOR'] else 'CONSOLIDADO')
+            col_cp = df.columns[93]
+            df['Tipo_Carga'] = df[col_cp].apply(lambda x: 'MONOPROVEEDOR' if str(x).upper() == 'SI' else 'CONSOLIDADO')
             def get_tipo_repuesto(val):
                 val_str = str(val).strip().lower()
                 if val_str in ['', 'nan', 'none'] or pd.isna(val) or val_str == 'nan': return "Gadnic"
@@ -321,8 +393,7 @@ border:1px solid rgba(255,255,255,0.05); text-align:center;'>
             with o4: st.markdown(f"<div class='metric-container'><p>FOB TOTAL (USD)</p><p>${int(round(fob_total_global)):,}</p></div>", unsafe_allow_html=True)
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
             st.markdown("<div style='text-align:center; padding: 20px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; margin-bottom: 30px;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>CONTROL DE STATUS DE MERCADERÍA</h2></div>", unsafe_allow_html=True)
-            s1, _ = st.columns([1, 0.001])
-            s2 = _
+            s1 = st.container()
             filtro_actual = st.session_state.get('f')
             with s1:
                 st.markdown(f"""
@@ -349,41 +420,12 @@ border:1px solid rgba(255,255,255,0.05); text-align:center;'>
                             </div>
                         </div>
                 """, unsafe_allow_html=True)
-                if st.button("VER DETALLE INSTRUIDO", key="btn_inst_new", use_container_width=True):
-                    st.session_state.f = 'inst' if filtro_actual != 'inst' else None
-                    st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
-            with s2:
-                df_pend_view = df[cond_pendiente]
-                st.markdown(f"""
-                    <div class="custom-card" style="border-top: 5px solid #94a3b8;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
-                            <p class="custom-card-title" style="color:#f8fafc; font-size:18px;">MERCADERÍA PENDIENTE</p>
-                            <p style="color:#f8fafc; font-weight:900; font-size:32px; margin:0;">{p_pend_val}% <span style="font-size:14px; color:#94a3b8; font-weight:400;">M3</span></p>
-                        </div>
-                        <div class="grid-2" style="margin-bottom:20px;">
-                            <div><p class="minicard-title">CANTIDAD SO</p><p class="minicard-value">{df_pend_view['SO'].nunique()}</p></div>
-                            <div><p class="minicard-title">VOLUMEN TOTAL</p><p class="minicard-value">{int(round(m3_pend_total)):,} M3</p></div>
-                        </div>
-                    </div>
-                """, unsafe_allow_html=True)
-                if st.button(f"🔴 NIVEL 1A: VENCIDA PRIORITARIA (ARG·GADNIC) - {int(round(df_urgente_prior['M3 Total'].sum()))} M3", key="btn_urg_new", use_container_width=True):
-                    st.session_state.f = 'venc' if filtro_actual != 'venc' else None
-                    st.rerun()
-                if st.button(f"🟥 NIVEL 1B: VENCIDA SIN PRIORIDAD - {int(round(df_urgente_sinprior['M3 Total'].sum()))} M3", key="btn_urg_sp_new", use_container_width=True):
-                    st.session_state.f = 'venc_sp' if filtro_actual != 'venc_sp' else None
-                    st.rerun()
-                if st.button(f"🟠 NIVEL 2: ACCIONAR (PRÓXIMA) - {int(round(df_accionar['M3 Total'].sum()))} M3", key="btn_acc_new", use_container_width=True):
-                    st.session_state.f = 'px25' if filtro_actual != 'px25' else None
-                    st.rerun()
-                if st.button(f"🔵 NIVEL 3: PROGRAMADA (FUTURA) - {int(round(df_futura['M3 Total'].sum()))} M3", key="btn_rest_new", use_container_width=True):
-                    st.session_state.f = 'rest' if filtro_actual != 'rest' else None
-                    st.rerun()
 
             f = st.session_state.get('f')
             if f:
                 st.markdown("<br>", unsafe_allow_html=True)
-                if f in ["venc", "venc_sp", "px25", "rest"]:
+                if f in ["inst", "venc", "venc_sp", "px25", "rest"]:
                     if f == "inst": titulo, dff, color = "MERCADERIA INSTRUIDA (PRIORIDAD)", df_inst, "#00ff88"
                     elif f == "venc": titulo, dff, color = "VENCIDA CON PRIORIDAD (ARG · SIN REPUESTO)", df_urgente_prior, "#ff4b4b"
                     elif f == "venc_sp": titulo, dff, color = "VENCIDA SIN PRIORIDAD", df_urgente_sinprior, "#ff8c42"
@@ -697,898 +739,690 @@ border:1px solid rgba(255,255,255,0.05); text-align:center;'>
             st.error(f"Error en Gestión de Reservas: {e}")
     # --- SOLAPA 3: PERFORMANCE DE ANALISTAS ---
     with tabs[2]:
+        st.markdown("<div style='text-align:center; padding: 20px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; margin: 30px 0;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>PERFORMANCE DE ANALISTAS</h2><p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>BASADO EN RESERVAS HISTÓRICAS · 2026</p></div>", unsafe_allow_html=True)
         try:
             @st.cache_data(ttl=120)
             def load_perf_data(base):
-                rh = pd.read_csv(f"{base}/export?format=csv&gid=32771816", engine='python', on_bad_lines='skip')
-                eh = pd.read_csv(f"{base}/export?format=csv&gid=50628730", engine='python', on_bad_lines='skip')
+                url_res_hi = f"{base}/export?format=csv&gid=32771816"
+                url_emb_hi = f"{base}/export?format=csv&gid=50628730"
+                rh = pd.read_csv(url_res_hi, engine='python', on_bad_lines='skip', header=0)
+                eh = pd.read_csv(url_emb_hi, engine='python', on_bad_lines='skip', header=0)
                 rh.columns = [str(c).strip() for c in rh.columns]
                 eh.columns = [str(c).strip() for c in eh.columns]
                 return rh, eh
-
             df_rh, df_eh = load_perf_data(base_url)
             col_rh_emb   = df_rh.columns[0]
             col_rh_resp  = df_rh.columns[14]
             col_rh_mono  = df_rh.columns[24]
             col_rh_tcons = df_rh.columns[32]
-            col_eh_so    = df_eh.columns[0]
-            col_eh_emb   = df_eh.columns[4]
-            col_eh_etd   = df_eh.columns[6]
-            col_eh_prov  = df_eh.columns[18]
-
-            df_eh['ETD_DT']   = pd.to_datetime(df_eh[col_eh_etd], dayfirst=True, errors='coerce')
-            df_eh_2026        = df_eh[df_eh['ETD_DT'].dt.year == 2026].copy()
+            col_eh_so   = df_eh.columns[0]
+            col_eh_emb  = df_eh.columns[4]
+            col_eh_etd  = df_eh.columns[6]
+            col_eh_prov = df_eh.columns[18]
+            df_eh['ETD_DT'] = pd.to_datetime(df_eh[col_eh_etd], dayfirst=True, errors='coerce')
+            df_eh_2026 = df_eh[df_eh['ETD_DT'].dt.year == 2026].copy()
             df_eh_2026['Mes_Num']   = df_eh_2026['ETD_DT'].dt.month
             df_eh_2026['Mes_Label'] = df_eh_2026['ETD_DT'].dt.strftime('%B %Y').str.upper()
-            df_rh['_emb_key'] = df_rh[col_rh_emb].astype(str).str.strip().str.upper()
-
-            def clean_tcons(val):
-                try: return float(str(val).replace(',','.').strip())
-                except: return None
-
             if df_eh_2026.empty:
                 st.warning("No se encontraron embarques históricos para 2026.")
             else:
-                meses_disp  = df_eh_2026.drop_duplicates('Mes_Num').sort_values('Mes_Num')[['Mes_Num','Mes_Label']].values.tolist()
+                meses_disp = df_eh_2026.drop_duplicates('Mes_Num').sort_values('Mes_Num')[['Mes_Num','Mes_Label']].values.tolist()
                 opciones_mes = {lbl: num for num, lbl in meses_disp}
-                # Default: mes más reciente
-                default_mes = list(opciones_mes.keys())[-1]
-                default_idx = len(opciones_mes) - 1
-
-                # ── HEADER ──────────────────────────────────────────────
-                st.markdown("""
-<div style='text-align:center; padding:28px 20px 20px;
-background:linear-gradient(135deg,rgba(0,168,255,0.08),rgba(0,255,136,0.03));
-border-radius:20px; border:1px solid rgba(0,168,255,0.2); margin-bottom:32px;'>
-<h2 style='color:#00a8ff; font-weight:900; letter-spacing:6px; margin:0; font-size:26px;'>PERFORMANCE ANALISTAS</h2>
-<p style='color:#94a3b8; margin:8px 0 0 0; font-size:12px; letter-spacing:3px;'>RANKING · TIEMPOS DE CONSOLIDACIÓN · EVOLUCIÓN MENSUAL</p>
-</div>""", unsafe_allow_html=True)
-
                 col_sel, _ = st.columns([2, 3])
                 with col_sel:
-                    mes_sel_lbl = st.selectbox("📅 MES ETD:", list(opciones_mes.keys()),
-                                               index=default_idx, key="perf_mes_sel")
+                    mes_sel_lbl = st.selectbox("SELECCIONAR MES ETD:", list(opciones_mes.keys()), key="perf_mes_sel")
                 mes_sel_num = opciones_mes[mes_sel_lbl]
-                df_eh_mes   = df_eh_2026[df_eh_2026['Mes_Num'] == mes_sel_num].copy()
-                embs_mes    = df_eh_mes[col_eh_emb].astype(str).str.strip().str.upper().unique()
-                df_rh_mes   = df_rh[df_rh['_emb_key'].isin(embs_mes)].copy()
-                df_rh_mes['T_Cons_Num']  = df_rh_mes[col_rh_tcons].apply(clean_tcons)
-                df_rh_mes['Tipo_Carga']  = df_rh_mes[col_rh_mono].astype(str).str.strip().str.upper().apply(
-                    lambda x: 'MONOPROVEEDOR' if 'MONO' in x else 'CONSOLIDADO')
+                df_eh_mes = df_eh_2026[df_eh_2026['Mes_Num'] == mes_sel_num].copy()
+                embs_mes  = df_eh_mes[col_eh_emb].astype(str).str.strip().str.upper().unique()
+                df_rh['_emb_key'] = df_rh[col_rh_emb].astype(str).str.strip().str.upper()
+                df_rh_mes = df_rh[df_rh['_emb_key'].isin(embs_mes)].copy()
+                def clean_tcons(val):
+                    try: return float(str(val).replace(',','.').strip())
+                    except: return None
+                df_rh_mes['T_Cons_Num'] = df_rh_mes[col_rh_tcons].apply(clean_tcons)
+                df_rh_mes['Tipo_Carga'] = df_rh_mes[col_rh_mono].astype(str).str.strip().str.upper().apply(
+                    lambda x: 'MONOPROVEEDOR' if 'MONO' in x else 'CONSOLIDADO'
+                )
                 df_rh_mes['Responsable'] = df_rh_mes[col_rh_resp].astype(str).str.strip()
-                df_rh_mes = df_rh_mes[~df_rh_mes['Responsable'].isin(['','nan','NaN','None','-'])]
-
-                # ── KPIs DEL MES ────────────────────────────────────────
-                st.markdown("<br>", unsafe_allow_html=True)
-                total_embs  = len(embs_mes)
-                total_sos   = df_eh_mes[col_eh_so].nunique()
-                total_provs = df_eh_mes[col_eh_prov].nunique()
-                avg_tc      = df_rh_mes['T_Cons_Num'].median()
-
-                k1,k2,k3,k4 = st.columns(4)
-                for col_k, val, lbl, color, sub in [
-                    (k1, total_embs,  "EMBARQUES",    "#00a8ff", mes_sel_lbl),
-                    (k2, total_sos,   "SOs TOTALES",  "#00ff88", mes_sel_lbl),
-                    (k3, total_provs, "PROVEEDORES",  "#f8fafc", mes_sel_lbl),
-                    (k4, f"{int(round(avg_tc)) if pd.notna(avg_tc) else '—'}d",
-                         "MEDIANA CONSOLIDACIÓN", "#ffaa00", "días marítimos"),
-                ]:
-                    col_k.markdown(f"""
-<div style='text-align:center; padding:24px 12px;
-background:rgba(255,255,255,0.03); border-radius:18px;
-border:1px solid rgba(255,255,255,0.07); border-top:4px solid {color};'>
-<p style='color:#64748b; font-size:10px; letter-spacing:3px; margin:0 0 8px 0; text-transform:uppercase;'>{lbl}</p>
-<p style='color:{color}; font-size:56px; font-weight:900; margin:0; line-height:1; letter-spacing:-2px;'>{val}</p>
-<p style='color:#475569; font-size:10px; margin:6px 0 0 0;'>{sub}</p>
-</div>""", unsafe_allow_html=True)
-
-                # ── RANKING DE ANALISTAS ─────────────────────────────────
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.markdown("""
-<div style='border-bottom:2px solid rgba(0,168,255,0.3); padding-bottom:10px; margin-bottom:24px;'>
-<span style='color:#00a8ff; font-size:13px; font-weight:800; letter-spacing:5px;'>RANKING DE ANALISTAS</span>
-<span style='color:#475569; font-size:11px; letter-spacing:2px; margin-left:14px;'>ORDENADO POR EMBARQUES · SLA: MONO 10d · CONSOLIDADO 25d</span>
-</div>""", unsafe_allow_html=True)
-
-                SLA_MONO = 10
-                SLA_CONS = 25
-                rows_rank = []
-                for analista, grp in df_rh_mes.groupby('Responsable'):
-                    embs_a    = grp['_emb_key'].unique()
-                    df_eh_a   = df_eh_mes[df_eh_mes[col_eh_emb].astype(str).str.strip().str.upper().isin(embs_a)]
-                    cant_embs = len(embs_a)
-                    cant_sos  = df_eh_a[col_eh_so].nunique()
-                    cant_mono = (grp['Tipo_Carga'] == 'MONOPROVEEDOR').sum()
-                    cant_cons = (grp['Tipo_Carga'] == 'CONSOLIDADO').sum()
-                    avg_tc_a  = grp['T_Cons_Num'].median()
-                    es_azul   = analista.strip().upper() == 'AZUL'
-
-                    # SLA compliance
-                    if es_azul:
-                        sla_pct = None
-                    else:
-                        grp_mono = grp[grp['Tipo_Carga'] == 'MONOPROVEEDOR']
-                        grp_cons = grp[grp['Tipo_Carga'] == 'CONSOLIDADO']
-                        ok_mono  = (grp_mono['T_Cons_Num'] <= SLA_MONO).sum() if len(grp_mono) > 0 else 0
-                        ok_cons  = (grp_cons['T_Cons_Num'] <= SLA_CONS).sum() if len(grp_cons) > 0 else 0
-                        total_tc = len(grp[grp['T_Cons_Num'].notna()])
-                        sla_pct  = round((ok_mono + ok_cons) / total_tc * 100) if total_tc > 0 else None
-
-                    rows_rank.append({
-                        'analista': analista, 'embs': cant_embs, 'sos': cant_sos,
-                        'mono': cant_mono, 'cons': cant_cons,
-                        'tc': avg_tc_a, 'sla_pct': sla_pct, 'es_azul': es_azul
-                    })
-
-                rows_rank.sort(key=lambda x: x['embs'], reverse=True)
-
-                COLORES_ANALISTAS = ['#00a8ff','#00ff88','#ffaa00','#a855f7','#ff4b4b','#06b6d4']
-                cols_rank = st.columns(min(len(rows_rank), 3))
-
-                for i, r in enumerate(rows_rank):
-                    color_a = COLORES_ANALISTAS[i % len(COLORES_ANALISTAS)]
-                    es_azul = r['es_azul']
-
-                    if es_azul:
-                        tc_str   = '✈️ Aéreo'
-                        sla_html = "<p style='color:#a855f7; font-size:11px; font-weight:700; margin:0;'>✈️ Modalidad aérea</p>"
-                    else:
-                        tc_val   = int(round(r['tc'])) if pd.notna(r['tc']) else None
-                        tc_str   = f"{tc_val}d" if tc_val else '—'
-                        tc_color = '#00ff88' if tc_val and tc_val <= SLA_MONO else '#ffaa00' if tc_val and tc_val <= SLA_CONS else '#ff4b4b'
-                        sla_val  = r['sla_pct']
-                        if sla_val is not None:
-                            sla_color = '#00ff88' if sla_val >= 80 else '#ffaa00' if sla_val >= 60 else '#ff4b4b'
-                            sla_label = 'DENTRO SLA' if sla_val >= 80 else 'ATENCIÓN' if sla_val >= 60 else 'FUERA SLA'
-                            sla_html  = f"""
-<div style='height:6px; background:rgba(255,255,255,0.06); border-radius:3px; margin-bottom:6px;'>
-<div style='height:6px; width:{sla_val}%; background:{sla_color}; border-radius:3px;'></div>
-</div>
-<div style='display:flex; justify-content:space-between;'>
-<p style='color:{sla_color}; font-size:11px; font-weight:800; margin:0;'>{sla_val}% {sla_label}</p>
-<p style='color:#475569; font-size:10px; margin:0;'>Cumpl. SLA</p>
-</div>"""
-                        else:
-                            sla_html = "<p style='color:#475569; font-size:11px; margin:0;'>Sin datos SLA</p>"
-
-                    with cols_rank[i % 3]:
-                        st.markdown(f"""
-<div style='background:rgba(255,255,255,0.03); border-radius:18px;
-border:1px solid rgba(255,255,255,0.08); padding:22px;
-border-top:5px solid {color_a}; margin-bottom:16px;'>
-<div style='display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;'>
-    <div>
-        <p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 4px 0;'>#{i+1} ANALISTA</p>
-        <p style='color:{color_a}; font-size:20px; font-weight:900; margin:0; text-transform:uppercase;'>{r['analista']}</p>
-    </div>
-    <div style='text-align:right;'>
-        <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 2px 0;'>EMBARQUES</p>
-        <p style='color:#f8fafc; font-size:42px; font-weight:900; margin:0; line-height:1;'>{r['embs']}</p>
-    </div>
-</div>
-<div style='display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:16px;'>
-    <div style='text-align:center; background:rgba(255,255,255,0.03); border-radius:10px; padding:10px;'>
-        <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;'>SOs</p>
-        <p style='color:#f8fafc; font-size:22px; font-weight:800; margin:0;'>{r['sos']}</p>
-    </div>
-    <div style='text-align:center; background:rgba(255,255,255,0.03); border-radius:10px; padding:10px;'>
-        <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;'>MONO</p>
-        <p style='color:#00a8ff; font-size:22px; font-weight:800; margin:0;'>{r['mono']}</p>
-    </div>
-    <div style='text-align:center; background:rgba(255,255,255,0.03); border-radius:10px; padding:10px;'>
-        <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;'>CONS</p>
-        <p style='color:#ffaa00; font-size:22px; font-weight:800; margin:0;'>{r['cons']}</p>
-    </div>
-</div>
-{'<div style="text-align:center; background:rgba(168,85,247,0.06); border-radius:10px; padding:10px; margin-bottom:14px;"><p style="color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;">MODALIDAD</p><p style="color:#a855f7; font-size:18px; font-weight:800; margin:0;">✈️ AÉREO</p></div>' if es_azul else f'<div style="text-align:center; background:rgba(255,255,255,0.03); border-radius:10px; padding:10px; margin-bottom:14px;"><p style="color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;">MEDIANA CONSOLIDACIÓN</p><p style="color:{tc_color}; font-size:28px; font-weight:900; margin:0;">{tc_str}</p></div>'}
-<div style='border-top:1px solid rgba(255,255,255,0.06); padding-top:12px;'>
-{sla_html}
-</div>
-</div>""", unsafe_allow_html=True)
-
-                # ── EVOLUCIÓN MES A MES ─────────────────────────────────
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.markdown("""
-<div style='border-bottom:2px solid rgba(0,255,136,0.3); padding-bottom:10px; margin-bottom:24px;'>
-<span style='color:#00ff88; font-size:13px; font-weight:800; letter-spacing:5px;'>EVOLUCIÓN MES A MES</span>
-<span style='color:#475569; font-size:11px; letter-spacing:2px; margin-left:14px;'>EMBARQUES Y TIEMPOS DE CONSOLIDACIÓN POR ANALISTA</span>
-</div>""", unsafe_allow_html=True)
-
-                rows_evol = []
-                for mes_num, mes_lbl in meses_disp:
-                    df_eh_m = df_eh_2026[df_eh_2026['Mes_Num'] == mes_num]
-                    embs_m  = df_eh_m[col_eh_emb].astype(str).str.strip().str.upper().unique()
-                    df_rh_m = df_rh[df_rh['_emb_key'].isin(embs_m)].copy()
-                    df_rh_m['T_Cons_Num']  = df_rh_m[col_rh_tcons].apply(clean_tcons)
-                    df_rh_m['Responsable'] = df_rh_m[col_rh_resp].astype(str).str.strip()
-                    df_rh_m = df_rh_m[~df_rh_m['Responsable'].isin(['','nan','NaN','None','-'])]
-                    for analista, grp_a in df_rh_m.groupby('Responsable'):
-                        embs_a = grp_a['_emb_key'].unique()
-                        df_a   = df_eh_m[df_eh_m[col_eh_emb].astype(str).str.strip().str.upper().isin(embs_a)]
-                        rows_evol.append({
-                            'Mes_Num': mes_num, 'Mes': mes_lbl, 'Analista': analista,
-                            'Embarques': len(embs_a),
-                            'SOs': df_a[col_eh_so].nunique(),
-                            'Días Cons.': round(grp_a['T_Cons_Num'].median(), 1) if grp_a['T_Cons_Num'].notna().any() else None,
+                df_rh_mes = df_rh_mes[~df_rh_mes['Responsable'].isin(['', 'nan', 'NaN', 'None', '-', 'nan'])]
+                if df_rh_mes.empty:
+                    st.warning(f"No se encontraron datos para {mes_sel_lbl}.")
+                else:
+                    total_embs_mes  = len(embs_mes)
+                    total_sos_mes   = df_eh_mes[col_eh_so].nunique()
+                    total_provs_mes = df_eh_mes[col_eh_prov].nunique()
+                    total_mono_mes  = (df_rh_mes['Tipo_Carga'] == 'MONOPROVEEDOR').sum()
+                    total_cons_mes  = (df_rh_mes['Tipo_Carga'] == 'CONSOLIDADO').sum()
+                    avg_tcons_mes   = df_rh_mes['T_Cons_Num'].mean()
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    k1, k2, k3, k4, k5 = st.columns(5)
+                    with k1: st.markdown(f"<div class='metric-container'><p>EMBARQUES</p><p>{total_embs_mes}</p></div>", unsafe_allow_html=True)
+                    with k2: st.markdown(f"<div class='metric-container'><p>SOs TOTALES</p><p>{total_sos_mes}</p></div>", unsafe_allow_html=True)
+                    with k3: st.markdown(f"<div class='metric-container'><p>PROVEEDORES</p><p>{total_provs_mes}</p></div>", unsafe_allow_html=True)
+                    with k4: st.markdown(f"<div class='metric-container'><p>MONO / CONS</p><p style='font-size:40px !important;'>{total_mono_mes} / {total_cons_mes}</p></div>", unsafe_allow_html=True)
+                    with k5: st.markdown(f"<div class='metric-container'><p>DIAS PROM. CONS.</p><p>{int(round(avg_tcons_mes)) if pd.notna(avg_tcons_mes) else 0}</p></div>", unsafe_allow_html=True)
+                    st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
+                    st.markdown("<p style='color:#00a8ff; font-weight:800; letter-spacing:4px; font-size:16px; margin-bottom:20px; text-align:center;'>DESEMPENO POR ANALISTA</p>", unsafe_allow_html=True)
+                    rows_analistas = []
+                    for analista, grp_a in df_rh_mes.groupby('Responsable'):
+                        embs_a   = grp_a['_emb_key'].unique()
+                        df_eh_a  = df_eh_mes[df_eh_mes[col_eh_emb].astype(str).str.strip().str.upper().isin(embs_a)]
+                        cant_embs    = len(embs_a)
+                        cant_sos     = df_eh_a[col_eh_so].nunique()
+                        cant_provs   = df_eh_a[col_eh_prov].nunique()
+                        cant_mono    = (grp_a['Tipo_Carga'] == 'MONOPROVEEDOR').sum()
+                        cant_cons    = (grp_a['Tipo_Carga'] == 'CONSOLIDADO').sum()
+                        avg_tcons    = grp_a['T_Cons_Num'].mean()
+                        avg_so_emb   = round(cant_sos / cant_embs, 1) if cant_embs > 0 else 0
+                        prov_por_emb = df_eh_a.groupby(
+                            df_eh_a[col_eh_emb].astype(str).str.strip().str.upper()
+                        )[col_eh_prov].nunique()
+                        avg_prov_emb = round(prov_por_emb.mean(), 1) if not prov_por_emb.empty else 0
+                        es_azul = analista.strip().upper() == 'AZUL'
+                        dias_cons_val = "✈️ En preparación" if es_azul else (f"{round(avg_tcons, 1)} d" if pd.notna(avg_tcons) else "—")
+                        rows_analistas.append({
+                            'Analista'         : analista,
+                            'Embarques'        : cant_embs,
+                            'SOs'              : cant_sos,
+                            'Proveedores'      : cant_provs,
+                            'Monoproveedor'    : int(cant_mono),
+                            'Consolidado'      : int(cant_cons),
+                            'Dias Prom. Cons.' : dias_cons_val,
+                            'SO por Embarque'  : avg_so_emb,
+                            'Prov por Embarque': avg_prov_emb,
                         })
-
-                df_evol = pd.DataFrame(rows_evol)
-                if not df_evol.empty:
-                    analistas_disp = sorted(df_evol['Analista'].unique())
-                    col_pick, _ = st.columns([2, 3])
-                    with col_pick:
-                        analista_sel = st.selectbox("VER EVOLUCIÓN DE:", analistas_disp, key="perf_analista_sel")
-
-                    df_evol_a  = df_evol[df_evol['Analista'] == analista_sel].sort_values('Mes_Num')
-                    es_azul_sel = analista_sel.strip().upper() == 'AZUL'
-                    color_sel   = COLORES_ANALISTAS[analistas_disp.index(analista_sel) % len(COLORES_ANALISTAS)]
-
-                    if es_azul_sel:
-                        fig_ev = px.bar(df_evol_a, x='Mes', y='Embarques', text='Embarques',
-                                        color_discrete_sequence=[color_sel])
-                        fig_ev.update_traces(textposition='outside', textfont=dict(color='#f8fafc', size=13),
-                                             marker=dict(cornerradius=6))
-                        fig_ev.update_layout(height=350, paper_bgcolor='rgba(0,0,0,0)',
-                                             plot_bgcolor='rgba(0,0,0,0)',
-                                             font=dict(family='Outfit, sans-serif', color='#94a3b8'),
-                                             xaxis=dict(showgrid=False), margin=dict(l=10,r=10,t=30,b=10),
-                                             yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)'))
-                        st.plotly_chart(fig_ev, use_container_width=True)
-                        st.info("✈️ Azul gestiona cargas aéreas — tiempos de consolidación marítima no aplican.")
-                    else:
-                        ev1, ev2 = st.columns(2)
-                        with ev1:
-                            fig_emb = px.bar(df_evol_a, x='Mes', y='Embarques', text='Embarques',
-                                             color_discrete_sequence=[color_sel],
-                                             title=f"Embarques — {analista_sel}")
-                            fig_emb.update_traces(textposition='outside',
-                                                  textfont=dict(color='#f8fafc', size=13),
-                                                  marker=dict(cornerradius=6))
-                            fig_emb.update_layout(height=360, paper_bgcolor='rgba(0,0,0,0)',
-                                                  plot_bgcolor='rgba(0,0,0,0)',
-                                                  font=dict(family='Outfit, sans-serif', color='#94a3b8'),
-                                                  title_font_color=color_sel,
-                                                  xaxis=dict(showgrid=False, tickangle=-30),
-                                                  yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)'),
-                                                  margin=dict(l=10,r=10,t=50,b=10))
-                            st.plotly_chart(fig_emb, use_container_width=True)
-                        with ev2:
-                            fig_tc = px.line(df_evol_a, x='Mes', y='Días Cons.',
-                                             markers=True, text='Días Cons.',
-                                             color_discrete_sequence=['#ffaa00'],
-                                             title=f"Mediana Consolidación — {analista_sel}")
-                            fig_tc.update_traces(
-                                line=dict(width=3), marker=dict(size=10, line=dict(color='#fff', width=2)),
-                                texttemplate='<b>%{text:.0f}d</b>', textposition='top center',
-                                textfont=dict(size=12, color='#f8fafc'),
-                                fill='tozeroy', fillcolor='rgba(255,170,0,0.06)')
-                            # SLA reference lines
-                            fig_tc.add_hline(y=SLA_MONO, line=dict(color='#00ff88', width=1, dash='dot'),
-                                             annotation_text=f"SLA Mono {SLA_MONO}d",
-                                             annotation_font=dict(color='#00ff88', size=10))
-                            fig_tc.add_hline(y=SLA_CONS, line=dict(color='#ff4b4b', width=1, dash='dot'),
-                                             annotation_text=f"SLA Cons {SLA_CONS}d",
-                                             annotation_font=dict(color='#ff4b4b', size=10))
-                            fig_tc.update_layout(height=360, paper_bgcolor='rgba(0,0,0,0)',
-                                                 plot_bgcolor='rgba(0,0,0,0)',
-                                                 font=dict(family='Outfit, sans-serif', color='#94a3b8'),
-                                                 title_font_color='#ffaa00',
-                                                 xaxis=dict(showgrid=False, tickangle=-30),
-                                                 yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)',
-                                                            title='Días (mediana)'),
-                                                 margin=dict(l=10,r=10,t=50,b=10))
-                            st.plotly_chart(fig_tc, use_container_width=True)
-
+                    df_analistas = pd.DataFrame(rows_analistas).sort_values('Embarques', ascending=False)
+                    st.dataframe(
+                        df_analistas, use_container_width=True, hide_index=True,
+                        column_config={
+                            'Analista'         : st.column_config.TextColumn("Analista"),
+                            'Embarques'        : st.column_config.NumberColumn("Embarques", format="%d"),
+                            'SOs'              : st.column_config.NumberColumn("SOs", format="%d"),
+                            'Proveedores'      : st.column_config.NumberColumn("Proveedores", format="%d"),
+                            'Monoproveedor'    : st.column_config.NumberColumn("Mono", format="%d"),
+                            'Consolidado'      : st.column_config.NumberColumn("Consolidado", format="%d"),
+                            'Dias Prom. Cons.' : st.column_config.TextColumn("Dias Prom. Cons."),
+                            'SO por Embarque'  : st.column_config.NumberColumn("SO/Emb", format="%.1f"),
+                            'Prov por Embarque': st.column_config.NumberColumn("Prov/Emb", format="%.1f"),
+                        }
+                    )
+                    st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
+                    st.markdown("<p style='color:#00ff88; font-weight:800; letter-spacing:4px; font-size:16px; margin-bottom:20px; text-align:center;'>EVOLUCION MES A MES POR ANALISTA</p>", unsafe_allow_html=True)
+                    rows_evol = []
+                    for mes_num, mes_lbl in meses_disp:
+                        df_eh_m = df_eh_2026[df_eh_2026['Mes_Num'] == mes_num]
+                        embs_m  = df_eh_m[col_eh_emb].astype(str).str.strip().str.upper().unique()
+                        df_rh_m = df_rh[df_rh['_emb_key'].isin(embs_m)].copy()
+                        df_rh_m['T_Cons_Num'] = df_rh_m[col_rh_tcons].apply(clean_tcons)
+                        df_rh_m['Tipo_Carga'] = df_rh_m[col_rh_mono].astype(str).str.strip().str.upper().apply(
+                            lambda x: 'MONOPROVEEDOR' if 'MONO' in x else 'CONSOLIDADO'
+                        )
+                        df_rh_m['Responsable'] = df_rh_m[col_rh_resp].astype(str).str.strip()
+                        df_rh_m = df_rh_m[~df_rh_m['Responsable'].isin(['', 'nan', 'NaN', 'None', '-', 'nan'])]
+                        for analista, grp_a in df_rh_m.groupby('Responsable'):
+                            embs_a  = grp_a['_emb_key'].unique()
+                            df_eh_a = df_eh_m[df_eh_m[col_eh_emb].astype(str).str.strip().str.upper().isin(embs_a)]
+                            avg_tc  = grp_a['T_Cons_Num'].mean()
+                            rows_evol.append({
+                                'Mes_Num'   : mes_num,
+                                'Mes'       : mes_lbl,
+                                'Analista'  : analista,
+                                'Embarques' : len(embs_a),
+                                'SOs'       : df_eh_a[col_eh_so].nunique(),
+                                'Dias Cons.': round(avg_tc, 1) if pd.notna(avg_tc) else None,
+                            })
+                    df_evol = pd.DataFrame(rows_evol)
+                    if not df_evol.empty:
+                        analistas_disp = sorted(df_evol['Analista'].unique())
+                        col_pick, _ = st.columns([2, 3])
+                        with col_pick:
+                            analista_sel = st.selectbox("VER EVOLUCION DE:", analistas_disp, key="perf_analista_sel")
+                        df_evol_a = df_evol[df_evol['Analista'] == analista_sel].sort_values('Mes_Num')
+                        es_azul_sel = analista_sel.strip().upper() == 'AZUL'
+                        if es_azul_sel:
+                            st.plotly_chart(
+                                px.bar(df_evol_a, x='Mes', y='Embarques', text_auto=',.0f',
+                                       color_discrete_sequence=['#00a8ff'],
+                                       title=f"Embarques - {analista_sel}"
+                                ).update_traces(textposition='outside', textfont_color='#f8fafc', marker=dict(cornerradius=5)
+                                ).update_layout(height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                                font=dict(family='Outfit, sans-serif', color='#94a3b8'),
+                                                title_font_color='#00a8ff',
+                                                xaxis=dict(showgrid=False, tickangle=-30),
+                                                yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)'),
+                                                margin=dict(l=10,r=10,t=50,b=40)),
+                                use_container_width=True
+                            )
+                            st.info("✈️ Azul gestiona cargas aéreas — los tiempos de consolidación marítima no aplican a su metodología.")
+                            st.markdown("<br>", unsafe_allow_html=True)
+                            st.dataframe(
+                                df_evol_a[['Mes','Embarques','SOs']].reset_index(drop=True),
+                                use_container_width=True, hide_index=True,
+                                column_config={
+                                    'Mes'      : st.column_config.TextColumn("Mes ETD"),
+                                    'Embarques': st.column_config.NumberColumn("Embarques", format="%d"),
+                                    'SOs'      : st.column_config.NumberColumn("SOs", format="%d"),
+                                }
+                            )
+                        else:
+                            ev1, ev2 = st.columns(2)
+                            with ev1:
+                                fig_ev_emb = px.bar(df_evol_a, x='Mes', y='Embarques', text_auto=',.0f', color_discrete_sequence=['#00a8ff'], title=f"Embarques - {analista_sel}")
+                                fig_ev_emb.update_traces(textposition='outside', textfont_color='#f8fafc', marker=dict(cornerradius=5))
+                                fig_ev_emb.update_layout(height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(family='Outfit, sans-serif', color='#94a3b8'), title_font_color='#00a8ff', xaxis=dict(showgrid=False, tickangle=-30), yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)'), margin=dict(l=10,r=10,t=50,b=40))
+                                st.plotly_chart(fig_ev_emb, use_container_width=True)
+                            with ev2:
+                                fig_ev_tc = px.bar(df_evol_a, x='Mes', y='Dias Cons.', text_auto=',.1f', color_discrete_sequence=['#00ff88'], title=f"Dias Prom. Consolidacion - {analista_sel}")
+                                fig_ev_tc.update_traces(textposition='outside', textfont_color='#f8fafc', marker=dict(cornerradius=5))
+                                fig_ev_tc.update_layout(height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(family='Outfit, sans-serif', color='#94a3b8'), title_font_color='#00ff88', xaxis=dict(showgrid=False, tickangle=-30), yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)'), margin=dict(l=10,r=10,t=50,b=40))
+                                st.plotly_chart(fig_ev_tc, use_container_width=True)
+                            st.markdown("<br>", unsafe_allow_html=True)
+                            st.dataframe(
+                                df_evol_a[['Mes','Embarques','SOs','Dias Cons.']].reset_index(drop=True),
+                                use_container_width=True, hide_index=True,
+                                column_config={
+                                    'Mes'       : st.column_config.TextColumn("Mes ETD"),
+                                    'Embarques' : st.column_config.NumberColumn("Embarques", format="%d"),
+                                    'SOs'       : st.column_config.NumberColumn("SOs", format="%d"),
+                                    'Dias Cons.': st.column_config.NumberColumn("Dias Prom. Cons.", format="%.1f d"),
+                                }
+                            )
         except Exception as e:
             st.error(f"Error en Performance Analistas: {e}")
             import traceback
             st.code(traceback.format_exc())
-
-    # --- SOLAPA 4: PERFORMANCE DE AGENTES ---
-    with tabs[3]:
+        # PERFORMANCE DE AGENTES (FORWARDERS)
+        st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align:center; padding: 20px; background: rgba(255,170,0,0.05); border-radius: 20px; margin: 30px 0;'><h2 style='color:#ffaa00; font-weight:800; letter-spacing:5px; margin:0;'>PERFORMANCE DE AGENTES (FORWARDERS)</h2><p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>BASADO EN RESERVAS HISTORICAS 2026</p></div>", unsafe_allow_html=True)
         try:
             try:
                 _ = df_rh
             except NameError:
-                @st.cache_data(ttl=120)
-                def load_perf_data_ag(base):
-                    rh = pd.read_csv(f"{base}/export?format=csv&gid=32771816", engine='python', on_bad_lines='skip')
-                    rh.columns = [str(c).strip() for c in rh.columns]
-                    return rh
-                df_rh = load_perf_data_ag(base_url)
-                df_rh['_emb_key'] = df_rh[df_rh.columns[0]].astype(str).str.strip().str.upper()
-
-            col_ag_fwd       = df_rh.columns[6]
-            col_ag_inst      = df_rh.columns[7]
-            col_ag_etd       = df_rh.columns[11]
-            col_ag_bl        = df_rh.columns[15]
-            col_ag_conf      = df_rh.columns[18]
-            col_ag_cntr      = df_rh.columns[1]
-            col_ag_flete_pag = df_rh.columns[51] if len(df_rh.columns) > 51 else None
-            col_ag_flete_cert= df_rh.columns[52] if len(df_rh.columns) > 52 else None
-            col_ag_tipo      = df_rh.columns[5]
-
-            df_rh['_inst_dt'] = pd.to_datetime(df_rh[col_ag_inst], dayfirst=True, errors='coerce')
-            df_rh['_etd_dt']  = pd.to_datetime(df_rh[col_ag_etd],  dayfirst=True, errors='coerce')
-            df_rh['_bl_dt']   = pd.to_datetime(df_rh[col_ag_bl],   dayfirst=True, errors='coerce')
-            df_rh['_conf_dt'] = pd.to_datetime(df_rh[col_ag_conf], dayfirst=True, errors='coerce')
-
-            TIPOS_MAR = ['40 HQ','20 ST','40 ST','40 NOR']
-            df_rh_mar = df_rh[
-                df_rh[col_ag_tipo].astype(str).str.strip().str.upper().isin([t.upper() for t in TIPOS_MAR]) &
-                (df_rh['_etd_dt'].dt.year == 2026)
+                df_rh, df_eh = load_perf_data(base_url)
+            col_ag_fwd        = df_rh.columns[6]
+            col_ag_inst       = df_rh.columns[7]
+            col_ag_etd        = df_rh.columns[11]
+            col_ag_bl         = df_rh.columns[15]
+            col_ag_conf       = df_rh.columns[18]
+            col_ag_cntr       = df_rh.columns[1]
+            col_ag_linea      = df_rh.columns[59]  if len(df_rh.columns) > 59 else None
+            col_ag_gto_origen = df_rh.columns[38]  if len(df_rh.columns) > 38 else None
+            col_ag_flete_pag  = df_rh.columns[51]  if len(df_rh.columns) > 51 else None
+            col_ag_flete_cert = df_rh.columns[52]  if len(df_rh.columns) > 52 else None
+            col_ag_gto_local  = df_rh.columns[54]  if len(df_rh.columns) > 54 else None
+            df_rh['_ag_inst_dt'] = pd.to_datetime(df_rh[col_ag_inst], dayfirst=True, errors='coerce')
+            df_rh['_ag_etd_dt']  = pd.to_datetime(df_rh[col_ag_etd],  dayfirst=True, errors='coerce')
+            df_rh['_ag_bl_dt']   = pd.to_datetime(df_rh[col_ag_bl],   dayfirst=True, errors='coerce')
+            df_rh['_ag_conf_dt'] = pd.to_datetime(df_rh[col_ag_conf], dayfirst=True, errors='coerce')
+            df_rh_ag_2026 = df_rh[df_rh['_ag_etd_dt'].dt.year == 2026].copy()
+            TIPOS_MAR_AG = ['40 HQ', '20 ST', '40 ST', '40 NOR']
+            df_rh_ag_2026 = df_rh_ag_2026[
+                df_rh_ag_2026[df_rh.columns[5]].astype(str).str.strip().str.upper().isin(
+                    [t.upper() for t in TIPOS_MAR_AG]
+                )
             ].copy()
-            df_rh_mar['Mes_Num']   = df_rh_mar['_etd_dt'].dt.month
-            df_rh_mar['Mes_Label'] = df_rh_mar['_etd_dt'].dt.strftime('%B %Y').str.upper()
-
-            def safe_num(v):
-                try: return float(str(v).replace(',','.').replace(' ','').strip())
+            df_rh_ag_2026['Mes_Num_Ag']   = df_rh_ag_2026['_ag_etd_dt'].dt.month
+            df_rh_ag_2026['Mes_Label_Ag'] = df_rh_ag_2026['_ag_etd_dt'].dt.strftime('%B %Y').str.upper()
+            def safe_num_ag(val):
+                try: return float(str(val).replace(',','.').replace(' ','').strip())
                 except: return None
-
-            for col in [col_ag_flete_pag, col_ag_flete_cert, col_ag_cntr]:
-                if col: df_rh_mar[col] = df_rh_mar[col].apply(safe_num)
-
-            if df_rh_mar.empty:
-                st.warning("Sin datos de agentes para 2026.")
+            for col in [col_ag_gto_origen, col_ag_flete_pag, col_ag_flete_cert, col_ag_gto_local, col_ag_cntr]:
+                if col: df_rh_ag_2026[col] = df_rh_ag_2026[col].apply(safe_num_ag)
+            if df_rh_ag_2026.empty:
+                st.warning("No se encontraron datos maritimos de agentes para 2026.")
             else:
-                meses_ag    = df_rh_mar.drop_duplicates('Mes_Num').sort_values('Mes_Num')[['Mes_Num','Mes_Label']].values.tolist()
+                meses_ag = df_rh_ag_2026.drop_duplicates('Mes_Num_Ag').sort_values('Mes_Num_Ag')[['Mes_Num_Ag','Mes_Label_Ag']].values.tolist()
                 opciones_ag = {lbl: num for num, lbl in meses_ag}
-                default_ag  = list(opciones_ag.keys())[-1]
-                default_ag_idx = len(opciones_ag) - 1
-
-                # ── HEADER ───────────────────────────────────────────────
-                st.markdown("""
-<div style='text-align:center; padding:28px 20px 20px;
-background:linear-gradient(135deg,rgba(255,170,0,0.08),rgba(168,85,247,0.04));
-border-radius:20px; border:1px solid rgba(255,170,0,0.2); margin-bottom:32px;'>
-<h2 style='color:#ffaa00; font-weight:900; letter-spacing:6px; margin:0; font-size:26px;'>PERFORMANCE AGENTES</h2>
-<p style='color:#94a3b8; margin:8px 0 0 0; font-size:12px; letter-spacing:3px;'>RANKING COMBINADO · VELOCIDAD · CERTIFICACIÓN · MARÍTIMO 2026</p>
-</div>""", unsafe_allow_html=True)
-
-                col_ag_sel, _ = st.columns([2, 3])
-                with col_ag_sel:
-                    mes_ag_lbl = st.selectbox("📅 MES ETD:", list(opciones_ag.keys()),
-                                              index=default_ag_idx, key="perf_ag_mes_sel")
+                col_sel_ag, _ = st.columns([2, 3])
+                with col_sel_ag:
+                    mes_ag_lbl = st.selectbox("SELECCIONAR MES ETD (AGENTES):", list(opciones_ag.keys()), key="perf_ag_mes_sel")
                 mes_ag_num = opciones_ag[mes_ag_lbl]
-                df_mes_ag  = df_rh_mar[df_rh_mar['Mes_Num'] == mes_ag_num].copy()
-                df_mes_ag['_dias_ic'] = (df_mes_ag['_conf_dt'] - df_mes_ag['_inst_dt']).dt.days
-                df_mes_ag['_dias_bl'] = (df_mes_ag['_bl_dt']   - df_mes_ag['_etd_dt']).dt.days
-                df_mes_ag['_fwd']     = df_mes_ag[col_ag_fwd].astype(str).str.strip()
-                df_mes_ag = df_mes_ag[~df_mes_ag['_fwd'].isin(['','nan','NaN','None','-'])]
-
-                # ── KPIs DEL MES ─────────────────────────────────────────
+                df_ag_mes = df_rh_ag_2026[df_rh_ag_2026['Mes_Num_Ag'] == mes_ag_num].copy()
+                df_ag_mes['_dias_instr_conf'] = (df_ag_mes['_ag_conf_dt'] - df_ag_mes['_ag_inst_dt']).dt.days
+                df_ag_mes['_dias_etd_bl']     = (df_ag_mes['_ag_bl_dt']   - df_ag_mes['_ag_etd_dt']).dt.days
+                df_ag_mes['_fwd_clean']        = df_ag_mes[col_ag_fwd].astype(str).str.strip()
+                df_ag_mes = df_ag_mes[~df_ag_mes['_fwd_clean'].isin(['', 'nan', 'NaN', 'None', '-'])]
+                total_embs_ag   = df_ag_mes[df_rh.columns[0]].nunique()
+                total_cntrs_ag  = df_ag_mes[col_ag_cntr].sum()
+                avg_dias_ic     = df_ag_mes['_dias_instr_conf'].mean()
+                avg_dias_bl     = df_ag_mes['_dias_etd_bl'].mean()
+                sum_fp_global   = df_ag_mes[col_ag_flete_pag].sum()  if col_ag_flete_pag  else 0
+                sum_fc_global   = df_ag_mes[col_ag_flete_cert].sum() if col_ag_flete_cert else 0
+                pct_cert_global = round(sum_fc_global / sum_fp_global * 100, 1) if sum_fp_global and sum_fp_global > 0 else None
+                color_cert = "#00ff88" if pct_cert_global and pct_cert_global >= 75 else "#ff4b4b"
                 st.markdown("<br>", unsafe_allow_html=True)
-                total_embs_ag = df_mes_ag[df_rh.columns[0]].nunique()
-                total_cntr_ag = df_mes_ag[col_ag_cntr].sum() if col_ag_cntr else 0
-                avg_ic        = df_mes_ag['_dias_ic'].median()
-                avg_bl        = df_mes_ag['_dias_bl'].median()
-                sum_fp        = df_mes_ag[col_ag_flete_pag].sum()  if col_ag_flete_pag  else 0
-                sum_fc        = df_mes_ag[col_ag_flete_cert].sum() if col_ag_flete_cert else 0
-                pct_cert_gbl  = round(sum_fc / sum_fp * 100, 1) if sum_fp and sum_fp > 0 else None
-                cert_color    = '#00ff88' if pct_cert_gbl and pct_cert_gbl >= 75 else '#ff4b4b'
-
-                k1,k2,k3,k4,k5 = st.columns(5)
-                for col_k, val, lbl, color in [
-                    (k1, total_embs_ag, "EMBARQUES",        "#00a8ff"),
-                    (k2, int(total_cntr_ag) if pd.notna(total_cntr_ag) else 0, "CONTENEDORES", "#00ff88"),
-                    (k3, f"{int(round(avg_ic)) if pd.notna(avg_ic) else '—'}d", "MED. INSTR-CONF", "#ffaa00"),
-                    (k4, f"{int(round(avg_bl)) if pd.notna(avg_bl) else '—'}d", "MED. ETD-BL",    "#a855f7"),
-                    (k5, f"{pct_cert_gbl}%" if pct_cert_gbl else "SD", "CERTIFICACIÓN", cert_color),
-                ]:
-                    col_k.markdown(f"""
-<div style='text-align:center; padding:20px 10px;
-background:rgba(255,255,255,0.03); border-radius:16px;
-border:1px solid rgba(255,255,255,0.07); border-top:4px solid {color};'>
-<p style='color:#64748b; font-size:9px; letter-spacing:2px; margin:0 0 6px 0; text-transform:uppercase;'>{lbl}</p>
-<p style='color:{color}; font-size:44px; font-weight:900; margin:0; line-height:1; letter-spacing:-2px;'>{val}</p>
-<p style='color:#475569; font-size:9px; margin:5px 0 0 0;'>{mes_ag_lbl}</p>
-</div>""", unsafe_allow_html=True)
-
-                # ── RANKING COMBINADO ────────────────────────────────────
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.markdown("""
-<div style='border-bottom:2px solid rgba(255,170,0,0.3); padding-bottom:10px; margin-bottom:8px;'>
-<span style='color:#ffaa00; font-size:13px; font-weight:800; letter-spacing:5px;'>RANKING COMBINADO DE AGENTES</span>
-<span style='color:#475569; font-size:11px; letter-spacing:2px; margin-left:14px;'>CERTIFICACIÓN 50% · VELOCIDAD BOOKING 25% · DÍAS ETD-BL 25%</span>
-</div>""", unsafe_allow_html=True)
-                st.markdown("""
-<div style='padding:8px 14px; background:rgba(255,255,255,0.02); border-radius:8px;
-border-left:3px solid #334155; margin-bottom:20px;'>
-<p style='color:#334155; font-size:11px; margin:0;'>
-🔍 <b style='color:#475569;'>Score:</b> certificación (KPI ≥75% → 10 pts) · velocidad booking (menos días → mejor puntaje) · días ETD-BL · <b style='color:#475569;'>Escala 0–10</b>
-</p></div>""", unsafe_allow_html=True)
-
+                kg1, kg2, kg3, kg4, kg5 = st.columns(5)
+                with kg1: st.markdown(f"<div class='metric-container'><p>EMBARQUES</p><p>{total_embs_ag}</p></div>", unsafe_allow_html=True)
+                with kg2: st.markdown(f"<div class='metric-container'><p>CONTENEDORES</p><p>{int(total_cntrs_ag)}</p></div>", unsafe_allow_html=True)
+                with kg3: st.markdown(f"<div class='metric-container'><p>DIAS INSTR-CONF</p><p>{int(round(avg_dias_ic)) if pd.notna(avg_dias_ic) else 0}</p></div>", unsafe_allow_html=True)
+                with kg4: st.markdown(f"<div class='metric-container'><p>DIAS ETD-BL</p><p>{int(round(avg_dias_bl)) if pd.notna(avg_dias_bl) else 0}</p></div>", unsafe_allow_html=True)
+                with kg5:
+                    val_cert = f"{pct_cert_global}%" if pct_cert_global else "SD"
+                    st.markdown(f"<div class='metric-container' style='border:1px solid {color_cert}44;'><p>PCT CERTIFICACION</p><p style='color:{color_cert} !important;'>{val_cert}</p></div>", unsafe_allow_html=True)
+                st.markdown("<hr class='white-divider'>", unsafe_allow_html=True)
+                st.markdown("<p style='color:#ffaa00; font-weight:800; letter-spacing:4px; font-size:15px; margin-bottom:20px; text-align:center;'>DESEMPENO POR AGENTE</p>", unsafe_allow_html=True)
                 rows_ag = []
-                for fwd, grp in df_mes_ag.groupby('_fwd'):
-                    cant_embs = grp[df_rh.columns[0]].nunique()
-                    cant_cntr = grp[col_ag_cntr].sum() if col_ag_cntr else 0
-                    med_ic    = grp['_dias_ic'].median()
-                    med_bl    = grp['_dias_bl'].median()
-                    fp_f      = grp[col_ag_flete_pag].sum()  if col_ag_flete_pag  else 0
-                    fc_f      = grp[col_ag_flete_cert].sum() if col_ag_flete_cert else 0
-                    pct_f     = round(fc_f / fp_f * 100, 1)  if fp_f and fp_f > 0 else None
-
-                    # Score certificación (50%)
-                    sc_cert  = min((pct_f / 75) * 5, 5) if pct_f else 0
-
-                    # Score velocidad booking (25%) — mejor = menos días, ref 7d = 2.5pts
-                    if pd.notna(med_ic) and med_ic >= 0:
-                        sc_vel = max(0, 2.5 - (med_ic / 7) * 1.25)
+                for fwd, grp_f in df_ag_mes.groupby('_fwd_clean'):
+                    cant_embs_f  = grp_f[df_rh.columns[0]].nunique()
+                    cant_cntrs_f = grp_f[col_ag_cntr].sum()
+                    avg_ic = grp_f['_dias_instr_conf'].mean()
+                    avg_bl = grp_f['_dias_etd_bl'].mean()
+                    if col_ag_linea:
+                        lineas = grp_f[col_ag_linea].dropna().astype(str).str.strip()
+                        lineas = lineas[~lineas.isin(['', 'nan', 'None', '-'])]
+                        lineas_str = ", ".join(sorted(lineas.unique())) if not lineas.empty else "Sin datos"
                     else:
-                        sc_vel = 0
-
-                    # Score ETD-BL (25%) — mejor = menos días, ref 5d = 2.5pts
-                    if pd.notna(med_bl) and med_bl >= 0:
-                        sc_bl = max(0, 2.5 - (med_bl / 5) * 1.25)
-                    else:
-                        sc_bl = 0
-
-                    score = round(sc_cert + sc_vel + sc_bl, 1)
-
+                        lineas_str = "Sin datos"
+                    avg_fp = grp_f[col_ag_flete_pag].mean()  if col_ag_flete_pag  else 0
+                    avg_fc = grp_f[col_ag_flete_cert].mean() if col_ag_flete_cert else 0
+                    avg_gl = grp_f[col_ag_gto_local].mean()  if col_ag_gto_local  else 0
+                    avg_go = grp_f[col_ag_gto_origen].mean() if col_ag_gto_origen else 0
+                    sum_fp_f = grp_f[col_ag_flete_pag].sum()  if col_ag_flete_pag  else 0
+                    sum_fc_f = grp_f[col_ag_flete_cert].sum() if col_ag_flete_cert else 0
+                    pct_f    = round(sum_fc_f / sum_fp_f * 100, 1) if sum_fp_f and sum_fp_f > 0 else None
+                    kpi_str  = ("OK >=75%" if pct_f >= 75 else "BAJO <75%") if pct_f else "Sin datos"
                     rows_ag.append({
-                        'fwd': fwd, 'embs': cant_embs,
-                        'cntr': int(cant_cntr) if pd.notna(cant_cntr) else 0,
-                        'med_ic': med_ic, 'med_bl': med_bl,
-                        'pct_cert': pct_f, 'score': score
+                        'Agente'              : fwd,
+                        'Embarques'           : cant_embs_f,
+                        'Contenedores'        : int(cant_cntrs_f) if pd.notna(cant_cntrs_f) else 0,
+                        'Dias Instr-Conf'     : round(avg_ic, 1) if pd.notna(avg_ic) else None,
+                        'Dias ETD-BL'         : round(avg_bl, 1) if pd.notna(avg_bl) else None,
+                        'Lineas Maritimas'    : lineas_str,
+                        'Prom Flete Pag USD'  : round(avg_fp, 0) if avg_fp else None,
+                        'Prom Flete Cert USD' : round(avg_fc, 0) if avg_fc else None,
+                        'Prom Gtos Local USD' : round(avg_gl, 0) if avg_gl else None,
+                        'Prom Gtos Orig USD'  : round(avg_go, 0) if avg_go else None,
+                        'Pct Certif'          : f"{pct_f}%" if pct_f else "Sin datos",
+                        'KPI Certif'          : kpi_str,
                     })
-
-                rows_ag.sort(key=lambda x: x['score'], reverse=True)
-
-                for rank, r in enumerate(rows_ag):
-                    score    = r['score']
-                    color_r  = '#00ff88' if score >= 7 else '#ffaa00' if score >= 4 else '#ff4b4b'
-                    badge    = '🏆 EXCELENTE' if score >= 7 else '⚠️ REGULAR' if score >= 4 else '🔴 BAJO'
-                    pct_bar  = round(score / 10 * 100)
-
-                    cert_str  = f"{r['pct_cert']}%" if r['pct_cert'] else "Sin datos"
-                    cert_col  = '#00ff88' if r['pct_cert'] and r['pct_cert'] >= 75 else '#ff4b4b'
-                    ic_str    = f"{int(round(r['med_ic']))}d" if pd.notna(r['med_ic']) else "—"
-                    bl_str    = f"{int(round(r['med_bl']))}d" if pd.notna(r['med_bl']) else "—"
-                    ic_col    = '#00ff88' if pd.notna(r['med_ic']) and r['med_ic'] <= 7 else '#ffaa00' if pd.notna(r['med_ic']) and r['med_ic'] <= 14 else '#ff4b4b'
-                    bl_col    = '#00ff88' if pd.notna(r['med_bl']) and r['med_bl'] <= 5 else '#ffaa00' if pd.notna(r['med_bl']) and r['med_bl'] <= 10 else '#ff4b4b'
-
-                    st.markdown(f"""
-<div style='background:rgba(255,255,255,0.02); border-radius:16px;
-border:1px solid rgba(255,255,255,0.07); padding:20px 24px; margin-bottom:12px;
-border-left:6px solid {color_r};'>
-<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;'>
-    <div style='display:flex; align-items:center; gap:16px;'>
-        <p style='color:#1e293b; font-size:28px; font-weight:900; margin:0; min-width:40px;'>#{rank+1}</p>
-        <div>
-            <p style='color:#f8fafc; font-size:18px; font-weight:800; margin:0;'>{r['fwd']}</p>
-            <p style='color:{color_r}; font-size:11px; font-weight:800; margin:3px 0 0 0; letter-spacing:1px;'>{badge}</p>
-        </div>
-    </div>
-    <div style='text-align:center; background:rgba(255,255,255,0.04); border-radius:14px; padding:10px 20px;'>
-        <p style='color:#64748b; font-size:9px; letter-spacing:2px; margin:0 0 2px 0;'>SCORE</p>
-        <p style='color:{color_r}; font-size:36px; font-weight:900; margin:0; line-height:1;'>{score}</p>
-        <p style='color:#334155; font-size:9px; margin:2px 0 0 0;'>/ 10</p>
-    </div>
-</div>
-<div style='height:6px; background:rgba(255,255,255,0.05); border-radius:3px; margin-bottom:16px;'>
-    <div style='height:6px; width:{pct_bar}%; background:{color_r}; border-radius:3px;'></div>
-</div>
-<div style='display:grid; grid-template-columns:repeat(5,1fr); gap:10px;'>
-    <div style='text-align:center; background:rgba(255,255,255,0.03); border-radius:10px; padding:10px;'>
-        <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;'>EMBARQUES</p>
-        <p style='color:#f8fafc; font-size:20px; font-weight:800; margin:0;'>{r['embs']}</p>
-    </div>
-    <div style='text-align:center; background:rgba(255,255,255,0.03); border-radius:10px; padding:10px;'>
-        <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;'>CNTRS</p>
-        <p style='color:#f8fafc; font-size:20px; font-weight:800; margin:0;'>{r['cntr']}</p>
-    </div>
-    <div style='text-align:center; background:rgba(255,255,255,0.03); border-radius:10px; padding:10px;'>
-        <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;'>CERTIF.</p>
-        <p style='color:{cert_col}; font-size:20px; font-weight:800; margin:0;'>{cert_str}</p>
-    </div>
-    <div style='text-align:center; background:rgba(255,255,255,0.03); border-radius:10px; padding:10px;'>
-        <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;'>INSTR-CONF</p>
-        <p style='color:{ic_col}; font-size:20px; font-weight:800; margin:0;'>{ic_str}</p>
-    </div>
-    <div style='text-align:center; background:rgba(255,255,255,0.03); border-radius:10px; padding:10px;'>
-        <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;'>ETD-BL</p>
-        <p style='color:{bl_col}; font-size:20px; font-weight:800; margin:0;'>{bl_str}</p>
-    </div>
-</div>
-</div>""", unsafe_allow_html=True)
-
+                df_ag_tabla = pd.DataFrame(rows_ag).sort_values('Embarques', ascending=False)
+                st.dataframe(
+                    df_ag_tabla, use_container_width=True, hide_index=True,
+                    column_config={
+                        'Agente'              : st.column_config.TextColumn("Agente"),
+                        'Embarques'           : st.column_config.NumberColumn("Embarques", format="%d"),
+                        'Contenedores'        : st.column_config.NumberColumn("CTNRS", format="%d"),
+                        'Dias Instr-Conf'     : st.column_config.NumberColumn("Dias Instr-Conf", format="%.1f d"),
+                        'Dias ETD-BL'         : st.column_config.NumberColumn("Dias ETD-BL", format="%.1f d"),
+                        'Lineas Maritimas'    : st.column_config.TextColumn("Lineas Maritimas"),
+                        'Prom Flete Pag USD'  : st.column_config.NumberColumn("Prom Flete Pag", format="$ %,.0f"),
+                        'Prom Flete Cert USD' : st.column_config.NumberColumn("Prom Flete Cert", format="$ %,.0f"),
+                        'Prom Gtos Local USD' : st.column_config.NumberColumn("Prom Gtos Locales", format="$ %,.0f"),
+                        'Prom Gtos Orig USD'  : st.column_config.NumberColumn("Prom Gtos Origen", format="$ %,.0f"),
+                        'Pct Certif'          : st.column_config.TextColumn("% Certif."),
+                        'KPI Certif'          : st.column_config.TextColumn("KPI >=75%"),
+                    }
+                )
+                estado_nota = "OBJETIVO CUMPLIDO" if pct_cert_global and pct_cert_global >= 75 else "POR DEBAJO DEL OBJETIVO - revisar certificacion"
+                val_nota = f"{pct_cert_global}% - {estado_nota}" if pct_cert_global else "Sin datos suficientes"
+                st.markdown(
+                    "<div style='margin-top:15px; padding:12px 18px; background:rgba(255,255,255,0.02);"
+                    f"border-radius:10px; border-left:4px solid {color_cert};'>"
+                    f"<p style='color:#94a3b8; font-size:12px; margin:0;'>"
+                    f"KPI CERTIFICACION: objetivo >= 75%. "
+                    f"Total Flete Certificado / Total Flete Pagado x 100. "
+                    f"Resultado del mes: "
+                    f"<b style='color:{color_cert};'>{val_nota}</b> "
+                    f"| Meta: lograr que la totalidad de las cargas tengan flete certificado al menos en un 75% del valor pagado."
+                    f"</p></div>",
+                    unsafe_allow_html=True
+                )
         except Exception as e:
             st.error(f"Error en Performance Agentes: {e}")
             import traceback
             st.code(traceback.format_exc())
-
-    # --- SOLAPA 4: FLETES & GASTOS LOCALES ---
-    with tabs[4]:
+    # --- SOLAPA 4: CONTROL DE FLETES, GASTOS Y CERTIFICACIONES ---
+    with tabs[3]:
         try:
-            SHEET_URL   = "https://docs.google.com/spreadsheets/d/1UJ1bDyDQdIQSSVQ6dyChVKbMX1d69G68ji_dpsOzfHg"
-            POD_EXCLUIR = ['LÁZARO CÁRDENAS','LAZARO CARDENAS','MANZANILLO',
-                           'MANZANILLO / LAZARO CARDENAS','MONTEVIDEO',
-                           'MONTEVIDEO/SANTOS','MVD/SSZ','SANTOS','URUGUAY']
-
+            st.markdown("""
+<div style='text-align:center; padding:25px; background:linear-gradient(135deg,rgba(255,170,0,0.08),rgba(0,168,255,0.05));
+border-radius:20px; border:1px solid rgba(255,170,0,0.2); margin-bottom:30px;'>
+<h2 style='color:#ffaa00; font-weight:900; letter-spacing:6px; margin:0; font-size:26px;'>FLETES & GASTOS LOCALES</h2>
+<p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>MARITIMO 2026 - COTIZACIONES EN TIEMPO REAL</p>
+</div>""", unsafe_allow_html=True)
+            SHEET_URL = "https://docs.google.com/spreadsheets/d/1UJ1bDyDQdIQSSVQ6dyChVKbMX1d69G68ji_dpsOzfHg"
             @st.cache_data(ttl=300)
-            def load_fletes_v2(url):
-                df_f = pd.read_csv(f"{url}/export?format=csv&gid=0", header=0, dtype=str, on_bad_lines='skip')
+            def load_fletes_data(url):
+                csv_url = f"{url}/export?format=csv&gid=0"
+                df_f = pd.read_csv(csv_url, header=0, dtype=str, on_bad_lines='skip')
                 df_f.columns = [str(c).strip() for c in df_f.columns]
                 return df_f
-
-            df_fl = load_fletes_v2(SHEET_URL)
-
-            def parse_usd(v):
+            df_fl = load_fletes_data(SHEET_URL)
+            def parse_usd_fl(val):
                 try:
-                    s = str(v).replace('USD','').replace('$','').replace(' ','').strip()
-                    return float(s.replace('.','').replace(',','.'))
-                except: return None
-
-            col_agente  = df_fl.columns[1]
-            col_pod     = df_fl.columns[8]
-            col_flete   = df_fl.columns[3]
-            col_desde   = df_fl.columns[10]
-            col_hasta   = df_fl.columns[11]
-            col_local   = df_fl.columns[14]
-            col_cnt     = df_fl.columns[15]
-
-            df_fl['_desde']  = pd.to_datetime(df_fl[col_desde], dayfirst=True, errors='coerce')
-            df_fl['_hasta']  = pd.to_datetime(df_fl[col_hasta], dayfirst=True, errors='coerce')
-            df_fl['_flete']  = df_fl[col_flete].apply(parse_usd)
-            df_fl['_local']  = df_fl[col_local].apply(parse_usd)
-            df_fl['_cnt']    = df_fl[col_cnt].astype(str).str.strip().str.upper()
-            df_fl['_agente'] = df_fl[col_agente].astype(str).str.strip()
-            df_fl['_anio']   = df_fl['_desde'].dt.year
-            df_fl['_mes']    = df_fl['_desde'].dt.month
-            df_fl['_pod']    = df_fl[col_pod].astype(str).str.strip().str.upper()
-
-            # Excluir PODs no deseados
-            mask_pod = ~df_fl['_pod'].str.upper().str.contains(
-                '|'.join(['LAZARO','CÁRDENAS','CARDENAS','MANZANILLO','MONTEVIDEO','SANTOS','URUGUAY','MVD']),
-                na=False)
-            df_fl = df_fl[mask_pod & df_fl['_flete'].notna() &
-                          (df_fl['_cnt'] != 'NAN') & (df_fl['_cnt'] != '')].copy()
-
-            TIPOS_CNT   = ['40ST/40HQ', '20ST', '40NOR']
-            TARGET_PCT  = 0.85
-            COLORES_CNT = {'40ST/40HQ':'#00a8ff','20ST':'#00ff88','40NOR':'#ffaa00'}
-            COLORES_AG  = ['#00a8ff','#00ff88','#ffaa00','#ff4b4b','#a855f7','#06b6d4','#f97316','#ec4899']
-
-            df_vig = df_fl[(df_fl['_desde'] <= hoy) & (df_fl['_hasta'] >= hoy)].copy()
-            if df_vig.empty:
-                ult = df_fl['_desde'].max()
-                if pd.notna(ult):
-                    df_vig = df_fl[df_fl['_desde'] == ult].copy()
-
-            # ═══════════════════════════════════════════════════════════
-            # HEADER
-            # ═══════════════════════════════════════════════════════════
-            st.markdown("""
-<div style='text-align:center; padding:28px 20px 20px 20px;
-background:linear-gradient(135deg,rgba(255,170,0,0.08),rgba(0,168,255,0.04));
-border-radius:20px; border:1px solid rgba(255,170,0,0.2); margin-bottom:32px;'>
-<h2 style='color:#ffaa00; font-weight:900; letter-spacing:6px; margin:0; font-size:26px;'>FLETES & GASTOS LOCALES</h2>
-<p style='color:#94a3b8; margin:8px 0 0 0; font-size:12px; letter-spacing:3px;'>
-MERCADO MARÍTIMO · ANÁLISIS ESTRATÉGICO · MEDIANA DE TARIFAS</p>
-</div>""", unsafe_allow_html=True)
-
-            # ═══════════════════════════════════════════════════════════
-            # BLOQUE 1 — SITUACIÓN HOY
-            # ═══════════════════════════════════════════════════════════
-            st.markdown("""
-<div style='border-bottom:2px solid rgba(255,170,0,0.3); padding-bottom:10px; margin-bottom:24px;'>
-<span style='color:#ffaa00; font-size:13px; font-weight:800; letter-spacing:5px;'>01 · SITUACIÓN HOY</span>
-<span style='color:#475569; font-size:11px; letter-spacing:2px; margin-left:14px;'>COTIZACIONES VIGENTES · MEDIANA DE MERCADO</span>
-</div>""", unsafe_allow_html=True)
-
-            if not df_vig.empty:
-                cols_kpi = st.columns(len(TIPOS_CNT))
-                for i, cnt in enumerate(TIPOS_CNT):
-                    df_c = df_vig[df_vig['_cnt'] == cnt]
-                    if df_c.empty:
-                        with cols_kpi[i]:
-                            st.markdown(f"<div style='text-align:center;padding:20px;border-radius:16px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);'><p style='color:#475569;font-size:13px;margin:0;'>{cnt}</p><p style='color:#475569;font-size:13px;'>Sin datos</p></div>", unsafe_allow_html=True)
-                        continue
-
-                    med_hoy   = df_c['_flete'].median()
-                    min_hoy   = df_c['_flete'].min()
-                    ag_min    = df_c.loc[df_c['_flete'].idxmin(), '_agente']
-                    target    = med_hoy * TARGET_PCT
-                    ok        = min_hoy <= target
-                    color_cnt = COLORES_CNT.get(cnt, '#94a3b8')
-                    semaforo  = '#00ff88' if ok else '#ff4b4b'
-                    etiqueta  = '✅ DENTRO DEL TARGET' if ok else '🔴 POR ENCIMA DEL TARGET'
-
-                    # vs 2025 mismo mes
-                    df_25 = df_fl[(df_fl['_anio'] == 2025) & (df_fl['_mes'] == hoy.month) & (df_fl['_cnt'] == cnt)]
-                    med_25 = df_25['_flete'].median() if not df_25.empty else None
-                    if med_25 and med_25 > 0:
-                        delta_pct = round((med_hoy - med_25) / med_25 * 100, 1)
-                        delta_str = f"{'▲' if delta_pct > 0 else '▼'} {abs(delta_pct)}% vs mismo mes 2025"
-                        delta_col = '#ff4b4b' if delta_pct > 0 else '#00ff88'
-                    else:
-                        delta_str = '— sin dato 2025'
-                        delta_col = '#475569'
-
-                    with cols_kpi[i]:
-                        st.markdown(f"""
-<div style='text-align:center; padding:24px 16px;
-background:linear-gradient(145deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
-border-radius:20px; border:1px solid rgba(255,255,255,0.08);
-border-top:5px solid {color_cnt}; margin-bottom:8px;'>
-<p style='color:#64748b; font-size:10px; letter-spacing:3px; margin:0 0 6px 0; text-transform:uppercase;'>{cnt}</p>
-<p style='color:{color_cnt}; font-size:52px; font-weight:900; margin:0; line-height:1; letter-spacing:-2px;'>
-USD {int(round(med_hoy)):,}</p>
-<p style='color:#475569; font-size:10px; margin:6px 0 0 0;'>mediana de mercado hoy</p>
-<hr style='border:none; border-top:1px solid rgba(255,255,255,0.06); margin:14px 0;'>
-<div style='display:flex; justify-content:space-between; align-items:center;'>
-    <div style='text-align:left;'>
-        <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 2px 0;'>MEJOR OFERTA</p>
-        <p style='color:#f8fafc; font-size:18px; font-weight:800; margin:0;'>USD {int(round(min_hoy)):,}</p>
-        <p style='color:#64748b; font-size:9px; margin:2px 0 0 0;'>{ag_min}</p>
-    </div>
-    <div style='text-align:right;'>
-        <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 2px 0;'>TARGET −15%</p>
-        <p style='color:{semaforo}; font-size:18px; font-weight:800; margin:0;'>USD {int(round(target)):,}</p>
-        <p style='color:{semaforo}; font-size:9px; font-weight:700; margin:2px 0 0 0;'>{etiqueta}</p>
-    </div>
-</div>
-<div style='margin-top:12px; padding:8px 10px; background:rgba(255,255,255,0.03);
-border-radius:8px; border-left:3px solid {delta_col};'>
-<p style='color:{delta_col}; font-size:11px; font-weight:700; margin:0;'>{delta_str}</p>
-</div>
-</div>""", unsafe_allow_html=True)
-
-            # ═══════════════════════════════════════════════════════════
-            # BLOQUE 2 — BATTLE DE AGENTES
-            # ═══════════════════════════════════════════════════════════
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("""
-<div style='border-bottom:2px solid rgba(0,168,255,0.3); padding-bottom:10px; margin-bottom:24px;'>
-<span style='color:#00a8ff; font-size:13px; font-weight:800; letter-spacing:5px;'>02 · BATTLE DE AGENTES</span>
-<span style='color:#475569; font-size:11px; letter-spacing:2px; margin-left:14px;'>RANKING DE TARIFAS VIGENTES HOY · DE MÁS BARATO A MÁS CARO</span>
-</div>""", unsafe_allow_html=True)
-
-            col_cnt_sel, _ = st.columns([2, 3])
-            with col_cnt_sel:
-                cnt_battle = st.selectbox("TIPO DE CONTENEDOR:", TIPOS_CNT, key="battle_cnt_sel")
-
-            df_battle = df_vig[df_vig['_cnt'] == cnt_battle].copy()
-            if df_battle.empty:
-                st.info(f"No hay cotizaciones vigentes para {cnt_battle}.")
+                    s = str(val).replace('USD','').replace('$','').replace(' ','').strip()
+                    s = s.replace('.','').replace(',','.')
+                    return float(s)
+                except:
+                    return None
+            col_fl_tipo   = df_fl.columns[0]
+            col_fl_agente = df_fl.columns[1]
+            col_fl_flete  = df_fl.columns[3]
+            col_fl_desde  = df_fl.columns[10]
+            col_fl_hasta  = df_fl.columns[11]
+            col_fl_local  = df_fl.columns[14]
+            col_fl_cnt    = df_fl.columns[15]
+            df_fl['_desde_dt'] = pd.to_datetime(df_fl[col_fl_desde], dayfirst=True, errors='coerce')
+            df_fl['_hasta_dt'] = pd.to_datetime(df_fl[col_fl_hasta], dayfirst=True, errors='coerce')
+            df_fl['_flete']    = df_fl[col_fl_flete].apply(parse_usd_fl)
+            df_fl['_local']    = df_fl[col_fl_local].apply(parse_usd_fl)
+            df_fl['_cnt']      = df_fl[col_fl_cnt].astype(str).str.strip().str.upper()
+            df_fl['_agente']   = df_fl[col_fl_agente].astype(str).str.strip()
+            df_fl['_mes_num']  = df_fl['_desde_dt'].dt.month
+            df_fl['_mes_label']= df_fl['_desde_dt'].dt.strftime('%B %Y').str.upper()
+            df_fl['_anio']     = df_fl['_desde_dt'].dt.year
+            df_fl_2026 = df_fl[
+                (df_fl['_anio'] == 2026) &
+                df_fl['_flete'].notna() &
+                (df_fl['_cnt'] != 'NAN') &
+                (df_fl['_cnt'] != '') &
+                ~df_fl[df_fl.columns[8]].astype(str).str.strip().str.upper().str.contains('LAZARO|CARDENAS|CÁRDENAS', na=False)
+            ].copy()
+            TIPOS_CNT  = ['40ST/40HQ', '20ST', '40NOR']
+            TARGET_PCT = 0.85
+            COLORES_CNT = {'40ST/40HQ': '#00a8ff', '20ST': '#00ff88', '40NOR': '#ffaa00'}
+            if df_fl_2026.empty:
+                st.warning("No se encontraron cotizaciones validas para 2026.")
             else:
-                med_mkt  = df_battle['_flete'].median()
-                target_b = med_mkt * TARGET_PCT
-
-                ag_summary = df_battle.groupby('_agente')['_flete'].median().reset_index()
-                ag_summary.columns = ['Agente', 'Tarifa']
-                ag_summary = ag_summary.sort_values('Tarifa').reset_index(drop=True)
-                max_tar = ag_summary['Tarifa'].max()
-
+                df_vig = df_fl_2026[
+                    (df_fl_2026['_desde_dt'] <= hoy) &
+                    (df_fl_2026['_hasta_dt'] >= hoy)
+                ].copy()
                 st.markdown(f"""
-<div style='display:flex; gap:20px; margin-bottom:20px;'>
-<div style='padding:12px 20px; background:rgba(255,255,255,0.03); border-radius:12px;
-border-left:4px solid #94a3b8;'>
-<p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 3px 0;'>MEDIANA MERCADO</p>
-<p style='color:#f8fafc; font-size:20px; font-weight:800; margin:0;'>USD {int(round(med_mkt)):,}</p>
-</div>
-<div style='padding:12px 20px; background:rgba(255,170,0,0.06); border-radius:12px;
-border-left:4px solid #ffaa00;'>
-<p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 3px 0;'>TARGET −15%</p>
-<p style='color:#ffaa00; font-size:20px; font-weight:800; margin:0;'>USD {int(round(target_b)):,}</p>
-</div>
-<div style='padding:12px 20px; background:rgba(255,255,255,0.03); border-radius:12px;
-border-left:4px solid #475569;'>
-<p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 3px 0;'>AGENTES COTIZANDO</p>
-<p style='color:#f8fafc; font-size:20px; font-weight:800; margin:0;'>{len(ag_summary)}</p>
-</div>
+<div style='padding:14px 20px; background:rgba(255,255,255,0.02); border-radius:12px;
+border-left:4px solid #00ff88; margin-bottom:20px;'>
+<p style='color:#00ff88; font-weight:800; font-size:15px; letter-spacing:3px; margin:0;'>
+COTIZACIONES VIGENTES HOY {hoy.strftime('%d/%m/%Y')}</p>
+<p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>
+Validez Quincena Desde menor o igual a hoy y Validez Quincena Hasta mayor o igual a hoy</p>
 </div>""", unsafe_allow_html=True)
-
-                for rank, (_, row) in enumerate(ag_summary.iterrows()):
-                    ag      = row['Agente']
-                    tarifa  = row['Tarifa']
-                    pct_bar = round(tarifa / max_tar * 100) if max_tar > 0 else 0
-                    ok_ag   = tarifa <= target_b
-                    color_ag = '#00ff88' if ok_ag else ('#ffaa00' if tarifa <= med_mkt else '#ff4b4b')
-                    badge   = '✅ DENTRO DEL TARGET' if ok_ag else ('⚠️ CERCA DEL TARGET' if tarifa <= med_mkt else '🔴 CARO')
-                    ahorro  = int(round(tarifa - ag_summary['Tarifa'].iloc[0]))
-                    ahorro_str = f"+USD {ahorro:,} vs más barato" if ahorro > 0 else "🏆 MÁS BARATO"
-                    ahorro_col = '#ff4b4b' if ahorro > 0 else '#00ff88'
-
-                    st.markdown(f"""
-<div style='background:rgba(255,255,255,0.02); border-radius:14px;
-border:1px solid rgba(255,255,255,0.06); padding:16px 20px; margin-bottom:10px;
-border-left:5px solid {color_ag};'>
-<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;'>
-    <div style='display:flex; align-items:center; gap:14px;'>
-        <p style='color:#334155; font-size:22px; font-weight:900; margin:0; width:32px;'>#{rank+1}</p>
-        <div>
-            <p style='color:#f8fafc; font-size:16px; font-weight:700; margin:0;'>{ag}</p>
-            <p style='color:{color_ag}; font-size:10px; font-weight:700; margin:2px 0 0 0;'>{badge}</p>
-        </div>
-    </div>
-    <div style='text-align:right;'>
-        <p style='color:{color_ag}; font-size:28px; font-weight:900; margin:0; line-height:1;'>USD {int(round(tarifa)):,}</p>
-        <p style='color:{ahorro_col}; font-size:11px; font-weight:700; margin:3px 0 0 0;'>{ahorro_str}</p>
-    </div>
-</div>
-<div style='height:6px; background:rgba(255,255,255,0.05); border-radius:3px;'>
-    <div style='height:6px; width:{pct_bar}%; background:{color_ag}; border-radius:3px;'></div>
-</div>
+                if df_vig.empty:
+                    st.info("No hay cotizaciones vigentes para hoy. Mostrando el periodo mas reciente disponible.")
+                    ultimo_desde = df_fl_2026['_desde_dt'].max()
+                    if pd.notna(ultimo_desde):
+                        df_vig = df_fl_2026[df_fl_2026['_desde_dt'] == ultimo_desde].copy()
+                if not df_vig.empty:
+                    cant_agentes_vig = df_vig['_agente'].nunique()
+                    v1, v2 = st.columns([1, 3])
+                    with v1:
+                        st.markdown(f"""
+<div class='custom-card' style='border-top:3px solid #00ff88; text-align:center;'>
+<p class='minicard-title'>AGENTES COTIZADOS</p>
+<p style='font-size:52px; font-weight:900; color:#00ff88; margin:0;'>{cant_agentes_vig}</p>
 </div>""", unsafe_allow_html=True)
-
-            # ═══════════════════════════════════════════════════════════
-            # BLOQUE 3 — 2025 vs 2026
-            # ═══════════════════════════════════════════════════════════
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("""
-<div style='border-bottom:2px solid rgba(168,85,247,0.3); padding-bottom:10px; margin-bottom:24px;'>
-<span style='color:#a855f7; font-size:13px; font-weight:800; letter-spacing:5px;'>03 · EVOLUCIÓN 2025 vs 2026</span>
-<span style='color:#475569; font-size:11px; letter-spacing:2px; margin-left:14px;'>MEDIANA MENSUAL · DETECTÁ ESTACIONALIDAD Y TENDENCIA</span>
-</div>""", unsafe_allow_html=True)
-
-            col_cnt_h, _ = st.columns([2, 3])
-            with col_cnt_h:
-                cnt_hist = st.selectbox("TIPO DE CONTENEDOR:", TIPOS_CNT, key="hist_cnt_v2")
-
-            df_hist = df_fl[df_fl['_cnt'] == cnt_hist].copy()
-            df_hist = df_hist[df_hist['_anio'].isin([2025, 2026])].copy()
-
-            if df_hist.empty:
-                st.info("Sin datos históricos suficientes.")
-            else:
-                meses_dict = {1:'Ene',2:'Feb',3:'Mar',4:'Abr',5:'May',6:'Jun',
-                              7:'Jul',8:'Ago',9:'Sep',10:'Oct',11:'Nov',12:'Dic'}
-                df_hist['_mes_label'] = df_hist['_mes'].map(meses_dict)
-
-                res_hist = df_hist.groupby(['_anio','_mes','_mes_label'])['_flete'].median().reset_index()
-                res_hist.columns = ['Año','Mes_Num','Mes','Mediana']
-                res_hist['Año'] = res_hist['Año'].astype(str)
-                res_hist = res_hist.sort_values(['Año','Mes_Num'])
-
-                fig_hist = px.line(
-                    res_hist, x='Mes', y='Mediana', color='Año',
-                    markers=True, text='Mediana',
-                    color_discrete_map={'2025':'#475569','2026':'#a855f7'},
-                    labels={'Mediana':'USD (mediana)','Mes':''},
-                    category_orders={'Mes': list(meses_dict.values())}
-                )
-                fig_hist.update_traces(
-                    line=dict(width=3),
-                    marker=dict(size=10, line=dict(color='#fff', width=1.5)),
-                    texttemplate='<b>%{text:,.0f}</b>',
-                    textposition='top center',
-                    textfont=dict(size=11, family='Outfit, sans-serif'),
-                )
-                # Área bajo 2026 más visible
-                fig_hist.for_each_trace(lambda t: t.update(
-                    fill='tozeroy', fillcolor='rgba(168,85,247,0.06)'
-                ) if t.name == '2026' else t.update(
-                    fill='none', line=dict(dash='dot', width=2)
-                ))
-                fig_hist.update_layout(
-                    height=420,
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    font=dict(family='Outfit, sans-serif', color='#94a3b8', size=12),
-                    legend=dict(orientation='h', yanchor='bottom', y=1.02,
-                                xanchor='right', x=1, title_text='',
-                                font=dict(size=13)),
-                    xaxis=dict(showgrid=False, tickfont=dict(size=13, color='#94a3b8')),
-                    yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)',
-                               title='USD mediana', tickfont=dict(size=12)),
-                    margin=dict(l=20, r=20, t=50, b=20),
-                )
-                # Línea vertical en mes actual
-                mes_actual_label = meses_dict.get(hoy.month)
-                if mes_actual_label in res_hist['Mes'].values:
-                    fig_hist.add_vline(
-                        x=mes_actual_label,
-                        line=dict(color='rgba(255,255,255,0.15)', width=1, dash='dash')
-                    )
-                    fig_hist.add_annotation(
-                        x=mes_actual_label, y=res_hist['Mediana'].max(),
-                        text="HOY", showarrow=False,
-                        font=dict(color='#475569', size=10, family='Outfit, sans-serif'),
-                        yshift=14
-                    )
-                st.plotly_chart(fig_hist, use_container_width=True)
-
-                # Mini tabla comparativa
-                pivot = res_hist.pivot(index='Mes', columns='Año', values='Mediana')
-                pivot.index = pd.Categorical(pivot.index, categories=list(meses_dict.values()), ordered=True)
-                pivot = pivot.sort_index().reset_index()
-                if '2025' in pivot.columns and '2026' in pivot.columns:
-                    pivot['Δ vs 2025'] = pivot.apply(
-                        lambda r: f"{'▲' if r['2026'] > r['2025'] else '▼'} {abs(round((r['2026']-r['2025'])/r['2025']*100,1))}%"
-                        if pd.notna(r.get('2025')) and pd.notna(r.get('2026')) and r['2025'] > 0 else '—', axis=1)
-                    pivot['2025'] = pivot['2025'].apply(lambda x: f"USD {int(round(x)):,}" if pd.notna(x) else '—')
-                    pivot['2026'] = pivot['2026'].apply(lambda x: f"USD {int(round(x)):,}" if pd.notna(x) else '—')
-                    st.dataframe(pivot.rename(columns={'Mes':'Mes','2025':'Mediana 2025','2026':'Mediana 2026'}),
-                                 use_container_width=True, hide_index=True)
-
-            # ═══════════════════════════════════════════════════════════
-            # BLOQUE 4 — GASTOS LOCALES
-            # ═══════════════════════════════════════════════════════════
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("""
-<div style='border-bottom:2px solid rgba(6,182,212,0.3); padding-bottom:10px; margin-bottom:24px;'>
-<span style='color:#06b6d4; font-size:13px; font-weight:800; letter-spacing:5px;'>04 · GASTOS LOCALES ARG</span>
-<span style='color:#475569; font-size:11px; letter-spacing:2px; margin-left:14px;'>VIGENTES HOY · COSTO EN DESTINO</span>
-</div>""", unsafe_allow_html=True)
-
-            df_loc = df_fl[(df_fl['_desde'] <= hoy) & (df_fl['_hasta'] >= hoy) & df_fl['_local'].notna()].copy()
-            if df_loc.empty:
-                ult_l = df_fl[df_fl['_local'].notna()]['_desde'].max()
-                if pd.notna(ult_l):
-                    df_loc = df_fl[(df_fl['_desde'] == ult_l) & df_fl['_local'].notna()].copy()
-
-            if not df_loc.empty:
-                med_loc = df_loc['_local'].median()
-                min_loc = df_loc['_local'].min()
-                max_loc = df_loc['_local'].max()
-                ag_min_loc = df_loc.loc[df_loc['_local'].idxmin(), '_agente']
-                ag_max_loc = df_loc.loc[df_loc['_local'].idxmax(), '_agente']
-
-                lc1, lc2, lc3, lc4 = st.columns(4)
-                for col_card, valor, label, color, sub in [
-                    (lc1, f"USD {int(round(med_loc)):,}", "MEDIANA MERCADO", "#06b6d4", "referencia del mercado"),
-                    (lc2, f"USD {int(round(min_loc)):,}", "MÁS BARATO", "#00ff88", ag_min_loc),
-                    (lc3, f"USD {int(round(max_loc)):,}", "MÁS CARO", "#ff4b4b", ag_max_loc),
-                    (lc4, f"USD {int(round(max_loc - min_loc)):,}", "DIFERENCIA MAX", "#ffaa00", "entre agentes"),
-                ]:
-                    col_card.markdown(f"""
-<div style='text-align:center; padding:22px 12px;
-background:rgba(255,255,255,0.03); border-radius:16px;
-border:1px solid rgba(255,255,255,0.07); border-top:4px solid {color};'>
-<p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 8px 0; text-transform:uppercase;'>{label}</p>
-<p style='color:{color}; font-size:30px; font-weight:900; margin:0; line-height:1;'>{valor}</p>
-<p style='color:#475569; font-size:10px; margin:6px 0 0 0;'>{sub}</p>
-</div>""", unsafe_allow_html=True)
-
-                # Ranking gastos locales
+                    with v2:
+                        rows_vig = []
+                        for cnt in TIPOS_CNT:
+                            df_cnt = df_vig[df_vig['_cnt'] == cnt]
+                            if df_cnt.empty: continue
+                            prom   = df_cnt['_flete'].mean()
+                            minimo = df_cnt['_flete'].min()
+                            ag_min = df_cnt.loc[df_cnt['_flete'].idxmin(), '_agente']
+                            target = prom * TARGET_PCT
+                            vs_tgt = round((minimo - target) / target * 100, 1) if target > 0 else None
+                            ok     = minimo <= target
+                            rows_vig.append({
+                                'Tipo CNT'       : cnt,
+                                'Agentes'        : df_cnt['_agente'].nunique(),
+                                'Prom. Mercado'  : round(prom, 0),
+                                'Target -15%'    : round(target, 0),
+                                'Mejor Oferta'   : round(minimo, 0),
+                                'Agente Ganador' : ag_min,
+                                'Vs Target'      : f"{'OK' if ok else 'ALTO'} {vs_tgt:+.1f}%" if vs_tgt else "SD",
+                            })
+                        if rows_vig:
+                            df_vig_tabla = pd.DataFrame(rows_vig)
+                            st.dataframe(
+                                df_vig_tabla, use_container_width=True, hide_index=True,
+                                column_config={
+                                    'Tipo CNT'      : st.column_config.TextColumn("Tipo CNT"),
+                                    'Agentes'       : st.column_config.NumberColumn("Agentes", format="%d"),
+                                    'Prom. Mercado' : st.column_config.NumberColumn("Prom. Mercado", format="$ %,.0f"),
+                                    'Target -15%'   : st.column_config.NumberColumn("Target -15%", format="$ %,.0f"),
+                                    'Mejor Oferta'  : st.column_config.NumberColumn("Mejor Oferta", format="$ %,.0f"),
+                                    'Agente Ganador': st.column_config.TextColumn("Agente Ganador"),
+                                    'Vs Target'     : st.column_config.TextColumn("Vs Target"),
+                                }
+                            )
                 st.markdown("<br>", unsafe_allow_html=True)
-                ag_loc = df_loc.groupby('_agente')['_local'].median().reset_index()
-                ag_loc.columns = ['Agente','Gasto Local']
-                ag_loc = ag_loc.sort_values('Gasto Local').reset_index(drop=True)
-                max_gl = ag_loc['Gasto Local'].max()
-
-                for rank, (_, row) in enumerate(ag_loc.iterrows()):
-                    pct_gl  = round(row['Gasto Local'] / max_gl * 100) if max_gl > 0 else 0
-                    color_gl = '#00ff88' if rank == 0 else ('#ffaa00' if row['Gasto Local'] <= med_loc else '#ff4b4b')
-                    dif_gl  = int(round(row['Gasto Local'] - ag_loc['Gasto Local'].iloc[0]))
-                    dif_str = f"+USD {dif_gl:,} vs más barato" if dif_gl > 0 else "🏆 MÁS BARATO"
-                    dif_col = '#ff4b4b' if dif_gl > 0 else '#00ff88'
-
-                    st.markdown(f"""
-<div style='background:rgba(255,255,255,0.02); border-radius:12px;
-border:1px solid rgba(255,255,255,0.05); padding:14px 18px; margin-bottom:8px;
-border-left:4px solid {color_gl};'>
-<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;'>
-    <div style='display:flex; align-items:center; gap:12px;'>
-        <p style='color:#334155; font-size:18px; font-weight:900; margin:0; width:28px;'>#{rank+1}</p>
-        <p style='color:#f8fafc; font-size:15px; font-weight:700; margin:0;'>{row['Agente']}</p>
-    </div>
-    <div style='text-align:right;'>
-        <p style='color:{color_gl}; font-size:22px; font-weight:900; margin:0;'>USD {int(round(row["Gasto Local"])):,}</p>
-        <p style='color:{dif_col}; font-size:10px; font-weight:700; margin:2px 0 0 0;'>{dif_str}</p>
-    </div>
-</div>
-<div style='height:5px; background:rgba(255,255,255,0.05); border-radius:3px;'>
-    <div style='height:5px; width:{pct_gl}%; background:{color_gl}; border-radius:3px;'></div>
-</div>
+                st.markdown("""
+<div style='padding:14px 20px; background:rgba(255,255,255,0.02); border-radius:12px;
+border-left:4px solid #00a8ff; margin-bottom:15px;'>
+<p style='color:#00a8ff; font-weight:800; font-size:15px; letter-spacing:3px; margin:0;'>
+TARIFAS POR FORWARDER (FFWW)</p>
+<p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>
+Seleccioná un agente para ver sus tarifas vigentes por tipo de CNT</p>
 </div>""", unsafe_allow_html=True)
-            else:
-                st.info("No hay gastos locales disponibles para el período vigente.")
-
+                ffww_opciones = sorted(df_vig['_agente'].dropna().astype(str).str.strip().unique().tolist()) if not df_vig.empty else []
+                ffww_opciones = [f for f in ffww_opciones if f.lower() not in ['', 'nan', 'none']]
+                if ffww_opciones:
+                    col_ffww, _ = st.columns([2, 3])
+                    with col_ffww:
+                        ffww_sel = st.selectbox("SELECCIONAR FFWW:", ["COMPARATIVA GENERAL"] + ffww_opciones, key="ffww_sel")
+                    if ffww_sel == "COMPARATIVA GENERAL":
+                        rows_ffww = []
+                        for agente in ffww_opciones:
+                            df_ag = df_vig[df_vig['_agente'].astype(str).str.strip() == agente]
+                            for cnt in TIPOS_CNT:
+                                df_c = df_ag[df_ag['_cnt'] == cnt]
+                                if df_c.empty: continue
+                                tarifa   = df_c['_flete'].mean()
+                                prom_mkt = df_vig[df_vig['_cnt'] == cnt]['_flete'].mean()
+                                target   = prom_mkt * TARGET_PCT
+                                vs_tgt   = round((tarifa - target) / target * 100, 1) if target > 0 else None
+                                ok       = tarifa <= target
+                                rows_ffww.append({
+                                    'FFWW'         : agente,
+                                    'Tipo CNT'     : cnt,
+                                    'Su Tarifa'    : round(tarifa, 0),
+                                    'Prom. Mercado': round(prom_mkt, 0),
+                                    'Target -15%'  : round(target, 0),
+                                    'Vs Target'    : ("✅ OK " if ok else "🔴 ALTO ") + f"{vs_tgt:+.1f}%" if vs_tgt is not None else "SD",
+                                })
+                        if rows_ffww:
+                            st.dataframe(
+                                pd.DataFrame(rows_ffww),
+                                use_container_width=True, hide_index=True,
+                                column_config={
+                                    'FFWW'         : st.column_config.TextColumn("FFWW"),
+                                    'Tipo CNT'     : st.column_config.TextColumn("Tipo CNT"),
+                                    'Su Tarifa'    : st.column_config.NumberColumn("Su Tarifa", format="$ %,.0f"),
+                                    'Prom. Mercado': st.column_config.NumberColumn("Prom. Mercado", format="$ %,.0f"),
+                                    'Target -15%'  : st.column_config.NumberColumn("Target -15%", format="$ %,.0f"),
+                                    'Vs Target'    : st.column_config.TextColumn("Vs Target"),
+                                }
+                            )
+                    else:
+                        df_ffww = df_vig[df_vig['_agente'].astype(str).str.strip() == ffww_sel]
+                        rows_ffww = []
+                        for cnt in TIPOS_CNT:
+                            df_c = df_ffww[df_ffww['_cnt'] == cnt]
+                            if df_c.empty: continue
+                            tarifa   = df_c['_flete'].mean()
+                            prom_mkt = df_vig[df_vig['_cnt'] == cnt]['_flete'].mean()
+                            target   = prom_mkt * TARGET_PCT
+                            vs_tgt   = round((tarifa - target) / target * 100, 1) if target > 0 else None
+                            ok       = tarifa <= target
+                            rows_ffww.append({
+                                'Tipo CNT'     : cnt,
+                                'Tarifa FFWW'  : round(tarifa, 0),
+                                'Prom. Mercado': round(prom_mkt, 0),
+                                'Target -15%'  : round(target, 0),
+                                'Vs Target'    : ("✅ OK " if ok else "🔴 ALTO ") + f"{vs_tgt:+.1f}%" if vs_tgt is not None else "SD",
+                            })
+                        if rows_ffww:
+                            st.dataframe(
+                                pd.DataFrame(rows_ffww),
+                                use_container_width=True, hide_index=True,
+                                column_config={
+                                    'Tipo CNT'     : st.column_config.TextColumn("Tipo CNT"),
+                                    'Tarifa FFWW'  : st.column_config.NumberColumn("Tarifa FFWW", format="$ %,.0f"),
+                                    'Prom. Mercado': st.column_config.NumberColumn("Prom. Mercado", format="$ %,.0f"),
+                                    'Target -15%'  : st.column_config.NumberColumn("Target -15%", format="$ %,.0f"),
+                                    'Vs Target'    : st.column_config.TextColumn("Vs Target"),
+                                }
+                            )
+                        else:
+                            st.info(f"No hay tarifas vigentes para {ffww_sel}.")
+                else:
+                    st.info("No hay forwarders disponibles en el período vigente.")
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("""
+<div style='padding:14px 20px; background:rgba(255,255,255,0.02); border-radius:12px;
+border-left:4px solid #a855f7; margin-bottom:20px;'>
+<p style='color:#a855f7; font-weight:800; font-size:15px; letter-spacing:3px; margin:0;'>
+GASTOS LOCALES ARG - VIGENTES HOY</p>
+</div>""", unsafe_allow_html=True)
+                df_loc_vig = df_fl_2026[
+                    (df_fl_2026['_desde_dt'] <= hoy) &
+                    (df_fl_2026['_hasta_dt'] >= hoy) &
+                    df_fl_2026['_local'].notna()
+                ].copy()
+                if df_loc_vig.empty:
+                    ultimo_l = df_fl_2026[df_fl_2026['_local'].notna()]['_desde_dt'].max()
+                    if pd.notna(ultimo_l):
+                        df_loc_vig = df_fl_2026[
+                            (df_fl_2026['_desde_dt'] == ultimo_l) &
+                            df_fl_2026['_local'].notna()
+                        ].copy()
+                if not df_loc_vig.empty:
+                    prom_loc = df_loc_vig['_local'].mean()
+                    min_loc  = df_loc_vig['_local'].min()
+                    max_loc  = df_loc_vig['_local'].max()
+                    ag_loc   = df_loc_vig.loc[df_loc_vig['_local'].idxmin(), '_agente']
+                    la, lb, lc, ld = st.columns(4)
+                    for col_card, valor, label, color in [
+                        (la, f"USD {prom_loc:,.0f}", "PROM. LOCALES",     "#a855f7"),
+                        (lb, f"USD {min_loc:,.0f}",  "MENOR LOCAL",       "#00ff88"),
+                        (lc, ag_loc,                  "AGENTE MAS BARATO", "#f8fafc"),
+                        (ld, f"USD {max_loc:,.0f}",  "MAYOR LOCAL",       "#ff4b4b"),
+                    ]:
+                        col_card.markdown(f"""
+<div style='text-align:center; padding:16px 8px; background:rgba(255,255,255,0.02);
+border-radius:14px; border-top:3px solid {color};'>
+<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; margin:0 0 6px 0;'>{label}</p>
+<p style='color:{color}; font-size:22px; font-weight:900; margin:0;'>{valor}</p>
+</div>""", unsafe_allow_html=True)
+                else:
+                    st.info("No hay gastos locales disponibles para el periodo vigente.")
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("<hr style='border:none; border-top:2px solid rgba(255,170,0,0.15); margin:10px 0 25px 0;'>", unsafe_allow_html=True)
+                st.markdown("""
+<div style='padding:14px 20px; background:rgba(255,255,255,0.02); border-radius:12px;
+border-left:4px solid #ffaa00; margin-bottom:20px;'>
+<p style='color:#ffaa00; font-weight:800; font-size:15px; letter-spacing:3px; margin:0;'>
+HISTORICO 2026 - EVOLUCION MENSUAL POR TIPO DE CNT</p>
+<p style='color:#94a3b8; font-size:11px; margin:4px 0 0 0;'>
+Promedio de mercado, mejor oferta y target -15% por mes y tipo de contenedor</p>
+</div>""", unsafe_allow_html=True)
+                rows_hist = []
+                meses_ord = df_fl_2026.drop_duplicates('_mes_num').sort_values('_mes_num')[['_mes_num','_mes_label']].values.tolist()
+                for mes_num, mes_lbl in meses_ord:
+                    df_mes = df_fl_2026[df_fl_2026['_mes_num'] == mes_num]
+                    for cnt in TIPOS_CNT:
+                        df_c = df_mes[df_mes['_cnt'] == cnt]
+                        if df_c.empty: continue
+                        prom   = df_c['_flete'].mean()
+                        minimo = df_c['_flete'].min()
+                        target = prom * TARGET_PCT
+                        dif    = round(prom - minimo, 0)
+                        desv   = round((minimo - prom) / prom * 100, 1) if prom > 0 else None
+                        vs_tgt = round((minimo - target) / target * 100, 1) if target > 0 else None
+                        rows_hist.append({
+                            'Mes'           : mes_lbl,
+                            '_mes_num'      : mes_num,
+                            'Tipo CNT'      : cnt,
+                            'Prom. Mercado' : round(prom, 0),
+                            'Target -15%'   : round(target, 0),
+                            'Mejor Oferta'  : round(minimo, 0),
+                            'Dif. USD'      : round(dif, 0),
+                            '% Desvio'      : f"{desv:+.1f}%" if desv is not None else "SD",
+                            'Vs Target'     : f"{vs_tgt:+.1f}%" if vs_tgt is not None else "SD",
+                        })
+                df_hist = pd.DataFrame(rows_hist)
+                if not df_hist.empty:
+                    meses_disponibles = ["TODOS"] + [m for _, m in meses_ord]
+                    cnts_disponibles  = ["TODOS"] + TIPOS_CNT
+                    fh1, fh2 = st.columns(2)
+                    with fh1:
+                        mes_sel_hist = st.selectbox("MES:", meses_disponibles, key="hist_mes_sel")
+                    with fh2:
+                        cnt_sel_hist = st.selectbox("TIPO CNT:", cnts_disponibles, key="hist_cnt_sel")
+                    df_hist_fil = df_hist.copy()
+                    if mes_sel_hist != "TODOS":
+                        df_hist_fil = df_hist_fil[df_hist_fil['Mes'] == mes_sel_hist]
+                    if cnt_sel_hist != "TODOS":
+                        df_hist_fil = df_hist_fil[df_hist_fil['Tipo CNT'] == cnt_sel_hist]
+                    if not df_hist_fil.empty:
+                        avg_prom  = df_hist_fil['Prom. Mercado'].mean()
+                        avg_mejor = df_hist_fil['Mejor Oferta'].mean()
+                        avg_tgt   = df_hist_fil['Target -15%'].mean()
+                        avg_dif   = df_hist_fil['Dif. USD'].mean()
+                        kh1, kh2, kh3, kh4 = st.columns(4)
+                        color_dif = "#00ff88" if avg_dif > 0 else "#ff4b4b"
+                        for col_k, valor, label, color in [
+                            (kh1, f"USD {int(avg_prom):,}",  "PROM. MERCADO", "#f8fafc"),
+                            (kh2, f"USD {int(avg_mejor):,}", "MEJOR OFERTA",  "#00ff88"),
+                            (kh3, f"USD {int(avg_tgt):,}",   "TARGET -15%",   "#ffaa00"),
+                            (kh4, f"USD {int(avg_dif):,}",   "AHORRO PROM.",  color_dif),
+                        ]:
+                            col_k.markdown(f"""
+<div style='text-align:center; padding:12px 8px; background:rgba(255,255,255,0.02);
+border-radius:12px; border-top:2px solid {color};'>
+<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; margin:0 0 4px 0;'>{label}</p>
+<p style='color:{color}; font-size:18px; font-weight:800; margin:0;'>{valor}</p>
+</div>""", unsafe_allow_html=True)
+                        st.markdown("<br>", unsafe_allow_html=True)
+                    st.dataframe(
+                        df_hist_fil.drop(columns=['_mes_num']),
+                        use_container_width=True, hide_index=True,
+                        column_config={
+                            'Mes'          : st.column_config.TextColumn("Mes"),
+                            'Tipo CNT'     : st.column_config.TextColumn("Tipo CNT"),
+                            'Prom. Mercado': st.column_config.NumberColumn("Prom. Mercado", format="$ %,.0f"),
+                            'Target -15%'  : st.column_config.NumberColumn("Target -15%", format="$ %,.0f"),
+                            'Mejor Oferta' : st.column_config.NumberColumn("Mejor Oferta", format="$ %,.0f"),
+                            'Dif. USD'     : st.column_config.NumberColumn("Dif. USD", format="$ %,.0f"),
+                            '% Desvio'     : st.column_config.TextColumn("% Desvio"),
+                            'Vs Target'    : st.column_config.TextColumn("Vs Target"),
+                        }
+                    )
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    df_hist_graf = df_hist.copy()
+                    if cnt_sel_hist != "TODOS":
+                        df_hist_graf = df_hist_graf[df_hist_graf['Tipo CNT'] == cnt_sel_hist]
+                    titulo_graf = f"Evolucion de Costos - {'Todos los tipos CNT' if cnt_sel_hist == 'TODOS' else cnt_sel_hist}"
+                    fig_evol = px.line(
+                        df_hist_graf.sort_values(['_mes_num','Tipo CNT']),
+                        x='Mes', y='Prom. Mercado', color='Tipo CNT',
+                        markers=True, color_discrete_map=COLORES_CNT,
+                        labels={'Prom. Mercado': 'USD Promedio de Mercado', 'Mes': ''},
+                        title=titulo_graf
+                    )
+                    fig_evol.update_traces(line_width=3, marker_size=10)
+                    fig_evol.update_layout(
+                        height=480, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                        font=dict(size=12, family='Outfit, sans-serif', color='#94a3b8'),
+                        title_font_color='#ffaa00', title_font_size=14,
+                        legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, title_text=''),
+                        xaxis=dict(showgrid=False, tickangle=-30),
+                        yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)', title='USD'),
+                        margin=dict(l=20, r=20, t=80, b=40)
+                    )
+                    if mes_sel_hist != "TODOS":
+                        fig_evol.add_vrect(
+                            x0=mes_sel_hist, x1=mes_sel_hist,
+                            fillcolor="rgba(255,255,255,0.08)",
+                            layer="below", line_width=0,
+                        )
+                    st.plotly_chart(fig_evol, use_container_width=True)
         except Exception as e:
             st.error(f"Error en Fletes y Gastos: {e}")
             import traceback
             st.code(traceback.format_exc())
-
     # --- SOLAPA 5: PROYECCIÓN SEMANAL ETD ---
-    with tabs[5]:
-        st.markdown("""
-<div style='text-align:center; padding:25px; background:linear-gradient(135deg,rgba(0,168,255,0.08),rgba(0,255,136,0.04));
-border-radius:20px; border:1px solid rgba(0,168,255,0.2); margin-bottom:30px;'>
-<h2 style='color:#00a8ff; font-weight:900; letter-spacing:6px; margin:0; font-size:26px;'>PROYECCIÓN SEMANAL ETD</h2>
-<p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>CARGA MARÍTIMA ARGENTINA · PRÓXIMAS SEMANAS DE ZARPE</p>
-</div>""", unsafe_allow_html=True)
+    with tabs[4]:
+        st.markdown("<div style='text-align:center; padding:25px; background:linear-gradient(135deg,rgba(0,168,255,0.08),rgba(0,255,136,0.04)); border-radius:20px; border:1px solid rgba(0,168,255,0.2); margin-bottom:30px;'><h2 style='color:#00a8ff; font-weight:900; letter-spacing:6px; margin:0; font-size:26px;'>PROYECCION SEMANAL ETD</h2><p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>VOLUMEN Y CONTENEDORES FUTUROS - BASE PARA NEGOCIACION DE TARIFAS</p></div>", unsafe_allow_html=True)
         try:
             def find_col_proy(df, keywords):
                 for kw in keywords:
@@ -1599,9 +1433,10 @@ border-radius:20px; border:1px solid rgba(0,168,255,0.2); margin-bottom:30px;'>
             col_mod_proy    = find_col_proy(df, ['MODALIDAD DE COSTEO', 'MODALIDAD COSTEO']) or df.columns[68]
             col_puerto_proy = find_col_proy(df, ['PUERTO DE SALIDA', 'PUERTO SALIDA', 'PUERTO']) or df.columns[41]
             col_pais_proy   = df.columns[18]
-
             df_proy = df.copy()
             df_proy['_m3'] = pd.to_numeric(df_proy['M3 Total'], errors='coerce').fillna(0)
+            paises_unicos = df_proy[col_pais_proy].astype(str).str.strip().str.upper().unique()
+            mods_unicas   = df_proy[col_mod_proy].astype(str).str.strip().str.upper().unique()
             mask_pais = df_proy[col_pais_proy].astype(str).str.strip().str.upper() == 'ARGENTINA'
             mask_mod  = (
                 df_proy[col_mod_proy].astype(str).str.strip().str.upper().str.startswith('BARCO') |
@@ -1614,199 +1449,140 @@ border-radius:20px; border:1px solid rgba(0,168,255,0.2); margin-bottom:30px;'>
             df_proy['_mes_num']       = df_proy['_etd_dt'].dt.month
             df_proy['_mes_label']     = df_proy['_etd_dt'].dt.strftime('%B %Y').str.upper()
             df_proy['_puerto']        = df_proy[col_puerto_proy].astype(str).str.strip().str.upper().fillna('SIN DEFINIR')
-
             if df_proy.empty:
-                st.warning("No hay carga futura proyectada.")
+                st.warning("No hay carga futura proyectada con los filtros aplicados.")
+                with st.expander("🔍 Diagnóstico de columnas (para verificar)"):
+                    st.write(f"**Columna País Destino usada:** `{col_pais_proy}` (índice 18)")
+                    st.write(f"**Columna Modalidad usada:** `{col_mod_proy}`")
+                    st.write(f"**Columna ETD usada:** `{col_etd_proy}`")
+                    st.write(f"**Columna Puerto usada:** `{col_puerto_proy}`")
+                    st.write(f"**M3 Total: usando columna 'M3 Total' ya limpia del dataframe principal**")
+                    st.write("**Valores únicos de País Destino (primeros 15):**")
+                    st.write(list(paises_unicos[:15]))
+                    st.write("**Valores únicos de Modalidad (primeros 15):**")
+                    st.write(list(mods_unicas[:15]))
+                    df_debug = df.copy()
+                    n_pais = (df_debug[col_pais_proy].astype(str).str.strip().str.upper() == 'ARGENTINA').sum()
+                    n_mod  = (
+                        df_debug[col_mod_proy].astype(str).str.strip().str.upper().str.startswith('BARCO') |
+                        df_debug[col_mod_proy].astype(str).str.strip().str.upper().str.contains('COSTO HIBRIDO PUERTO ZFLP', na=False)
+                    ).sum()
+                    st.write(f"**Filas que pasan filtro Argentina:** {n_pais}")
+                    st.write(f"**Filas que pasan filtro Modalidad (Barco/ZFLP):** {n_mod}")
             else:
-                meses_proy    = df_proy.drop_duplicates('_mes_num').sort_values('_mes_num')[['_mes_num','_mes_label']].values.tolist()
+                meses_proy  = df_proy.drop_duplicates('_mes_num').sort_values('_mes_num')[['_mes_num','_mes_label']].values.tolist()
                 opciones_proy = {lbl: num for num, lbl in meses_proy}
-                mes_actual  = hoy.month
-                default_lbl = next((lbl for lbl, num in opciones_proy.items() if num == mes_actual),
-                                   list(opciones_proy.keys())[0])
-                default_idx = list(opciones_proy.keys()).index(default_lbl)
-
                 col_sp, _ = st.columns([2, 3])
                 with col_sp:
-                    mes_proy_lbl = st.selectbox("📅 SELECCIONAR MES:", list(opciones_proy.keys()),
-                                                index=default_idx, key="proy_mes_sel")
+                    mes_proy_lbl = st.selectbox("SELECCIONAR MES ETD:", list(opciones_proy.keys()), key="proy_mes_sel")
                 mes_proy_num = opciones_proy[mes_proy_lbl]
-                df_mes = df_proy[df_proy['_mes_num'] == mes_proy_num].copy()
-
-                total_m3   = df_mes['_m3'].sum()
-                total_cntr = round(total_m3 / 60)
-                total_so   = df_mes['SO'].nunique() if 'SO' in df_mes.columns else 0
-                total_sem  = df_mes['_semana_inicio'].nunique()
-
-                # ── KPI CARDS ──────────────────────────────────────────
+                df_mes_proy = df_proy[df_proy['_mes_num'] == mes_proy_num].copy()
+                total_m3_mes   = df_mes_proy['_m3'].sum()
+                total_cntr_mes = total_m3_mes / 60
+                total_so_mes   = df_mes_proy['SO'].nunique() if 'SO' in df_mes_proy.columns else 0
+                semanas_mes    = df_mes_proy['_semana_inicio'].nunique()
                 st.markdown("<br>", unsafe_allow_html=True)
-                k1, k2, k3, k4 = st.columns(4)
-                with k1:
-                    st.markdown(f"""
-<div style='text-align:center; padding:28px 16px;
-background:linear-gradient(145deg,rgba(0,168,255,0.1),rgba(0,168,255,0.03));
-border-radius:20px; border:1px solid rgba(0,168,255,0.2);'>
-<p style='color:#64748b; font-size:11px; letter-spacing:3px; margin:0 0 10px 0; text-transform:uppercase;'>Contenedores estimados</p>
-<p style='color:#00a8ff; font-size:72px; font-weight:900; margin:0; line-height:1; letter-spacing:-3px;'>{int(total_cntr)}</p>
-<p style='color:#475569; font-size:12px; margin:8px 0 0 0;'>CNTRS 40\'HC · {mes_proy_lbl}</p>
-</div>""", unsafe_allow_html=True)
-                with k2:
-                    st.markdown(f"""
-<div style='text-align:center; padding:28px 16px;
-background:linear-gradient(145deg,rgba(0,255,136,0.07),rgba(0,255,136,0.02));
-border-radius:20px; border:1px solid rgba(0,255,136,0.15);'>
-<p style='color:#64748b; font-size:11px; letter-spacing:3px; margin:0 0 10px 0; text-transform:uppercase;'>Volumen total</p>
-<p style='color:#00ff88; font-size:72px; font-weight:900; margin:0; line-height:1; letter-spacing:-3px;'>{int(round(total_m3)):,}</p>
-<p style='color:#475569; font-size:12px; margin:8px 0 0 0;'>M3 · {mes_proy_lbl}</p>
-</div>""", unsafe_allow_html=True)
-                with k3:
-                    st.markdown(f"""
-<div style='text-align:center; padding:28px 16px;
-background:rgba(255,255,255,0.03); border-radius:20px; border:1px solid rgba(255,255,255,0.07);'>
-<p style='color:#64748b; font-size:11px; letter-spacing:3px; margin:0 0 10px 0; text-transform:uppercase;'>Órdenes de compra</p>
-<p style='color:#f8fafc; font-size:72px; font-weight:900; margin:0; line-height:1; letter-spacing:-3px;'>{total_so}</p>
-<p style='color:#475569; font-size:12px; margin:8px 0 0 0;'>SOs con zarpe en {mes_proy_lbl}</p>
-</div>""", unsafe_allow_html=True)
-                with k4:
-                    st.markdown(f"""
-<div style='text-align:center; padding:28px 16px;
-background:rgba(255,255,255,0.03); border-radius:20px; border:1px solid rgba(255,255,255,0.07);'>
-<p style='color:#64748b; font-size:11px; letter-spacing:3px; margin:0 0 10px 0; text-transform:uppercase;'>Semanas activas</p>
-<p style='color:#f8fafc; font-size:72px; font-weight:900; margin:0; line-height:1; letter-spacing:-3px;'>{total_sem}</p>
-<p style='color:#475569; font-size:12px; margin:8px 0 0 0;'>Semanas con carga en {mes_proy_lbl}</p>
-</div>""", unsafe_allow_html=True)
-
-                # ── GRÁFICO: LÍNEA DE CONTENEDORES POR SEMANA ──────────
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.markdown("""
-<div style='border-bottom:1px solid rgba(0,168,255,0.15); padding-bottom:8px; margin-bottom:24px;'>
-<span style='color:#00a8ff; font-size:12px; font-weight:800; letter-spacing:4px; text-transform:uppercase;'>EVOLUCIÓN DE CONTENEDORES POR SEMANA</span>
-<span style='color:#475569; font-size:11px; margin-left:14px;'>estimado: 1 contenedor = 60 M3</span>
-</div>""", unsafe_allow_html=True)
-
-                df_linea = df_mes.groupby('_semana_inicio')['_m3'].sum().reset_index()
-                df_linea['Semana'] = df_linea['_semana_inicio'].apply(
-                    lambda d: d.strftime('%d/%m') + ' — ' + (d + pd.Timedelta(days=6)).strftime('%d/%m')
+                pm1, pm2, pm3, pm4 = st.columns(4)
+                with pm1: st.markdown(f"<div class='metric-container'><p>M3 TOTALES</p><p>{int(round(total_m3_mes)):,}</p></div>", unsafe_allow_html=True)
+                with pm2: st.markdown(f"<div class='metric-container'><p>CONTENEDORES</p><p>{int(round(total_cntr_mes))}</p></div>", unsafe_allow_html=True)
+                with pm3: st.markdown(f"<div class='metric-container'><p>SOs</p><p>{total_so_mes}</p></div>", unsafe_allow_html=True)
+                with pm4: st.markdown(f"<div class='metric-container'><p>SEMANAS</p><p>{semanas_mes}</p></div>", unsafe_allow_html=True)
+                st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
+                df_stack = df_mes_proy.groupby(['_semana_inicio','_puerto'])['_m3'].sum().reset_index()
+                df_stack['Semana'] = df_stack['_semana_inicio'].apply(
+                    lambda d: d.strftime('%d/%m') + ' - ' + (d + pd.Timedelta(days=6)).strftime('%d/%m')
                 )
-                df_linea['CNTRS'] = (df_linea['_m3'] / 60).round(0).astype(int)
-
-                fig = px.line(
-                    df_linea, x='Semana', y='CNTRS',
-                    markers=True,
-                    text='CNTRS',
-                    labels={'CNTRS': 'Contenedores estimados', 'Semana': ''},
+                fig_stack = px.bar(
+                    df_stack, x='Semana', y='_m3', color='_puerto',
+                    text='_m3', barmode='stack',
+                    color_discrete_sequence=['#00a8ff','#00ff88','#ffaa00','#ff4b4b','#a855f7','#06b6d4','#f97316'],
+                    labels={'_m3': 'M3', '_puerto': 'Puerto', 'Semana': ''},
+                    title='M3 por Semana ETD - ' + mes_proy_lbl
                 )
-                fig.update_traces(
-                    line=dict(color='#00a8ff', width=3),
-                    marker=dict(size=12, color='#00a8ff', line=dict(color='#ffffff', width=2)),
-                    texttemplate='<b>%{text}</b> CNTR',
-                    textposition='top center',
-                    textfont=dict(size=13, color='#f8fafc', family='Outfit, sans-serif'),
-                    fill='tozeroy',
-                    fillcolor='rgba(0,168,255,0.08)',
+                fig_stack.update_traces(texttemplate='%{text:,.0f}', textposition='inside', textfont_size=11, textfont_color='#fff')
+                fig_stack.update_layout(
+                    height=420, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    font=dict(family='Outfit, sans-serif', color='#94a3b8', size=12),
+                    title_font_color='#00a8ff', title_font_size=14,
+                    legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, title_text='Puerto'),
+                    xaxis=dict(showgrid=False),
+                    yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)', title='M3'),
+                    margin=dict(l=20,r=20,t=60,b=20)
                 )
-                fig.update_layout(
-                    height=420,
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    font=dict(family='Outfit, sans-serif', color='#94a3b8', size=13),
-                    showlegend=False,
-                    xaxis=dict(
-                        showgrid=False,
-                        tickfont=dict(size=13, color='#94a3b8'),
-                        title='',
-                    ),
-                    yaxis=dict(
-                        showgrid=True,
-                        gridcolor='rgba(255,255,255,0.07)',
-                        title='Contenedores estimados',
-                        tickfont=dict(size=12),
-                        rangemode='tozero',
-                    ),
-                    margin=dict(l=20, r=20, t=40, b=20),
+                st.plotly_chart(fig_stack, use_container_width=True)
+                df_cntr_sem = df_mes_proy.groupby('_semana_inicio')['_m3'].sum().reset_index()
+                df_cntr_sem['Semana'] = df_cntr_sem['_semana_inicio'].apply(
+                    lambda d: d.strftime('%d/%m') + ' - ' + (d + pd.Timedelta(days=6)).strftime('%d/%m')
                 )
-                st.plotly_chart(fig, use_container_width=True)
-
-                # ── CARDS POR SEMANA (mismo tamaño fijo, números redondos) ──
-                st.markdown("""
-<div style='border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:8px; margin-bottom:24px;'>
-<span style='color:#94a3b8; font-size:12px; font-weight:800; letter-spacing:4px; text-transform:uppercase;'>DESGLOSE POR SEMANA Y PUERTO</span>
-</div>""", unsafe_allow_html=True)
-
-                COLORES_PORTO = ['#00a8ff','#00ff88','#ffaa00','#ff4b4b','#a855f7','#06b6d4','#f97316']
-                puertos_orden = df_mes.groupby('_puerto')['_m3'].sum().sort_values(ascending=False).index.tolist()
-                semanas = sorted(df_mes['_semana_inicio'].unique())
-                CARD_H = '320px'
-
-                for fila_start in range(0, len(semanas), 4):
-                    fila_sems = semanas[fila_start:fila_start+4]
-                    # Siempre 4 columnas para coherencia
-                    cols_fila = st.columns(4)
-                    for idx in range(4):
-                        with cols_fila[idx]:
-                            if idx >= len(fila_sems):
-                                # columna vacía para mantener alineación
-                                st.markdown("<div></div>", unsafe_allow_html=True)
-                                continue
-                            sem = fila_sems[idx]
-                            sem_fin   = sem + pd.Timedelta(days=6)
-                            sem_label = sem.strftime('%d/%m') + ' AL ' + sem_fin.strftime('%d/%m')
-                            df_sem    = df_mes[df_mes['_semana_inicio'] == sem]
-                            m3_sem    = df_sem['_m3'].sum()
-                            cntr_sem  = round(m3_sem / 60)   # entero
-                            so_sem    = df_sem['SO'].nunique() if 'SO' in df_sem.columns else 0
-
-                            puertos_html = ''
-                            for pi, puerto in enumerate(puertos_orden):
-                                m3_p = df_sem[df_sem['_puerto'] == puerto]['_m3'].sum()
-                                if m3_p == 0: continue
-                                pct_p  = round(m3_p / m3_sem * 100) if m3_sem > 0 else 0
-                                cntr_p = round(m3_p / 60)   # entero
-                                col_p  = COLORES_PORTO[pi % len(COLORES_PORTO)]
-                                puertos_html += f"""
-<div style='margin-bottom:9px;'>
-<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;'>
-<p style='color:#94a3b8; font-size:10px; font-weight:600; margin:0;
-white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:110px;'>{puerto}</p>
-<p style='color:{col_p}; font-size:11px; font-weight:800; margin:0;'>{cntr_p} CNTR</p>
-</div>
-<div style='height:4px; background:rgba(255,255,255,0.06); border-radius:2px;'>
-<div style='height:4px; width:{pct_p}%; background:{col_p}; border-radius:2px;'></div>
-</div>
-</div>"""
-
-                            st.markdown(f"""
-<div style='background:rgba(255,255,255,0.03); border-radius:16px;
-border:1px solid rgba(255,255,255,0.08); padding:20px; margin-bottom:16px;
-border-top:4px solid #00a8ff; height:{CARD_H}; box-sizing:border-box;
-display:flex; flex-direction:column; justify-content:space-between;'>
-<div>
-    <p style='color:#00a8ff; font-size:11px; font-weight:800; letter-spacing:2px;
-    margin:0 0 14px 0; text-transform:uppercase;'>📅 {sem_label}</p>
-    <div style='display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:14px;'>
-        <div>
-            <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 2px 0;'>CONTENEDORES</p>
-            <p style='color:#00a8ff; font-size:42px; font-weight:900; margin:0; line-height:1;'>{int(cntr_sem)}</p>
-        </div>
-        <div style='text-align:right;'>
-            <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 2px 0;'>M3</p>
-            <p style='color:#f8fafc; font-size:20px; font-weight:700; margin:0; line-height:1;'>{int(round(m3_sem)):,}</p>
-            <p style='color:#475569; font-size:10px; margin:4px 0 0 0;'>{so_sem} SOs</p>
-        </div>
-    </div>
-</div>
-<div style='border-top:1px solid rgba(255,255,255,0.06); padding-top:12px; flex:1; overflow:hidden;'>
-{puertos_html}
-</div>
-</div>""", unsafe_allow_html=True)
-
+                df_cntr_sem['Contenedores'] = (df_cntr_sem['_m3'] / 60).round(1)
+                fig_cntr = px.bar(
+                    df_cntr_sem, x='Semana', y='Contenedores', text='Contenedores',
+                    color_discrete_sequence=['#ffaa00'],
+                    title='Contenedores estimados por Semana ETD - ' + mes_proy_lbl
+                )
+                fig_cntr.update_traces(
+                    texttemplate='%{text:.1f} CNTR', textposition='outside',
+                    textfont_color='#f8fafc', marker=dict(cornerradius=5)
+                )
+                fig_cntr.update_layout(
+                    height=380, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    font=dict(family='Outfit, sans-serif', color='#94a3b8', size=12),
+                    title_font_color='#ffaa00', title_font_size=14,
+                    xaxis=dict(showgrid=False),
+                    yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)', title='Contenedores'),
+                    margin=dict(l=20,r=20,t=60,b=20)
+                )
+                st.plotly_chart(fig_cntr, use_container_width=True)
+                st.markdown("<hr class='white-divider'>", unsafe_allow_html=True)
+                st.markdown("<p style='color:#00a8ff; font-weight:800; letter-spacing:4px; font-size:15px; margin-bottom:20px; text-align:center;'>DETALLE POR SEMANA Y PUERTO</p>", unsafe_allow_html=True)
+                for sem_inicio in sorted(df_mes_proy['_semana_inicio'].unique()):
+                    sem_fin    = sem_inicio + pd.Timedelta(days=6)
+                    sem_label  = sem_inicio.strftime('%d/%m/%Y') + ' al ' + sem_fin.strftime('%d/%m/%Y')
+                    df_sem     = df_mes_proy[df_mes_proy['_semana_inicio'] == sem_inicio]
+                    m3_sem     = df_sem['_m3'].sum()
+                    cntr_sem   = round(m3_sem / 60, 1)
+                    so_sem     = df_sem['SO'].nunique() if 'SO' in df_sem.columns else 0
+                    cntr_label = str(cntr_sem)
+                    st.markdown(
+                        "<div class='custom-card' style='border-left:5px solid #00a8ff; margin-bottom:20px;'>"
+                        "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;'>"
+                        f"<p style='color:#00a8ff; font-weight:800; font-size:16px; letter-spacing:2px; margin:0;'>SEMANA {sem_label}</p>"
+                        "<div style='display:flex; gap:30px;'>"
+                        "<div style='text-align:center;'><p class='minicard-title'>M3 TOTAL</p>"
+                        f"<p style='font-size:22px; font-weight:700; color:#f8fafc; margin:0;'>{int(round(m3_sem)):,}</p></div>"
+                        "<div style='text-align:center;'><p class='minicard-title'>CONTENEDORES</p>"
+                        f"<p style='font-size:22px; font-weight:700; color:#ffaa00; margin:0;'>{cntr_label}</p></div>"
+                        "<div style='text-align:center;'><p class='minicard-title'>SOs</p>"
+                        f"<p style='font-size:22px; font-weight:700; color:#00ff88; margin:0;'>{so_sem}</p></div>"
+                        "</div></div>",
+                        unsafe_allow_html=True
+                    )
+                    df_sem_puerto = df_sem.groupby('_puerto').agg(
+                        M3=('_m3', 'sum'),
+                        SOs=('SO', 'nunique') if 'SO' in df_sem.columns else ('_m3', 'count')
+                    ).reset_index().sort_values('M3', ascending=False)
+                    df_sem_puerto['CTNRS']   = (df_sem_puerto['M3'] / 60).round(1)
+                    df_sem_puerto['Share %'] = (df_sem_puerto['M3'] / m3_sem * 100).round(1)
+                    df_sem_puerto = df_sem_puerto.rename(columns={'_puerto': 'Puerto', 'M3': 'M3 Total'})
+                    st.dataframe(
+                        df_sem_puerto[['Puerto', 'M3 Total', 'CTNRS', 'SOs', 'Share %']],
+                        use_container_width=True, hide_index=True,
+                        column_config={
+                            'Puerto'  : st.column_config.TextColumn("Puerto"),
+                            'M3 Total': st.column_config.NumberColumn("M3", format="%,.1f"),
+                            'CTNRS'   : st.column_config.NumberColumn("CTNRS", format="%.1f"),
+                            'SOs'     : st.column_config.NumberColumn("SOs", format="%d"),
+                            'Share %' : st.column_config.NumberColumn("Share %", format="%.1f%%"),
+                        }
+                    )
+                    st.markdown("</div>", unsafe_allow_html=True)
         except Exception as e:
             st.error(f"Error en Proyeccion Semanal ETD: {e}")
             import traceback
             st.code(traceback.format_exc())
-
     # --- SOLAPA 6: INDICADORES (SLA & CONSOLIDACIÓN) ---
-    with tabs[6]:
-        st.markdown("<div style='text-align:center; padding: 20px; background: rgba(0, 255, 136, 0.05); border-radius: 20px; margin: 30px 0;'><h2 style='color:#00ff88; font-weight:800; letter-spacing:5px; margin:0;'>INDICADORES DE CONSOLIDACIÓN Y SLA</h2><p style='color:#64748b; font-size:11px; letter-spacing:2px; margin:10px 0 0 0;'>📊 DÍAS MOSTRADOS: MEDIANA · SLA MONO: 15d (ene-feb) / 10d (resto) · SLA CONSOLIDADO: 25d</p></div>", unsafe_allow_html=True)
+    with tabs[5]:
+        st.markdown("<div style='text-align:center; padding: 20px; background: rgba(0, 255, 136, 0.05); border-radius: 20px; margin: 30px 0;'><h2 style='color:#00ff88; font-weight:800; letter-spacing:5px; margin:0;'>INDICADORES DE CONSOLIDACIÓN Y SLA</h2></div>", unsafe_allow_html=True)
         try:
             url_hi = f"{base_url}/export?format=csv&gid=32771816&nocache={time.time()}"
             @st.cache_data(ttl=60)
@@ -1847,7 +1623,7 @@ display:flex; flex-direction:column; justify-content:space-between;'>
                 @st.dialog("🚢 DETALLE POR PUERTO Y SLA", width="large")
                 def show_detalle_mes(df_sub, mes_lbl, mode="mixed"):
                     st.markdown(f"### Análisis {mes_lbl.upper()}")
-                    res_p = df_sub.groupby(col_puerto_hi).agg({df_hi.columns[0]: 'count', col_cons_hi: 'median'}).reset_index()
+                    res_p = df_sub.groupby(col_puerto_hi).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
                     p_rows = []
                     for _, r in res_p.iterrows():
                         df_p_t = df_sub[df_sub[col_puerto_hi] == r[col_puerto_hi]].copy()
@@ -1859,7 +1635,7 @@ display:flex; flex-direction:column; justify-content:space-between;'>
                                 mes_num = int(row['Mes'])
                             except:
                                 mes_num = 3
-                            limit = (15 if mes_num <= 2 else 10) if is_mono else 25
+                            limit = (15 if mes_num <= 2 else 7) if is_mono else 25
                             return days <= limit
                         df_p_t['SLA_OK'] = df_p_t.apply(check_sla, axis=1)
                         pct_sla = int((len(df_p_t[df_p_t['SLA_OK']]) / tp_p) * 100) if tp_p > 0 else 0
@@ -1872,9 +1648,9 @@ display:flex; flex-direction:column; justify-content:space-between;'>
                     st.dataframe(pd.DataFrame(p_rows).sort_values("Embs", ascending=False), use_container_width=True, hide_index=True)
                 st.markdown("<div style='background: rgba(0, 168, 255, 0.05); padding: 15px 25px; border-radius: 20px; border: 1px solid rgba(0, 168, 255, 0.2); margin: 15px 0;'><h3 style='color:#00a8ff; margin:0; text-align:center; letter-spacing:5px; text-transform:uppercase; font-weight:900;'>RESUMEN MES CERRADO (MARÍTIMOS 2026)</h3></div>", unsafe_allow_html=True)
                 thc = st.columns([1.5, 1, 1.2, 1, 1, 0.8])
-                for i, h in enumerate(["MES ETD", "EMBS", "MEDIANA", "% MONO", "% CONS", "DETALLE"]):
+                for i, h in enumerate(["MES ETD", "EMBS", "DIAS AVG", "% MONO", "% CONS", "DETALLE"]):
                     thc[i].markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:800; text-align:center;'>{h}</p>", unsafe_allow_html=True)
-                res_mensual = df_mar.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'median'}).reset_index()
+                res_mensual = df_mar.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
                 for _, row in res_mensual.iterrows():
                     df_m_temp = df_mar[df_mar['Mes'] == row['Mes']].copy()
                     tot_m = len(df_m_temp)
@@ -1893,12 +1669,12 @@ display:flex; flex-direction:column; justify-content:space-between;'>
                 df_mono_v4 = df_mar[df_mar[col_mono_hi].astype(str).str.upper().str.contains('MONOPROVEEDOR', na=False)].copy()
                 if not df_mono_v4.empty:
                     mhc = st.columns([1.5, 1, 1.2, 2, 0.8])
-                    for i, h in enumerate(["MES ETD", "EMBS", "MEDIANA", "CUMPLIMIENTO SLA", "DETALLE"]):
+                    for i, h in enumerate(["MES ETD", "EMBS", "DIAS AVG", "CUMPLIMIENTO SLA", "DETALLE"]):
                         mhc[i].markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:800; text-align:center;'>{h}</p>", unsafe_allow_html=True)
-                    res_m = df_mono_v4.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'median'}).reset_index()
+                    res_m = df_mono_v4.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
                     for _, rm in res_m.iterrows():
                         df_sub_m = df_mono_v4[df_mono_v4['Mes'] == rm['Mes']].copy()
-                        lim_m = 15 if rm['Mes'] <= 2 else 10
+                        lim_m = 15 if rm['Mes'] <= 2 else 7
                         pct_m = int((len(df_sub_m[df_sub_m[col_cons_hi] <= lim_m]) / len(df_sub_m)) * 100) if len(df_sub_m) > 0 else 0
                         mr1, mr2, mr3, mr4, mr5 = st.columns([1.5, 1, 1.2, 2, 0.8])
                         mr1.markdown(f"<p style='font-weight:700; color:#fff; text-align:center;'>{rm['Mes_Nombre'].upper()}</p>", unsafe_allow_html=True)
@@ -1912,9 +1688,9 @@ display:flex; flex-direction:column; justify-content:space-between;'>
                 df_cons_v4 = df_mar[~df_mar[col_mono_hi].astype(str).str.upper().str.contains('MONOPROVEEDOR', na=False)].copy()
                 if not df_cons_v4.empty:
                     chc = st.columns([1.5, 1, 1.2, 2, 0.8])
-                    for i, h in enumerate(["MES ETD", "EMBS", "MEDIANA", "CUMPLIMIENTO SLA", "DETALLE"]):
+                    for i, h in enumerate(["MES ETD", "EMBS", "DIAS AVG", "CUMPLIMIENTO SLA", "DETALLE"]):
                         chc[i].markdown(f"<p style='color:#94a3b8; font-size:11px; font-weight:800; text-align:center;'>{h}</p>", unsafe_allow_html=True)
-                    res_c = df_cons_v4.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'median'}).reset_index()
+                    res_c = df_cons_v4.groupby(['Mes', 'Mes_Nombre']).agg({df_hi.columns[0]: 'count', col_cons_hi: 'mean'}).reset_index()
                     for _, rc in res_c.iterrows():
                         df_sub_c = df_cons_v4[df_cons_v4['Mes'] == rc['Mes']].copy()
                         pct_c = int((len(df_sub_c[df_sub_c[col_cons_hi] <= 25]) / len(df_sub_c)) * 100) if len(df_sub_c) > 0 else 0
@@ -1931,7 +1707,7 @@ display:flex; flex-direction:column; justify-content:space-between;'>
         except Exception as e:
             st.error(f"Error en Indicadores: {e}")
     # --- SOLAPA 8: ASK COMEX ---
-    with tabs[7]:
+    with tabs[6]:
         st.markdown("<div style='text-align:center; padding: 40px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; border: 2px dashed rgba(0, 168, 255, 0.2);'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:10px;'>ASK COMEX</h2><p style='color:#94a3b8; font-size:18px; margin-top:20px;'>Inteligencia Operativa en Tiempo Real.</p></div>", unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
         try:
@@ -2240,403 +2016,3 @@ except Exception as e:
     st.error(f"Error general al cargar el dashboard: {e}")
     import traceback
     st.code(traceback.format_exc())
-    # --- SOLAPA 4: FLETES & GASTOS LOCALES ---
-    with tabs[4]:
-        try:
-            SHEET_URL   = "https://docs.google.com/spreadsheets/d/1UJ1bDyDQdIQSSVQ6dyChVKbMX1d69G68ji_dpsOzfHg"
-            POD_EXCLUIR = ['LÁZARO CÁRDENAS','LAZARO CARDENAS','MANZANILLO',
-                           'MANZANILLO / LAZARO CARDENAS','MONTEVIDEO',
-                           'MONTEVIDEO/SANTOS','MVD/SSZ','SANTOS','URUGUAY']
-
-            @st.cache_data(ttl=300)
-            def load_fletes_v2(url):
-                df_f = pd.read_csv(f"{url}/export?format=csv&gid=0", header=0, dtype=str, on_bad_lines='skip')
-                df_f.columns = [str(c).strip() for c in df_f.columns]
-                return df_f
-
-            df_fl = load_fletes_v2(SHEET_URL)
-
-            def parse_usd(v):
-                try:
-                    s = str(v).replace('USD','').replace('$','').replace(' ','').strip()
-                    return float(s.replace('.','').replace(',','.'))
-                except: return None
-
-            col_agente  = df_fl.columns[1]
-            col_pod     = df_fl.columns[8]
-            col_flete   = df_fl.columns[3]
-            col_desde   = df_fl.columns[10]
-            col_hasta   = df_fl.columns[11]
-            col_local   = df_fl.columns[14]
-            col_cnt     = df_fl.columns[15]
-
-            df_fl['_desde']  = pd.to_datetime(df_fl[col_desde], dayfirst=True, errors='coerce')
-            df_fl['_hasta']  = pd.to_datetime(df_fl[col_hasta], dayfirst=True, errors='coerce')
-            df_fl['_flete']  = df_fl[col_flete].apply(parse_usd)
-            df_fl['_local']  = df_fl[col_local].apply(parse_usd)
-            df_fl['_cnt']    = df_fl[col_cnt].astype(str).str.strip().str.upper()
-            df_fl['_agente'] = df_fl[col_agente].astype(str).str.strip()
-            df_fl['_anio']   = df_fl['_desde'].dt.year
-            df_fl['_mes']    = df_fl['_desde'].dt.month
-            df_fl['_pod']    = df_fl[col_pod].astype(str).str.strip().str.upper()
-
-            # Excluir PODs no deseados
-            mask_pod = ~df_fl['_pod'].str.upper().str.contains(
-                '|'.join(['LAZARO','CÁRDENAS','CARDENAS','MANZANILLO','MONTEVIDEO','SANTOS','URUGUAY','MVD']),
-                na=False)
-            df_fl = df_fl[mask_pod & df_fl['_flete'].notna() &
-                          (df_fl['_cnt'] != 'NAN') & (df_fl['_cnt'] != '')].copy()
-
-            TIPOS_CNT   = ['40ST/40HQ', '20ST', '40NOR']
-            TARGET_PCT  = 0.85
-            COLORES_CNT = {'40ST/40HQ':'#00a8ff','20ST':'#00ff88','40NOR':'#ffaa00'}
-            COLORES_AG  = ['#00a8ff','#00ff88','#ffaa00','#ff4b4b','#a855f7','#06b6d4','#f97316','#ec4899']
-
-            df_vig = df_fl[(df_fl['_desde'] <= hoy) & (df_fl['_hasta'] >= hoy)].copy()
-            if df_vig.empty:
-                ult = df_fl['_desde'].max()
-                if pd.notna(ult):
-                    df_vig = df_fl[df_fl['_desde'] == ult].copy()
-
-            # ═══════════════════════════════════════════════════════════
-            # HEADER
-            # ═══════════════════════════════════════════════════════════
-            st.markdown("""
-<div style='text-align:center; padding:28px 20px 20px 20px;
-background:linear-gradient(135deg,rgba(255,170,0,0.08),rgba(0,168,255,0.04));
-border-radius:20px; border:1px solid rgba(255,170,0,0.2); margin-bottom:32px;'>
-<h2 style='color:#ffaa00; font-weight:900; letter-spacing:6px; margin:0; font-size:26px;'>FLETES & GASTOS LOCALES</h2>
-<p style='color:#94a3b8; margin:8px 0 0 0; font-size:12px; letter-spacing:3px;'>
-MERCADO MARÍTIMO · ANÁLISIS ESTRATÉGICO · MEDIANA DE TARIFAS</p>
-</div>""", unsafe_allow_html=True)
-
-            # ═══════════════════════════════════════════════════════════
-            # BLOQUE 1 — SITUACIÓN HOY
-            # ═══════════════════════════════════════════════════════════
-            st.markdown("""
-<div style='border-bottom:2px solid rgba(255,170,0,0.3); padding-bottom:10px; margin-bottom:24px;'>
-<span style='color:#ffaa00; font-size:13px; font-weight:800; letter-spacing:5px;'>01 · SITUACIÓN HOY</span>
-<span style='color:#475569; font-size:11px; letter-spacing:2px; margin-left:14px;'>COTIZACIONES VIGENTES · MEDIANA DE MERCADO</span>
-</div>""", unsafe_allow_html=True)
-
-            if not df_vig.empty:
-                cols_kpi = st.columns(len(TIPOS_CNT))
-                for i, cnt in enumerate(TIPOS_CNT):
-                    df_c = df_vig[df_vig['_cnt'] == cnt]
-                    if df_c.empty:
-                        with cols_kpi[i]:
-                            st.markdown(f"<div style='text-align:center;padding:20px;border-radius:16px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);'><p style='color:#475569;font-size:13px;margin:0;'>{cnt}</p><p style='color:#475569;font-size:13px;'>Sin datos</p></div>", unsafe_allow_html=True)
-                        continue
-
-                    med_hoy   = df_c['_flete'].median()
-                    min_hoy   = df_c['_flete'].min()
-                    ag_min    = df_c.loc[df_c['_flete'].idxmin(), '_agente']
-                    target    = med_hoy * TARGET_PCT
-                    ok        = min_hoy <= target
-                    color_cnt = COLORES_CNT.get(cnt, '#94a3b8')
-                    semaforo  = '#00ff88' if ok else '#ff4b4b'
-                    etiqueta  = '✅ DENTRO DEL TARGET' if ok else '🔴 POR ENCIMA DEL TARGET'
-
-                    # vs 2025 mismo mes
-                    df_25 = df_fl[(df_fl['_anio'] == 2025) & (df_fl['_mes'] == hoy.month) & (df_fl['_cnt'] == cnt)]
-                    med_25 = df_25['_flete'].median() if not df_25.empty else None
-                    if med_25 and med_25 > 0:
-                        delta_pct = round((med_hoy - med_25) / med_25 * 100, 1)
-                        delta_str = f"{'▲' if delta_pct > 0 else '▼'} {abs(delta_pct)}% vs mismo mes 2025"
-                        delta_col = '#ff4b4b' if delta_pct > 0 else '#00ff88'
-                    else:
-                        delta_str = '— sin dato 2025'
-                        delta_col = '#475569'
-
-                    with cols_kpi[i]:
-                        st.markdown(f"""
-<div style='text-align:center; padding:24px 16px;
-background:linear-gradient(145deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
-border-radius:20px; border:1px solid rgba(255,255,255,0.08);
-border-top:5px solid {color_cnt}; margin-bottom:8px;'>
-<p style='color:#64748b; font-size:10px; letter-spacing:3px; margin:0 0 6px 0; text-transform:uppercase;'>{cnt}</p>
-<p style='color:{color_cnt}; font-size:52px; font-weight:900; margin:0; line-height:1; letter-spacing:-2px;'>
-USD {int(round(med_hoy)):,}</p>
-<p style='color:#475569; font-size:10px; margin:6px 0 0 0;'>mediana de mercado hoy</p>
-<hr style='border:none; border-top:1px solid rgba(255,255,255,0.06); margin:14px 0;'>
-<div style='display:flex; justify-content:space-between; align-items:center;'>
-    <div style='text-align:left;'>
-        <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 2px 0;'>MEJOR OFERTA</p>
-        <p style='color:#f8fafc; font-size:18px; font-weight:800; margin:0;'>USD {int(round(min_hoy)):,}</p>
-        <p style='color:#64748b; font-size:9px; margin:2px 0 0 0;'>{ag_min}</p>
-    </div>
-    <div style='text-align:right;'>
-        <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 2px 0;'>TARGET −15%</p>
-        <p style='color:{semaforo}; font-size:18px; font-weight:800; margin:0;'>USD {int(round(target)):,}</p>
-        <p style='color:{semaforo}; font-size:9px; font-weight:700; margin:2px 0 0 0;'>{etiqueta}</p>
-    </div>
-</div>
-<div style='margin-top:12px; padding:8px 10px; background:rgba(255,255,255,0.03);
-border-radius:8px; border-left:3px solid {delta_col};'>
-<p style='color:{delta_col}; font-size:11px; font-weight:700; margin:0;'>{delta_str}</p>
-</div>
-</div>""", unsafe_allow_html=True)
-
-            # ═══════════════════════════════════════════════════════════
-            # BLOQUE 2 — BATTLE DE AGENTES
-            # ═══════════════════════════════════════════════════════════
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("""
-<div style='border-bottom:2px solid rgba(0,168,255,0.3); padding-bottom:10px; margin-bottom:24px;'>
-<span style='color:#00a8ff; font-size:13px; font-weight:800; letter-spacing:5px;'>02 · BATTLE DE AGENTES</span>
-<span style='color:#475569; font-size:11px; letter-spacing:2px; margin-left:14px;'>RANKING DE TARIFAS VIGENTES HOY · DE MÁS BARATO A MÁS CARO</span>
-</div>""", unsafe_allow_html=True)
-
-            col_cnt_sel, _ = st.columns([2, 3])
-            with col_cnt_sel:
-                cnt_battle = st.selectbox("TIPO DE CONTENEDOR:", TIPOS_CNT, key="battle_cnt_sel")
-
-            df_battle = df_vig[df_vig['_cnt'] == cnt_battle].copy()
-            if df_battle.empty:
-                st.info(f"No hay cotizaciones vigentes para {cnt_battle}.")
-            else:
-                med_mkt  = df_battle['_flete'].median()
-                target_b = med_mkt * TARGET_PCT
-
-                ag_summary = df_battle.groupby('_agente')['_flete'].median().reset_index()
-                ag_summary.columns = ['Agente', 'Tarifa']
-                ag_summary = ag_summary.sort_values('Tarifa').reset_index(drop=True)
-                max_tar = ag_summary['Tarifa'].max()
-
-                st.markdown(f"""
-<div style='display:flex; gap:20px; margin-bottom:20px;'>
-<div style='padding:12px 20px; background:rgba(255,255,255,0.03); border-radius:12px;
-border-left:4px solid #94a3b8;'>
-<p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 3px 0;'>MEDIANA MERCADO</p>
-<p style='color:#f8fafc; font-size:20px; font-weight:800; margin:0;'>USD {int(round(med_mkt)):,}</p>
-</div>
-<div style='padding:12px 20px; background:rgba(255,170,0,0.06); border-radius:12px;
-border-left:4px solid #ffaa00;'>
-<p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 3px 0;'>TARGET −15%</p>
-<p style='color:#ffaa00; font-size:20px; font-weight:800; margin:0;'>USD {int(round(target_b)):,}</p>
-</div>
-<div style='padding:12px 20px; background:rgba(255,255,255,0.03); border-radius:12px;
-border-left:4px solid #475569;'>
-<p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 3px 0;'>AGENTES COTIZANDO</p>
-<p style='color:#f8fafc; font-size:20px; font-weight:800; margin:0;'>{len(ag_summary)}</p>
-</div>
-</div>""", unsafe_allow_html=True)
-
-                for rank, (_, row) in enumerate(ag_summary.head(4).iterrows()):
-                    ag      = row['Agente']
-                    tarifa  = row['Tarifa']
-                    pct_bar = round(tarifa / max_tar * 100) if max_tar > 0 else 0
-                    ok_ag   = tarifa <= target_b
-                    color_ag = '#00ff88' if ok_ag else ('#ffaa00' if tarifa <= med_mkt else '#ff4b4b')
-                    badge   = '✅ DENTRO DEL TARGET' if ok_ag else ('⚠️ CERCA DEL TARGET' if tarifa <= med_mkt else '🔴 CARO')
-                    ahorro  = int(round(tarifa - ag_summary['Tarifa'].iloc[0]))
-                    ahorro_str = f"+USD {ahorro:,} vs más barato" if ahorro > 0 else "🏆 MÁS BARATO"
-                    ahorro_col = '#ff4b4b' if ahorro > 0 else '#00ff88'
-
-                    st.markdown(f"""
-<div style='background:rgba(255,255,255,0.02); border-radius:14px;
-border:1px solid rgba(255,255,255,0.06); padding:16px 20px; margin-bottom:10px;
-border-left:5px solid {color_ag};'>
-<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;'>
-    <div style='display:flex; align-items:center; gap:14px;'>
-        <p style='color:#334155; font-size:22px; font-weight:900; margin:0; width:32px;'>#{rank+1}</p>
-        <div>
-            <p style='color:#f8fafc; font-size:16px; font-weight:700; margin:0;'>{ag}</p>
-            <p style='color:{color_ag}; font-size:10px; font-weight:700; margin:2px 0 0 0;'>{badge}</p>
-        </div>
-    </div>
-    <div style='text-align:right;'>
-        <p style='color:{color_ag}; font-size:28px; font-weight:900; margin:0; line-height:1;'>USD {int(round(tarifa)):,}</p>
-        <p style='color:{ahorro_col}; font-size:11px; font-weight:700; margin:3px 0 0 0;'>{ahorro_str}</p>
-    </div>
-</div>
-<div style='height:6px; background:rgba(255,255,255,0.05); border-radius:3px;'>
-    <div style='height:6px; width:{pct_bar}%; background:{color_ag}; border-radius:3px;'></div>
-</div>
-</div>""", unsafe_allow_html=True)
-
-            # ═══════════════════════════════════════════════════════════
-            # BLOQUE 3 — 2025 vs 2026
-            # ═══════════════════════════════════════════════════════════
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("""
-<div style='border-bottom:2px solid rgba(168,85,247,0.3); padding-bottom:10px; margin-bottom:24px;'>
-<span style='color:#a855f7; font-size:13px; font-weight:800; letter-spacing:5px;'>03 · EVOLUCIÓN 2025 vs 2026</span>
-<span style='color:#475569; font-size:11px; letter-spacing:2px; margin-left:14px;'>MEDIANA MENSUAL · DETECTÁ ESTACIONALIDAD Y TENDENCIA</span>
-</div>""", unsafe_allow_html=True)
-
-            col_cnt_h, _ = st.columns([2, 3])
-            with col_cnt_h:
-                cnt_hist = st.selectbox("TIPO DE CONTENEDOR:", TIPOS_CNT, key="hist_cnt_v2")
-
-            df_hist = df_fl[df_fl['_cnt'] == cnt_hist].copy()
-            df_hist = df_hist[df_hist['_anio'].isin([2025, 2026])].copy()
-
-            # Nota de filtros aplicados
-            st.markdown("""
-<div style='display:flex; align-items:flex-start; gap:10px; padding:10px 16px;
-background:rgba(255,255,255,0.02); border-radius:10px;
-border-left:3px solid #334155; margin-bottom:20px;'>
-<p style='color:#334155; font-size:18px; margin:0;'>🔍</p>
-<div>
-<p style='color:#475569; font-size:11px; font-weight:700; letter-spacing:1px; margin:0 0 3px 0;'>FILTROS APLICADOS</p>
-<p style='color:#334155; font-size:11px; margin:0; line-height:1.6;'>
-Destino: <b style='color:#475569;'>Argentina</b> · 
-Excluidos: <b style='color:#475569;'>Lázaro Cárdenas · Manzanillo · Montevideo · Santos · Uruguay · MVD/SSZ</b> · 
-Tipo de flete: <b style='color:#475569;'>Marítimo</b> · 
-Métrica: <b style='color:#475569;'>Mediana mensual</b>
-</p>
-</div>
-</div>""", unsafe_allow_html=True)
-
-            if df_hist.empty:
-                st.info("Sin datos históricos suficientes.")
-            else:
-                meses_dict = {1:'Ene',2:'Feb',3:'Mar',4:'Abr',5:'May',6:'Jun',
-                              7:'Jul',8:'Ago',9:'Sep',10:'Oct',11:'Nov',12:'Dic'}
-                df_hist['_mes_label'] = df_hist['_mes'].map(meses_dict)
-
-                res_hist = df_hist.groupby(['_anio','_mes','_mes_label'])['_flete'].median().reset_index()
-                res_hist.columns = ['Año','Mes_Num','Mes','Mediana']
-                res_hist['Año'] = res_hist['Año'].astype(str)
-                res_hist = res_hist.sort_values(['Año','Mes_Num'])
-
-                fig_hist = px.line(
-                    res_hist, x='Mes', y='Mediana', color='Año',
-                    markers=True, text='Mediana',
-                    color_discrete_map={'2025':'#475569','2026':'#a855f7'},
-                    labels={'Mediana':'USD (mediana)','Mes':''},
-                    category_orders={'Mes': list(meses_dict.values())}
-                )
-                fig_hist.update_traces(
-                    line=dict(width=3),
-                    marker=dict(size=10, line=dict(color='#fff', width=1.5)),
-                    texttemplate='<b>%{text:,.0f}</b>',
-                    textposition='top center',
-                    textfont=dict(size=11, family='Outfit, sans-serif'),
-                )
-                # Área bajo 2026 más visible
-                fig_hist.for_each_trace(lambda t: t.update(
-                    fill='tozeroy', fillcolor='rgba(168,85,247,0.06)'
-                ) if t.name == '2026' else t.update(
-                    fill='none', line=dict(dash='dot', width=2)
-                ))
-                fig_hist.update_layout(
-                    height=420,
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    font=dict(family='Outfit, sans-serif', color='#94a3b8', size=12),
-                    legend=dict(orientation='h', yanchor='bottom', y=1.02,
-                                xanchor='right', x=1, title_text='',
-                                font=dict(size=13)),
-                    xaxis=dict(showgrid=False, tickfont=dict(size=13, color='#94a3b8')),
-                    yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)',
-                               title='USD mediana', tickfont=dict(size=12)),
-                    margin=dict(l=20, r=20, t=50, b=20),
-                )
-                # Línea vertical en mes actual
-                mes_actual_label = meses_dict.get(hoy.month)
-                if mes_actual_label in res_hist['Mes'].values:
-                    fig_hist.add_vline(
-                        x=mes_actual_label,
-                        line=dict(color='rgba(255,255,255,0.15)', width=1, dash='dash')
-                    )
-                    fig_hist.add_annotation(
-                        x=mes_actual_label, y=res_hist['Mediana'].max(),
-                        text="HOY", showarrow=False,
-                        font=dict(color='#475569', size=10, family='Outfit, sans-serif'),
-                        yshift=14
-                    )
-                st.plotly_chart(fig_hist, use_container_width=True)
-
-                # Mini tabla comparativa
-                pivot = res_hist.pivot(index='Mes', columns='Año', values='Mediana')
-                pivot.index = pd.Categorical(pivot.index, categories=list(meses_dict.values()), ordered=True)
-                pivot = pivot.sort_index().reset_index()
-                if '2025' in pivot.columns and '2026' in pivot.columns:
-                    pivot['Δ vs 2025'] = pivot.apply(
-                        lambda r: f"{'▲' if r['2026'] > r['2025'] else '▼'} {abs(round((r['2026']-r['2025'])/r['2025']*100,1))}%"
-                        if pd.notna(r.get('2025')) and pd.notna(r.get('2026')) and r['2025'] > 0 else '—', axis=1)
-                    pivot['2025'] = pivot['2025'].apply(lambda x: f"USD {int(round(x)):,}" if pd.notna(x) else '—')
-                    pivot['2026'] = pivot['2026'].apply(lambda x: f"USD {int(round(x)):,}" if pd.notna(x) else '—')
-                    st.dataframe(pivot.rename(columns={'Mes':'Mes','2025':'Mediana 2025','2026':'Mediana 2026'}),
-                                 use_container_width=True, hide_index=True)
-
-            # ═══════════════════════════════════════════════════════════
-            # BLOQUE 4 — GASTOS LOCALES
-            # ═══════════════════════════════════════════════════════════
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("""
-<div style='border-bottom:2px solid rgba(6,182,212,0.3); padding-bottom:10px; margin-bottom:24px;'>
-<span style='color:#06b6d4; font-size:13px; font-weight:800; letter-spacing:5px;'>04 · GASTOS LOCALES ARG</span>
-<span style='color:#475569; font-size:11px; letter-spacing:2px; margin-left:14px;'>VIGENTES HOY · COSTO EN DESTINO</span>
-</div>""", unsafe_allow_html=True)
-
-            df_loc = df_fl[(df_fl['_desde'] <= hoy) & (df_fl['_hasta'] >= hoy) & df_fl['_local'].notna()].copy()
-            if df_loc.empty:
-                ult_l = df_fl[df_fl['_local'].notna()]['_desde'].max()
-                if pd.notna(ult_l):
-                    df_loc = df_fl[(df_fl['_desde'] == ult_l) & df_fl['_local'].notna()].copy()
-
-            if not df_loc.empty:
-                med_loc = df_loc['_local'].median()
-                min_loc = df_loc['_local'].min()
-                max_loc = df_loc['_local'].max()
-                ag_min_loc = df_loc.loc[df_loc['_local'].idxmin(), '_agente']
-                ag_max_loc = df_loc.loc[df_loc['_local'].idxmax(), '_agente']
-
-                lc1, lc2, lc3, lc4 = st.columns(4)
-                for col_card, valor, label, color, sub in [
-                    (lc1, f"USD {int(round(med_loc)):,}", "MEDIANA MERCADO", "#06b6d4", "referencia del mercado"),
-                    (lc2, f"USD {int(round(min_loc)):,}", "MÁS BARATO", "#00ff88", ag_min_loc),
-                    (lc3, f"USD {int(round(max_loc)):,}", "MÁS CARO", "#ff4b4b", ag_max_loc),
-                    (lc4, f"USD {int(round(max_loc - min_loc)):,}", "DIFERENCIA MAX", "#ffaa00", "entre agentes"),
-                ]:
-                    col_card.markdown(f"""
-<div style='text-align:center; padding:22px 12px;
-background:rgba(255,255,255,0.03); border-radius:16px;
-border:1px solid rgba(255,255,255,0.07); border-top:4px solid {color};'>
-<p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 8px 0; text-transform:uppercase;'>{label}</p>
-<p style='color:{color}; font-size:30px; font-weight:900; margin:0; line-height:1;'>{valor}</p>
-<p style='color:#475569; font-size:10px; margin:6px 0 0 0;'>{sub}</p>
-</div>""", unsafe_allow_html=True)
-
-                # Ranking gastos locales
-                st.markdown("<br>", unsafe_allow_html=True)
-                ag_loc = df_loc.groupby('_agente')['_local'].median().reset_index()
-                ag_loc.columns = ['Agente','Gasto Local']
-                ag_loc = ag_loc.sort_values('Gasto Local').reset_index(drop=True)
-                max_gl = ag_loc['Gasto Local'].max()
-
-                for rank, (_, row) in enumerate(ag_loc.head(4).iterrows()):
-                    pct_gl  = round(row['Gasto Local'] / max_gl * 100) if max_gl > 0 else 0
-                    color_gl = '#00ff88' if rank == 0 else ('#ffaa00' if row['Gasto Local'] <= med_loc else '#ff4b4b')
-                    dif_gl  = int(round(row['Gasto Local'] - ag_loc['Gasto Local'].iloc[0]))
-                    dif_str = f"+USD {dif_gl:,} vs más barato" if dif_gl > 0 else "🏆 MÁS BARATO"
-                    dif_col = '#ff4b4b' if dif_gl > 0 else '#00ff88'
-
-                    st.markdown(f"""
-<div style='background:rgba(255,255,255,0.02); border-radius:12px;
-border:1px solid rgba(255,255,255,0.05); padding:14px 18px; margin-bottom:8px;
-border-left:4px solid {color_gl};'>
-<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;'>
-    <div style='display:flex; align-items:center; gap:12px;'>
-        <p style='color:#334155; font-size:18px; font-weight:900; margin:0; width:28px;'>#{rank+1}</p>
-        <p style='color:#f8fafc; font-size:15px; font-weight:700; margin:0;'>{row['Agente']}</p>
-    </div>
-    <div style='text-align:right;'>
-        <p style='color:{color_gl}; font-size:22px; font-weight:900; margin:0;'>USD {int(round(row["Gasto Local"])):,}</p>
-        <p style='color:{dif_col}; font-size:10px; font-weight:700; margin:2px 0 0 0;'>{dif_str}</p>
-    </div>
-</div>
-<div style='height:5px; background:rgba(255,255,255,0.05); border-radius:3px;'>
-    <div style='height:5px; width:{pct_gl}%; background:{color_gl}; border-radius:3px;'></div>
-</div>
-</div>""", unsafe_allow_html=True)
-            else:
-                st.info("No hay gastos locales disponibles para el período vigente.")
-
-        except Exception as e:
-            st.error(f"Error en Fletes y Gastos: {e}")
-            import traceback
-            st.code(traceback.format_exc())
