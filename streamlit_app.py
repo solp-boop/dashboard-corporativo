@@ -12,7 +12,7 @@ st.markdown("""
 
 /* RESET & BASE */
 html, body, [class*="css"] { font-family: 'Inter', 'DM Sans', -apple-system, sans-serif !important; }
-.block-container { padding: 1.5rem 2.5rem 3rem 2.5rem !important; max-width: 1400px; }
+.block-container { padding: 1.5rem 3rem 3rem 3rem !important; }
 .main { background-color: #070c18; }
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -206,14 +206,42 @@ try:
     # ─────────────────────────────────────────────────────────────────────────────
     _fecha_hdr = hoy.strftime('%d %b %Y').upper()
     st.markdown(f"""
-<div style='display:flex; align-items:center; justify-content:space-between;
-margin-bottom:24px; padding-bottom:16px; border-bottom:1px solid rgba(255,255,255,0.05);'>
-<div style='display:flex; align-items:center; gap:14px;'>
-    <span style='font-size:14px; font-weight:700; color:#f1f5f9; letter-spacing:3px;'>BIDCOM</span>
-    <span style='width:1px; height:18px; background:rgba(255,255,255,0.08); display:inline-block;'></span>
-    <span style='font-size:12px; color:#334155; font-weight:400;'>Tablero Logística Internacional</span>
-</div>
-<span style='font-size:11px; color:#1e3a5f; font-weight:500;'>{_fecha_hdr}</span>
+<div style='
+    background: linear-gradient(135deg, rgba(0,20,50,0.85) 0%, rgba(0,35,80,0.9) 100%);
+    border: 1px solid rgba(59,130,246,0.15);
+    border-radius: 16px;
+    padding: 40px 60px;
+    text-align: center;
+    margin-bottom: 32px;
+    position: relative;
+    overflow: hidden;
+'>
+<div style='
+    position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(59,130,246,0.5), transparent);
+'></div>
+<h1 style='
+    font-size: 64px;
+    font-weight: 700;
+    letter-spacing: 16px;
+    margin: 0 0 12px 0;
+    color: #f1f5f9;
+    font-family: Inter, sans-serif;
+'>BIDCOM</h1>
+<p style='
+    font-size: 13px;
+    color: #3b82f6;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    font-weight: 500;
+    margin: 0 0 16px 0;
+'>Tablero Logística Internacional</p>
+<div style='
+    width: 40px; height: 1px;
+    background: rgba(59,130,246,0.3);
+    margin: 0 auto 12px auto;
+'></div>
+<p style='font-size: 11px; color: #334155; margin: 0; font-weight: 400;'>{_fecha_hdr}</p>
 </div>""", unsafe_allow_html=True)
     # ─────────────────────────────────────────────────────────────────────────────
     # --- BANNER ALERTA MERCADO (colapsable, siempre visible debajo del header) ---
@@ -2909,4 +2937,3 @@ border-left:4px solid {color_gl};'>
             st.error(f"Error en Fletes y Gastos: {e}")
             import traceback
             st.code(traceback.format_exc())
-
