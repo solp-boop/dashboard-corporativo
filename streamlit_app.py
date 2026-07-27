@@ -214,7 +214,7 @@ try:
         df = pd.read_csv(url)
         df.columns = df.columns.str.strip()
         return df
-    df = load_main_data(f"{base_url}/export?format=csv&gid=0&nocache={time.time()}")
+    df = load_main_data(f"{base_url}/export?format=csv&gid=0")
     if 'M3 Total' in df.columns:
         df['M3 Total'] = df['M3 Total'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
         df['M3 Total'] = pd.to_numeric(df['M3 Total'], errors='coerce').fillna(0)
