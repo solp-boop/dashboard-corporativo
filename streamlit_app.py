@@ -22,7 +22,7 @@ html, body, [class*="css"] { font-family: 'Inter', 'DM Sans', -apple-system, san
 .stTabs [data-baseweb="tab-list"] {
     gap: 0; border-bottom: 1px solid rgba(255,255,255,0.06);
     margin-bottom: 32px; background: transparent;
-    justify-content: flex-start !important; overflow-x: auto;
+    justify-content: center !important; overflow-x: auto;
 }
 .stTabs [data-baseweb="tab"] {
     background: transparent !important; border: none !important;
@@ -258,7 +258,7 @@ border:1px solid rgba(255,255,255,0.05); text-align:center;'>
         if st.button("↻ Actualizar", key="btn_refresh", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
-    tabs = st.tabs(["ORIGEN", "MERCADERÍA EN PROCESO", "PERFORMANCE ANALISTAS", "PERFORMANCE AGENTES", "FLETES & GASTOS", "PROYECCIÓN SEMANAL ETD", "INDICADORES", "ALERTAS ESTRATÉGICAS", "ASK COMEX"])
+    tabs = st.tabs(["ORIGEN", "MERCADERÍA EN PROCESO", "PERFORMANCE ANALISTAS", "PERFORMANCE AGENTES", "FLETES & GASTOS", "PROYECCIÓN SEMANAL ETD", "INDICADORES", "ASK COMEX"])
     # --- SOLAPA 1: ORIGEN ---
     with tabs[0]:
         try:
@@ -321,7 +321,8 @@ border:1px solid rgba(255,255,255,0.05); text-align:center;'>
             with o4: st.markdown(f"<div class='metric-container'><p>FOB TOTAL (USD)</p><p>${int(round(fob_total_global)):,}</p></div>", unsafe_allow_html=True)
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
             st.markdown("<div style='text-align:center; padding: 20px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; margin-bottom: 30px;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>CONTROL DE STATUS DE MERCADERÍA</h2></div>", unsafe_allow_html=True)
-            s1, s2 = st.columns([1.2, 1])
+            s1, _ = st.columns([1, 0.001])
+            s2 = _
             filtro_actual = st.session_state.get('f')
             with s1:
                 st.markdown(f"""
@@ -382,7 +383,7 @@ border:1px solid rgba(255,255,255,0.05); text-align:center;'>
             f = st.session_state.get('f')
             if f:
                 st.markdown("<br>", unsafe_allow_html=True)
-                if f in ["inst", "venc", "venc_sp", "px25", "rest"]:
+                if f in ["venc", "venc_sp", "px25", "rest"]:
                     if f == "inst": titulo, dff, color = "MERCADERIA INSTRUIDA (PRIORIDAD)", df_inst, "#00ff88"
                     elif f == "venc": titulo, dff, color = "VENCIDA CON PRIORIDAD (ARG · SIN REPUESTO)", df_urgente_prior, "#ff4b4b"
                     elif f == "venc_sp": titulo, dff, color = "VENCIDA SIN PRIORIDAD", df_urgente_sinprior, "#ff8c42"
@@ -1929,306 +1930,8 @@ display:flex; flex-direction:column; justify-content:space-between;'>
                 st.warning("No se encontraron registros marítimos para el año 2026.")
         except Exception as e:
             st.error(f"Error en Indicadores: {e}")
-    # --- SOLAPA 7: ALERTAS ESTRATÉGICAS ---
-    with tabs[7]:
-        try:
-            url_re = f"{base_url}/export?format=csv&gid=276804813"
-            @st.cache_data(ttl=60)
-            def load_alertas_data(u):
-                return pd.read_csv(u, engine='python', on_bad_lines='skip')
-            df_re = load_alertas_data(url_re)
-            df_re.columns = [str(c).strip() for c in df_re.columns]
-            def find_col(df, keywords, fallback_idx):
-                for kw in keywords:
-                    matches = [c for c in df.columns if kw.upper() in str(c).upper()]
-                    if matches: return matches[0]
-                return df.columns[fallback_idx]
-            col_emb_re   = find_col(df_re, ['EMBARQUE'], 0)
-            col_resp     = find_col(df_re, ['RESPONSABLE DE LA CARGA', 'RESPONSABLE'], 33)
-            col_fwd      = find_col(df_re, ['FORWARDER', 'AGENTE'], 6)
-            col_inst_re  = find_col(df_re, ['INSTRUCCION', 'INSTRUCCIÓN'], 7)
-            col_etd_ok   = df_re.columns[10] if len(df_re.columns) > 10 else find_col(df_re, ['ETD OK FFWW'], 10)
-            col_etd_re   = df_re.columns[12] if len(df_re.columns) > 12 else find_col(df_re, ['ETD'], 12)
-            col_pack_min = find_col(df_re, ['PACKEO MIN', 'P MIN', 'MIN PACK'], 18)
-            col_pack_max = find_col(df_re, ['PACKEO MAX', 'P MAX', 'MAX PACK'], 19)
-            col_draft_bl = df_re.columns[35] if len(df_re.columns) > 35 else find_col(df_re, ['DRAFT BL'], 35)
-            col_pack_lst = df_re.columns[36] if len(df_re.columns) > 36 else find_col(df_re, ['PACKING LIST'], 36)
-            col_impo2    = df_re.columns[39] if len(df_re.columns) > 39 else find_col(df_re, ['PASAR A IMPO'], 39)
-            col_t_consol = df_re.columns[29] if len(df_re.columns) > 29 else find_col(df_re, ['TIEMPO TOTAL', 'CONSOLIDACION'], 29)
-            df_re['DT_Inst']       = pd.to_datetime(df_re[col_inst_re],  dayfirst=True, errors='coerce')
-            df_re['DT_ETD']        = pd.to_datetime(df_re[col_etd_re],   dayfirst=True, errors='coerce')
-            df_re['DT_PMin']       = pd.to_datetime(df_re[col_pack_min], dayfirst=True, errors='coerce')
-            df_re['DT_PMax']       = pd.to_datetime(df_re[col_pack_max], dayfirst=True, errors='coerce')
-            df_re['ETD_OK']        = df_re[col_etd_ok].astype(str).str.upper().str.strip() == "OK"
-            df_re['Dias_Esp']      = (hoy - df_re['DT_Inst']).dt.days
-            df_re['Rango_Pack']    = (df_re['DT_PMax'] - df_re['DT_PMin']).dt.days
-            df_re['Dias_ETD_venc'] = (hoy - df_re['DT_ETD']).dt.days
-            TIPOS_MARITIMO = ['20 ST', '40 ST', '40 HQ', '40 NOR']
-            col_tipo_carga = find_col(df_re, ['TIPO CARGA', 'TIPO DE CARGA'], 5)
-            col_emb_pc    = df.columns[16]
-            col_rank_pc   = df.columns[1]
-            col_puerto_pc = df.columns[41]
-            col_n_inv_pc  = df.columns[29]
-            col_inst_pc   = find_col(df, ['INSTRUCCION', 'INSTRUCCIÓN'], 20)
-            col_mono_pc   = find_col(df, ['MONOPROVEEDOR'], 31)
-            def find_sku_nuevo_col(df):
-                for c in df.columns:
-                    limpio = str(c).strip().replace('¿','').replace('?','').upper()
-                    if 'SKU NUEVO' in limpio or 'SKU_NUEVO' in limpio:
-                        return c
-                if len(df.columns) > 111:
-                    return df.columns[111]
-                return None
-            col_nuevo = find_sku_nuevo_col(df)
-            col_mod_pc    = find_col(df, ['MODALIDAD DE COSTEO', 'MODALIDAD COSTEO'], 68)
-            col_pais_pc   = find_col(df, ['PAIS DESTINO', 'PAÍS DESTINO'], 0)
-            PUERTOS_DAVID = ['SHANGHAI', 'QINGDAO', 'TIANJIN', 'NINGBO']
-            def asignar_analista(modalidad, es_mono, puerto):
-                mod  = str(modalidad).strip().upper()
-                mono = str(es_mono).strip().upper()
-                prt  = str(puerto).strip().upper()
-                es_barco  = mod.startswith('BARCO') or 'COSTO HIBRIDO PUERTO ZFLP' in mod
-                es_avion  = mod.startswith('AVION') or mod.startswith('AVIÓN')
-                if es_avion: return 'AZUL'
-                if es_barco:
-                    if mono in ['SI', 'SÍ', 'S']: return 'AGUSTIN'
-                    else:
-                        if any(p in prt for p in PUERTOS_DAVID): return 'DAVID'
-                        else: return 'SOFIA'
-                return 'SIN ASIGNAR'
-            df_ni = df[
-                df[col_inst_pc].isna() |
-                df[col_inst_pc].astype(str).str.strip().isin(['', 'nan', 'SIN INSTRUCCION', 'sin instruccion'])
-            ].copy()
-            df_ni = df_ni[~df_ni.iloc[:, 39].astype(str).str.upper().str.contains('MUESTRA|MUESTRAS|REPUESTOS', na=False)]
-            df_ni['Fecha_Prior_DT'] = pd.to_datetime(df.iloc[:, 99], dayfirst=True, errors='coerce')
-            def filter_ni(row):
-                is_mono = "SÍ" in str(row[col_mono_pc]).upper() or "SI" in str(row[col_mono_pc]).upper()
-                return row['Fecha_Prior_DT'] <= hoy + timedelta(days=25 if is_mono else 10)
-            df_a1 = df_ni[df_ni.apply(filter_ni, axis=1)].copy()
-            def safe_rank(val):
-                try: return float(str(val).replace('.', '').replace(',', '.').strip())
-                except: return 999999
-            df_a1['Rank_Num'] = df_a1[col_rank_pc].apply(safe_rank)
-            df_a1['Analista'] = df_a1.apply(lambda r: asignar_analista(r[col_mod_pc], r[col_mono_pc], r[col_puerto_pc]), axis=1)
-            df_a1['Top Ranking'] = df_a1['Rank_Num'].apply(lambda x: "🏆 SÍ" if x < 300 else "—")
-            if col_nuevo:
-                df_a1['SKU Nuevo'] = df_a1[col_nuevo].apply(lambda x: "✨ SÍ" if str(x).strip().upper() == 'SI' else "—")
-            else:
-                df_a1['SKU Nuevo'] = "—"
-            def clean_num_consol(val):
-                try: return float(str(val).replace(',', '.').replace(' ', '').strip())
-                except: return 0.0
-            df_re['T_Consol'] = df_re[col_t_consol].apply(clean_num_consol)
-            col_mono_re = find_col(df_re, ['MONOPROVEEDOR'], 31)
-            df_re['Es_Mono'] = df_re[col_mono_re].astype(str).str.strip().str.upper().isin(['SI', 'SÍ', 'S', 'MONOPROVEEDOR'])
-            df_mar_re = df_re[
-                df_re[col_tipo_carga].astype(str).str.strip().str.upper().isin([t.upper() for t in TIPOS_MARITIMO])
-            ].copy()
-            df_mar_re['DT_Inst']       = pd.to_datetime(df_mar_re[col_inst_re],  dayfirst=True, errors='coerce')
-            df_mar_re['DT_ETD']        = pd.to_datetime(df_mar_re[col_etd_re],   dayfirst=True, errors='coerce')
-            df_mar_re['DT_PMin']       = pd.to_datetime(df_mar_re[col_pack_min], dayfirst=True, errors='coerce')
-            df_mar_re['DT_PMax']       = pd.to_datetime(df_mar_re[col_pack_max], dayfirst=True, errors='coerce')
-            df_mar_re['ETD_OK']        = df_mar_re[col_etd_ok].astype(str).str.upper().str.strip() == "OK"
-            df_mar_re['Dias_Esp']      = (hoy - df_mar_re['DT_Inst']).dt.days
-            df_mar_re['Rango_Pack']    = (df_mar_re['DT_PMax'] - df_mar_re['DT_PMin']).dt.days
-            df_mar_re['Dias_ETD_venc'] = (hoy - df_mar_re['DT_ETD']).dt.days
-            df_mar_re['T_Consol']      = df_re.loc[df_mar_re.index, 'T_Consol'] if 'T_Consol' in df_re.columns else 0
-            df_mar_re['Es_Mono']       = df_re.loc[df_mar_re.index, 'Es_Mono'] if 'Es_Mono' in df_re.columns else False
-            etd_ok_vacio_re = df_mar_re[col_etd_ok].astype(str).str.strip().str.upper() != 'OK'
-            fuera_sla = (
-                (df_mar_re['Es_Mono'] & (df_mar_re['T_Consol'] > 7)) |
-                (~df_mar_re['Es_Mono'] & (df_mar_re['T_Consol'] > 25))
-            )
-            col_destino_re = df_re.columns[3] if len(df_re.columns) > 3 else find_col(df_re, ['DESTINO', 'PAIS'], 3)
-            solo_argentina = df_mar_re[col_destino_re].astype(str).str.strip().str.upper() == 'ARGENTINA'
-            df_a1b = df_mar_re[
-                etd_ok_vacio_re & fuera_sla & (df_mar_re['T_Consol'] > 0) & solo_argentina
-            ].copy()
-            df_a2 = df_mar_re[df_mar_re['Rango_Pack'].notna() & (df_mar_re['Rango_Pack'] > 7)].copy()
-            col_etd_ok_pc = find_col(df, ['ETD OK FFWW', 'ETD OK'], 97)
-            col_pais_dest = find_col(df, ['PAIS DESTINO', 'PAÍS DESTINO'], 0)
-            def enrich_a2(row):
-                emb    = str(row[col_emb_re]).strip().upper()
-                df_emb = df[df[col_emb_pc].astype(str).str.strip().str.upper() == emb]
-                if df_emb.empty: return pd.Series({'ETD OK FFWW': '—', 'País Destino': '—'})
-                etd_ok = df_emb[col_etd_ok_pc].astype(str).str.upper().str.strip().iloc[0]
-                pais   = df_emb[col_pais_dest].astype(str).str.strip().iloc[0] if col_pais_dest in df_emb.columns else '—'
-                return pd.Series({'ETD OK FFWW': '✅ OK' if etd_ok == 'OK' else '❌ Sin OK', 'País Destino': pais})
-            if not df_a2.empty:
-                enrich_cols = df_a2.apply(enrich_a2, axis=1)
-                df_a2['ETD OK FFWW']  = enrich_cols['ETD OK FFWW']
-                df_a2['País Destino'] = enrich_cols['País Destino']
-            else:
-                df_a2['ETD OK FFWW']  = []
-                df_a2['País Destino'] = []
-            df['Rank_Num_PC'] = df[col_rank_pc].apply(safe_rank)
-            col_etd_ok_pc  = find_col(df, ['ETD OK FFWW'], 97)
-            col_fecha_inst = find_col(df, ['FECHA DE INSTRUCCION', 'FECHA INSTRUCCION', 'FECHA DE INSTRUCCIÓN'], 20)
-            df['DT_Inst_PC']  = pd.to_datetime(df[col_fecha_inst], dayfirst=True, errors='coerce')
-            df['ETD_OK_PC']   = df[col_etd_ok_pc].astype(str).str.upper().str.strip()
-            df['Dias_sin_OK'] = (hoy - df['DT_Inst_PC']).dt.days
-            etd_ok_vacio = df['ETD_OK_PC'].isin(['', 'NAN', 'NONE', 'NO', '—']) | df[col_etd_ok_pc].isna()
-            df_a3_base = df[df['DT_Inst_PC'].notna() & etd_ok_vacio & (df['Dias_sin_OK'] > 7)].copy()
-            alerta3_rows = []
-            if not df_a3_base.empty:
-                for emb, grp in df_a3_base.groupby(col_emb_pc):
-                    emb_str = str(emb).strip().upper()
-                    if emb_str in ['', 'NAN', 'NONE']: continue
-                    cant_top   = grp[grp['Rank_Num_PC'] < 300]['SO'].nunique()
-                    cant_nuevo = grp[grp[col_nuevo].astype(str).str.upper().str.strip() == 'SI']['SO'].nunique() if col_nuevo else 0
-                    total_sos  = grp['SO'].nunique()
-                    flag       = "🚨 SÍ" if (cant_top > 0 or cant_nuevo > 0) else "—"
-                    dt_inst    = grp['DT_Inst_PC'].min()
-                    dias_sin_ok = int((hoy - dt_inst).days) if pd.notna(dt_inst) else 0
-                    forwarder_fmt = '—'
-                    pack_max_fmt  = '—'
-                    resp          = '—'
-                    if not df_re.empty:
-                        match_re = df_re[df_re[col_emb_re].astype(str).str.strip().str.upper() == emb_str]
-                        if not match_re.empty:
-                            resp          = str(match_re[col_resp].iloc[0]).strip()
-                            forwarder_fmt = str(match_re[col_fwd].iloc[0]).strip() if col_fwd in match_re.columns else '—'
-                            pm            = match_re['DT_PMax'].iloc[0]
-                            pack_max_fmt  = pm.strftime('%d/%m/%Y') if pd.notna(pm) else '—'
-                    alerta3_rows.append({
-                        'Embarque': emb, 'Responsable': resp, 'F. Instrucción': dt_inst.strftime('%d/%m/%Y') if pd.notna(dt_inst) else '—',
-                        'Forwarder': forwarder_fmt, 'F. Packeo Max': pack_max_fmt, 'Días sin OK': dias_sin_ok,
-                        'Total SOs': total_sos, 'SOs Top Ranking': str(cant_top) if cant_top > 0 else '—',
-                        'SKUs Nuevos': str(cant_nuevo) if cant_nuevo > 0 else '—', 'Prod. Críticos': flag,
-                    })
-            df_a3 = pd.DataFrame(alerta3_rows)
-            impo2_sin_fecha = (
-                df_mar_re[col_impo2].isna() |
-                df_mar_re[col_impo2].astype(str).str.strip().isin(['', 'nan', 'NaN', 'NONE', '-', '—'])
-            )
-            df_a5 = df_mar_re[
-                df_mar_re['ETD_OK'] & df_mar_re['DT_ETD'].notna() &
-                (df_mar_re['Dias_ETD_venc'] > 7) & impo2_sin_fecha
-            ].copy()
-            def doc_falta(val):
-                return str(val).strip().upper() not in ['SI', 'SÍ', 'S']
-            draft_vacio = df_mar_re[col_draft_bl].apply(doc_falta)
-            pack_vacio  = df_mar_re[col_pack_lst].apply(doc_falta)
-            df_a6 = df_mar_re[
-                df_mar_re['ETD_OK'] & (draft_vacio | pack_vacio) &
-                df_mar_re['DT_ETD'].notna() & (df_mar_re['DT_ETD'] < hoy)
-            ].copy()
-            df_a6['Falta_Draft'] = draft_vacio[df_a6.index]
-            df_a6['Falta_Pack']  = pack_vacio[df_a6.index]
-            st.markdown("""
-<div style='text-align:center; padding:25px; background:linear-gradient(135deg,rgba(255,75,75,0.08),rgba(255,170,0,0.05));
-border-radius:20px; border:1px solid rgba(255,75,75,0.2); margin-bottom:30px;'>
-<h2 style='color:#ff4b4b; font-weight:900; letter-spacing:6px; margin:0; font-size:26px;'>⚡ ALERTAS ESTRATÉGICAS</h2>
-<p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>MARÍTIMO · TIEMPO REAL</p>
-</div>""", unsafe_allow_html=True)
-            def render_alerta(key, emoji, titulo, subtitulo, color, conteo, tabla_fn):
-                estado_key = f"alerta_open_{key}"
-                if estado_key not in st.session_state:
-                    st.session_state[estado_key] = False
-                c_info, c_num, c_btn = st.columns([6, 1, 1.5])
-                with c_info:
-                    st.markdown(f"""
-<div style='padding:14px 18px; background:rgba(255,255,255,0.02);
-border-radius:12px; border-left:4px solid {color};'>
-<p style='color:{color}; font-weight:800; font-size:14px; letter-spacing:2px; margin:0 0 4px 0;'>{emoji} {titulo}</p>
-<p style='color:#94a3b8; font-size:11px; margin:0;'>{subtitulo}</p>
-</div>""", unsafe_allow_html=True)
-                with c_num:
-                    st.markdown(f"""
-<div style='text-align:center; padding:14px 4px; background:rgba(255,255,255,0.03);
-border-radius:12px; border:1px solid {color}44;'>
-<p style='font-size:36px; font-weight:900; color:{color}; margin:0; line-height:1;'>{conteo}</p>
-</div>""", unsafe_allow_html=True)
-                with c_btn:
-                    abierto   = st.session_state[estado_key]
-                    label_btn = "🔼 OCULTAR" if abierto else "🔽 VER DETALLE"
-                    if st.button(label_btn, key=f"btn_{key}", use_container_width=True):
-                        st.session_state[estado_key] = not abierto
-                        st.rerun()
-                if st.session_state[estado_key]:
-                    if conteo == 0: st.success("✅ Sin casos para esta alerta.")
-                    else: tabla_fn()
-                st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
-            def tabla_a1():
-                cols_show = [col_n_inv_pc, 'SO', 'Analista', col_puerto_pc, 'M3 Total', col_mono_pc, 'Top Ranking', 'SKU Nuevo', 'Fecha_Prior_DT']
-                df_show = df_a1[cols_show].copy()
-                df_show['Fecha_Prior_DT'] = df_show['Fecha_Prior_DT'].dt.strftime('%d/%m/%Y')
-                df_show = df_show.rename(columns={col_n_inv_pc: 'Invoice', col_puerto_pc: 'Puerto', col_mono_pc: '¿Mono?', 'Fecha_Prior_DT': 'F. Prioritaria'}).sort_values('F. Prioritaria')
-                st.dataframe(df_show, use_container_width=True, hide_index=True, column_config={'M3 Total': st.column_config.NumberColumn("M3", format="%.1f"), 'Top Ranking': st.column_config.TextColumn("🏆 Ranking"), 'SKU Nuevo': st.column_config.TextColumn("✨ Nuevo"), 'Analista': st.column_config.TextColumn("Analista")})
-            render_alerta("a1", "🔴", "ALERTA 1 — SIN INSTRUIR",
-                "Gadnic + Argentina · ordenado por fecha prioritaria (más vieja primero) · con analista asignado",
-                "#ff4b4b", len(df_a1), tabla_a1)
-            def tabla_a2():
-                df_show = df_a2.copy()
-                df_show['F_Min'] = df_a2['DT_PMin'].dt.strftime('%d/%m/%Y')
-                df_show['F_Max'] = df_a2['DT_PMax'].dt.strftime('%d/%m/%Y')
-                cols = [col_emb_re, col_resp, 'F_Min', 'F_Max', 'Rango_Pack', 'ETD OK FFWW', 'País Destino']
-                df_show = df_show[cols].rename(columns={col_emb_re: 'Embarque', col_resp: 'Responsable', 'F_Min': 'F. Packeo Min', 'F_Max': 'F. Packeo Max', 'Rango_Pack': 'Días Rango'}).sort_values('Días Rango', ascending=False)
-                st.dataframe(df_show, use_container_width=True, hide_index=True, column_config={'Días Rango': st.column_config.NumberColumn(format="%d días ⚡"), 'ETD OK FFWW': st.column_config.TextColumn("ETD OK"), 'País Destino': st.column_config.TextColumn("País")})
-            def tabla_a1b():
-                df_show = df_a1b.copy()
-                df_show['F_ETD']   = df_a1b['DT_ETD'].dt.strftime('%d/%m/%Y')
-                df_show['Tipo']    = df_a1b['Es_Mono'].apply(lambda x: 'MONO' if x else 'CONSOLIDADO')
-                df_show['SLA']     = df_a1b['Es_Mono'].apply(lambda x: '7 días' if x else '25 días')
-                df_show['T. Consol (días)'] = df_a1b['T_Consol'].astype(int)
-                df_show = df_show[[col_emb_re, col_resp, 'Tipo', 'F_ETD', 'T. Consol (días)', 'SLA']]
-                df_show = df_show.rename(columns={col_emb_re: 'Embarque', col_resp: 'Responsable', 'F_ETD': 'ETD'}).sort_values('T. Consol (días)', ascending=False)
-                st.dataframe(df_show, use_container_width=True, hide_index=True, column_config={'T. Consol (días)': st.column_config.NumberColumn(format="%d días ⚠️"), 'SLA': st.column_config.TextColumn("SLA Límite"), 'Tipo': st.column_config.TextColumn("Tipo Carga")})
-            render_alerta("a1b", "🔴", "ALERTA 1B — TIEMPOS DE CONSOLIDACIÓN FUERA DE SLA",
-                "Sin ETD OK · Consolidado >25 días / Monoproveedor >7 días · Ordenado por mayor demora",
-                "#ff4b4b", len(df_a1b), tabla_a1b)
-            render_alerta("a2", "🟠", "ALERTA 2 — VENTANA DE PRODUCCIÓN EXTENDIDA (>7 DÍAS)",
-                "Embarques con más de 7 días entre primer y último packeo · incluye estado ETD y país destino",
-                "#ffaa00", len(df_a2), tabla_a2)
-            def tabla_a3():
-                if df_a3.empty:
-                    st.success("✅ Sin casos.")
-                    return
-                cols_order = ['Embarque', 'Responsable', 'Forwarder', 'F. Instrucción', 'F. Packeo Max', 'Días sin OK', 'Total SOs', 'SOs Top Ranking', 'SKUs Nuevos', 'Prod. Críticos']
-                df_show = df_a3[[c for c in cols_order if c in df_a3.columns]].copy()
-                df_show['_sort_pack'] = pd.to_datetime(df_show['F. Packeo Max'], dayfirst=True, errors='coerce')
-                df_show = df_show.sort_values('_sort_pack', ascending=True).drop(columns=['_sort_pack'])
-                st.dataframe(df_show, use_container_width=True, hide_index=True, column_config={'Días sin OK': st.column_config.NumberColumn(format="%d días ⚠️"), 'SOs Top Ranking': st.column_config.TextColumn("SOs Top Ranking 🏆"), 'SKUs Nuevos': st.column_config.TextColumn("SKUs Nuevos ✨"), 'Total SOs': st.column_config.NumberColumn(format="%d"), 'Forwarder': st.column_config.TextColumn("Forwarder"), 'F. Packeo Max': st.column_config.TextColumn("F. Packeo Max"), 'Prod. Críticos': st.column_config.TextColumn("🚨 Prod. Críticos")})
-                cant_criticos = (df_a3['Prod. Críticos'] == "🚨 SÍ").sum()
-                if cant_criticos > 0:
-                    st.warning(f"💡 {cant_criticos} embarque(s) contienen productos top ranking o SKUs nuevos. Evaluar reasignación de carga.")
-            render_alerta("a3", "🚨", "ALERTA 3 — INSTRUIDAS SIN ETD OK (>7 DÍAS) + PRODUCTOS CRÍTICOS",
-                "Sin confirmación ETD del forwarder · Días contados desde Fecha Instrucción · Incluye flag de productos importantes",
-                "#ff4b4b", len(df_a3), tabla_a3)
-            def tabla_a5():
-                df_show = df_a5.copy()
-                df_show['F_ETD'] = df_a5['DT_ETD'].dt.strftime('%d/%m/%Y')
-                df_show = df_show[[col_emb_re, col_resp, 'F_ETD', 'Dias_ETD_venc']]
-                df_show = df_show.rename(columns={col_emb_re: 'Embarque', col_resp: 'Responsable', 'F_ETD': 'ETD', 'Dias_ETD_venc': 'Días vencida'}).sort_values('Días vencida', ascending=False)
-                st.dataframe(df_show, use_container_width=True, hide_index=True, column_config={'Días vencida': st.column_config.NumberColumn(format="%d días 🔴")})
-            render_alerta("a5", "🔴", "ALERTA 5 — ETD VENCIDA SIN PASAR A IMPO2 (>7 DÍAS)",
-                "ETD confirmada · Zarpe hace más de 7 días · Columna 'Pasar a Impo2' vacía",
-                "#ff4b4b", len(df_a5), tabla_a5)
-            def tabla_a6():
-                df_show = df_a6.copy()
-                df_show['ETD']                = df_a6['DT_ETD'].dt.strftime('%d/%m/%Y')
-                df_show['Falta Draft BL']     = df_a6['Falta_Draft'].apply(lambda x: "❌ Falta" if x else "✅ OK")
-                df_show['Falta Packing List'] = df_a6['Falta_Pack'].apply(lambda x: "❌ Falta" if x else "✅ OK")
-                df_show = df_show[[col_emb_re, col_resp, 'ETD', 'Falta Draft BL', 'Falta Packing List']].copy()
-                df_show = df_show.rename(columns={col_emb_re: 'Embarque', col_resp: 'Responsable'})
-                df_show['_sort'] = pd.to_datetime(df_a6['DT_ETD'].values)
-                df_show = df_show.sort_values('_sort', ascending=True).drop(columns=['_sort'])
-                st.dataframe(df_show, use_container_width=True, hide_index=True, column_config={'ETD': st.column_config.TextColumn("ETD (col M)")})
-            render_alerta("a6", "📋", "ALERTA 6 — RESERVA OK PERO FALTAN DOCUMENTOS",
-                "ETD OK confirmada · Falta Draft BL y/o Packing List Final en Reservas",
-                "#ffaa00", len(df_a6), tabla_a6)
-            def tabla_aereos():
-                st.info("✈️ Módulo de alertas para cargas aéreas en desarrollo. Próximamente disponible.")
-            render_alerta("aereos", "✈️", "ALERTA 7 — AÉREOS",
-                "Módulo en desarrollo · Próximamente disponible",
-                "#94a3b8", 0, tabla_aereos)
-        except Exception as e:
-            st.error(f"Error en Alertas Estratégicas: {e}")
-            import traceback
-            st.code(traceback.format_exc())
     # --- SOLAPA 8: ASK COMEX ---
-    with tabs[8]:
+    with tabs[7]:
         st.markdown("<div style='text-align:center; padding: 40px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; border: 2px dashed rgba(0, 168, 255, 0.2);'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:10px;'>ASK COMEX</h2><p style='color:#94a3b8; font-size:18px; margin-top:20px;'>Inteligencia Operativa en Tiempo Real.</p></div>", unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
         try:
