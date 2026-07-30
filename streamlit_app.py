@@ -7,6 +7,18 @@ import time
 # --- 1. CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="BIDCOM | Dashboard Ejecutivo", layout="wide", initial_sidebar_state="collapsed")
 
+# Eliminar padding default de Streamlit
+st.markdown("""
+<style>
+[data-testid="stAppViewContainer"] { padding: 0 !important; }
+[data-testid="stHeader"] { display: none !important; }
+[data-testid="stToolbar"] { display: none !important; }
+.stDeployButton { display: none !important; }
+#MainMenu { display: none !important; }
+footer { display: none !important; }
+</style>
+""", unsafe_allow_html=True)
+
 # --- 2. DISEÑO BIDCOM IMPACTO TOTAL (CSS) ---
 st.markdown("""
 <style>
