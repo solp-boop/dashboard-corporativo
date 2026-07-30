@@ -312,21 +312,26 @@ try:
             df['Rank_Num'] = df[col_rank].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
             df['Rank_Num'] = pd.to_numeric(df['Rank_Num'], errors='coerce').fillna(999999)
 
-            col_cp = df.columns[93]
-            df['Tipo_Carga'] = df[col_cp].apply(lambda x: 'MONOPROVEEDOR' if str(x).upper() == 'SI' else 'CONSOLIDADO')
+            col_cp = df.columns[94]  # ¿ES MONOPROVEEDOR? columna CQ
+            df['Tipo_Carga'] = df[col_cp].astype(str).str.strip().str.upper().apply(
+                lambda x: 'MONOPROVEEDOR' if x in ['SI', 'SÍ', 'S', 'MONOPROVEEDOR'] else 'CONSOLIDADO'
+            )
 
-            def get_tipo_repuesto(val):
-                val_str = str(val).strip().lower()
-                if val_str in ['', 'nan', 'none'] or pd.isna(val) or val_str == 'nan': return "Gadnic"
-                if "muestra" in val_str: return "Muestras"
-                if "sin planeamiento" in val_str: return "Marcas"
-                return "Gadnic"
-            df['Tipo_Repuesto'] = df['Repuestos'].apply(get_tipo_repuesto) if 'Repuestos' in df.columns else 'Gadnic'
+            col_an = df.columns[39]  # Repuestos columna AN
+            def get_tipo_negocio(val):
+                v = str(val).strip()
+                if v in ['', 'nan', 'None'] or pd.isna(val): return 'GADNIC'
+                vl = v.lower()
+                if 'muestra' in vl: return 'MUESTRAS'
+                if 'sin planeamiento' in vl: return 'MARCAS'
+                if 'repuesto' in vl: return 'REPUESTOS'
+                return 'GADNIC'
+            df['Tipo_Negocio'] = df[col_an].apply(get_tipo_negocio)
 
             df['Pais Destino'] = df['Pais Destino'].fillna('SIN DEFINIR').astype(str).str.strip()
             df['Repuestos'] = df['Repuestos'].fillna('').astype(str).str.strip()
 
-            cond_prioridad = (df['Pais Destino'].str.upper() == 'ARGENTINA') & (df['Tipo_Repuesto'] == 'Gadnic')
+            cond_prioridad = (df['Pais Destino'].str.upper() == 'ARGENTINA') & (df['Tipo_Negocio'] == 'GADNIC')
             cond_instruido = df['Fecha_Inst_DT'].notna() & ~(df['Fecha de Instruccion'].astype(str).str.upper().str.contains("SIN INSTRUCCION", na=False))
             cond_pendiente = ~cond_instruido
             cond_urgente = cond_pendiente & (df['Fecha_Prior_DT'] < hoy)
@@ -344,7 +349,7 @@ try:
             cond_complementario = cond_pendiente & (~cond_prioridad)
             df_complem = df[cond_complementario].sort_values(by=['Fecha_Prior_DT', 'Rank_Num']).copy()
             df_otros_p = df_complem[df_complem['Pais Destino'].str.upper() != 'ARGENTINA'].copy()
-            df_repuestos = df_complem[df_complem['Tipo_Repuesto'] != 'Gadnic'].copy()
+            df_repuestos = df_complem[df_complem['Tipo_Negocio'] != 'GADNIC'].copy()
             cant_demorados_comp = df_complem[df_complem['Fecha_Prior_DT'] < hoy]['SO'].nunique()
 
             m3_inst = df_inst['M3 Total'].sum()
@@ -376,7 +381,7 @@ try:
                 st.markdown(f"""
 <div class="custom-card" style="border-top:5px solid #00ff88; background:rgba(0,255,136,0.02);">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-        <p class="custom-card-title" style="color:#00ff88; font-size:18px; margin:0;">✅ MERCADERÍA INSTRUIDA (LOGRADO)</p>
+        <p class="custom-card-title" style="color:#00ff88; font-size:18px; margin:0;">✅ MERCADERÍA INSTRUIDA</p>
         <p style="color:#00ff88; font-weight:900; font-size:36px; margin:0;">{p_inst_val}% <span style="font-size:14px; color:#94a3b8; font-weight:400;">M3</span></p>
     </div>
     <div class="grid-2" style="margin-bottom:16px;">
@@ -391,9 +396,11 @@ try:
             <p style="font-size:12px; margin:5px 0;">CONSOLIDADO: <b style="color:#ffaa00;">{so_cons_inst} SO</b> · {int(round(m3_cons_inst)):,} M3</p>
         </div>
         <div>
-            <p class="minicard-title" style="color:#ffaa00;">TIPO DE INGRESO</p>
-            <p style="font-size:12px; margin:5px 0;">GADNIC: <b>{df_inst[df_inst['Tipo_Repuesto']=='Gadnic']['SO'].nunique()} SO</b></p>
-            <p style="font-size:12px; margin:5px 0;">MUESTRAS: <b>{df_inst[df_inst['Tipo_Repuesto']=='Muestras']['SO'].nunique()} SO</b></p>
+            <p class="minicard-title" style="color:#ffaa00;">TIPO DE NEGOCIO</p>
+            <p style="font-size:12px; margin:4px 0;">GADNIC: <b>{df_inst[df_inst['Tipo_Negocio']=='GADNIC']['SO'].nunique()} SO</b></p>
+            <p style="font-size:12px; margin:4px 0;">MUESTRAS: <b>{df_inst[df_inst['Tipo_Negocio']=='MUESTRAS']['SO'].nunique()} SO</b></p>
+            <p style="font-size:12px; margin:4px 0;">MARCAS: <b>{df_inst[df_inst['Tipo_Negocio']=='MARCAS']['SO'].nunique()} SO</b></p>
+            <p style="font-size:12px; margin:4px 0;">REPUESTOS: <b>{df_inst[df_inst['Tipo_Negocio']=='REPUESTOS']['SO'].nunique()} SO</b></p>
         </div>
     </div>
 </div>""", unsafe_allow_html=True)
@@ -422,9 +429,11 @@ try:
             <p style="font-size:12px; margin:5px 0;">CONSOLIDADO: <b style="color:#ffaa00;">{so_cons_pend} SO</b> · {int(round(m3_cons_pend)):,} M3</p>
         </div>
         <div>
-            <p class="minicard-title" style="color:#ffaa00;">TIPO DE INGRESO</p>
-            <p style="font-size:12px; margin:5px 0;">GADNIC: <b>{df_pend_view[df_pend_view['Tipo_Repuesto']=='Gadnic']['SO'].nunique()} SO</b></p>
-            <p style="font-size:12px; margin:5px 0;">MUESTRAS: <b>{df_pend_view[df_pend_view['Tipo_Repuesto']=='Muestras']['SO'].nunique()} SO</b></p>
+            <p class="minicard-title" style="color:#ffaa00;">TIPO DE NEGOCIO</p>
+            <p style="font-size:12px; margin:4px 0;">GADNIC: <b>{df_pend_view[df_pend_view['Tipo_Negocio']=='GADNIC']['SO'].nunique()} SO</b></p>
+            <p style="font-size:12px; margin:4px 0;">MUESTRAS: <b>{df_pend_view[df_pend_view['Tipo_Negocio']=='MUESTRAS']['SO'].nunique()} SO</b></p>
+            <p style="font-size:12px; margin:4px 0;">MARCAS: <b>{df_pend_view[df_pend_view['Tipo_Negocio']=='MARCAS']['SO'].nunique()} SO</b></p>
+            <p style="font-size:12px; margin:4px 0;">REPUESTOS: <b>{df_pend_view[df_pend_view['Tipo_Negocio']=='REPUESTOS']['SO'].nunique()} SO</b></p>
         </div>
     </div>
 </div>""", unsafe_allow_html=True)
