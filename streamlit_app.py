@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import time
 
 # --- 1. CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="BIDCOM | Dashboard Ejecutivo", layout="wide")
+st.set_page_config(page_title="BIDCOM | Dashboard Ejecutivo", layout="wide", initial_sidebar_state="collapsed")
 
 # --- 2. DISEÑO BIDCOM IMPACTO TOTAL (CSS) ---
 st.markdown("""
@@ -16,9 +16,25 @@ st.markdown("""
 html, body, [class*="css"] {
     font-family: 'Outfit', sans-serif !important;
 }
-.block-container { padding: 2rem 3rem; }
-.main { background-color: #020617;    color: #00ff88;
+.block-container { 
+    padding: 1rem 2rem !important;
+    max-width: 100% !important;
 }
+.main .block-container {
+    padding-top: 1rem !important;
+    padding-left: 2rem !important;
+    padding-right: 2rem !important;
+    max-width: 100% !important;
+}
+section[data-testid="stSidebar"] { display: none !important; }
+/* Force full width on all main containers */
+div[data-testid="stAppViewContainer"] > section > div {
+    max-width: 100% !important;
+}
+/* Force centered layout */
+.block-container { max-width: 100% !important; padding-left: 2rem !important; padding-right: 2rem !important; }
+section[data-testid="stSidebar"] { display: none; }
+.stMainBlockContainer { padding-top: 1rem !important; }
 
 /* BOTONES COMPACTOS INDICADORES */
 div[data-testid="stColumn"] div[data-testid="stButton"] button {
