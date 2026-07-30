@@ -439,35 +439,50 @@ try:
 </div>""", unsafe_allow_html=True)
 
             st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
+            st.markdown("<p style='color:#00a8ff; font-weight:700; letter-spacing:4px; font-size:18px; margin-bottom:25px; text-align:center;'>DISTRIBUCIÓN GEOGRÁFICA</p>", unsafe_allow_html=True)
 
             res_p = df.groupby('Pais Destino').agg({'SO': 'nunique', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT_SO', 'M3 Total': 'M3'}).sort_values(by='M3', ascending=False)
             total_so_p = res_p['CANT_SO'].sum()
             total_m3_p = res_p['M3'].sum()
 
-            hp1, hp2, hp3, hp4 = st.columns([1.5, 1, 1, 0.8])
-            hp1.markdown("<p style='color:#94a3b8; font-size:12px; letter-spacing:1px; font-weight:700;'>DESTINO</p>", unsafe_allow_html=True)
-            hp2.markdown("<p style='color:#94a3b8; font-size:12px; letter-spacing:1px; font-weight:700; text-align:center;'>VOLUMEN (M3)</p>", unsafe_allow_html=True)
-            hp3.markdown("<p style='color:#94a3b8; font-size:12px; letter-spacing:1px; font-weight:700; text-align:center;'>CANTIDAD SO</p>", unsafe_allow_html=True)
-            hp4.markdown("<p style='color:#94a3b8; font-size:12px; letter-spacing:1px; font-weight:700; text-align:right;'>SHARE %</p>", unsafe_allow_html=True)
-            st.markdown("<hr style='margin:0 0 10px 0; border: none; border-top: 1px solid rgba(255,255,255,0.2);'>", unsafe_allow_html=True)
+            # Mono/Cons por país
+            mono_por_pais = df.groupby(['Pais Destino', 'Tipo_Carga'])['SO'].nunique().unstack(fill_value=0)
+            if 'MONOPROVEEDOR' not in mono_por_pais.columns: mono_por_pais['MONOPROVEEDOR'] = 0
+            if 'CONSOLIDADO'   not in mono_por_pais.columns: mono_por_pais['CONSOLIDADO']   = 0
+
+            hp1, hp2, hp3, hp4, hp5 = st.columns([1.5, 0.9, 0.9, 1.2, 0.7])
+            hp1.markdown("<p style='color:#94a3b8; font-size:11px; letter-spacing:1px; font-weight:700;'>DESTINO</p>", unsafe_allow_html=True)
+            hp2.markdown("<p style='color:#94a3b8; font-size:11px; letter-spacing:1px; font-weight:700; text-align:center;'>VOLUMEN (M3)</p>", unsafe_allow_html=True)
+            hp3.markdown("<p style='color:#94a3b8; font-size:11px; letter-spacing:1px; font-weight:700; text-align:center;'>CANTIDAD SO</p>", unsafe_allow_html=True)
+            hp4.markdown("<p style='color:#94a3b8; font-size:11px; letter-spacing:1px; font-weight:700; text-align:center;'>MONO / CONSOLIDADO</p>", unsafe_allow_html=True)
+            hp5.markdown("<p style='color:#94a3b8; font-size:11px; letter-spacing:1px; font-weight:700; text-align:right;'>SHARE %</p>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin:0 0 10px 0; border:none; border-top:1px solid rgba(255,255,255,0.2);'>", unsafe_allow_html=True)
 
             for pais, row in res_p.iterrows():
-                m3_v = int(round(row['M3']))
-                so_v = int(row['CANT_SO'])
-                pct_v = int(round((m3_v / total_m3_p * 100))) if total_m3_p > 0 else 0
+                m3_v  = int(round(row['M3']))
+                so_v  = int(row['CANT_SO'])
+                pct_v = int(round(m3_v / total_m3_p * 100)) if total_m3_p > 0 else 0
                 color_texto = "#ffffff" if pais != "SIN DEFINIR" else "#64748b"
-                cp1, cp2, cp3, cp4 = st.columns([1.5, 1, 1, 0.8])
-                cp1.markdown(f"<p style='color:{color_texto}; font-weight:600; font-size:16px; margin:8px 0;'>{pais.upper()}</p>", unsafe_allow_html=True)
-                cp2.markdown(f"<p style='color:#00a8ff; font-weight:400; font-size:20px; text-align:center; margin:8px 0;'>{m3_v:,}</p>", unsafe_allow_html=True)
-                cp3.markdown(f"<p style='color:{color_texto}; font-weight:400; font-size:20px; text-align:center; margin:8px 0;'>{so_v}</p>", unsafe_allow_html=True)
-                cp4.markdown(f"<p style='color:#00ff88; font-weight:700; font-size:18px; text-align:right; margin:8px 0;'>{pct_v}%</p>", unsafe_allow_html=True)
+                n_mono = int(mono_por_pais.loc[pais, 'MONOPROVEEDOR']) if pais in mono_por_pais.index else 0
+                n_cons = int(mono_por_pais.loc[pais, 'CONSOLIDADO'])   if pais in mono_por_pais.index else 0
+                total_mc = n_mono + n_cons
+                pct_mono = round(n_mono / total_mc * 100) if total_mc > 0 else 0
+                pct_cons = 100 - pct_mono
+                cp1, cp2, cp3, cp4, cp5 = st.columns([1.5, 0.9, 0.9, 1.2, 0.7])
+                cp1.markdown(f"<p style='color:{color_texto}; font-weight:600; font-size:15px; margin:8px 0;'>{pais.upper()}</p>", unsafe_allow_html=True)
+                cp2.markdown(f"<p style='color:#00a8ff; font-size:18px; text-align:center; margin:8px 0;'>{m3_v:,}</p>", unsafe_allow_html=True)
+                cp3.markdown(f"<p style='color:{color_texto}; font-size:18px; text-align:center; margin:8px 0;'>{so_v}</p>", unsafe_allow_html=True)
+                cp4.markdown(f"<p style='text-align:center; margin:8px 0; font-size:13px;'><span style='color:#00a8ff; font-weight:700;'>MONO {pct_mono}%</span> <span style='color:#334155;'>·</span> <span style='color:#ffaa00; font-weight:700;'>CONS {pct_cons}%</span></p>", unsafe_allow_html=True)
+                cp5.markdown(f"<p style='color:#00ff88; font-weight:700; font-size:16px; text-align:right; margin:8px 0;'>{pct_v}%</p>", unsafe_allow_html=True)
 
-            st.markdown("<hr style='margin:15px 0; border: none; border-top: 1px solid rgba(255,255,255,0.4);'>", unsafe_allow_html=True)
-            tp1, tp2, tp3, tp4 = st.columns([1.5, 1, 1, 0.8])
-            tp1.markdown("<p style='color:#f8fafc; font-weight:800; font-size:18px;'>TOTAL GENERAL</p>", unsafe_allow_html=True)
-            tp2.markdown(f"<p style='color:#00a8ff; font-weight:800; font-size:22px; text-align:center;'>{int(round(total_m3_p)):,}</p>", unsafe_allow_html=True)
-            tp3.markdown(f"<p style='color:#f8fafc; font-weight:800; font-size:22px; text-align:center;'>{int(total_so_p)}</p>", unsafe_allow_html=True)
-            tp4.markdown("<p style='color:#00ff88; font-weight:900; font-size:20px; text-align:right;'>100%</p>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin:15px 0; border:none; border-top:1px solid rgba(255,255,255,0.4);'>", unsafe_allow_html=True)
+            tp1, tp2, tp3, tp4, tp5 = st.columns([1.5, 0.9, 0.9, 1.2, 0.7])
+            tp1.markdown("<p style='color:#f8fafc; font-weight:800; font-size:17px;'>TOTAL GENERAL</p>", unsafe_allow_html=True)
+            tp2.markdown(f"<p style='color:#00a8ff; font-weight:800; font-size:20px; text-align:center;'>{int(round(total_m3_p)):,}</p>", unsafe_allow_html=True)
+            tp3.markdown(f"<p style='color:#f8fafc; font-weight:800; font-size:20px; text-align:center;'>{int(total_so_p)}</p>", unsafe_allow_html=True)
+            tp4.markdown("", unsafe_allow_html=True)
+            tp5.markdown("<p style='color:#00ff88; font-weight:900; font-size:18px; text-align:right;'>100%</p>", unsafe_allow_html=True)
 
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
 
