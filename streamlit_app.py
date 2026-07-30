@@ -367,7 +367,69 @@ try:
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
             st.markdown("<div style='text-align:center; padding: 20px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; margin-bottom: 30px;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>CONTROL DE STATUS DE MERCADERÍA</h2></div>", unsafe_allow_html=True)
 
-            st.markdown("<p style='color:#00a8ff; font-weight:700; letter-spacing:4px; font-size:18px; margin-bottom:25px; text-align:center;'>DISTRIBUCIÓN GEOGRÁFICA</p>", unsafe_allow_html=True)
+            s1, s2 = st.columns(2)
+            with s1:
+                m3_mono_inst = df_inst[df_inst['Tipo_Carga']=='MONOPROVEEDOR']['M3 Total'].sum()
+                m3_cons_inst = df_inst[df_inst['Tipo_Carga']=='CONSOLIDADO']['M3 Total'].sum()
+                so_mono_inst = df_inst[df_inst['Tipo_Carga']=='MONOPROVEEDOR']['SO'].nunique()
+                so_cons_inst = df_inst[df_inst['Tipo_Carga']=='CONSOLIDADO']['SO'].nunique()
+                st.markdown(f"""
+<div class="custom-card" style="border-top:5px solid #00ff88; background:rgba(0,255,136,0.02);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <p class="custom-card-title" style="color:#00ff88; font-size:18px; margin:0;">✅ MERCADERÍA INSTRUIDA (LOGRADO)</p>
+        <p style="color:#00ff88; font-weight:900; font-size:36px; margin:0;">{p_inst_val}% <span style="font-size:14px; color:#94a3b8; font-weight:400;">M3</span></p>
+    </div>
+    <div class="grid-2" style="margin-bottom:16px;">
+        <div><p class="minicard-title">CANTIDAD SO</p><p class="minicard-value" style="color:#00ff88;">{df_inst['SO'].nunique()}</p></div>
+        <div><p class="minicard-title">VOLUMEN TOTAL</p><p class="minicard-value">{int(round(m3_inst)):,} M3</p></div>
+    </div>
+    <hr style="border:none; border-top:1px solid rgba(255,255,255,0.08); margin:14px 0;">
+    <div class="grid-2">
+        <div>
+            <p class="minicard-title" style="color:#00a8ff;">ESTRUCTURA DE CARGA</p>
+            <p style="font-size:12px; margin:5px 0;">MONOPROVEEDOR: <b style="color:#00a8ff;">{so_mono_inst} SO</b> · {int(round(m3_mono_inst)):,} M3</p>
+            <p style="font-size:12px; margin:5px 0;">CONSOLIDADO: <b style="color:#ffaa00;">{so_cons_inst} SO</b> · {int(round(m3_cons_inst)):,} M3</p>
+        </div>
+        <div>
+            <p class="minicard-title" style="color:#ffaa00;">TIPO DE INGRESO</p>
+            <p style="font-size:12px; margin:5px 0;">GADNIC: <b>{df_inst[df_inst['Tipo_Repuesto']=='Gadnic']['SO'].nunique()} SO</b></p>
+            <p style="font-size:12px; margin:5px 0;">MUESTRAS: <b>{df_inst[df_inst['Tipo_Repuesto']=='Muestras']['SO'].nunique()} SO</b></p>
+        </div>
+    </div>
+</div>""", unsafe_allow_html=True)
+
+            with s2:
+                df_pend_view = df[cond_pendiente]
+                m3_mono_pend = df_pend_view[df_pend_view['Tipo_Carga']=='MONOPROVEEDOR']['M3 Total'].sum()
+                m3_cons_pend = df_pend_view[df_pend_view['Tipo_Carga']=='CONSOLIDADO']['M3 Total'].sum()
+                so_mono_pend = df_pend_view[df_pend_view['Tipo_Carga']=='MONOPROVEEDOR']['SO'].nunique()
+                so_cons_pend = df_pend_view[df_pend_view['Tipo_Carga']=='CONSOLIDADO']['SO'].nunique()
+                st.markdown(f"""
+<div class="custom-card" style="border-top:5px solid #94a3b8; background:rgba(148,163,184,0.02);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <p class="custom-card-title" style="color:#f8fafc; font-size:18px; margin:0;">⏳ MERCADERÍA PENDIENTE</p>
+        <p style="color:#f8fafc; font-weight:900; font-size:36px; margin:0;">{p_pend_val}% <span style="font-size:14px; color:#94a3b8; font-weight:400;">M3</span></p>
+    </div>
+    <div class="grid-2" style="margin-bottom:16px;">
+        <div><p class="minicard-title">CANTIDAD SO</p><p class="minicard-value">{df_pend_view['SO'].nunique()}</p></div>
+        <div><p class="minicard-title">VOLUMEN TOTAL</p><p class="minicard-value">{int(round(m3_pend_total)):,} M3</p></div>
+    </div>
+    <hr style="border:none; border-top:1px solid rgba(255,255,255,0.08); margin:14px 0;">
+    <div class="grid-2">
+        <div>
+            <p class="minicard-title" style="color:#00a8ff;">ESTRUCTURA DE CARGA</p>
+            <p style="font-size:12px; margin:5px 0;">MONOPROVEEDOR: <b style="color:#00a8ff;">{so_mono_pend} SO</b> · {int(round(m3_mono_pend)):,} M3</p>
+            <p style="font-size:12px; margin:5px 0;">CONSOLIDADO: <b style="color:#ffaa00;">{so_cons_pend} SO</b> · {int(round(m3_cons_pend)):,} M3</p>
+        </div>
+        <div>
+            <p class="minicard-title" style="color:#ffaa00;">TIPO DE INGRESO</p>
+            <p style="font-size:12px; margin:5px 0;">GADNIC: <b>{df_pend_view[df_pend_view['Tipo_Repuesto']=='Gadnic']['SO'].nunique()} SO</b></p>
+            <p style="font-size:12px; margin:5px 0;">MUESTRAS: <b>{df_pend_view[df_pend_view['Tipo_Repuesto']=='Muestras']['SO'].nunique()} SO</b></p>
+        </div>
+    </div>
+</div>""", unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
 
             res_p = df.groupby('Pais Destino').agg({'SO': 'nunique', 'M3 Total': 'sum'}).rename(columns={'SO': 'CANT_SO', 'M3 Total': 'M3'}).sort_values(by='M3', ascending=False)
             total_so_p = res_p['CANT_SO'].sum()
