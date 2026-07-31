@@ -78,20 +78,26 @@ hr { margin: 1rem 0 !important; opacity: 0.1; }
 /* TABS */
 .stTabs [data-baseweb="tab-list"] { 
     justify-content: center !important;
-    gap: 8px;
-    margin-bottom: 50px;
-    animation: fadeInUp 0.8s ease-out;
+    gap: 6px !important;
+    margin: 0 auto 40px auto !important;
+    width: fit-content !important;
+    min-width: 60% !important;
+    max-width: 100% !important;
+    display: flex !important;
     background: rgba(255,255,255,0.02) !important;
     border-radius: 16px !important;
     padding: 8px !important;
     border: 1px solid rgba(255,255,255,0.06) !important;
+    position: relative !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
 }
 .stTabs [data-baseweb="tab"] { 
     background-color: transparent !important;
     border-radius: 10px !important;
     border: 1px solid transparent !important;
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    padding: 10px 20px !important;
+    padding: 10px 18px !important;
     color: #475569 !important;
     font-weight: 700 !important;
     letter-spacing: 1.5px;
@@ -110,6 +116,9 @@ hr { margin: 1rem 0 !important; opacity: 0.1; }
     color: #00a8ff !important;
     border: 1px solid rgba(0,168,255,0.35) !important;
 }
+/* Hide default tab border bottom */
+.stTabs [data-baseweb="tab-highlight"] { display: none !important; }
+.stTabs [data-baseweb="tab-border"] { display: none !important; }
 
 /* ENCABEZADO */
 .bidcom-header {
@@ -344,7 +353,7 @@ try:
             df['Rank_Num'] = df[col_rank].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
             df['Rank_Num'] = pd.to_numeric(df['Rank_Num'], errors='coerce').fillna(999999)
 
-            col_cp = df.columns[94]  # ¿ES MONOPROVEEDOR? columna CQ
+            col_cp = df.columns[95]  # ¿ES MONOPROVEEDOR? columna CR
             df['Tipo_Carga'] = df[col_cp].astype(str).str.strip().str.upper().apply(
                 lambda x: 'MONOPROVEEDOR' if x in ['SI', 'SÍ', 'S', 'MONOPROVEEDOR'] else 'CONSOLIDADO'
             )
@@ -599,7 +608,7 @@ try:
             try:
                 col_mod_mono = [c for c in df.columns if 'MODALIDAD' in str(c).upper() and 'COSTEO' in str(c).upper()]
                 col_mod_mono = col_mod_mono[0] if col_mod_mono else 'Modalidad de Costeo Reposicion'
-                col_mono_orig = df.columns[94]  # ¿ES MONOPROVEEDOR? columna CQ
+                col_mono_orig = df.columns[95]  # ¿ES MONOPROVEEDOR? columna CR
 
                 if col_mod_mono in df.columns:
                     # Mismo dataset que PROYECCIÓN MENSUAL ETD/ETA — sin filtro adicional
