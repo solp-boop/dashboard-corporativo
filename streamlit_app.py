@@ -567,7 +567,7 @@ try:
                     legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, bgcolor='rgba(0,0,0,0)'),
                     yaxis=dict(title='M3', showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)'),
                     yaxis2=dict(title='FOB USD', overlaying='y', side='right', showgrid=False,
-                                tickformat=',.0f', titlefont=dict(color='#ffaa00'), tickfont=dict(color='#ffaa00')),
+                                tickformat=',.0f', title=dict(text='FOB USD', font=dict(color='#ffaa00')), tickfont=dict(color='#ffaa00')),
                     xaxis=dict(title='Mes ETD'),
                     barmode='group'
                 )
@@ -601,7 +601,7 @@ try:
                     legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, bgcolor='rgba(0,0,0,0)'),
                     yaxis=dict(title='M3', showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)'),
                     yaxis2=dict(title='FOB USD', overlaying='y', side='right', showgrid=False,
-                                tickformat=',.0f', titlefont=dict(color='#ffaa00'), tickfont=dict(color='#ffaa00')),
+                                tickformat=',.0f', title=dict(text='FOB USD', font=dict(color='#ffaa00')), tickfont=dict(color='#ffaa00')),
                     xaxis=dict(title='Mes ETA'),
                     barmode='group'
                 )
