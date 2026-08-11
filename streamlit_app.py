@@ -343,7 +343,7 @@ try:
 <p style='color:#334155; font-size:12px; margin:0;'>Próximamente disponible · El equipo está consolidando los datos más recientes del mercado marítimo internacional.</p>
 </div>
 """, unsafe_allow_html=True)
-    tabs = st.tabs(["ORIGEN", "MERCADERÍA EN PROCESO", "PERFORMANCE DE AGENTES Y ANALISTAS", "FLETES, GASTOS Y CERTIFICACIONES", "PROYECCIÓN SEMANAL ETD", "INDICADORES", "ASK COMEX"])
+    tabs = st.tabs(["ORIGEN", "MERCADERÍA EN PROCESO", "PERFORMANCE DE AGENTES Y ANALISTAS", "FLETES, GASTOS Y CERTIFICACIONES", "PROYECCIÓN SEMANAL ETD", "INDICADORES", "HISTÓRICO", "ASK COMEX"])
 
     # --- SOLAPA 1: ORIGEN ---
     with tabs[0]:
@@ -770,163 +770,6 @@ border-radius:12px; border-top:3px solid {color_r}; border:1px solid rgba(255,25
             except Exception as e_mono:
                 st.error(f"Error en proyección Mono/Consolidado: {e_mono}")
 
-            # ── TIEMPOS POR PUERTO: CONSOLIDACIÓN + TRANSIT TIME ──────────────
-            st.markdown("<hr class='white-divider'>", unsafe_allow_html=True)
-            st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:18px; text-align:center; letter-spacing:4px; margin-bottom:6px;'>TIEMPOS POR PUERTO DE ORIGEN</p>", unsafe_allow_html=True)
-            st.markdown("<p style='color:#475569; font-size:11px; text-align:center; margin-bottom:24px;'>Mediana de Consolidación + Transit Time real · Comparativa vs targets 2026 · Solo embarques marítimos</p>", unsafe_allow_html=True)
-
-            try:
-                @st.cache_data(ttl=60)
-                def load_rh_tiempos(base):
-                    url = f"{base}/export?format=csv&gid=32771816"
-                    return pd.read_csv(url, engine='python', on_bad_lines='skip', header=0)
-
-                @st.cache_data(ttl=60)
-                def load_val_tiempos(base):
-                    url = f"{base}/export?format=csv&gid=889641786"
-                    return pd.read_csv(url, engine='python', on_bad_lines='skip', header=0)
-
-                df_rh_t = load_rh_tiempos(base_url)
-                df_val_t = load_val_tiempos(base_url)
-
-                # ── RESERVAS HISTÓRICAS: limpiar y filtrar ───────────────────
-                col_rh_puerto   = df_rh_t.columns[4]   # E: Puerto/Aeropuerto
-                col_rh_tipo     = df_rh_t.columns[5]   # F: Tipo Carga
-                col_rh_etd      = df_rh_t.columns[11]  # L: ETD
-                col_rh_mono     = df_rh_t.columns[24]  # Y: ¿ES MONOPROVEEDOR?
-                col_rh_consol   = df_rh_t.columns[32]  # AG: T.Consolidación
-                col_rh_tt       = df_rh_t.columns[74]  # BW: TT real (índice 74)
-
-                # Excluir aéreos/courier
-                excluir_tipo = ['AVION', 'AVIÓN', 'COURIER', 'COURRIER', 'AIR']
-                mask_mar_rh = ~df_rh_t[col_rh_tipo].astype(str).str.upper().str.strip().apply(
-                    lambda x: any(e in x for e in excluir_tipo)
-                )
-
-                # Filtrar 2026 por ETD
-                df_rh_t['_etd_dt'] = pd.to_datetime(df_rh_t[col_rh_etd], dayfirst=True, errors='coerce')
-                mask_2026 = df_rh_t['_etd_dt'].dt.year == 2026
-
-                df_rh_t2 = df_rh_t[mask_mar_rh & mask_2026].copy()
-
-                def safe_num_rh(v):
-                    try: return float(str(v).replace(',','.').strip())
-                    except: return None
-
-                df_rh_t2['_consol'] = df_rh_t2[col_rh_consol].apply(safe_num_rh)
-                df_rh_t2['_tt']     = df_rh_t2[col_rh_tt].apply(safe_num_rh)
-                df_rh_t2['_es_mono'] = df_rh_t2[col_rh_mono].astype(str).str.strip().str.upper().isin(['SI','SÍ','S','MONOPROVEEDOR'])
-                df_rh_t2['_puerto'] = df_rh_t2[col_rh_puerto].astype(str).str.strip().str.title()
-
-                # ── VALIDACIONES: parsear targets ────────────────────────────
-                # Col E=idx4: Puerto-tipo, F=idx5: Consol target, G=idx6: TT target, H=idx7: Total target
-                col_v_puerto = df_val_t.columns[4]
-                col_v_consol = df_val_t.columns[5]
-                col_v_tt     = df_val_t.columns[6]
-                col_v_total  = df_val_t.columns[7]
-
-                targets = {}
-                for _, vr in df_val_t.iterrows():
-                    raw = str(vr[col_v_puerto]).strip()
-                    if raw in ['', 'nan', 'Puertos']: continue
-                    es_mono_v = 'MONO' in raw.upper() or 'MONOPRO' in raw.upper()
-                    puerto_v  = raw.split('-')[0].strip()
-                    try: tc = float(str(vr[col_v_consol]).replace(',','.'))
-                    except: tc = None
-                    try: tt = float(str(vr[col_v_tt]).replace(',','.'))
-                    except: tt = None
-                    try: tot = float(str(vr[col_v_total]).replace(',','.'))
-                    except: tot = None
-                    key = (puerto_v.upper(), 'MONO' if es_mono_v else 'CONS')
-                    targets[key] = {'consol': tc, 'tt': tt, 'total': tot}
-
-                def semaforo_color(real, target):
-                    if real is None or target is None: return '#475569', '—'
-                    if real <= target: return '#00ff88', '✅'
-                    elif real <= target * 1.15: return '#ffaa00', '⚠️'
-                    else: return '#ff4b4b', '🔴'
-
-                def render_tabla_puertos(df_sub, tipo_label, tipo_key):
-                    puertos_data = df_sub.groupby('_puerto').agg(
-                        med_consol=('_consol', 'median'),
-                        med_tt=('_tt', 'median'),
-                        n=('_consol', 'count')
-                    ).reset_index()
-                    puertos_data = puertos_data[puertos_data['n'] >= 2].sort_values('med_consol', ascending=False)
-                    if puertos_data.empty:
-                        st.info(f"Sin datos suficientes para {tipo_label}")
-                        return
-
-                    # ── RESUMEN GLOBAL ───────────────────────────────────
-                    med_consol_g = df_sub['_consol'].dropna().median()
-                    med_tt_g     = df_sub['_tt'].dropna().median()
-                    total_g      = (med_consol_g if med_consol_g == med_consol_g else 0) + (med_tt_g if med_tt_g == med_tt_g else 0)
-                    color_tipo   = '#00a8ff' if tipo_key == 'MONO' else '#ffaa00'
-
-                    st.markdown(f"""
-<div style='background:rgba(255,255,255,0.02); border-radius:14px; border-left:4px solid {color_tipo};
-padding:18px 24px; margin-bottom:20px; display:flex; gap:32px; align-items:center; flex-wrap:wrap;'>
-<div>
-    <p style='color:#64748b; font-size:9px; letter-spacing:2px; margin:0 0 3px 0; text-transform:uppercase;'>{tipo_label} · Mediana Global 2026</p>
-    <p style='color:{color_tipo}; font-size:28px; font-weight:900; margin:0; line-height:1;'>{int(round(total_g))}d <span style='font-size:13px; color:#475569; font-weight:400;'>total</span></p>
-</div>
-<div style='width:1px; background:rgba(255,255,255,0.08); align-self:stretch;'></div>
-<div>
-    <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;'>CONSOLIDACIÓN</p>
-    <p style='color:#00a8ff; font-size:20px; font-weight:800; margin:0;'>{int(round(med_consol_g)) if med_consol_g==med_consol_g else '—'}d</p>
-</div>
-<div style='color:#334155; font-size:20px;'>+</div>
-<div>
-    <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;'>TRANSIT TIME</p>
-    <p style='color:#ffaa00; font-size:20px; font-weight:800; margin:0;'>{int(round(med_tt_g)) if med_tt_g==med_tt_g else '—'}d</p>
-</div>
-<div style='color:#334155; font-size:20px;'>=</div>
-<div>
-    <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;'>TOTAL</p>
-    <p style='color:{color_tipo}; font-size:20px; font-weight:900; margin:0;'>{int(round(total_g))}d</p>
-</div>
-</div>""", unsafe_allow_html=True)
-
-                    # Headers
-                    h1,h2,h3,h4,h5,h6,h7 = st.columns([1.4, 0.6, 0.8, 0.8, 0.8, 0.8, 0.5])
-                    h1.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700;'>PUERTO</p>", unsafe_allow_html=True)
-                    h2.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>EMB.</p>", unsafe_allow_html=True)
-                    h3.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>CONSOL (real)</p>", unsafe_allow_html=True)
-                    h4.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>TT (real)</p>", unsafe_allow_html=True)
-                    h5.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>TOTAL (real)</p>", unsafe_allow_html=True)
-                    h6.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>T. VALIDACIONES</p>", unsafe_allow_html=True)
-                    h7.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>🚦</p>", unsafe_allow_html=True)
-                    st.markdown("<hr style='margin:4px 0 8px 0; border:none; border-top:1px solid rgba(255,255,255,0.12);'>", unsafe_allow_html=True)
-
-                    for _, pr in puertos_data.iterrows():
-                        puerto_n = pr['_puerto']
-                        mc = pr['med_consol']
-                        mt = pr['med_tt']
-                        n_emb = int(pr['n'])
-                        total_real = (mc if mc == mc else 0) + (mt if mt == mt else 0)
-                        tgt = targets.get((puerto_n.upper(), tipo_key), targets.get((puerto_n.title().upper(), tipo_key), {}))
-                        tgt_total = tgt.get('total')
-                        color_sem, ico = semaforo_color(total_real, tgt_total)
-                        c1,c2,c3,c4,c5,c6,c7 = st.columns([1.4, 0.6, 0.8, 0.8, 0.8, 0.8, 0.5])
-                        c1.markdown(f"<p style='color:#f8fafc; font-size:14px; font-weight:600; margin:6px 0;'>{puerto_n}</p>", unsafe_allow_html=True)
-                        c2.markdown(f"<p style='color:#64748b; font-size:13px; font-weight:600; text-align:center; margin:6px 0;'>{n_emb}</p>", unsafe_allow_html=True)
-                        c3.markdown(f"<p style='color:#00a8ff; font-size:15px; font-weight:700; text-align:center; margin:6px 0;'>{int(round(mc)) if mc==mc else '—'}d</p>", unsafe_allow_html=True)
-                        c4.markdown(f"<p style='color:#ffaa00; font-size:15px; font-weight:700; text-align:center; margin:6px 0;'>{int(round(mt)) if mt==mt else '—'}d</p>", unsafe_allow_html=True)
-                        c5.markdown(f"<p style='color:{color_sem}; font-size:16px; font-weight:900; text-align:center; margin:6px 0;'>{int(round(total_real))}d</p>", unsafe_allow_html=True)
-                        c6.markdown(f"<p style='color:#475569; font-size:14px; text-align:center; margin:6px 0;'>{int(tgt_total) if tgt_total else '—'}d</p>", unsafe_allow_html=True)
-                        c7.markdown(f"<p style='font-size:18px; text-align:center; margin:6px 0;'>{ico}</p>", unsafe_allow_html=True)
-
-                tab_mono, tab_cons = st.tabs(["🔵 MONOPROVEEDOR", "🟡 CONSOLIDADO"])
-                with tab_mono:
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    render_tabla_puertos(df_rh_t2[df_rh_t2['_es_mono']], "Monoproveedor", "MONO")
-                with tab_cons:
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    render_tabla_puertos(df_rh_t2[~df_rh_t2['_es_mono']], "Consolidado", "CONS")
-
-            except Exception as e_tp:
-                st.error(f"Error en Tiempos por Puerto: {e_tp}")
-                import traceback; st.code(traceback.format_exc())
 
         except Exception as e:
             st.error(f"Error en Solapa Origen: {e}")
@@ -2568,7 +2411,215 @@ border-radius:12px; border-top:2px solid {color};'>
             st.error(f"Error en Indicadores: {e}")
 
     # --- SOLAPA 7: ALERTAS ESTRATÉGICAS ---
+
+    # --- SOLAPA 7: HISTÓRICO ---
     with tabs[6]:
+        try:
+            st.markdown("<div style='text-align:center; padding:20px; background:rgba(0,168,255,0.05); border-radius:20px; margin:30px 0;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>HISTÓRICO</h2><p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>TIEMPOS · EMBARQUES · 2026</p></div>", unsafe_allow_html=True)
+
+            # ── TIEMPOS POR PUERTO: CONSOLIDACIÓN + TRANSIT TIME ──────────────
+            st.markdown("<hr class='white-divider'>", unsafe_allow_html=True)
+            st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:18px; text-align:center; letter-spacing:4px; margin-bottom:6px;'>TIEMPOS POR PUERTO DE ORIGEN</p>", unsafe_allow_html=True)
+            st.markdown("<p style='color:#475569; font-size:11px; text-align:center; margin-bottom:24px;'>Mediana de Consolidación + Transit Time real · Comparativa vs targets 2026 · Solo embarques marítimos</p>", unsafe_allow_html=True)
+
+            try:
+                @st.cache_data(ttl=60)
+                def load_rh_tiempos(base):
+                    url = f"{base}/export?format=csv&gid=32771816"
+                    return pd.read_csv(url, engine='python', on_bad_lines='skip', header=0)
+
+                @st.cache_data(ttl=60)
+                def load_val_tiempos(base):
+                    url = f"{base}/export?format=csv&gid=889641786"
+                    return pd.read_csv(url, engine='python', on_bad_lines='skip', header=0)
+
+                df_rh_t = load_rh_tiempos(base_url)
+                df_val_t = load_val_tiempos(base_url)
+
+                # ── RESERVAS HISTÓRICAS: limpiar y filtrar ───────────────────
+                col_rh_puerto   = df_rh_t.columns[4]   # E: Puerto/Aeropuerto
+                col_rh_tipo     = df_rh_t.columns[5]   # F: Tipo Carga
+                col_rh_etd      = df_rh_t.columns[11]  # L: ETD
+                col_rh_mono     = df_rh_t.columns[24]  # Y: ¿ES MONOPROVEEDOR?
+                col_rh_consol   = df_rh_t.columns[32]  # AG: T.Consolidación
+                col_rh_tt       = df_rh_t.columns[74]  # BW: TT real (índice 74)
+
+                # Excluir aéreos/courier
+                excluir_tipo = ['AVION', 'AVIÓN', 'COURIER', 'COURRIER', 'AIR']
+                mask_mar_rh = ~df_rh_t[col_rh_tipo].astype(str).str.upper().str.strip().apply(
+                    lambda x: any(e in x for e in excluir_tipo)
+                )
+
+                # Filtrar 2026 por ETD
+                df_rh_t['_etd_dt'] = pd.to_datetime(df_rh_t[col_rh_etd], dayfirst=True, errors='coerce')
+                mask_2026 = df_rh_t['_etd_dt'].dt.year == 2026
+
+                df_rh_t2 = df_rh_t[mask_mar_rh & mask_2026].copy()
+
+                def safe_num_rh(v):
+                    try: return float(str(v).replace(',','.').strip())
+                    except: return None
+
+                df_rh_t2['_consol'] = df_rh_t2[col_rh_consol].apply(safe_num_rh)
+                df_rh_t2['_tt']     = df_rh_t2[col_rh_tt].apply(safe_num_rh)
+                df_rh_t2['_es_mono'] = df_rh_t2[col_rh_mono].astype(str).str.strip().str.upper().isin(['SI','SÍ','S','MONOPROVEEDOR'])
+                df_rh_t2['_puerto'] = df_rh_t2[col_rh_puerto].astype(str).str.strip().str.title()
+
+                # ── VALIDACIONES: parsear targets ────────────────────────────
+                # Col E=idx4: Puerto-tipo, F=idx5: Consol target, G=idx6: TT target, H=idx7: Total target
+                col_v_puerto = df_val_t.columns[4]
+                col_v_consol = df_val_t.columns[5]
+                col_v_tt     = df_val_t.columns[6]
+                col_v_total  = df_val_t.columns[7]
+
+                targets = {}
+                for _, vr in df_val_t.iterrows():
+                    raw = str(vr[col_v_puerto]).strip()
+                    if raw in ['', 'nan', 'Puertos']: continue
+                    es_mono_v = 'MONO' in raw.upper() or 'MONOPRO' in raw.upper()
+                    puerto_v  = raw.split('-')[0].strip()
+                    try: tc = float(str(vr[col_v_consol]).replace(',','.'))
+                    except: tc = None
+                    try: tt = float(str(vr[col_v_tt]).replace(',','.'))
+                    except: tt = None
+                    try: tot = float(str(vr[col_v_total]).replace(',','.'))
+                    except: tot = None
+                    key = (puerto_v.upper(), 'MONO' if es_mono_v else 'CONS')
+                    targets[key] = {'consol': tc, 'tt': tt, 'total': tot}
+
+                def semaforo_color(real, target):
+                    if real is None or target is None: return '#475569', '—'
+                    if real <= target: return '#00ff88', '✅'
+                    elif real <= target * 1.15: return '#ffaa00', '⚠️'
+                    else: return '#ff4b4b', '🔴'
+
+                def render_tabla_puertos(df_sub, tipo_label, tipo_key):
+                    puertos_data = df_sub.groupby('_puerto').agg(
+                        med_consol=('_consol', 'median'),
+                        med_tt=('_tt', 'median'),
+                        n=('_consol', 'count')
+                    ).reset_index()
+                    puertos_data = puertos_data[puertos_data['n'] >= 2].sort_values('med_consol', ascending=False)
+                    if puertos_data.empty:
+                        st.info(f"Sin datos suficientes para {tipo_label}")
+                        return
+
+                    # ── RESUMEN GLOBAL ───────────────────────────────────
+                    med_consol_g = df_sub['_consol'].dropna().median()
+                    med_tt_g     = df_sub['_tt'].dropna().median()
+                    total_g      = (med_consol_g if med_consol_g == med_consol_g else 0) + (med_tt_g if med_tt_g == med_tt_g else 0)
+                    color_tipo   = '#00a8ff' if tipo_key == 'MONO' else '#ffaa00'
+
+                    st.markdown(f"""
+            <div style='background:rgba(255,255,255,0.02); border-radius:14px; border-left:4px solid {color_tipo};
+            padding:18px 24px; margin-bottom:20px; display:flex; gap:32px; align-items:center; flex-wrap:wrap;'>
+            <div>
+                <p style='color:#64748b; font-size:9px; letter-spacing:2px; margin:0 0 3px 0; text-transform:uppercase;'>{tipo_label} · Mediana Global 2026</p>
+                <p style='color:{color_tipo}; font-size:28px; font-weight:900; margin:0; line-height:1;'>{int(round(total_g))}d <span style='font-size:13px; color:#475569; font-weight:400;'>total</span></p>
+            </div>
+            <div style='width:1px; background:rgba(255,255,255,0.08); align-self:stretch;'></div>
+            <div>
+                <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;'>CONSOLIDACIÓN</p>
+                <p style='color:#00a8ff; font-size:20px; font-weight:800; margin:0;'>{int(round(med_consol_g)) if med_consol_g==med_consol_g else '—'}d</p>
+            </div>
+            <div style='color:#334155; font-size:20px;'>+</div>
+            <div>
+                <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;'>TRANSIT TIME</p>
+                <p style='color:#ffaa00; font-size:20px; font-weight:800; margin:0;'>{int(round(med_tt_g)) if med_tt_g==med_tt_g else '—'}d</p>
+            </div>
+            <div style='color:#334155; font-size:20px;'>=</div>
+            <div>
+                <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;'>TOTAL</p>
+                <p style='color:{color_tipo}; font-size:20px; font-weight:900; margin:0;'>{int(round(total_g))}d</p>
+            </div>
+            </div>""", unsafe_allow_html=True)
+
+                    # Headers
+                    h1,h2,h3,h4,h5,h6,h7 = st.columns([1.4, 0.6, 0.8, 0.8, 0.8, 0.8, 0.5])
+                    h1.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700;'>PUERTO</p>", unsafe_allow_html=True)
+                    h2.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>EMB.</p>", unsafe_allow_html=True)
+                    h3.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>CONSOL (real)</p>", unsafe_allow_html=True)
+                    h4.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>TT (real)</p>", unsafe_allow_html=True)
+                    h5.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>TOTAL (real)</p>", unsafe_allow_html=True)
+                    h6.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>T. VALIDACIONES</p>", unsafe_allow_html=True)
+                    h7.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>🚦</p>", unsafe_allow_html=True)
+                    st.markdown("<hr style='margin:4px 0 8px 0; border:none; border-top:1px solid rgba(255,255,255,0.12);'>", unsafe_allow_html=True)
+
+                    for _, pr in puertos_data.iterrows():
+                        puerto_n = pr['_puerto']
+                        mc = pr['med_consol']
+                        mt = pr['med_tt']
+                        n_emb = int(pr['n'])
+                        total_real = (mc if mc == mc else 0) + (mt if mt == mt else 0)
+                        tgt = targets.get((puerto_n.upper(), tipo_key), targets.get((puerto_n.title().upper(), tipo_key), {}))
+                        tgt_total = tgt.get('total')
+                        color_sem, ico = semaforo_color(total_real, tgt_total)
+                        c1,c2,c3,c4,c5,c6,c7 = st.columns([1.4, 0.6, 0.8, 0.8, 0.8, 0.8, 0.5])
+                        c1.markdown(f"<p style='color:#f8fafc; font-size:14px; font-weight:600; margin:6px 0;'>{puerto_n}</p>", unsafe_allow_html=True)
+                        c2.markdown(f"<p style='color:#64748b; font-size:13px; font-weight:600; text-align:center; margin:6px 0;'>{n_emb}</p>", unsafe_allow_html=True)
+                        c3.markdown(f"<p style='color:#00a8ff; font-size:15px; font-weight:700; text-align:center; margin:6px 0;'>{int(round(mc)) if mc==mc else '—'}d</p>", unsafe_allow_html=True)
+                        c4.markdown(f"<p style='color:#ffaa00; font-size:15px; font-weight:700; text-align:center; margin:6px 0;'>{int(round(mt)) if mt==mt else '—'}d</p>", unsafe_allow_html=True)
+                        c5.markdown(f"<p style='color:{color_sem}; font-size:16px; font-weight:900; text-align:center; margin:6px 0;'>{int(round(total_real))}d</p>", unsafe_allow_html=True)
+                        c6.markdown(f"<p style='color:#475569; font-size:14px; text-align:center; margin:6px 0;'>{int(tgt_total) if tgt_total else '—'}d</p>", unsafe_allow_html=True)
+                        c7.markdown(f"<p style='font-size:18px; text-align:center; margin:6px 0;'>{ico}</p>", unsafe_allow_html=True)
+
+                tab_mono, tab_cons = st.tabs(["🔵 MONOPROVEEDOR", "🟡 CONSOLIDADO"])
+                with tab_mono:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    render_tabla_puertos(df_rh_t2[df_rh_t2['_es_mono']], "Monoproveedor", "MONO")
+                with tab_cons:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    render_tabla_puertos(df_rh_t2[~df_rh_t2['_es_mono']], "Consolidado", "CONS")
+
+            except Exception as e_tp:
+                st.error(f"Error en Tiempos por Puerto: {e_tp}")
+                import traceback; st.code(traceback.format_exc())
+
+
+            # ── EMBARCADO 2026 ─────────────────────────────────────────────
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
+            st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:18px; text-align:center; letter-spacing:4px; margin-bottom:6px;'>EMBARCADO 2026</p>", unsafe_allow_html=True)
+            st.markdown("<p style='color:#475569; font-size:11px; text-align:center; margin-bottom:24px;'>Reservas Históricas · Solo marítimos · ETD 2026</p>", unsafe_allow_html=True)
+            try:
+                @st.cache_data(ttl=60)
+                def load_rh_emb(base):
+                    url = f"{base}/export?format=csv&gid=32771816"
+                    return pd.read_csv(url, engine='python', on_bad_lines='skip', header=0)
+                df_rh_emb = load_rh_emb(base_url)
+                col_emb_b   = df_rh_emb.columns[1]   # B: Cant CTNRs
+                col_emb_f   = df_rh_emb.columns[5]   # F: Tipo Carga
+                col_emb_l   = df_rh_emb.columns[11]  # L: ETD
+                col_emb_ah  = df_rh_emb.columns[33]  # AH: FOB SIMI Total
+                col_emb_ai  = df_rh_emb.columns[34]  # AI: M3
+                excluir_e   = ['AVION','AVIÓN','COURIER','COURRIER','AIR']
+                mask_mar_e  = ~df_rh_emb[col_emb_f].astype(str).str.upper().str.strip().apply(lambda x: any(e in x for e in excluir_e))
+                df_rh_emb['_etd_e'] = pd.to_datetime(df_rh_emb[col_emb_l], dayfirst=True, errors='coerce')
+                mask_2026_e = df_rh_emb['_etd_e'].dt.year == 2026
+                df_emb26    = df_rh_emb[mask_mar_e & mask_2026_e].copy()
+                def safe_n(v):
+                    try: return float(str(v).replace('.','').replace(',','.').strip())
+                    except: return 0.0
+                df_emb26['_cntrs'] = df_emb26[col_emb_b].apply(safe_n)
+                df_emb26['_fob']   = df_emb26[col_emb_ah].apply(safe_n)
+                df_emb26['_m3']    = df_emb26[col_emb_ai].apply(safe_n)
+                tot_emb   = df_emb26.iloc[:,0].nunique()
+                tot_cntrs = int(df_emb26['_cntrs'].sum())
+                tot_m3    = df_emb26['_m3'].sum()
+                tot_fob   = df_emb26['_fob'].sum()
+                k1,k2,k3,k4 = st.columns(4)
+                with k1: st.markdown(f"<div class='metric-container'><p>EMBARQUES</p><p>{tot_emb}</p></div>", unsafe_allow_html=True)
+                with k2: st.markdown(f"<div class='metric-container'><p>CONTENEDORES</p><p>{tot_cntrs:,}</p></div>", unsafe_allow_html=True)
+                with k3: st.markdown(f"<div class='metric-container'><p>VOLUMEN</p><p>{int(round(tot_m3)):,} <span style='font-size:28px;'>M3</span></p></div>", unsafe_allow_html=True)
+                with k4: st.markdown(f"<div class='metric-container'><p>FOB TOTAL</p><p><span style='font-size:34px;'>USD {tot_fob/1_000_000:.1f}M</span></p></div>", unsafe_allow_html=True)
+            except Exception as e_emb:
+                st.error(f"Error en Embarcado 2026: {e_emb}")
+                import traceback; st.code(traceback.format_exc())
+
+        except Exception as e:
+            st.error(f"Error en Histórico: {e}")
+
+    with tabs[7]:
         st.markdown("<div style='text-align:center; padding: 40px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; border: 2px dashed rgba(0, 168, 255, 0.2);'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:10px;'>ASK COMEX</h2><p style='color:#94a3b8; font-size:18px; margin-top:20px;'>Inteligencia Operativa en Tiempo Real.</p></div>", unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
         try:
