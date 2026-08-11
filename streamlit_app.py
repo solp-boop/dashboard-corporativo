@@ -160,74 +160,67 @@ section[data-testid="stSidebar"] { display: none; }
 /* KPIs PRINCIPALES MASIVOS */
 .metric-container { 
     text-align: center; 
-    padding: 35px 20px; 
-    background: linear-gradient(145deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
-    border-radius: 24px;
-    border: 1px solid rgba(255,255,255,0.05);
-    backdrop-filter: blur(15px);
-    -webkit-backdrop-filter: blur(15px);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    animation: fadeInUp 0.8s backwards;
+    padding: 20px 16px; 
+    background: rgba(255,255,255,0.03);
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.07);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    transition: all 0.3s ease;
 }
 .metric-container p:first-child { 
-    font-size: 18px !important;
-    color: #94a3b8 !important; 
-    letter-spacing: 6px !important;
+    font-size: 10px !important;
+    color: #64748b !important; 
+    letter-spacing: 3px !important;
     font-weight: 700 !important;
-    margin-bottom: 15px !important;
+    margin-bottom: 8px !important;
     text-transform: uppercase;
 }
 .metric-container p:last-child { 
-    font-size: 85px !important; 
+    font-size: 36px !important; 
     font-weight: 900 !important; 
-    color: #fff !important; 
+    color: #f8fafc !important; 
     line-height: 1 !important; 
-    margin: 0 !important; 
-    text-shadow: 0 0 40px rgba(0,168,255,0.7), 0 0 10px rgba(0,168,255,0.4) !important; 
+    margin: 0 !important;
 }
 
 /* TARJETAS GLASSMORPHISM STANDARDS */
 .custom-card {
-    background: linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%);
-    padding: 30px; 
-    border-radius: 20px; 
-    backdrop-filter: blur(15px);
-    -webkit-backdrop-filter: blur(15px);
-    border: 1px solid rgba(255,255,255,0.08);
-    box-shadow: 0 10px 35px rgba(0,0,0,0.35);
-    transition: all 0.4s ease;
-    margin-bottom: 25px;
-    animation: fadeInUp 1s backwards;
+    background: rgba(255,255,255,0.02);
+    padding: 20px; 
+    border-radius: 14px; 
+    border: 1px solid rgba(255,255,255,0.07);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+    margin-bottom: 16px;
 }
 .custom-card-title {
     font-weight: 700;
-    font-size: 16px;
-    letter-spacing: 3px;
-    margin-bottom: 20px;
+    font-size: 13px;
+    letter-spacing: 2px;
+    margin-bottom: 14px;
     margin-top: 0;
     text-transform: uppercase;
 }
 .grid-2 {
     display: grid; 
     grid-template-columns: 1fr 1fr; 
-    gap: 20px;
+    gap: 14px;
 }
 .grid-4 {
     display: grid; 
     grid-template-columns: 1fr 1fr 1fr 1fr; 
-    gap: 20px;
+    gap: 14px;
 }
 .minicard-title {
-    font-size: 11px; 
-    color: #94a3b8; 
+    font-size: 10px; 
+    color: #64748b; 
     letter-spacing: 2px;
-    margin: 0 0 5px 0;
+    margin: 0 0 4px 0;
     font-weight: 600;
+    text-transform: uppercase;
 }
 .minicard-value {
-    font-size: 28px; 
-    font-weight: 300; 
+    font-size: 22px; 
+    font-weight: 700; 
     margin: 0; 
     color: #f8fafc;
 }
@@ -405,10 +398,10 @@ try:
 
             st.markdown("<br>", unsafe_allow_html=True)
             o1, o2, o3, o4 = st.columns(4)
-            with o1: st.markdown(f"<div style='background:rgba(255,255,255,0.03); border-radius:12px; border:1px solid rgba(255,255,255,0.07); padding:16px; text-align:center;'><p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0; text-transform:uppercase;'>CANTIDAD DE SO</p><p style='color:#f8fafc; font-size:32px; font-weight:900; margin:0;'>{int(cant_so_global)}</p></div>", unsafe_allow_html=True)
-            with o2: st.markdown(f"<div style='background:rgba(255,255,255,0.03); border-radius:12px; border:1px solid rgba(255,255,255,0.07); padding:16px; text-align:center;'><p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0; text-transform:uppercase;'>VOLUMEN TOTAL (M3)</p><p style='color:#00a8ff; font-size:32px; font-weight:900; margin:0;'>{int(round(m3_totales_global)):,}</p></div>", unsafe_allow_html=True)
-            with o3: st.markdown(f"<div style='background:rgba(255,255,255,0.03); border-radius:12px; border:1px solid rgba(255,255,255,0.07); padding:16px; text-align:center;'><p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0; text-transform:uppercase;'>PROVEEDORES</p><p style='color:#f8fafc; font-size:32px; font-weight:900; margin:0;'>{int(cant_proveedores_global)}</p></div>", unsafe_allow_html=True)
-            with o4: st.markdown(f"<div style='background:rgba(255,255,255,0.03); border-radius:12px; border:1px solid rgba(255,255,255,0.07); padding:16px; text-align:center;'><p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0; text-transform:uppercase;'>FOB TOTAL (USD)</p><p style='color:#ffaa00; font-size:28px; font-weight:900; margin:0;'>USD {round(fob_total_global/1_000_000,1)}M</p></div>", unsafe_allow_html=True)
+            with o1: st.markdown(f"<div class='metric-container'><p>CANTIDAD DE SO</p><p style='color:#f8fafc; font-size:32px; font-weight:900; margin:0;'>{int(cant_so_global)}</p></div>", unsafe_allow_html=True)
+            with o2: st.markdown(f"<div class='metric-container'><p>VOLUMEN TOTAL (M3)</p><p style='color:#00a8ff; font-size:32px; font-weight:900; margin:0;'>{int(round(m3_totales_global)):,}</p></div>", unsafe_allow_html=True)
+            with o3: st.markdown(f"<div class='metric-container'><p>PROVEEDORES</p><p style='color:#f8fafc; font-size:32px; font-weight:900; margin:0;'>{int(cant_proveedores_global)}</p></div>", unsafe_allow_html=True)
+            with o4: st.markdown(f"<div class='metric-container'><p>FOB TOTAL (USD)</p><p style='color:#ffaa00; font-size:28px; font-weight:900; margin:0;'>USD {round(fob_total_global/1_000_000,1)}M</p></div>", unsafe_allow_html=True)
 
             st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
             st.markdown("<div style='text-align:center; padding: 20px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; margin-bottom: 30px;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>CONTROL DE STATUS DE MERCADERÍA</h2></div>", unsafe_allow_html=True)
@@ -915,10 +908,10 @@ border-radius:12px; border-top:3px solid {color_r}; border:1px solid rgba(255,25
 </div>""", unsafe_allow_html=True)
 
             k1, k2, k3, k4 = st.columns(4)
-            with k1: st.markdown(f"<div style='background:rgba(255,255,255,0.02); border-radius:10px; border:1px solid rgba(255,255,255,0.06); padding:10px 14px; text-align:center;'><p style='color:#64748b; font-size:9px; letter-spacing:2px; margin:0 0 3px 0; text-transform:uppercase;'>SO EN PROCESO</p><p style='color:#f8fafc; font-size:22px; font-weight:900; margin:0;'>{int(df_inst_s2['SO'].nunique())}</p></div>", unsafe_allow_html=True)
-            with k2: st.markdown(f"<div style='background:rgba(255,255,255,0.02); border-radius:10px; border:1px solid rgba(255,255,255,0.06); padding:10px 14px; text-align:center;'><p style='color:#64748b; font-size:9px; letter-spacing:2px; margin:0 0 3px 0; text-transform:uppercase;'>VOLUMEN TOTAL</p><p style='color:#00a8ff; font-size:22px; font-weight:900; margin:0;'>{int(round(m3_total_clean)):,} <span style='font-size:13px; color:#475569;'>M3</span></p></div>", unsafe_allow_html=True)
-            with k3: st.markdown(f"<div style='background:rgba(255,255,255,0.02); border-radius:10px; border:1px solid rgba(255,255,255,0.06); padding:10px 14px; text-align:center;'><p style='color:#64748b; font-size:9px; letter-spacing:2px; margin:0 0 3px 0; text-transform:uppercase;'>PROVEEDORES</p><p style='color:#f8fafc; font-size:22px; font-weight:900; margin:0;'>{int(df_inst_s2['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
-            with k4: st.markdown(f"<div style='background:rgba(255,255,255,0.02); border-radius:10px; border:1px solid rgba(255,255,255,0.06); padding:10px 14px; text-align:center;'><p style='color:#64748b; font-size:9px; letter-spacing:2px; margin:0 0 3px 0; text-transform:uppercase;'>FOB EN PROCESO</p><p style='color:#ffaa00; font-size:20px; font-weight:900; margin:0;'>USD {round(fob_total_clean/1_000_000,1)}M</p></div>", unsafe_allow_html=True)
+            with k1: st.markdown(f"<div class='metric-container'><p>SO EN PROCESO</p><p style='color:#f8fafc; font-size:22px; font-weight:900; margin:0;'>{int(df_inst_s2['SO'].nunique())}</p></div>", unsafe_allow_html=True)
+            with k2: st.markdown(f"<div class='metric-container'><p>VOLUMEN TOTAL</p><p style='color:#00a8ff; font-size:22px; font-weight:900; margin:0;'>{int(round(m3_total_clean)):,} <span style='font-size:13px; color:#475569;'>M3</span></p></div>", unsafe_allow_html=True)
+            with k3: st.markdown(f"<div class='metric-container'><p>PROVEEDORES</p><p style='color:#f8fafc; font-size:22px; font-weight:900; margin:0;'>{int(df_inst_s2['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
+            with k4: st.markdown(f"<div class='metric-container'><p>FOB EN PROCESO</p><p style='color:#ffaa00; font-size:20px; font-weight:900; margin:0;'>USD {round(fob_total_clean/1_000_000,1)}M</p></div>", unsafe_allow_html=True)
 
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("""
@@ -2211,10 +2204,10 @@ border-radius:12px; border-top:2px solid {color};'>
 
                 st.markdown("<br>", unsafe_allow_html=True)
                 pm1, pm2, pm3, pm4 = st.columns(4)
-                with pm1: st.markdown(f"<div style='background:rgba(255,255,255,0.03); border-radius:12px; border:1px solid rgba(255,255,255,0.07); padding:16px; text-align:center;'><p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0; text-transform:uppercase;'>M3 TOTALES</p><p style='color:#00a8ff; font-size:32px; font-weight:900; margin:0;'>{int(round(total_m3_mes)):,}</p></div>", unsafe_allow_html=True)
-                with pm2: st.markdown(f"<div style='background:rgba(255,255,255,0.03); border-radius:12px; border:1px solid rgba(255,255,255,0.07); padding:16px; text-align:center;'><p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0; text-transform:uppercase;'>CONTENEDORES</p><p style='color:#f8fafc; font-size:32px; font-weight:900; margin:0;'>{int(round(total_cntr_mes))}</p></div>", unsafe_allow_html=True)
-                with pm3: st.markdown(f"<div style='background:rgba(255,255,255,0.03); border-radius:12px; border:1px solid rgba(255,255,255,0.07); padding:16px; text-align:center;'><p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0; text-transform:uppercase;'>SOs</p><p style='color:#f8fafc; font-size:32px; font-weight:900; margin:0;'>{total_so_mes}</p></div>", unsafe_allow_html=True)
-                with pm4: st.markdown(f"<div style='background:rgba(255,255,255,0.03); border-radius:12px; border:1px solid rgba(255,255,255,0.07); padding:16px; text-align:center;'><p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0; text-transform:uppercase;'>SEMANAS</p><p style='color:#f8fafc; font-size:32px; font-weight:900; margin:0;'>{semanas_mes}</p></div>", unsafe_allow_html=True)
+                with pm1: st.markdown(f"<div class='metric-container'><p>M3 TOTALES</p><p style='color:#00a8ff; font-size:32px; font-weight:900; margin:0;'>{int(round(total_m3_mes)):,}</p></div>", unsafe_allow_html=True)
+                with pm2: st.markdown(f"<div class='metric-container'><p>CONTENEDORES</p><p style='color:#f8fafc; font-size:32px; font-weight:900; margin:0;'>{int(round(total_cntr_mes))}</p></div>", unsafe_allow_html=True)
+                with pm3: st.markdown(f"<div class='metric-container'><p>SOs</p><p style='color:#f8fafc; font-size:32px; font-weight:900; margin:0;'>{total_so_mes}</p></div>", unsafe_allow_html=True)
+                with pm4: st.markdown(f"<div class='metric-container'><p>SEMANAS</p><p style='color:#f8fafc; font-size:32px; font-weight:900; margin:0;'>{semanas_mes}</p></div>", unsafe_allow_html=True)
 
                 st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
 
@@ -2470,10 +2463,10 @@ border-radius:12px; border-top:2px solid {color};'>
                 tot_m3    = df_emb26['_m3'].sum()
                 tot_fob   = df_emb26['_fob'].sum()
                 k1,k2,k3,k4 = st.columns(4)
-                with k1: st.markdown(f"<div style='background:rgba(255,255,255,0.03); border-radius:12px; border:1px solid rgba(255,255,255,0.07); padding:16px; text-align:center;'><p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0;'>EMBARQUES</p><p style='color:#f8fafc; font-size:32px; font-weight:900; margin:0;'>{tot_emb}</p></div>", unsafe_allow_html=True)
-                with k2: st.markdown(f"<div style='background:rgba(255,255,255,0.03); border-radius:12px; border:1px solid rgba(255,255,255,0.07); padding:16px; text-align:center;'><p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0;'>CONTENEDORES</p><p style='color:#f8fafc; font-size:32px; font-weight:900; margin:0;'>{tot_cntrs:,}</p></div>", unsafe_allow_html=True)
-                with k3: st.markdown(f"<div style='background:rgba(255,255,255,0.03); border-radius:12px; border:1px solid rgba(255,255,255,0.07); padding:16px; text-align:center;'><p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0;'>VOLUMEN TOTAL</p><p style='color:#00a8ff; font-size:32px; font-weight:900; margin:0;'>{int(round(tot_m3)):,} <span style='font-size:16px; color:#475569;'>M3</span></p></div>", unsafe_allow_html=True)
-                with k4: st.markdown(f"<div style='background:rgba(255,255,255,0.03); border-radius:12px; border:1px solid rgba(255,255,255,0.07); padding:16px; text-align:center;'><p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0;'>FOB TOTAL</p><p style='color:#ffaa00; font-size:28px; font-weight:900; margin:0;'>USD {tot_fob/1_000_000:.1f}M</p></div>", unsafe_allow_html=True)
+                with k1: st.markdown(f"<div class='metric-container'><p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0;'>EMBARQUES</p><p style='color:#f8fafc; font-size:32px; font-weight:900; margin:0;'>{tot_emb}</p></div>", unsafe_allow_html=True)
+                with k2: st.markdown(f"<div class='metric-container'><p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0;'>CONTENEDORES</p><p style='color:#f8fafc; font-size:32px; font-weight:900; margin:0;'>{tot_cntrs:,}</p></div>", unsafe_allow_html=True)
+                with k3: st.markdown(f"<div class='metric-container'><p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0;'>VOLUMEN TOTAL</p><p style='color:#00a8ff; font-size:32px; font-weight:900; margin:0;'>{int(round(tot_m3)):,} <span style='font-size:16px; color:#475569;'>M3</span></p></div>", unsafe_allow_html=True)
+                with k4: st.markdown(f"<div class='metric-container'><p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0;'>FOB TOTAL</p><p style='color:#ffaa00; font-size:28px; font-weight:900; margin:0;'>USD {tot_fob/1_000_000:.1f}M</p></div>", unsafe_allow_html=True)
 
                 # Tabla mensual
                 st.markdown("<br>", unsafe_allow_html=True)
@@ -2632,7 +2625,7 @@ border-radius:12px; border-top:2px solid {color};'>
             <div style='background:rgba(255,255,255,0.02); border-radius:14px; border-left:4px solid {color_tipo};
             padding:18px 24px; margin-bottom:20px; display:flex; gap:32px; align-items:center; flex-wrap:wrap;'>
             <div>
-                <p style='color:#64748b; font-size:9px; letter-spacing:2px; margin:0 0 3px 0; text-transform:uppercase;'>{tipo_label} · Mediana Global 2026</p>
+                <p>{tipo_label} · Mediana Global 2026</p>
                 <p style='color:{color_tipo}; font-size:28px; font-weight:900; margin:0; line-height:1;'>{int(round(total_g))}d <span style='font-size:13px; color:#475569; font-weight:400;'>total</span></p>
             </div>
             <div style='width:1px; background:rgba(255,255,255,0.08); align-self:stretch;'></div>
