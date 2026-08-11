@@ -895,17 +895,13 @@ border-radius:12px; border-top:3px solid {color_r}; border:1px solid rgba(255,25
                 elif d <= sla * 1.4: return "#ffaa00"
                 else: return "#ff4b4b"
 
-            H_ROW1  = "300px"
-            H_ROW2  = "210px"
-            H_ROW3  = "200px"
-            H_AE    = "300px"
+            H_ROW1  = "240px"
+            H_ROW2  = "180px"
+            H_ROW3  = "170px"
+            H_AE    = "240px"
 
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("""
-<div style='text-align:center; padding:24px 20px 16px 20px; margin-bottom:4px;'>
-<p style='color:#475569; font-size:11px; letter-spacing:6px; margin:0 0 6px 0; text-transform:uppercase;'>Panel Ejecutivo · Tiempo Real</p>
-<h2 style='color:#f8fafc; font-weight:900; letter-spacing:8px; margin:0; font-size:28px;'>COORDINACION ACTIVA</h2>
-</div>""", unsafe_allow_html=True)
+            st.markdown("<div style='text-align:center; padding:20px; background:rgba(0,168,255,0.05); border-radius:20px; margin-bottom:30px;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>COORDINACIÓN ACTIVA</h2></div>", unsafe_allow_html=True)
 
             k1, k2, k3, k4 = st.columns(4)
             with k1: st.markdown(f"<div class='metric-container'><p>SO EN PROCESO</p><p style='color:#f8fafc; font-size:22px; font-weight:900; margin:0;'>{int(df_inst_s2['SO'].nunique())}</p></div>", unsafe_allow_html=True)
@@ -2415,15 +2411,12 @@ border-radius:12px; border-top:2px solid {color};'>
     # --- SOLAPA 7: HISTÓRICO ---
     with tabs[6]:
         try:
-            st.markdown("<div style='text-align:center; padding:20px; background:rgba(0,168,255,0.05); border-radius:20px; margin:30px 0;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>HISTÓRICO</h2><p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>TIEMPOS · EMBARQUES · 2026</p></div>", unsafe_allow_html=True)
+            st.markdown("<div style='text-align:center; padding:20px; background:rgba(0,168,255,0.05); border-radius:20px; margin:30px 0;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>HISTÓRICO</h2></div>", unsafe_allow_html=True)
 
             # ── EMBARCADO 2026 ─────────────────────────────────────────────
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("""
-<div style='text-align:center; padding:20px; background:rgba(0,168,255,0.05); border-radius:20px; margin-bottom:30px;'>
-<h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>EMBARCADO 2026</h2>
-<p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>Reservas Históricas · Solo marítimos · ETD 2026</p>
-</div>""", unsafe_allow_html=True)
+            st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:18px; text-align:center; letter-spacing:4px; margin-bottom:6px;'>EMBARCADO 2026</p>", unsafe_allow_html=True)
+            st.markdown("<p style='color:#475569; font-size:11px; text-align:center; margin-bottom:24px;'>Reservas Históricas · Solo marítimos · ETD 2026</p>", unsafe_allow_html=True)
             try:
                 @st.cache_data(ttl=60)
                 def load_rh_emb(base):
