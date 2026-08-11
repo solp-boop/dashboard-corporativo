@@ -846,30 +846,33 @@ padding:18px 24px; margin-bottom:20px; display:flex; gap:32px; align-items:cente
 </div>""", unsafe_allow_html=True)
 
                     # Headers
-                    h1,h2,h3,h4,h5,h6 = st.columns([1.4, 0.8, 0.8, 0.8, 0.8, 0.5])
+                    h1,h2,h3,h4,h5,h6,h7 = st.columns([1.4, 0.6, 0.8, 0.8, 0.8, 0.8, 0.5])
                     h1.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700;'>PUERTO</p>", unsafe_allow_html=True)
-                    h2.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>CONSOL (real)</p>", unsafe_allow_html=True)
-                    h3.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>TT (real)</p>", unsafe_allow_html=True)
-                    h4.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>TOTAL (real)</p>", unsafe_allow_html=True)
-                    h5.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>T. VALIDACIONES</p>", unsafe_allow_html=True)
-                    h6.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>🚦</p>", unsafe_allow_html=True)
+                    h2.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>EMB.</p>", unsafe_allow_html=True)
+                    h3.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>CONSOL (real)</p>", unsafe_allow_html=True)
+                    h4.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>TT (real)</p>", unsafe_allow_html=True)
+                    h5.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>TOTAL (real)</p>", unsafe_allow_html=True)
+                    h6.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>T. VALIDACIONES</p>", unsafe_allow_html=True)
+                    h7.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>🚦</p>", unsafe_allow_html=True)
                     st.markdown("<hr style='margin:4px 0 8px 0; border:none; border-top:1px solid rgba(255,255,255,0.12);'>", unsafe_allow_html=True)
 
                     for _, pr in puertos_data.iterrows():
                         puerto_n = pr['_puerto']
                         mc = pr['med_consol']
                         mt = pr['med_tt']
+                        n_emb = int(pr['n'])
                         total_real = (mc if mc == mc else 0) + (mt if mt == mt else 0)
                         tgt = targets.get((puerto_n.upper(), tipo_key), targets.get((puerto_n.title().upper(), tipo_key), {}))
                         tgt_total = tgt.get('total')
                         color_sem, ico = semaforo_color(total_real, tgt_total)
-                        c1,c2,c3,c4,c5,c6 = st.columns([1.4, 0.8, 0.8, 0.8, 0.8, 0.5])
+                        c1,c2,c3,c4,c5,c6,c7 = st.columns([1.4, 0.6, 0.8, 0.8, 0.8, 0.8, 0.5])
                         c1.markdown(f"<p style='color:#f8fafc; font-size:14px; font-weight:600; margin:6px 0;'>{puerto_n}</p>", unsafe_allow_html=True)
-                        c2.markdown(f"<p style='color:#00a8ff; font-size:15px; font-weight:700; text-align:center; margin:6px 0;'>{int(round(mc)) if mc==mc else '—'}d</p>", unsafe_allow_html=True)
-                        c3.markdown(f"<p style='color:#ffaa00; font-size:15px; font-weight:700; text-align:center; margin:6px 0;'>{int(round(mt)) if mt==mt else '—'}d</p>", unsafe_allow_html=True)
-                        c4.markdown(f"<p style='color:{color_sem}; font-size:16px; font-weight:900; text-align:center; margin:6px 0;'>{int(round(total_real))}d</p>", unsafe_allow_html=True)
-                        c5.markdown(f"<p style='color:#475569; font-size:14px; text-align:center; margin:6px 0;'>{int(tgt_total) if tgt_total else '—'}d</p>", unsafe_allow_html=True)
-                        c6.markdown(f"<p style='font-size:18px; text-align:center; margin:6px 0;'>{ico}</p>", unsafe_allow_html=True)
+                        c2.markdown(f"<p style='color:#64748b; font-size:13px; font-weight:600; text-align:center; margin:6px 0;'>{n_emb}</p>", unsafe_allow_html=True)
+                        c3.markdown(f"<p style='color:#00a8ff; font-size:15px; font-weight:700; text-align:center; margin:6px 0;'>{int(round(mc)) if mc==mc else '—'}d</p>", unsafe_allow_html=True)
+                        c4.markdown(f"<p style='color:#ffaa00; font-size:15px; font-weight:700; text-align:center; margin:6px 0;'>{int(round(mt)) if mt==mt else '—'}d</p>", unsafe_allow_html=True)
+                        c5.markdown(f"<p style='color:{color_sem}; font-size:16px; font-weight:900; text-align:center; margin:6px 0;'>{int(round(total_real))}d</p>", unsafe_allow_html=True)
+                        c6.markdown(f"<p style='color:#475569; font-size:14px; text-align:center; margin:6px 0;'>{int(tgt_total) if tgt_total else '—'}d</p>", unsafe_allow_html=True)
+                        c7.markdown(f"<p style='font-size:18px; text-align:center; margin:6px 0;'>{ico}</p>", unsafe_allow_html=True)
 
                 tab_mono, tab_cons = st.tabs(["🔵 MONOPROVEEDOR", "🟡 CONSOLIDADO"])
                 with tab_mono:
