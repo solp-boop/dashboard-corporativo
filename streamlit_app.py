@@ -921,7 +921,7 @@ border-radius:12px; border-top:3px solid {color_r}; border:1px solid rgba(255,25
                 st.markdown(f"""
 <div style='background:linear-gradient(145deg, rgba(0,168,255,0.07), rgba(0,168,255,0.02));
 border-radius:20px; border:1px solid rgba(0,168,255,0.15); padding:28px;
-height:{H_ROW1}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between;'>
+min-height:{H_ROW1}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
 <div>
     <p style='color:#64748b; font-size:11px; letter-spacing:3px; margin:0 0 6px 0; text-transform:uppercase;'>Embarques bajo gestion</p>
     <p style='color:#f8fafc; font-size:88px; font-weight:900; margin:0; line-height:1; letter-spacing:-4px;'>{total_mar}</p>
@@ -970,7 +970,7 @@ height:{H_ROW1}; box-sizing:border-box; display:flex; flex-direction:column; jus
                 st.markdown(f"""
 <div style='background:rgba(255,255,255,0.02); border-radius:20px;
 border:1px solid rgba(255,255,255,0.07); padding:24px;
-height:{H_ROW1}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between;'>
+min-height:{H_ROW1}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
 <div>
     <p style='color:#64748b; font-size:11px; letter-spacing:3px; margin:0 0 8px 0; text-transform:uppercase;'>Estado ETD</p>
     <div style='display:flex; align-items:baseline; gap:12px;'>
@@ -995,7 +995,7 @@ height:{H_ROW1}; box-sizing:border-box; display:flex; flex-direction:column; jus
                 st.markdown(f"""
 <div style='background:rgba(255,255,255,0.03); border-radius:16px;
 border:1px solid rgba(255,255,255,0.07); padding:24px;
-height:{H_ROW2}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between;'>
+min-height:{H_ROW2}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
 <p style='color:#64748b; font-size:10px; letter-spacing:3px; margin:0; text-transform:uppercase;'>Estructura de carga</p>
 <div>
     <div style='display:flex; justify-content:space-between; margin-bottom:5px;'>
@@ -1023,7 +1023,7 @@ height:{H_ROW2}; box-sizing:border-box; display:flex; flex-direction:column; jus
                 st.markdown(f"""
 <div style='background:rgba(255,255,255,0.03); border-radius:16px;
 border:1px solid rgba(255,255,255,0.07); padding:24px;
-height:{H_ROW2}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between;'>
+min-height:{H_ROW2}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
 <p style='color:#64748b; font-size:10px; letter-spacing:3px; margin:0; text-transform:uppercase;'>Modalidad de booking</p>
 <div>
     <div style='display:flex; justify-content:space-between; margin-bottom:5px;'>
@@ -1053,7 +1053,7 @@ height:{H_ROW2}; box-sizing:border-box; display:flex; flex-direction:column; jus
                 st.markdown(f"""
 <div style='background:rgba(255,255,255,0.03); border-radius:16px;
 border:1px solid rgba(255,255,255,0.07); padding:24px;
-height:{H_ROW2}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between;'>
+min-height:{H_ROW2}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
 <p style='color:#64748b; font-size:10px; letter-spacing:3px; margin:0; text-transform:uppercase;'>Tiempo de consolidacion (mediana)</p>
 <div style='display:grid; grid-template-columns:1fr 1fr; gap:8px; flex:1; align-content:center;'>
     <div style='background:rgba(0,168,255,0.07); border-radius:10px; padding:10px; text-align:center;'>
@@ -1093,7 +1093,7 @@ height:{H_ROW2}; box-sizing:border-box; display:flex; flex-direction:column; jus
                 st.markdown(f"""
 <div style='background:linear-gradient(145deg, rgba(0,168,255,0.07), rgba(0,168,255,0.02));
 border-radius:16px; border:1px solid rgba(0,168,255,0.15); padding:22px;
-height:{H_ROW3}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between;'>
+min-height:{H_ROW3}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
 <p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0; text-transform:uppercase;'>Embarques con ETD OK</p>
 <p style='color:#f8fafc; font-size:58px; font-weight:900; margin:0; line-height:1; letter-spacing:-2px;'>{cant_etd_sem}</p>
 <div>
@@ -1105,7 +1105,7 @@ height:{H_ROW3}; box-sizing:border-box; display:flex; flex-direction:column; jus
                 st.markdown(f"""
 <div style='background:rgba(255,255,255,0.03); border-radius:16px;
 border:1px solid rgba(255,255,255,0.07); padding:22px;
-height:{H_ROW3}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between;'>
+min-height:{H_ROW3}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
 <p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0; text-transform:uppercase;'>Volumen a zarpar</p>
 <p style='color:#f8fafc; font-size:48px; font-weight:900; margin:0; line-height:1;'>{int(round(m3_etd_sem)):,}</p>
 <p style='color:#475569; font-size:13px; font-weight:600; margin:0;'>M3 esta semana</p>
@@ -1114,7 +1114,7 @@ height:{H_ROW3}; box-sizing:border-box; display:flex; flex-direction:column; jus
                 st.markdown(f"""
 <div style='background:rgba(0,255,136,0.04); border-radius:16px;
 border:1px solid rgba(0,255,136,0.1); padding:22px;
-height:{H_ROW3}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between;'>
+min-height:{H_ROW3}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
 <p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0; text-transform:uppercase;'>Consolidacion In Advance (mediana)</p>
 <div>
     <p style='color:{cma}; font-size:52px; font-weight:900; margin:0; line-height:1;'>{int(round(med_adv_sem))}d</p>
@@ -1128,7 +1128,7 @@ height:{H_ROW3}; box-sizing:border-box; display:flex; flex-direction:column; jus
                 st.markdown(f"""
 <div style='background:rgba(148,163,184,0.04); border-radius:16px;
 border:1px solid rgba(148,163,184,0.1); padding:22px;
-height:{H_ROW3}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between;'>
+min-height:{H_ROW3}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
 <p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0; text-transform:uppercase;'>Consolidacion Spot (mediana)</p>
 <div>
     <p style='color:{cms}; font-size:52px; font-weight:900; margin:0; line-height:1;'>{int(round(med_spot_sem))}d</p>
@@ -1162,7 +1162,7 @@ height:{H_ROW3}; box-sizing:border-box; display:flex; flex-direction:column; jus
                 col_ae_partic   = df_ae.columns[8]
                 col_ae_m3       = df_ae.columns[21]
                 col_ae_cant     = df_ae.columns[23]
-                col_ae_tt_total = df_ae.columns[53]
+                col_ae_tt_total = df_ae.columns[55]  # BD: Total P2P
 
                 ORDEN_ESTADIOS = ['WAREHOUSE', 'EN ORIGEN', 'COORDINANDO', 'EN TRANSITO', 'EN TRÁNSITO', 'ARRIBADO', 'NACIONALIZADO', 'NACIONAZALIDO']
                 COLORES_ESTADIOS = {
@@ -2403,6 +2403,88 @@ border-radius:12px; border-top:2px solid {color};'>
                                 show_detalle_mes(df_sub_c, f"CONS - {rc['Mes_Nombre']}", mode="specific")
             else:
                 st.warning("No se encontraron registros marítimos para el año 2026.")
+
+            # ── BLOQUE AÉREO ─────────────────────────────────────────────────
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
+            st.markdown("<div style='text-align:center; padding:20px; background:rgba(168,85,247,0.05); border-radius:20px; margin-bottom:24px;'><h2 style='color:#a855f7; font-weight:800; letter-spacing:5px; margin:0;'>INDICADORES AÉREOS</h2><p style='color:#94a3b8; margin:8px 0 0 0; font-size:12px; letter-spacing:2px;'>Por tipo de negocio · ETD desde mayo 2026 · Seguimiento Aéreos</p></div>", unsafe_allow_html=True)
+            try:
+                @st.cache_data(ttl=60)
+                def load_ae_ind(base):
+                    url = f"{base}/export?format=csv&gid=88538385"
+                    return pd.read_csv(url, engine='python', on_bad_lines='skip', header=0)
+
+                df_ae_ind = load_ae_ind(base_url)
+
+                col_ae_tipo   = df_ae_ind.columns[8]   # I: Participación/Tipo negocio
+                col_ae_etd    = df_ae_ind.columns[14]  # O: ETD
+                col_ae_fpmin  = df_ae_ind.columns[9]   # J: F.Packeo Min
+                col_ae_fwh    = df_ae_ind.columns[11]  # L: Fecha ingreso WH
+                col_ae_eta    = df_ae_ind.columns[15]  # P: ETA
+                col_ae_etacal = df_ae_ind.columns[16]  # Q: ETA Caldas
+
+                def parse_dt_ae(v):
+                    return pd.to_datetime(v, dayfirst=True, errors='coerce')
+
+                df_ae_ind['_etd_dt']   = df_ae_ind[col_ae_etd].apply(parse_dt_ae)
+                df_ae_ind['_fpmin_dt'] = df_ae_ind[col_ae_fpmin].apply(parse_dt_ae)
+                df_ae_ind['_fwh_dt']   = df_ae_ind[col_ae_fwh].apply(parse_dt_ae)
+                df_ae_ind['_eta_dt']   = df_ae_ind[col_ae_eta].apply(parse_dt_ae)
+                df_ae_ind['_etacal_dt']= df_ae_ind[col_ae_etacal].apply(parse_dt_ae)
+                df_ae_ind['_tipo']     = df_ae_ind[col_ae_tipo].astype(str).str.strip().replace({'': 'SIN CLASIFICAR', 'nan': 'SIN CLASIFICAR'})
+
+                # Filtrar ETD >= mayo 2026
+                df_ae_f = df_ae_ind[df_ae_ind['_etd_dt'] >= pd.Timestamp('2026-05-01')].copy()
+
+                def dias(a, b):
+                    d = (b - a).dt.days
+                    return d.apply(lambda x: x if pd.notna(x) and x >= 0 else None)
+
+                df_ae_f['_tt1'] = dias(df_ae_f['_fpmin_dt'], df_ae_f['_fwh_dt'])   # Packeo → WH
+                df_ae_f['_tt2'] = dias(df_ae_f['_fwh_dt'],   df_ae_f['_etd_dt'])   # WH → ETD
+                df_ae_f['_tt3'] = dias(df_ae_f['_etd_dt'],   df_ae_f['_eta_dt'])   # ETD → ETA
+                df_ae_f['_tt4'] = dias(df_ae_f['_eta_dt'],   df_ae_f['_etacal_dt'])# ETA → Caldas
+
+                # Headers tabla
+                h1,h2,h3,h4,h5,h6 = st.columns([1.4, 0.9, 0.9, 0.9, 0.9, 0.9])
+                h1.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700;'>TIPO DE NEGOCIO</p>", unsafe_allow_html=True)
+                h2.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>📦 Packeo→WH</p>", unsafe_allow_html=True)
+                h3.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>🏭 WH→ETD</p>", unsafe_allow_html=True)
+                h4.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>✈️ ETD→ETA</p>", unsafe_allow_html=True)
+                h5.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>🏠 ETA→Caldas</p>", unsafe_allow_html=True)
+                h6.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>⏱ TOTAL</p>", unsafe_allow_html=True)
+                st.markdown("<hr style='margin:4px 0 8px 0; border:none; border-top:1px solid rgba(255,255,255,0.12);'>", unsafe_allow_html=True)
+
+                COLORES_AE_IND = ['#a855f7','#00a8ff','#ffaa00','#00ff88','#ff4b4b','#06b6d4']
+                tipos_ae = df_ae_f['_tipo'].value_counts().index.tolist()
+
+                for pi, tipo in enumerate(tipos_ae):
+                    df_t = df_ae_f[df_ae_f['_tipo'] == tipo]
+                    col_p = COLORES_AE_IND[pi % len(COLORES_AE_IND)]
+                    def med_str(s): 
+                        v = s.dropna().median()
+                        return f"{int(round(v))}d" if pd.notna(v) else "—"
+                    t1 = med_str(df_t['_tt1'])
+                    t2 = med_str(df_t['_tt2'])
+                    t3 = med_str(df_t['_tt3'])
+                    t4 = med_str(df_t['_tt4'])
+                    # Total = sum of non-None medians
+                    vals = [df_t[c].dropna().median() for c in ['_tt1','_tt2','_tt3','_tt4']]
+                    tot  = sum(v for v in vals if pd.notna(v))
+                    tot_str = f"{int(round(tot))}d" if tot > 0 else "—"
+
+                    c1,c2,c3,c4,c5,c6 = st.columns([1.4, 0.9, 0.9, 0.9, 0.9, 0.9])
+                    c1.markdown(f"<p style='color:{col_p}; font-size:14px; font-weight:800; margin:6px 0;'>{tipo}</p>", unsafe_allow_html=True)
+                    c2.markdown(f"<p style='color:#94a3b8; font-size:14px; text-align:center; margin:6px 0;'>{t1}</p>", unsafe_allow_html=True)
+                    c3.markdown(f"<p style='color:#94a3b8; font-size:14px; text-align:center; margin:6px 0;'>{t2}</p>", unsafe_allow_html=True)
+                    c4.markdown(f"<p style='color:#00a8ff; font-size:14px; font-weight:700; text-align:center; margin:6px 0;'>{t3}</p>", unsafe_allow_html=True)
+                    c5.markdown(f"<p style='color:#94a3b8; font-size:14px; text-align:center; margin:6px 0;'>{t4}</p>", unsafe_allow_html=True)
+                    c6.markdown(f"<p style='color:#a855f7; font-size:15px; font-weight:900; text-align:center; margin:6px 0;'>{tot_str}</p>", unsafe_allow_html=True)
+
+            except Exception as e_ae_ind:
+                st.error(f"Error en Indicadores Aéreos: {e_ae_ind}")
+                import traceback; st.code(traceback.format_exc())
+
         except Exception as e:
             st.error(f"Error en Indicadores: {e}")
 
@@ -2472,6 +2554,7 @@ border-radius:12px; border-top:2px solid {color};'>
                     FOB=('_fob', 'sum'),
                 ).reset_index().sort_values('_mes')
                 mes_df['Delta_M3'] = mes_df['M3'].diff()
+                mes_df['Delta_Pct'] = (mes_df['M3'].pct_change() * 100).round(1)
 
                 # Headers
                 h1,h2,h3,h4,h5,h6 = st.columns([1.2, 0.8, 0.8, 0.9, 0.9, 0.9])
@@ -2479,31 +2562,23 @@ border-radius:12px; border-top:2px solid {color};'>
                 h2.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>EMBARQUES</p>", unsafe_allow_html=True)
                 h3.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>CNTRS</p>", unsafe_allow_html=True)
                 h4.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>M3</p>", unsafe_allow_html=True)
-                h5.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>Δ M3 vs anterior</p>", unsafe_allow_html=True)
+                h5.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>Δ% vs anterior</p>", unsafe_allow_html=True)
                 h6.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>FOB USD</p>", unsafe_allow_html=True)
                 st.markdown("<hr style='margin:4px 0 8px 0; border:none; border-top:1px solid rgba(255,255,255,0.12);'>", unsafe_allow_html=True)
 
                 for _, r in mes_df.iterrows():
-                    delta = r['Delta_M3']
-                    if pd.isna(delta):
-                        delta_str = "—"
-                        delta_color = "#475569"
-                    elif delta > 0:
-                        delta_str = f"+{int(round(delta)):,}"
-                        delta_color = "#00ff88"
-                    elif delta < 0:
-                        delta_str = f"{int(round(delta)):,}"
-                        delta_color = "#ff4b4b"
+                    pct = r['Delta_Pct']
+                    if pd.isna(pct):
+                        pct_str = "—"
                     else:
-                        delta_str = "0"
-                        delta_color = "#475569"
+                        pct_str = f"+{pct:.1f}%" if pct > 0 else f"{pct:.1f}%"
                     fob_str = f"USD {r['FOB']/1_000_000:.1f}M" if r['FOB'] >= 1_000_000 else f"USD {r['FOB']/1_000:.0f}K"
                     c1,c2,c3,c4,c5,c6 = st.columns([1.2, 0.8, 0.8, 0.9, 0.9, 0.9])
                     c1.markdown(f"<p style='color:#f8fafc; font-size:14px; font-weight:600; margin:6px 0;'>{r['_mes']}</p>", unsafe_allow_html=True)
                     c2.markdown(f"<p style='color:#94a3b8; font-size:14px; text-align:center; margin:6px 0;'>{int(r['Embarques'])}</p>", unsafe_allow_html=True)
                     c3.markdown(f"<p style='color:#94a3b8; font-size:14px; text-align:center; margin:6px 0;'>{int(r['Contenedores'])}</p>", unsafe_allow_html=True)
                     c4.markdown(f"<p style='color:#00a8ff; font-size:15px; font-weight:700; text-align:center; margin:6px 0;'>{int(round(r['M3'])):,}</p>", unsafe_allow_html=True)
-                    c5.markdown(f"<p style='color:{delta_color}; font-size:15px; font-weight:700; text-align:center; margin:6px 0;'>{delta_str}</p>", unsafe_allow_html=True)
+                    c5.markdown(f"<p style='color:#94a3b8; font-size:14px; text-align:center; margin:6px 0;'>{pct_str}</p>", unsafe_allow_html=True)
                     c6.markdown(f"<p style='color:#ffaa00; font-size:14px; font-weight:600; text-align:center; margin:6px 0;'>{fob_str}</p>", unsafe_allow_html=True)
 
                 # Total row
@@ -2515,6 +2590,97 @@ border-radius:12px; border-top:2px solid {color};'>
                 t4.markdown(f"<p style='color:#00a8ff; font-size:16px; font-weight:900; text-align:center; margin:6px 0;'>{int(round(tot_m3)):,}</p>", unsafe_allow_html=True)
                 t5.markdown("<p style='color:#475569; font-size:14px; text-align:center; margin:6px 0;'>—</p>", unsafe_allow_html=True)
                 t6.markdown(f"<p style='color:#ffaa00; font-size:15px; font-weight:800; text-align:center; margin:6px 0;'>USD {tot_fob/1_000_000:.1f}M</p>", unsafe_allow_html=True)
+
+                # ── BLOQUE AÉREO ─────────────────────────────────────────────
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("<p style='color:#a855f7; font-weight:700; font-size:18px; text-align:center; letter-spacing:4px; margin-bottom:6px;'>AÉREO 2026</p>", unsafe_allow_html=True)
+                st.markdown("<p style='color:#475569; font-size:11px; text-align:center; margin-bottom:24px;'>Seguimiento Aéreos · ETD 2026</p>", unsafe_allow_html=True)
+                try:
+                    @st.cache_data(ttl=60)
+                    def load_ae_hist(base):
+                        url = f"{base}/export?format=csv&gid=88538385"
+                        return pd.read_csv(url, engine='python', on_bad_lines='skip', header=0)
+
+                    df_ae_h = load_ae_hist(base_url)
+                    col_aeh_emb  = df_ae_h.columns[1]   # B: Embarque
+                    col_aeh_etd  = df_ae_h.columns[14]  # O: ETD
+                    col_aeh_m3   = df_ae_h.columns[21]  # V: M3
+                    col_aeh_uni  = df_ae_h.columns[23]  # X: Unidades
+                    col_aeh_fob  = df_ae_h.columns[19]  # T: FOB SIMI TOTAL
+
+                    df_ae_h['_etd_h'] = pd.to_datetime(df_ae_h[col_aeh_etd], dayfirst=True, errors='coerce')
+                    mask_ae_2026 = df_ae_h['_etd_h'].dt.year == 2026
+                    df_ae_h2 = df_ae_h[mask_ae_2026].copy()
+
+                    def safe_n_ae(v):
+                        try:
+                            s = str(v).strip().replace(' ','')
+                            if s in ['','nan','None','-']: return 0.0
+                            if ',' in s and '.' in s:
+                                if s.index('.') < s.index(','): s = s.replace('.','').replace(',','.')
+                                else: s = s.replace(',','')
+                            elif ',' in s: s = s.replace(',','.')
+                            return float(s)
+                        except: return 0.0
+
+                    df_ae_h2['_m3']  = df_ae_h2[col_aeh_m3].apply(safe_n_ae)
+                    df_ae_h2['_uni'] = df_ae_h2[col_aeh_uni].apply(safe_n_ae)
+                    df_ae_h2['_fob'] = df_ae_h2[col_aeh_fob].apply(safe_n_ae)
+                    df_ae_h2['_mes'] = df_ae_h2['_etd_h'].dt.to_period('M').astype(str)
+
+                    # KPIs aéreos
+                    tot_ae_emb = df_ae_h2[col_aeh_emb].nunique()
+                    tot_ae_m3  = df_ae_h2['_m3'].sum()
+                    tot_ae_uni = df_ae_h2['_uni'].sum()
+                    tot_ae_fob = df_ae_h2['_fob'].sum()
+
+                    ka1,ka2,ka3,ka4 = st.columns(4)
+                    with ka1: st.markdown(f"<div class='metric-container'><p>EMBARQUES</p><p>{tot_ae_emb}</p></div>", unsafe_allow_html=True)
+                    with ka2: st.markdown(f"<div class='metric-container'><p>VOLUMEN</p><p style='color:#a855f7; font-size:36px; font-weight:900; margin:0;'>{int(round(tot_ae_m3)):,} <span style='font-size:16px; color:#475569;'>M3</span></p></div>", unsafe_allow_html=True)
+                    with ka3: st.markdown(f"<div class='metric-container'><p>UNIDADES</p><p>{int(tot_ae_uni):,}</p></div>", unsafe_allow_html=True)
+                    with ka4: st.markdown(f"<div class='metric-container'><p>FOB TOTAL</p><p style='color:#ffaa00; font-size:28px; font-weight:900; margin:0;'>USD {tot_ae_fob/1_000_000:.1f}M</p></div>", unsafe_allow_html=True)
+
+                    st.markdown("<br>", unsafe_allow_html=True)
+
+                    # Tabla mensual aéreos
+                    mes_ae = df_ae_h2.groupby('_mes').agg(
+                        Embarques=(col_aeh_emb, 'nunique'),
+                        M3=('_m3', 'sum'),
+                        Unidades=('_uni', 'sum'),
+                        FOB=('_fob', 'sum'),
+                    ).reset_index().sort_values('_mes')
+                    mes_ae['Delta_Pct'] = (mes_ae['M3'].pct_change() * 100).round(1)
+
+                    ha1,ha2,ha3,ha4,ha5 = st.columns([1.2, 0.8, 0.8, 0.9, 0.9])
+                    ha1.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700;'>MES ETD</p>", unsafe_allow_html=True)
+                    ha2.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>EMBARQUES</p>", unsafe_allow_html=True)
+                    ha3.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>M3</p>", unsafe_allow_html=True)
+                    ha4.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>Δ% vs anterior</p>", unsafe_allow_html=True)
+                    ha5.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>FOB USD</p>", unsafe_allow_html=True)
+                    st.markdown("<hr style='margin:4px 0 8px 0; border:none; border-top:1px solid rgba(255,255,255,0.12);'>", unsafe_allow_html=True)
+
+                    for _, r in mes_ae.iterrows():
+                        pct_a = r['Delta_Pct']
+                        pct_a_str = "—" if pd.isna(pct_a) else (f"+{pct_a:.1f}%" if pct_a > 0 else f"{pct_a:.1f}%")
+                        fob_a_str = f"USD {r['FOB']/1_000_000:.1f}M" if r['FOB'] >= 1_000_000 else f"USD {r['FOB']/1_000:.0f}K"
+                        ca1,ca2,ca3,ca4,ca5 = st.columns([1.2, 0.8, 0.8, 0.9, 0.9])
+                        ca1.markdown(f"<p style='color:#f8fafc; font-size:14px; font-weight:600; margin:6px 0;'>{r['_mes']}</p>", unsafe_allow_html=True)
+                        ca2.markdown(f"<p style='color:#94a3b8; font-size:14px; text-align:center; margin:6px 0;'>{int(r['Embarques'])}</p>", unsafe_allow_html=True)
+                        ca3.markdown(f"<p style='color:#a855f7; font-size:15px; font-weight:700; text-align:center; margin:6px 0;'>{int(round(r['M3'])):,}</p>", unsafe_allow_html=True)
+                        ca4.markdown(f"<p style='color:#94a3b8; font-size:14px; text-align:center; margin:6px 0;'>{pct_a_str}</p>", unsafe_allow_html=True)
+                        ca5.markdown(f"<p style='color:#ffaa00; font-size:14px; font-weight:600; text-align:center; margin:6px 0;'>{fob_a_str}</p>", unsafe_allow_html=True)
+
+                    st.markdown("<hr style='margin:8px 0; border:none; border-top:1px solid rgba(255,255,255,0.3);'>", unsafe_allow_html=True)
+                    ta1,ta2,ta3,ta4,ta5 = st.columns([1.2, 0.8, 0.8, 0.9, 0.9])
+                    ta1.markdown("<p style='color:#f8fafc; font-size:15px; font-weight:800; margin:6px 0;'>TOTAL 2026</p>", unsafe_allow_html=True)
+                    ta2.markdown(f"<p style='color:#f8fafc; font-size:15px; font-weight:800; text-align:center; margin:6px 0;'>{tot_ae_emb}</p>", unsafe_allow_html=True)
+                    ta3.markdown(f"<p style='color:#a855f7; font-size:16px; font-weight:900; text-align:center; margin:6px 0;'>{int(round(tot_ae_m3)):,}</p>", unsafe_allow_html=True)
+                    ta4.markdown("<p style='color:#475569; font-size:14px; text-align:center; margin:6px 0;'>—</p>", unsafe_allow_html=True)
+                    ta5.markdown(f"<p style='color:#ffaa00; font-size:15px; font-weight:800; text-align:center; margin:6px 0;'>USD {tot_ae_fob/1_000_000:.1f}M</p>", unsafe_allow_html=True)
+
+                except Exception as e_ae_h:
+                    st.error(f"Error en Aéreo Histórico: {e_ae_h}")
+                    import traceback; st.code(traceback.format_exc())
 
             except Exception as e_emb:
                 st.error(f"Error en Embarcado 2026: {e_emb}")
