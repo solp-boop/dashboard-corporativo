@@ -915,10 +915,10 @@ border-radius:12px; border-top:3px solid {color_r}; border:1px solid rgba(255,25
 </div>""", unsafe_allow_html=True)
 
             k1, k2, k3, k4 = st.columns(4)
-            with k1: st.markdown(f"<div style='background:rgba(255,255,255,0.03); border-radius:12px; border:1px solid rgba(255,255,255,0.07); padding:16px; text-align:center;'><p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0; text-transform:uppercase;'>SO EN PROCESO</p><p style='color:#f8fafc; font-size:32px; font-weight:900; margin:0;'>{int(df_inst_s2['SO'].nunique())}</p></div>", unsafe_allow_html=True)
-            with k2: st.markdown(f"<div style='background:rgba(255,255,255,0.03); border-radius:12px; border:1px solid rgba(255,255,255,0.07); padding:16px; text-align:center;'><p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0; text-transform:uppercase;'>VOLUMEN TOTAL</p><p style='color:#00a8ff; font-size:32px; font-weight:900; margin:0;'>{int(round(m3_total_clean)):,} <span style='font-size:16px; color:#475569;'>M3</span></p></div>", unsafe_allow_html=True)
-            with k3: st.markdown(f"<div style='background:rgba(255,255,255,0.03); border-radius:12px; border:1px solid rgba(255,255,255,0.07); padding:16px; text-align:center;'><p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0; text-transform:uppercase;'>PROVEEDORES</p><p style='color:#f8fafc; font-size:32px; font-weight:900; margin:0;'>{int(df_inst_s2['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
-            with k4: st.markdown(f"<div style='background:rgba(255,255,255,0.03); border-radius:12px; border:1px solid rgba(255,255,255,0.07); padding:16px; text-align:center;'><p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0; text-transform:uppercase;'>FOB EN PROCESO</p><p style='color:#ffaa00; font-size:28px; font-weight:900; margin:0;'>USD {round(fob_total_clean/1_000_000,1)}M</p></div>", unsafe_allow_html=True)
+            with k1: st.markdown(f"<div style='background:rgba(255,255,255,0.02); border-radius:10px; border:1px solid rgba(255,255,255,0.06); padding:10px 14px; text-align:center;'><p style='color:#64748b; font-size:9px; letter-spacing:2px; margin:0 0 3px 0; text-transform:uppercase;'>SO EN PROCESO</p><p style='color:#f8fafc; font-size:22px; font-weight:900; margin:0;'>{int(df_inst_s2['SO'].nunique())}</p></div>", unsafe_allow_html=True)
+            with k2: st.markdown(f"<div style='background:rgba(255,255,255,0.02); border-radius:10px; border:1px solid rgba(255,255,255,0.06); padding:10px 14px; text-align:center;'><p style='color:#64748b; font-size:9px; letter-spacing:2px; margin:0 0 3px 0; text-transform:uppercase;'>VOLUMEN TOTAL</p><p style='color:#00a8ff; font-size:22px; font-weight:900; margin:0;'>{int(round(m3_total_clean)):,} <span style='font-size:13px; color:#475569;'>M3</span></p></div>", unsafe_allow_html=True)
+            with k3: st.markdown(f"<div style='background:rgba(255,255,255,0.02); border-radius:10px; border:1px solid rgba(255,255,255,0.06); padding:10px 14px; text-align:center;'><p style='color:#64748b; font-size:9px; letter-spacing:2px; margin:0 0 3px 0; text-transform:uppercase;'>PROVEEDORES</p><p style='color:#f8fafc; font-size:22px; font-weight:900; margin:0;'>{int(df_inst_s2['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
+            with k4: st.markdown(f"<div style='background:rgba(255,255,255,0.02); border-radius:10px; border:1px solid rgba(255,255,255,0.06); padding:10px 14px; text-align:center;'><p style='color:#64748b; font-size:9px; letter-spacing:2px; margin:0 0 3px 0; text-transform:uppercase;'>FOB EN PROCESO</p><p style='color:#ffaa00; font-size:20px; font-weight:900; margin:0;'>USD {round(fob_total_clean/1_000_000,1)}M</p></div>", unsafe_allow_html=True)
 
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("""
@@ -960,20 +960,42 @@ height:{H_ROW1}; box-sizing:border-box; display:flex; flex-direction:column; jus
 </div>""", unsafe_allow_html=True)
 
             with col_sem:
+                # Forwarders pendientes (sin ETD OK)
+                col_fwd_res = df_res.columns[6]  # G: Forwarder
+                df_pend_fwd = df_mar[df_mar['ETD_Status_K'] != 'OK'].copy()
+                fwd_pend = df_pend_fwd.groupby(df_pend_fwd.iloc[:,6].astype(str).str.strip()).agg(
+                    Pend=(df_mar.columns[0], 'nunique')
+                ).reset_index()
+                fwd_pend.columns = ['Forwarder', 'Pend']
+                fwd_pend = fwd_pend[fwd_pend['Forwarder'].str.upper() != 'NAN'].sort_values('Pend', ascending=False)
+                fwd_pend['Pct'] = (fwd_pend['Pend'] / fwd_pend['Pend'].sum() * 100).round(0).astype(int)
+
+                fwd_rows = ''.join([
+                    f"<div style='display:flex; justify-content:space-between; margin:3px 0;'>"
+                    f"<span style='color:#94a3b8; font-size:11px;'>{r['Forwarder']}</span>"
+                    f"<span style='color:#ff4b4b; font-size:11px; font-weight:700;'>{int(r['Pend'])} emb · {r['Pct']}%</span>"
+                    f"</div>"
+                    for _, r in fwd_pend.iterrows()
+                ])
+
                 st.markdown(f"""
 <div style='background:rgba(255,255,255,0.02); border-radius:20px;
-border:1px solid rgba(255,255,255,0.07); padding:28px;
+border:1px solid rgba(255,255,255,0.07); padding:24px;
 height:{H_ROW1}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between;'>
 <div>
-    <p style='color:#64748b; font-size:11px; letter-spacing:3px; margin:0 0 14px 0; text-transform:uppercase;'>Estado ETD</p>
-    <p style='color:{semaforo_color}; font-size:72px; font-weight:900; margin:0; line-height:1;'>{pct_ok_mar}%</p>
-    <p style='color:{semaforo_color}; font-size:13px; font-weight:800; letter-spacing:3px; margin:10px 0 4px 0;'>{semaforo_label}</p>
-    <p style='color:#475569; font-size:11px; margin:0;'>{ok_mar} confirmados · {pend_mar} pendientes de booking</p>
-</div>
-<div>
-    <div style='height:6px; background:rgba(255,255,255,0.07); border-radius:3px; margin-bottom:8px;'>
-        <div style='height:6px; width:{pct_ok_mar}%; background:{semaforo_color}; border-radius:3px;'></div>
+    <p style='color:#64748b; font-size:11px; letter-spacing:3px; margin:0 0 8px 0; text-transform:uppercase;'>Estado ETD</p>
+    <div style='display:flex; align-items:baseline; gap:12px;'>
+        <p style='color:{semaforo_color}; font-size:52px; font-weight:900; margin:0; line-height:1;'>{pct_ok_mar}%</p>
+        <div>
+            <p style='color:{semaforo_color}; font-size:11px; font-weight:800; letter-spacing:2px; margin:0;'>{semaforo_label}</p>
+            <p style='color:#475569; font-size:10px; margin:3px 0 0 0;'>{ok_mar} OK · {pend_mar} pendientes</p>
+        </div>
     </div>
+    <div style='height:4px; background:rgba(255,255,255,0.07); border-radius:2px; margin:10px 0 12px 0;'>
+        <div style='height:4px; width:{pct_ok_mar}%; background:{semaforo_color}; border-radius:2px;'></div>
+    </div>
+    <p style='color:#64748b; font-size:9px; letter-spacing:2px; margin:0 0 6px 0; text-transform:uppercase;'>Pendientes por agente</p>
+    {fwd_rows}
 </div>
 </div>""", unsafe_allow_html=True)
 
