@@ -2417,6 +2417,109 @@ border-radius:12px; border-top:2px solid {color};'>
         try:
             st.markdown("<div style='text-align:center; padding:20px; background:rgba(0,168,255,0.05); border-radius:20px; margin:30px 0;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>HISTÓRICO</h2><p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>TIEMPOS · EMBARQUES · 2026</p></div>", unsafe_allow_html=True)
 
+            # ── EMBARCADO 2026 ─────────────────────────────────────────────
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("""
+<div style='text-align:center; padding:20px; background:rgba(0,168,255,0.05); border-radius:20px; margin-bottom:30px;'>
+<h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>EMBARCADO 2026</h2>
+<p style='color:#94a3b8; margin:8px 0 0 0; font-size:13px; letter-spacing:2px;'>Reservas Históricas · Solo marítimos · ETD 2026</p>
+</div>""", unsafe_allow_html=True)
+            try:
+                @st.cache_data(ttl=60)
+                def load_rh_emb(base):
+                    url = f"{base}/export?format=csv&gid=32771816"
+                    return pd.read_csv(url, engine='python', on_bad_lines='skip', header=0)
+                df_rh_emb = load_rh_emb(base_url)
+                col_emb_b   = df_rh_emb.columns[1]   # B: Cant CTNRs
+                col_emb_f   = df_rh_emb.columns[5]   # F: Tipo Carga
+                col_emb_l   = df_rh_emb.columns[11]  # L: ETD
+                col_emb_ah  = df_rh_emb.columns[33]  # AH: FOB SIMI Total
+                col_emb_ai  = df_rh_emb.columns[34]  # AI: M3
+                excluir_e   = ['AVION','AVIÓN','COURIER','COURRIER','AIR']
+                mask_mar_e  = ~df_rh_emb[col_emb_f].astype(str).str.upper().str.strip().apply(lambda x: any(e in x for e in excluir_e))
+                df_rh_emb['_etd_e'] = pd.to_datetime(df_rh_emb[col_emb_l], dayfirst=True, errors='coerce')
+                mask_2026_e = df_rh_emb['_etd_e'].dt.year == 2026
+                df_emb26    = df_rh_emb[mask_mar_e & mask_2026_e].copy()
+                def safe_n(v):
+                    try: return float(str(v).replace('.','').replace(',','.').strip())
+                    except: return 0.0
+                df_emb26['_cntrs'] = df_emb26[col_emb_b].apply(safe_n)
+                df_emb26['_fob']   = df_emb26[col_emb_ah].apply(safe_n)
+                df_emb26['_m3']    = df_emb26[col_emb_ai].apply(safe_n)
+                df_emb26['_embarque'] = df_emb26.iloc[:,0].astype(str)
+                df_emb26['_mes'] = df_emb26['_etd_e'].dt.to_period('M').astype(str)
+
+                # KPIs globales
+                tot_emb   = df_emb26['_embarque'].nunique()
+                tot_cntrs = int(df_emb26['_cntrs'].sum())
+                tot_m3    = df_emb26['_m3'].sum()
+                tot_fob   = df_emb26['_fob'].sum()
+                k1,k2,k3,k4 = st.columns(4)
+                with k1: st.markdown(f"<div class='metric-container'><p>EMBARQUES</p><p>{tot_emb}</p></div>", unsafe_allow_html=True)
+                with k2: st.markdown(f"<div class='metric-container'><p>CONTENEDORES</p><p>{tot_cntrs:,}</p></div>", unsafe_allow_html=True)
+                with k3: st.markdown(f"<div class='metric-container'><p>VOLUMEN TOTAL</p><p>{int(round(tot_m3)):,} <span style='font-size:28px;'>M3</span></p></div>", unsafe_allow_html=True)
+                with k4: st.markdown(f"<div class='metric-container'><p>FOB TOTAL</p><p><span style='font-size:34px;'>USD {tot_fob/1_000_000:.1f}M</span></p></div>", unsafe_allow_html=True)
+
+                # Tabla mensual
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:14px; letter-spacing:3px; margin-bottom:16px;'>DESGLOSE MENSUAL · M3 incluye variación Δ vs mes anterior</p>", unsafe_allow_html=True)
+
+                mes_df = df_emb26.groupby('_mes').agg(
+                    Embarques=('_embarque', 'nunique'),
+                    Contenedores=('_cntrs', 'sum'),
+                    M3=('_m3', 'sum'),
+                    FOB=('_fob', 'sum'),
+                ).reset_index().sort_values('_mes')
+                mes_df['Delta_M3'] = mes_df['M3'].diff()
+
+                # Headers
+                h1,h2,h3,h4,h5,h6 = st.columns([1.2, 0.8, 0.8, 0.9, 0.9, 0.9])
+                h1.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700;'>MES ETD</p>", unsafe_allow_html=True)
+                h2.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>EMBARQUES</p>", unsafe_allow_html=True)
+                h3.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>CNTRS</p>", unsafe_allow_html=True)
+                h4.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>M3</p>", unsafe_allow_html=True)
+                h5.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>Δ M3 vs anterior</p>", unsafe_allow_html=True)
+                h6.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>FOB USD</p>", unsafe_allow_html=True)
+                st.markdown("<hr style='margin:4px 0 8px 0; border:none; border-top:1px solid rgba(255,255,255,0.12);'>", unsafe_allow_html=True)
+
+                for _, r in mes_df.iterrows():
+                    delta = r['Delta_M3']
+                    if pd.isna(delta):
+                        delta_str = "—"
+                        delta_color = "#475569"
+                    elif delta > 0:
+                        delta_str = f"+{int(round(delta)):,}"
+                        delta_color = "#00ff88"
+                    elif delta < 0:
+                        delta_str = f"{int(round(delta)):,}"
+                        delta_color = "#ff4b4b"
+                    else:
+                        delta_str = "0"
+                        delta_color = "#475569"
+                    fob_str = f"USD {r['FOB']/1_000_000:.1f}M" if r['FOB'] >= 1_000_000 else f"USD {r['FOB']/1_000:.0f}K"
+                    c1,c2,c3,c4,c5,c6 = st.columns([1.2, 0.8, 0.8, 0.9, 0.9, 0.9])
+                    c1.markdown(f"<p style='color:#f8fafc; font-size:14px; font-weight:600; margin:6px 0;'>{r['_mes']}</p>", unsafe_allow_html=True)
+                    c2.markdown(f"<p style='color:#94a3b8; font-size:14px; text-align:center; margin:6px 0;'>{int(r['Embarques'])}</p>", unsafe_allow_html=True)
+                    c3.markdown(f"<p style='color:#94a3b8; font-size:14px; text-align:center; margin:6px 0;'>{int(r['Contenedores'])}</p>", unsafe_allow_html=True)
+                    c4.markdown(f"<p style='color:#00a8ff; font-size:15px; font-weight:700; text-align:center; margin:6px 0;'>{int(round(r['M3'])):,}</p>", unsafe_allow_html=True)
+                    c5.markdown(f"<p style='color:{delta_color}; font-size:15px; font-weight:700; text-align:center; margin:6px 0;'>{delta_str}</p>", unsafe_allow_html=True)
+                    c6.markdown(f"<p style='color:#ffaa00; font-size:14px; font-weight:600; text-align:center; margin:6px 0;'>{fob_str}</p>", unsafe_allow_html=True)
+
+                # Total row
+                st.markdown("<hr style='margin:8px 0; border:none; border-top:1px solid rgba(255,255,255,0.3);'>", unsafe_allow_html=True)
+                t1,t2,t3,t4,t5,t6 = st.columns([1.2, 0.8, 0.8, 0.9, 0.9, 0.9])
+                t1.markdown("<p style='color:#f8fafc; font-size:15px; font-weight:800; margin:6px 0;'>TOTAL 2026</p>", unsafe_allow_html=True)
+                t2.markdown(f"<p style='color:#f8fafc; font-size:15px; font-weight:800; text-align:center; margin:6px 0;'>{tot_emb}</p>", unsafe_allow_html=True)
+                t3.markdown(f"<p style='color:#f8fafc; font-size:15px; font-weight:800; text-align:center; margin:6px 0;'>{tot_cntrs:,}</p>", unsafe_allow_html=True)
+                t4.markdown(f"<p style='color:#00a8ff; font-size:16px; font-weight:900; text-align:center; margin:6px 0;'>{int(round(tot_m3)):,}</p>", unsafe_allow_html=True)
+                t5.markdown("<p style='color:#475569; font-size:14px; text-align:center; margin:6px 0;'>—</p>", unsafe_allow_html=True)
+                t6.markdown(f"<p style='color:#ffaa00; font-size:15px; font-weight:800; text-align:center; margin:6px 0;'>USD {tot_fob/1_000_000:.1f}M</p>", unsafe_allow_html=True)
+
+            except Exception as e_emb:
+                st.error(f"Error en Embarcado 2026: {e_emb}")
+                import traceback; st.code(traceback.format_exc())
+
+
             # ── TIEMPOS POR PUERTO: CONSOLIDACIÓN + TRANSIT TIME ──────────────
             st.markdown("<hr class='white-divider'>", unsafe_allow_html=True)
             st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:18px; text-align:center; letter-spacing:4px; margin-bottom:6px;'>TIEMPOS POR PUERTO DE ORIGEN</p>", unsafe_allow_html=True)
@@ -2576,388 +2679,195 @@ border-radius:12px; border-top:2px solid {color};'>
                 import traceback; st.code(traceback.format_exc())
 
 
-            # ── EMBARCADO 2026 ─────────────────────────────────────────────
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("<hr class='glow-divider'>", unsafe_allow_html=True)
-            st.markdown("<p style='color:#00a8ff; font-weight:700; font-size:18px; text-align:center; letter-spacing:4px; margin-bottom:6px;'>EMBARCADO 2026</p>", unsafe_allow_html=True)
-            st.markdown("<p style='color:#475569; font-size:11px; text-align:center; margin-bottom:24px;'>Reservas Históricas · Solo marítimos · ETD 2026</p>", unsafe_allow_html=True)
-            try:
-                @st.cache_data(ttl=60)
-                def load_rh_emb(base):
-                    url = f"{base}/export?format=csv&gid=32771816"
-                    return pd.read_csv(url, engine='python', on_bad_lines='skip', header=0)
-                df_rh_emb = load_rh_emb(base_url)
-                col_emb_b   = df_rh_emb.columns[1]   # B: Cant CTNRs
-                col_emb_f   = df_rh_emb.columns[5]   # F: Tipo Carga
-                col_emb_l   = df_rh_emb.columns[11]  # L: ETD
-                col_emb_ah  = df_rh_emb.columns[33]  # AH: FOB SIMI Total
-                col_emb_ai  = df_rh_emb.columns[34]  # AI: M3
-                excluir_e   = ['AVION','AVIÓN','COURIER','COURRIER','AIR']
-                mask_mar_e  = ~df_rh_emb[col_emb_f].astype(str).str.upper().str.strip().apply(lambda x: any(e in x for e in excluir_e))
-                df_rh_emb['_etd_e'] = pd.to_datetime(df_rh_emb[col_emb_l], dayfirst=True, errors='coerce')
-                mask_2026_e = df_rh_emb['_etd_e'].dt.year == 2026
-                df_emb26    = df_rh_emb[mask_mar_e & mask_2026_e].copy()
-                def safe_n(v):
-                    try: return float(str(v).replace('.','').replace(',','.').strip())
-                    except: return 0.0
-                df_emb26['_cntrs'] = df_emb26[col_emb_b].apply(safe_n)
-                df_emb26['_fob']   = df_emb26[col_emb_ah].apply(safe_n)
-                df_emb26['_m3']    = df_emb26[col_emb_ai].apply(safe_n)
-                tot_emb   = df_emb26.iloc[:,0].nunique()
-                tot_cntrs = int(df_emb26['_cntrs'].sum())
-                tot_m3    = df_emb26['_m3'].sum()
-                tot_fob   = df_emb26['_fob'].sum()
-                k1,k2,k3,k4 = st.columns(4)
-                with k1: st.markdown(f"<div class='metric-container'><p>EMBARQUES</p><p>{tot_emb}</p></div>", unsafe_allow_html=True)
-                with k2: st.markdown(f"<div class='metric-container'><p>CONTENEDORES</p><p>{tot_cntrs:,}</p></div>", unsafe_allow_html=True)
-                with k3: st.markdown(f"<div class='metric-container'><p>VOLUMEN</p><p>{int(round(tot_m3)):,} <span style='font-size:28px;'>M3</span></p></div>", unsafe_allow_html=True)
-                with k4: st.markdown(f"<div class='metric-container'><p>FOB TOTAL</p><p><span style='font-size:34px;'>USD {tot_fob/1_000_000:.1f}M</span></p></div>", unsafe_allow_html=True)
-            except Exception as e_emb:
-                st.error(f"Error en Embarcado 2026: {e_emb}")
-                import traceback; st.code(traceback.format_exc())
 
         except Exception as e:
             st.error(f"Error en Histórico: {e}")
 
+
+    # --- SOLAPA 8: ASK COMEX ---
     with tabs[7]:
         st.markdown("<div style='text-align:center; padding: 40px; background: rgba(0, 168, 255, 0.05); border-radius: 20px; border: 2px dashed rgba(0, 168, 255, 0.2);'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:10px;'>ASK COMEX</h2><p style='color:#94a3b8; font-size:18px; margin-top:20px;'>Inteligencia Operativa en Tiempo Real.</p></div>", unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
         try:
             with st.popover("💬 Hablar con Capitán Comex (IA)", use_container_width=False):
-                st.markdown("<h4 style='color:#00ff88; margin-bottom:0;'>🚢 Capitán Comex</h4>", unsafe_allow_html=True)
-                st.caption("Asistente Logístico con IA (Google Gemini)")
-                if "chat_history" not in st.session_state:
-                    st.session_state.chat_history = [{"role": "assistant", "content": "¡Hola! Soy Capitán Comex. ¿Qué embarque buscamos o qué duda operativa tienes?"}]
-                chat_container = st.container(height=400)
-                with chat_container:
-                    for msg in st.session_state.chat_history:
-                        avatar = "🚢" if msg["role"] == "assistant" else "👤"
-                        with st.chat_message(msg["role"], avatar=avatar):
-                            st.markdown(msg["content"])
-                if prompt := st.chat_input("Hazle una pregunta a la IA..."):
-                    st.session_state.chat_history.append({"role": "user", "content": prompt})
-                    with chat_container:
-                        with st.chat_message("user", avatar="👤"):
-                            st.markdown(prompt)
-                        with st.chat_message("assistant", avatar="🚢"):
-                            resp_placeholder = st.empty()
-                            resp_placeholder.markdown("Pensando... ⏳")
-                            try:
-                                respuesta_ia = "🚧 Estamos trabajando en esta funcionalidad. Volvé a intentarlo pronto."
-                            except Exception as e:
-                                respuesta_ia = "🚧 Estamos trabajando en esta funcionalidad. Volvé a intentarlo pronto."
-                            resp_placeholder.markdown(respuesta_ia)
-                            st.session_state.chat_history.append({"role": "assistant", "content": respuesta_ia})
-        except AttributeError:
-            st.error("⚠️ Para usar este chat flotante, necesitamos actualizar Streamlit. (Requiere versión 1.33 o superior).")
+                st.markdown("🚧 Estamos trabajando en esta funcionalidad", unsafe_allow_html=True)
 
-        st.markdown("<hr class='white-divider'>", unsafe_allow_html=True)
+            st.markdown("<br>", unsafe_allow_html=True)
+            search_query = st.text_input("🔍 Buscar por N° de SO o N° de Embarque", placeholder="Ej: GAD-2026-0001  ó  EMB-123456", key="ask_search")
 
-        @st.cache_data(ttl=60)
-        def load_ask_comex_data():
-            url_reserva = f"{base_url}/export?format=csv&gid=276804813"
-            url_hist = f"{base_url}/export?format=csv&gid=32771816"
-            url_emb_hist = "https://docs.google.com/spreadsheets/d/1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI/export?format=csv&gid=50628730"
-            url_ddp   = "https://docs.google.com/spreadsheets/d/1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI/export?format=csv&gid=2050674215"
-            url_impo2 = "https://docs.google.com/spreadsheets/d/1uDV3-CK5aeb-PI81uNc54t4L50HhscHe5xkp-pL9SyI/export?format=csv&gid=131563120"
-            try: res = pd.read_csv(url_reserva, engine='python', on_bad_lines='skip')
-            except: res = pd.DataFrame()
-            try: hi = pd.read_csv(url_hist, engine='python', on_bad_lines='skip')
-            except: hi = pd.DataFrame()
-            try: emb_hi = pd.read_csv(url_emb_hist, engine='python', on_bad_lines='skip')
-            except: emb_hi = pd.DataFrame()
-            try: ddp = pd.read_csv(url_ddp, engine='python', on_bad_lines='skip')
-            except: ddp = pd.DataFrame()
-            try: impo2 = pd.read_csv(url_impo2, engine='python', on_bad_lines='skip')
-            except: impo2 = pd.DataFrame()
-            return res, hi, emb_hi, ddp, impo2
+            if search_query and search_query.strip():
+                sq = search_query.strip()
 
-        df_res_ask, df_hi_ask, df_emb_hi_ask, df_ddp_ask, df_impo2_ask = load_ask_comex_data()
-        # Preparar Despachos Directo Puerto: cruce por FCL (col F idx 5)
-        # col A(0)=Orden WMS, col B(1)=Fecha Retiro, col D(3)=Fecha OFI, col E(4)=N Despacho, col F(5)=FCL
-        if not df_ddp_ask.empty:
-            df_ddp_ask.columns = [str(c).strip() for c in df_ddp_ask.columns]
-            df_ddp_ask['_emb_key'] = df_ddp_ask.iloc[:, 5].astype(str).str.strip().str.upper()
-        # Preparar Importaciones2: cruce por Embarque (col A idx 0)
-        # col A(0)=Embarque, col B(1)=Fecha Salida Origen, col C(2)=Fecha Arribo Aduana
-        if not df_impo2_ask.empty:
-            df_impo2_ask.columns = [str(c).strip() for c in df_impo2_ask.columns]
-            df_impo2_ask['_emb_key'] = df_impo2_ask.iloc[:, 0].astype(str).str.strip().str.upper()
+                @st.cache_data(ttl=60)
+                def load_impo2(base):
+                    url = f"{base}/export?format=csv&gid=131563120"
+                    return pd.read_csv(url, engine='python', on_bad_lines='skip', header=0)
 
-        st.markdown("<br>", unsafe_allow_html=True)
-        def get_estadio_impo2(emb, eta_str, df_impo2, hoy_d, historico=False):
-            # Determina estadio 5/6/7 cruzando con Despachos Directo Puerto
-            # col A(0)=Orden WMS, col B(1)=Fecha Retiro, col D(3)=Fecha OFI, col E(4)=N Despacho, col F(5)=FCL
-            suffix = " (HISTORICO)" if historico else ""
-            def es_vacio(v): return str(v).strip().lower() in ['', 'nan', 'none', '-', 'n/a']
-            if df_impo2.empty:
-                return 5, "EN PROCESO DE NACIONALIZACION" + suffix, "#ffaa00", "Carga arribada. Sin informacion de despacho aun. (ETA: " + str(eta_str) + ")"
-            emb_key = str(emb).strip().upper()
-            match = df_impo2[df_impo2['_emb_key'] == emb_key]
-            if match.empty:
-                return 5, "EN PROCESO DE NACIONALIZACION" + suffix, "#ffaa00", "Carga arribada. Sin registro en Despachos Directo Puerto aun."
-            row_i = match.iloc[0]
-            val_orden    = str(row_i.iloc[0]).strip() if len(row_i) > 0 else ""
-            val_retiro   = str(row_i.iloc[1]).strip() if len(row_i) > 1 else ""
-            val_ofi      = str(row_i.iloc[3]).strip() if len(row_i) > 3 else ""
-            val_despacho = str(row_i.iloc[4]).strip() if len(row_i) > 4 else ""
-            try:
-                dt_retiro = pd.to_datetime(val_retiro, dayfirst=True).date()
-                retiro_cumplido = dt_retiro <= hoy_d
-            except:
-                dt_retiro = None
-                retiro_cumplido = False
-            orden_txt    = (" | Orden WMS: " + val_orden)     if not es_vacio(val_orden)    else ""
-            despacho_txt = (" | N Despacho: " + val_despacho) if not es_vacio(val_despacho) else ""
-            ofi_txt      = (" | Fecha OFI: " + val_ofi)       if not es_vacio(val_ofi)      else ""
-            retiro_txt   = (" | Retiro: " + val_retiro)        if not es_vacio(val_retiro)   else ""
-            if not es_vacio(val_retiro) and retiro_cumplido:
-                return 7, "ENTREGADO EN DEPOSITO", "#00ff88", "Carga retirada y entregada al deposito." + orden_txt + despacho_txt + ofi_txt + retiro_txt
-            elif not es_vacio(val_retiro) and not retiro_cumplido:
-                return 6, "NACIONALIZADO / RETIRO COORDINADO", "#a855f7", "Despacho oficializado. Retiro coordinado para: " + val_retiro + "." + orden_txt + despacho_txt + ofi_txt
-            elif not es_vacio(val_ofi):
-                return 6, "NACIONALIZADO / COORDINANDO RETIRO", "#a855f7", "Despacho oficializado el " + val_ofi + ". Pendiente coordinar retiro." + orden_txt + despacho_txt
-            else:
-                return 5, "EN PROCESO DE NACIONALIZACION" + suffix, "#ffaa00", "Carga arribada. Pendiente de oficializacion del despacho." + orden_txt
+                @st.cache_data(ttl=60)
+                def load_ddp(base):
+                    url = f"{base}/export?format=csv&gid=2050674215"
+                    return pd.read_csv(url, engine='python', on_bad_lines='skip', header=0)
 
-        query = st.text_input("🔍 INGRESE SO O N° DE EMBARQUE:", placeholder="Ej: SO-12345 o EMB-999...")
+                @st.cache_data(ttl=60)
+                def load_hist_ask(base):
+                    url = f"{base}/export?format=csv&gid=50628730"
+                    return pd.read_csv(url, engine='python', on_bad_lines='skip', header=0)
 
-        if query:
-            query = str(query).strip().upper()
-            # Columnas de búsqueda
-            col_so         = [c for c in df.columns if c.strip().upper() == 'SO'][0] if any(c.strip().upper() == 'SO' for c in df.columns) else df.columns[0]
-            col_emb_pc     = df.columns[16]   # Planif Cargas col Q = Embarque
+                df_impo2   = load_impo2(base_url)
+                df_ddp     = load_ddp(base_url)
+                df_hist_ask = load_hist_ask(base_url)
 
-            is_historical = False
-            df_found = pd.DataFrame()
+                def get_estadio_impo2(emb, df_i2, df_d):
+                    emb_str = str(emb).strip()
+                    # Check DDP
+                    ddp_match = df_d[df_d.iloc[:,5].astype(str).str.strip() == emb_str]
+                    if not ddp_match.empty:
+                        f_retiro = str(ddp_match.iloc[0,1]).strip()
+                        f_ofi    = str(ddp_match.iloc[0,3]).strip()
+                        if f_retiro not in ['','nan','None']: return 8, f_retiro, f_ofi
+                        if f_ofi    not in ['','nan','None']: return 7, f_retiro, f_ofi
+                    # Check Impo2
+                    i2_match = df_i2[df_i2.iloc[:,0].astype(str).str.strip() == emb_str]
+                    if not i2_match.empty:
+                        f_salida = str(i2_match.iloc[0,1]).strip()
+                        f_arribo = str(i2_match.iloc[0,2]).strip()
+                        if f_arribo not in ['','nan','None']: return 6, f_salida, f_arribo
+                        if f_salida not in ['','nan','None']: return 5, f_salida, ''
+                    return None, '', ''
 
-            # 1. Buscar por SO en Planif Cargas
-            mask_so  = df[col_so].astype(str).str.upper().str.contains(query, na=False)
-            # 2. Buscar por Embarque en Planif Cargas (col Q)
-            mask_emb_pc = df[col_emb_pc].astype(str).str.strip().str.upper() == query
+                # Search in df (Planif Cargas)
+                col_so_pc   = 'SO'
+                col_emb_pc  = df.columns[16]   # Q
+                col_inst_pc = df.columns[20]    # U
+                col_etd_ok  = df.columns[97]    # ETD OK FFWW
+                col_etd_pc  = df.columns[23]    # X
+                col_eta_pc  = df.columns[24]    # Y
+                col_pais_pc = df.columns[18]    # S
+                col_sku_pc  = df.columns[32]    # AG
+                col_inv_pc  = df.columns[29]    # AD
+                col_fprod_pc = df.columns[99]   # CV
+                col_prov_pc = df.columns[18]    # Proveedor
+                col_analista_ask = next((c for c in df.columns if 'ANALISTA' in str(c).upper() or 'RESPONSABLE' in str(c).upper()), None)
 
-            df_found = df[mask_so | mask_emb_pc]
+                mask_so  = df[col_so_pc].astype(str).str.upper().str.contains(sq.upper(), na=False)
+                mask_emb = df[col_emb_pc].astype(str).str.strip() == sq
+                df_found = df[mask_so | mask_emb].copy()
 
-            # 3. Fallback: buscar en Embarques Historicos (col E idx 4 = Embarque, col A idx 0 = SO)
-            if df_found.empty and not df_emb_hi_ask.empty:
-                col_eh_emb = df_emb_hi_ask.columns[4]  # col E = Embarque
-                col_eh_so  = df_emb_hi_ask.columns[0]  # col A = SO
-                m_emb = df_emb_hi_ask[col_eh_emb].astype(str).str.strip().str.upper() == query
-                m_so  = df_emb_hi_ask[col_eh_so].astype(str).str.upper().str.contains(query, na=False)
-                df_found = df_emb_hi_ask[m_emb | m_so]
-                if not df_found.empty: is_historical = True
+                # Fallback to historical
+                used_hist = False
+                if df_found.empty:
+                    col_emb_h = df_hist_ask.columns[4]
+                    col_so_h  = df_hist_ask.columns[0]
+                    mh = (df_hist_ask[col_emb_h].astype(str).str.strip() == sq) | \
+                         (df_hist_ask[col_so_h].astype(str).str.upper().str.contains(sq.upper(), na=False))
+                    if mh.any():
+                        used_hist = True
+                        embs_hist = df_hist_ask[mh][col_emb_h].unique()
+                        df_found  = df[df[col_emb_pc].astype(str).str.strip().isin([str(e) for e in embs_hist])].copy()
 
-            if df_found.empty:
-                st.warning(f"No se encontraron registros para '{query}'.")
-                st.info("Verificá que el SO o número de embarque esté exactamente como aparece en el sistema (ej: FCL 2050, AIR 152).")
-            else:
-                origen = "Embarques Históricos" if is_historical else "Planif Cargas"
-                st.success(f"✅ Registro encontrado — {len(df_found)} coincidencias en {origen}")
-                if len(df_found) > 50:
-                    st.warning(f"⚠️ Se encontraron {len(df_found)} resultados. Procesando los primeros 50.")
-                    df_found = df_found.head(50)
+                if df_found.empty:
+                    st.warning(f"No se encontraron resultados para: **{sq}**")
+                else:
+                    sos_found = df_found[col_so_pc].unique()
+                    st.markdown(f"<p style='color:#94a3b8; font-size:12px;'>Se encontraron <b style='color:#00a8ff;'>{len(sos_found)} SO</b> {'(desde histórico)' if used_hist else ''}</p>", unsafe_allow_html=True)
 
-                resultados_procesados = []
-                for i, row in df_found.iterrows():
-                    if is_historical:
-                        val_so  = str(row.iloc[0]).strip()
-                        val_sku = str(row.iloc[5]).strip() if len(row) > 5 else "—"  # col F
-                        val_inv = str(row.iloc[17]).strip() if len(row) > 17 else "—"  # col R
-                        if val_sku.lower() in ["nan","none",""]: val_sku = "—"
-                        if val_inv.lower() in ["nan","none",""]: val_inv = "—"
-                        val_emb = str(row.iloc[4]).strip()
-                        if val_emb.lower() in ['nan', 'none', '']: val_emb = "Sin Asignar"
-                        val_prov = str(row.iloc[18])
-                        val_etd_gso = str(row.iloc[6]).strip(); val_eta_gso = str(row.iloc[7]).strip()
-                        val_fin_prod = str(row.iloc[2]).strip()
-                        if val_fin_prod.lower() == 'nan' or val_fin_prod == '': val_fin_prod = "Sin Info"
-                        try: val_cant_emb = float(str(row.iloc[9]).replace(',', '.').strip())
-                        except: val_cant_emb = 0.0
-                        cantidad_mostrar = int(val_cant_emb); label_cant = "CANTIDAD EMB"
-                        val_fecha_inst = "Pendiente"
-                        if not df_hi_ask.empty and len(df_hi_ask.columns) > 7:
-                            col_hi_emb = df_hi_ask.columns[0]
-                            hi_match = df_hi_ask[df_hi_ask[col_hi_emb].astype(str).str.strip().str.upper() == val_emb.upper()]
-                            if not hi_match.empty:
-                                val_f = str(hi_match.iloc[0].iloc[7]).strip()
-                                if val_f.lower() != 'nan' and val_f != '': val_fecha_inst = val_f
-                        hoy_d = datetime.now().date()
-                        try:
-                            dt_eta_parsed = pd.to_datetime(val_eta_gso, dayfirst=True)
-                            dt_eta = dt_eta_parsed.date() if pd.notna(dt_eta_parsed) else None
-                        except: dt_eta = None
-                        if dt_eta is not None and dt_eta < hoy_d:
-                            estadio_ddp, desc_ddp, color_ddp, info_ddp = get_estadio_impo2(val_emb, val_eta_gso, df_ddp_ask, hoy_d, historico=True)
-                            if estadio_ddp == 5:
-                                estadio = 6; desc_estadio = "ARRIBADO (HISTORICO)"; color_estadio = "#00ff88"
-                                info_extra = "La carga ha llegado a destino. Pendiente proceso de aduana. ETA: " + str(val_eta_gso)
-                            else:
-                                estadio = estadio_ddp + 1
-                                desc_estadio = desc_ddp; color_estadio = color_ddp; info_extra = info_ddp
-                        else:
-                            estadio = 4; desc_estadio = "EN TRÁNSITO (HISTÓRICO)"; color_estadio = "#00a8ff"
-                            info_extra = f"La carga figura despachada en registros históricos pero su ETA es futura. (ETA: {val_eta_gso})"
-                        # ETD y ETA para historicos
-                        etd_display = val_etd_gso if val_etd_gso and str(val_etd_gso).lower() not in ["nan","none",""] else "Sin fecha"
-                        eta_display = val_eta_gso if val_eta_gso and str(val_eta_gso).lower() not in ["nan","none",""] else "Sin fecha"
-                    else:
-                        val_so  = str(row[col_so]).strip()
-                        val_sku = str(row[df.columns[32]]).strip() if len(df.columns) > 32 else ""
-                        val_inv = str(row[df.columns[29]]).strip() if len(df.columns) > 29 else ""
-                        if val_sku.lower() in ["nan","none",""]: val_sku = "—"
-                        if val_inv.lower() in ["nan","none",""]: val_inv = "—"
-                        col_prov = [c for c in df.columns if 'PROVEEDOR' in c.upper()][0] if any('PROVEEDOR' in c.upper() for c in df.columns) else df.columns[30]
-                        val_prov = str(row[col_prov])
-                        col_emb = [c for c in df.columns if 'EMBARQUE' in c.upper()][0] if any('EMBARQUE' in c.upper() for c in df.columns) else df.columns[16]
-                        val_emb = str(row[col_emb]).strip()
-                        if val_emb.lower() == 'nan': val_emb = "Sin Asignar"
-                        col_inst = [c for c in df.columns if 'INSTRUCCION' in c.upper() or 'INSTRUCCIÓN' in c.upper()][0] if any('INSTRUCCION' in c.upper() or 'INSTRUCCIÓN' in c.upper() for c in df.columns) else df.columns[20]
-                        val_inst = str(row[col_inst]).strip()
-                        col_fin_prod = df.columns[99]  # Columna CV: Fecha prioritaria / Fin produccion real
-                        val_fin_prod = str(row[col_fin_prod]).strip()
-                        if val_fin_prod.lower() == 'nan' or val_fin_prod == '': val_fin_prod = "Sin Info"
-                        val_fecha_inst = val_inst if (val_inst != "" and val_inst.lower() != "nan" and "sin instruccion" not in val_inst.lower()) else "Pendiente"
-                        val_etd_gso = str(row[df.columns[23]]).strip()  # col X = ETD
-                        val_eta_gso = str(row[df.columns[24]]).strip()  # col Y = ETA
-                        col_cant_pend = [c for c in df.columns if 'CANTIDAD PENDIENTE DE EMBARCAR' in c.upper()][0] if any('CANTIDAD PENDIENTE DE EMBARCAR' in c.upper() for c in df.columns) else df.columns[21]
-                        col_cant_emb = [c for c in df.columns if 'CANTIDAD EMB' in c.upper() and 'PREVENTA' not in c.upper()][0] if any('CANTIDAD EMB' in c.upper() and 'PREVENTA' not in c.upper() for c in df.columns) else df.columns[60]
-                        try: val_cant_pend = float(str(row[col_cant_pend]).replace(',', '.').strip())
-                        except: val_cant_pend = 0.0
-                        try: val_cant_emb = float(str(row[col_cant_emb]).replace(',', '.').strip())
-                        except: val_cant_emb = 0.0
-                        if val_cant_pend == 0:
-                            cantidad_mostrar = int(val_cant_emb); label_cant = "CANTIDAD EMB"
-                        else:
-                            cantidad_mostrar = int(val_cant_pend); label_cant = "CANT. PENDIENTE"
-                        col_analista_ask = next((c for c in df.columns if 'ANALISTA' in str(c).upper() or 'RESPONSABLE' in str(c).upper()), None)
-                        val_analista = str(row[col_analista_ask]).strip() if col_analista_ask else "—"
-                        if val_analista.lower() in ["nan", "none", ""]: val_analista = "—"
-                        # Columnas clave de Planif Cargas
-                        col_etd_ok_ask = next((c for c in df.columns if "ETD OK FFWW" in str(c).upper() or "ETD OK" in str(c).upper()), df.columns[97])
-                        val_etd_ok = str(row[col_etd_ok_ask]).strip().upper() if col_etd_ok_ask in df.columns else ""
-                        hoy_d = datetime.now().date()
-                        try:
-                            _p = pd.to_datetime(val_eta_gso, dayfirst=True)
-                            dt_eta_gso = _p.date() if pd.notna(_p) else None
-                        except: dt_eta_gso = None
-                        try:
-                            _p = pd.to_datetime(val_etd_gso, dayfirst=True)
-                            dt_etd_gso = _p.date() if pd.notna(_p) else None
-                        except: dt_etd_gso = None
-                        in_historical = False
-                        if not df_hi_ask.empty:
-                            df_hi_ask.columns = df_hi_ask.columns.str.strip()
-                            col_hi_emb = df_hi_ask.columns[0]
-                            hi_match = df_hi_ask[df_hi_ask[col_hi_emb].astype(str).str.strip().str.upper() == val_emb.upper()]
-                            if not hi_match.empty: in_historical = True
-                        tiene_emb  = val_emb not in ["Sin Asignar", "", "nan", "NAN"]
-                        tiene_inst = val_fecha_inst != "Pendiente"
-                        etd_ok     = val_etd_ok == "OK"
-                        etd_display = val_etd_gso if val_etd_gso and str(val_etd_gso).lower() not in ["nan","none",""] else "Sin fecha"
-                        eta_display = val_eta_gso if val_eta_gso and str(val_eta_gso).lower() not in ["nan","none",""] else "Sin fecha"
+                    ESTADIOS = [
+                        "PENDIENTE DE INSTRUCCION",
+                        "EN PROCESO DE CONSOLIDACION",
+                        "INSTRUCCION ENVIADA - ESPERA BOOKING",
+                        "BOOKING CONFIRMADO",
+                        "EN TRANSITO",
+                        "ARRIBADO",
+                        "NACIONALIZADO",
+                        "ENTREGADO EN DEPOSITO",
+                    ]
+                    COLORES_EST = ['#ff4b4b','#ffaa00','#f97316','#00a8ff','#06b6d4','#a855f7','#00ff88','#00ff88']
 
-                        # Buscar en Importaciones2 para fechas de transito/arribo
-                        f_salida_origen = ""; f_arribo_aduana = ""
-                        if not df_impo2_ask.empty and val_emb not in ["Sin Asignar","","nan","NAN"]:
-                            impo2_match = df_impo2_ask[df_impo2_ask["_emb_key"] == val_emb.upper()]
-                            if not impo2_match.empty:
-                                f_salida_origen = str(impo2_match.iloc[0].iloc[1]).strip()
-                                f_arribo_aduana = str(impo2_match.iloc[0].iloc[2]).strip()
-                                if f_salida_origen.lower() in ["nan","none",""]: f_salida_origen = ""
-                                if f_arribo_aduana.lower() in ["nan","none",""]: f_arribo_aduana = ""
+                    resultados = []
+                    for so_val in sos_found:
+                        rows_so = df_found[df_found[col_so_pc] == so_val]
+                        row = rows_so.iloc[0]
+                        val_emb   = str(row[col_emb_pc]).strip()
+                        val_inst  = str(row[col_inst_pc]).strip()
+                        val_etdok = str(row[col_etd_ok]).strip().upper()
+                        val_etd   = str(row[col_etd_pc]).strip()
+                        val_eta   = str(row[col_eta_pc]).strip()
+                        val_sku   = str(row[col_sku_pc]).strip()
+                        val_inv   = str(row[col_inv_pc]).strip()
+                        val_fprod = str(row[col_fprod_pc]).strip() if col_fprod_pc in df.columns else '—'
+                        val_prov  = str(row.iloc[18]).strip()
+                        val_analista = str(row[col_analista_ask]).strip() if col_analista_ask else '—'
+                        if val_analista.lower() in ['nan','none','']: val_analista = '—'
+                        cantidad_mostrar = rows_so['M3 Total'].apply(lambda x: safe_float(x) if 'safe_float' in dir() else 0).sum()
+                        label_cant = 'M3'
 
-                        if in_historical or (dt_eta_gso and dt_eta_gso <= hoy_d):
-                            estadio_ddp, desc_ddp, color_ddp, info_ddp = get_estadio_impo2(val_emb, val_eta_gso, df_ddp_ask, hoy_d, historico=False)
-                            if estadio_ddp == 5:
-                                estadio = 6; desc_estadio = "ARRIBADO"; color_estadio = "#00ff88"
-                                arribo_txt = " | Arribo a aduana: " + f_arribo_aduana if f_arribo_aduana else ""
-                                info_extra = "La carga ha llegado a destino. ETA: " + eta_display + arribo_txt
-                            else:
-                                estadio = estadio_ddp + 1
-                                desc_estadio = desc_ddp; color_estadio = color_ddp; info_extra = info_ddp
-                        elif dt_etd_gso and dt_etd_gso <= hoy_d and etd_ok:
-                            estadio = 5; desc_estadio = "EN TRANSITO"; color_estadio = "#00a8ff"
-                            salida_txt = " | Salida origen: " + f_salida_origen if f_salida_origen else ""
-                            arribo_txt = " | Arribo estimado aduana: " + f_arribo_aduana if f_arribo_aduana else " | ETA: " + eta_display
-                            info_extra = "La carga esta navegando. ETD: " + (dt_etd_gso.strftime("%d/%m/%Y") if dt_etd_gso else "SD") + salida_txt + arribo_txt
-                        elif etd_ok and (not dt_etd_gso or dt_etd_gso > hoy_d):
-                            estadio = 4; desc_estadio = "BOOKING CONFIRMADO"; color_estadio = "#a855f7"
-                            info_extra = "Espacio confirmado. Esperando zarpada. ETD: " + etd_display + " | ETA estimada: " + eta_display
-                        elif tiene_inst and not etd_ok:
-                            estadio = 3; desc_estadio = "INSTRUCCION ENVIADA - ESPERA BOOKING"; color_estadio = "#ffaa00"
-                            info_extra = "Instruccion enviada el " + val_inst + ". Esperando confirmacion de booking. ETA estimada: " + eta_display
-                        elif tiene_emb and not tiene_inst:
-                            estadio = 2; desc_estadio = "EN PROCESO DE CONSOLIDACION"; color_estadio = "#06b6d4"
-                            info_extra = "SO asignado al embarque " + val_emb + ". Pendiente de instruccion al agente."
-                        else:
-                            estadio = 1; desc_estadio = "PENDIENTE DE INSTRUCCION"; color_estadio = "#94a3b8"
-                            info_extra = "Sin embarque asignado. Carga en origen sin gestion iniciada."
-                    resultados_procesados.append({
-                        "estadio": estadio, "desc_estadio": desc_estadio, "color_estadio": color_estadio,
-                        "info_extra": info_extra, "so": val_so, "inv": val_inv, "sku": val_sku,
-                        "emb": val_emb, "prov": val_prov, "cant": cantidad_mostrar,
-                        "label_cant": label_cant, "fecha_inst": val_fecha_inst, "fin_prod": val_fin_prod,
-                        "etd": etd_display, "eta": eta_display, "analista": val_analista
-                    })
+                        etd_dt = pd.to_datetime(val_etd, dayfirst=True, errors='coerce')
+                        eta_dt = pd.to_datetime(val_eta, dayfirst=True, errors='coerce')
+                        etd_display = etd_dt.strftime('%d/%m/%Y') if pd.notna(etd_dt) else '—'
+                        eta_display = eta_dt.strftime('%d/%m/%Y') if pd.notna(eta_dt) else '—'
 
-                st.session_state.ultimos_resultados = resultados_procesados
-                st.success(f"📌 {len(resultados_procesados)} SO(s) encontrados.")
+                        # Determine estadio
+                        sin_emb  = val_emb in ['','nan','None']
+                        sin_inst = val_inst in ['','nan','None'] or 'SIN INSTRUCCION' in val_inst.upper()
+                        etd_ok   = val_etdok == 'OK'
+                        hoy_ts   = pd.Timestamp.now().normalize()
+                        etd_past = pd.notna(etd_dt) and etd_dt < hoy_ts
 
-                for r in resultados_procesados:
-                    etd_val = r.get('etd', 'Sin fecha')
-                    eta_val = r.get('eta', 'Sin fecha')
-                    c_est   = r['color_estadio']
-                    st.markdown(
-                        "<div class='custom-card' style='border-top:5px solid " + c_est + ";'>"
-                        "<h3 style='color:" + c_est + "; text-transform:uppercase; letter-spacing:2px; margin-bottom:10px;'>"
-                        "ESTADIO " + str(r['estadio']) + ": " + r['desc_estadio'] + "</h3>"
-                        "<p style='color:#f8fafc; font-size:14px; margin-bottom:15px;'>" + r['info_extra'] + "</p>"
-                        "<hr style='border:none; border-top:1px solid rgba(255,255,255,0.1); margin:15px 0;'>"
-                        "<div class='grid-4' style='align-items:start;'>"
-                        "<div><p class='minicard-title'>SO</p><p style='font-size:18px; font-weight:700; color:#f8fafc; margin:0;'>" + r['so'] + "</p></div>"
-                        "<div><p class='minicard-title'>EMBARQUE</p><p style='font-size:18px; font-weight:700; color:#00a8ff; margin:0;'>" + r['emb'] + "</p></div>"
-                        "<div><p class='minicard-title'>SKU / CÓDIGO</p><p style='font-size:16px; font-weight:600; color:#f8fafc; margin:0;'>" + r['sku'] + "</p></div>"
-                        "<div><p class='minicard-title'>N° INVOICE</p><p style='font-size:16px; font-weight:600; color:#f8fafc; margin:0;'>" + r['inv'] + "</p></div>"
-                        "</div>"
-                        "<div class='grid-4' style='margin-top:15px; padding-top:15px; border-top:1px dashed rgba(255,255,255,0.1);'>"
-                        "<div><p class='minicard-title'>ETD</p><p style='font-size:15px; color:#ffaa00; margin:0;'>" + etd_val + "</p></div>"
-                        "<div><p class='minicard-title'>ETA</p><p style='font-size:15px; color:#00a8ff; margin:0;'>" + eta_val + "</p></div>"
-                        "<div><p class='minicard-title'>F. INSTRUCCION</p><p style='font-size:15px; color:#f8fafc; margin:0;'>" + r['fecha_inst'] + "</p></div>"
-                        "<div><p class='minicard-title'>FIN PRODUCCION</p><p style='font-size:15px; color:#f8fafc; margin:0;'>" + r['fin_prod'] + "</p></div>"
-                        "</div>"
-                        "<div class='grid-4' style='margin-top:15px; padding-top:15px; border-top:1px dashed rgba(255,255,255,0.1);'>"
-                        "<div><p class='minicard-title'>PROVEEDOR</p><p style='font-size:14px; color:#f8fafc; margin:0; font-weight:600;'>" + r['prov'] + "</p></div>"
-                        "<div><p class='minicard-title'>TOTAL " + r['label_cant'] + "</p><p style='font-size:24px; color:#00ff88; font-weight:900; margin:0;'>" + str(r['cant']) + "</p></div>"
-                        "<div><p class='minicard-title'>ANALISTA</p><p style='font-size:14px; color:#a855f7; margin:0; font-weight:700;'>" + r.get('analista','—') + "</p></div>"
-                        "<div></div>"
-                        "</div></div>",
-                        unsafe_allow_html=True
-                    )
-                    pct_p = round(r['estadio'] / 8 * 100)
-                    c1 = '#fff' if r['estadio'] >= 1 else '#64748b'
-                    c2 = '#fff' if r['estadio'] >= 2 else '#64748b'
-                    c3 = '#fff' if r['estadio'] >= 3 else '#64748b'
-                    c4 = '#fff' if r['estadio'] >= 4 else '#64748b'
-                    c5 = '#fff' if r['estadio'] >= 5 else '#64748b'
-                    c6 = '#fff' if r['estadio'] >= 6 else '#64748b'
-                    c7 = '#fff' if r['estadio'] >= 7 else '#64748b'
-                    c8 = '#fff' if r['estadio'] >= 8 else '#64748b'
-                    st.markdown(
-                        "<div style='width:100%; background-color:rgba(255,255,255,0.1); border-radius:10px; margin-top:15px; height:10px;'>"
-                        "<div style='width:" + str(pct_p) + "%; background-color:" + c_est + "; height:10px; border-radius:10px;'></div></div>"
-                        "<div style='display:flex; justify-content:space-between; margin-top:8px; padding:0 5px;'>"
-                        "<span style='font-size:9px; font-weight:700; color:" + c1 + ";'>1.PENDIENTE</span>"
-                        "<span style='font-size:9px; font-weight:700; color:" + c2 + ";'>2.CONSOLID.</span>"
-                        "<span style='font-size:9px; font-weight:700; color:" + c3 + ";'>3.INSTRUC.</span>"
-                        "<span style='font-size:9px; font-weight:700; color:" + c4 + ";'>4.BOOKING</span>"
-                        "<span style='font-size:9px; font-weight:700; color:" + c5 + ";'>5.TRANSITO</span>"
-                        "<span style='font-size:9px; font-weight:700; color:" + c6 + ";'>6.ARRIBADO</span>"
-                        "<span style='font-size:9px; font-weight:700; color:" + c7 + ";'>7.NACIONALIZ.</span>"
-                        "<span style='font-size:9px; font-weight:700; color:" + c8 + ";'>8.ENTREGADO</span>"
-                        "</div><br>",
-                        unsafe_allow_html=True
-                    )
+                        estadio_num, f_sal, f_arr = get_estadio_impo2(val_emb, df_impo2, df_ddp)
 
+                        if estadio_num == 8:   est_idx = 7
+                        elif estadio_num == 7: est_idx = 6
+                        elif estadio_num == 6: est_idx = 5
+                        elif estadio_num == 5: est_idx = 4
+                        elif sin_emb:          est_idx = 0
+                        elif sin_inst:         est_idx = 1
+                        elif not etd_ok:       est_idx = 2
+                        elif not etd_past:     est_idx = 3
+                        else:                  est_idx = 4
+
+                        resultados.append({
+                            "so": so_val, "emb": val_emb, "prov": val_prov,
+                            "cant": round(cantidad_mostrar, 1), "label_cant": label_cant,
+                            "fecha_inst": val_inst[:10] if len(val_inst) >= 10 else val_inst,
+                            "fin_prod": val_fprod[:10] if len(val_fprod) >= 10 else val_fprod,
+                            "etd": etd_display, "eta": eta_display,
+                            "analista": val_analista,
+                            "sku": val_sku, "invoice": val_inv,
+                            "estadio": est_idx, "f_sal": f_sal, "f_arr": f_arr,
+                        })
+
+                    for r in sorted(resultados, key=lambda x: x['estadio']):
+                        est_idx = r['estadio']
+                        c_est   = COLORES_EST[est_idx]
+                        pct     = round((est_idx + 1) / 8 * 100)
+                        st.markdown(
+                            f"<div class='custom-card' style='border-top:5px solid {c_est};'>"
+                            f"<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;'>"
+                            f"<div><p style='color:{c_est}; font-weight:900; font-size:20px; margin:0;'>{ESTADIOS[est_idx]}</p>"
+                            f"<p style='color:#64748b; font-size:11px; margin:4px 0 0 0;'>Estadio {est_idx+1} de 8</p></div>"
+                            f"<div style='text-align:right;'><p style='color:{c_est}; font-size:28px; font-weight:900; margin:0;'>{pct}%</p></div></div>"
+                            f"<div style='height:6px; background:rgba(255,255,255,0.07); border-radius:3px; margin-bottom:16px;'>"
+                            f"<div style='height:6px; width:{pct}%; background:{c_est}; border-radius:3px;'></div></div>"
+                            f"<div class='grid-2'>"
+                            f"<div><p class='minicard-title'>SO</p><p style='font-size:18px; font-weight:700; color:#f8fafc; margin:0;'>{r['so']}</p></div>"
+                            f"<div><p class='minicard-title'>EMBARQUE</p><p style='font-size:18px; font-weight:700; color:#f8fafc; margin:0;'>{r['emb'] if r['emb'] not in ['','nan'] else '—'}</p></div>"
+                            f"<div><p class='minicard-title'>PROVEEDOR</p><p style='font-size:14px; color:#f8fafc; margin:0; font-weight:600;'>{r['prov']}</p></div>"
+                            f"<div><p class='minicard-title'>TOTAL {r['label_cant']}</p><p style='font-size:24px; color:#00ff88; font-weight:900; margin:0;'>{r['cant']}</p></div>"
+                            f"<div><p class='minicard-title'>ANALISTA</p><p style='font-size:14px; color:#a855f7; margin:0; font-weight:700;'>{r.get('analista','—')}</p></div>"
+                            f"<div></div>"
+                            f"</div>"
+                            f"<div style='display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:12px; border-top:1px solid rgba(255,255,255,0.06); padding-top:12px;'>"
+                            f"<div><p class='minicard-title'>F. INSTRUCCIÓN</p><p style='color:#f8fafc; font-size:13px; margin:0;'>{r['fecha_inst'] if r['fecha_inst'] not in ['','nan'] else '—'}</p></div>"
+                            f"<div><p class='minicard-title'>FIN PRODUCCIÓN</p><p style='color:#f8fafc; font-size:13px; margin:0;'>{r['fin_prod'] if r['fin_prod'] not in ['','nan'] else '—'}</p></div>"
+                            f"<div><p class='minicard-title'>ETD</p><p style='color:#00ff88; font-size:13px; font-weight:700; margin:0;'>{r['etd']}</p></div>"
+                            f"<div><p class='minicard-title'>ETA</p><p style='color:#ffaa00; font-size:13px; font-weight:700; margin:0;'>{r['eta']}</p></div>"
+                            f"</div>"
+                            f"</div>",
+                            unsafe_allow_html=True
+                        )
+        except Exception as e:
+            st.error(f"Error en ASK COMEX: {e}")
+            import traceback; st.code(traceback.format_exc())
 
 except Exception as e:
     st.error(f"Error general al cargar el dashboard: {e}")
