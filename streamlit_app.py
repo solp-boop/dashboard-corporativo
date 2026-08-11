@@ -548,28 +548,24 @@ try:
                     x=etd_p['Mes_ETD_Full'], y=etd_p['M3 Total'],
                     name='M3', marker_color='#00ff88', marker_cornerradius=5,
                     text=etd_p['M3 Total'].apply(lambda x: f"{int(round(x)):,}"),
-                    textposition='outside', textfont=dict(size=14, color='#f8fafc'),
-                    yaxis='y1'
+                    textposition='inside', textfont=dict(size=13, color='#fff'),
                 ))
-                fig_e.add_trace(go.Scatter(
-                    x=etd_p['Mes_ETD_Full'], y=etd_p['_fob_clean'],
-                    name='FOB (USD)', mode='lines+markers+text',
-                    line=dict(color='#ffaa00', width=3),
-                    marker=dict(size=8, color='#ffaa00'),
-                    text=etd_p['_fob_clean'].apply(lambda x: f"USD {x/1_000_000:.1f}M" if x >= 1_000_000 else f"USD {x/1_000:.0f}K"),
-                    textposition='top center', textfont=dict(size=11, color='#ffaa00'),
-                    yaxis='y2'
-                ))
+                # FOB como anotación encima de cada barra
+                for _, row in etd_p.iterrows():
+                    fob_v = row['_fob_clean']
+                    fob_str = f"USD {fob_v/1_000_000:.1f}M" if fob_v >= 1_000_000 else f"USD {fob_v/1_000:.0f}K"
+                    fig_e.add_annotation(
+                        x=row['Mes_ETD_Full'], y=row['M3 Total'],
+                        text=f"<b>{fob_str}</b>",
+                        showarrow=False, yshift=18,
+                        font=dict(size=11, color='#ffaa00', family='Outfit, sans-serif')
+                    )
                 fig_e.update_layout(
                     height=450, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
                     font=dict(size=13, family='Outfit, sans-serif', color='#94a3b8'),
-                    margin=dict(l=20, r=60, t=40, b=20),
-                    legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, bgcolor='rgba(0,0,0,0)'),
+                    margin=dict(l=20, r=20, t=50, b=20), showlegend=False,
                     yaxis=dict(title='M3', showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)'),
-                    yaxis2=dict(title=dict(text='FOB USD', font=dict(color='#ffaa00')), overlaying='y', side='right', showgrid=False,
-                                tickformat=',.0f', tickfont=dict(color='#ffaa00')),
                     xaxis=dict(title='Mes ETD'),
-                    barmode='group'
                 )
                 st.plotly_chart(fig_e, use_container_width=True)
 
@@ -582,28 +578,23 @@ try:
                     x=eta_p['Mes_ETA_Full'], y=eta_p['M3 Total'],
                     name='M3', marker_color='#ff4b4b', marker_cornerradius=5,
                     text=eta_p['M3 Total'].apply(lambda x: f"{int(round(x)):,}"),
-                    textposition='outside', textfont=dict(size=14, color='#f8fafc'),
-                    yaxis='y1'
+                    textposition='inside', textfont=dict(size=13, color='#fff'),
                 ))
-                fig_a.add_trace(go.Scatter(
-                    x=eta_p['Mes_ETA_Full'], y=eta_p['_fob_clean'],
-                    name='FOB (USD)', mode='lines+markers+text',
-                    line=dict(color='#ffaa00', width=3),
-                    marker=dict(size=8, color='#ffaa00'),
-                    text=eta_p['_fob_clean'].apply(lambda x: f"USD {x/1_000_000:.1f}M" if x >= 1_000_000 else f"USD {x/1_000:.0f}K"),
-                    textposition='top center', textfont=dict(size=11, color='#ffaa00'),
-                    yaxis='y2'
-                ))
+                for _, row in eta_p.iterrows():
+                    fob_v = row['_fob_clean']
+                    fob_str = f"USD {fob_v/1_000_000:.1f}M" if fob_v >= 1_000_000 else f"USD {fob_v/1_000:.0f}K"
+                    fig_a.add_annotation(
+                        x=row['Mes_ETA_Full'], y=row['M3 Total'],
+                        text=f"<b>{fob_str}</b>",
+                        showarrow=False, yshift=18,
+                        font=dict(size=11, color='#ffaa00', family='Outfit, sans-serif')
+                    )
                 fig_a.update_layout(
                     height=450, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
                     font=dict(size=13, family='Outfit, sans-serif', color='#94a3b8'),
-                    margin=dict(l=20, r=60, t=40, b=20),
-                    legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, bgcolor='rgba(0,0,0,0)'),
+                    margin=dict(l=20, r=20, t=50, b=20), showlegend=False,
                     yaxis=dict(title='M3', showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)'),
-                    yaxis2=dict(title=dict(text='FOB USD', font=dict(color='#ffaa00')), overlaying='y', side='right', showgrid=False,
-                                tickformat=',.0f', tickfont=dict(color='#ffaa00')),
                     xaxis=dict(title='Mes ETA'),
-                    barmode='group'
                 )
                 st.plotly_chart(fig_a, use_container_width=True)
 
