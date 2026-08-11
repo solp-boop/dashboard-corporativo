@@ -2441,7 +2441,15 @@ border-radius:12px; border-top:2px solid {color};'>
                 mask_2026_e = df_rh_emb['_etd_e'].dt.year == 2026
                 df_emb26    = df_rh_emb[mask_mar_e & mask_2026_e].copy()
                 def safe_n(v):
-                    try: return float(str(v).replace('.','').replace(',','.').strip())
+                    try:
+                        s = str(v).strip().replace(' ','')
+                        if s in ['', 'nan', 'None', '-']: return 0.0
+                        # Handle European format: 1.234,56 → 1234.56
+                        if ',' in s and '.' in s:
+                            if s.index('.') < s.index(','): s = s.replace('.','').replace(',','.')
+                            else: s = s.replace(',','')
+                        elif ',' in s: s = s.replace(',','.')
+                        return float(s)
                     except: return 0.0
                 df_emb26['_cntrs'] = df_emb26[col_emb_b].apply(safe_n)
                 df_emb26['_fob']   = df_emb26[col_emb_ah].apply(safe_n)
@@ -2455,10 +2463,10 @@ border-radius:12px; border-top:2px solid {color};'>
                 tot_m3    = df_emb26['_m3'].sum()
                 tot_fob   = df_emb26['_fob'].sum()
                 k1,k2,k3,k4 = st.columns(4)
-                with k1: st.markdown(f"<div class='metric-container'><p>EMBARQUES</p><p>{tot_emb}</p></div>", unsafe_allow_html=True)
-                with k2: st.markdown(f"<div class='metric-container'><p>CONTENEDORES</p><p>{tot_cntrs:,}</p></div>", unsafe_allow_html=True)
-                with k3: st.markdown(f"<div class='metric-container'><p>VOLUMEN TOTAL</p><p>{int(round(tot_m3)):,} <span style='font-size:28px;'>M3</span></p></div>", unsafe_allow_html=True)
-                with k4: st.markdown(f"<div class='metric-container'><p>FOB TOTAL</p><p><span style='font-size:34px;'>USD {tot_fob/1_000_000:.1f}M</span></p></div>", unsafe_allow_html=True)
+                with k1: st.markdown(f"<div style='background:rgba(255,255,255,0.03); border-radius:12px; border:1px solid rgba(255,255,255,0.07); padding:16px; text-align:center;'><p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0;'>EMBARQUES</p><p style='color:#f8fafc; font-size:32px; font-weight:900; margin:0;'>{tot_emb}</p></div>", unsafe_allow_html=True)
+                with k2: st.markdown(f"<div style='background:rgba(255,255,255,0.03); border-radius:12px; border:1px solid rgba(255,255,255,0.07); padding:16px; text-align:center;'><p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0;'>CONTENEDORES</p><p style='color:#f8fafc; font-size:32px; font-weight:900; margin:0;'>{tot_cntrs:,}</p></div>", unsafe_allow_html=True)
+                with k3: st.markdown(f"<div style='background:rgba(255,255,255,0.03); border-radius:12px; border:1px solid rgba(255,255,255,0.07); padding:16px; text-align:center;'><p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0;'>VOLUMEN TOTAL</p><p style='color:#00a8ff; font-size:32px; font-weight:900; margin:0;'>{int(round(tot_m3)):,} <span style='font-size:16px; color:#475569;'>M3</span></p></div>", unsafe_allow_html=True)
+                with k4: st.markdown(f"<div style='background:rgba(255,255,255,0.03); border-radius:12px; border:1px solid rgba(255,255,255,0.07); padding:16px; text-align:center;'><p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0 0 6px 0;'>FOB TOTAL</p><p style='color:#ffaa00; font-size:28px; font-weight:900; margin:0;'>USD {tot_fob/1_000_000:.1f}M</p></div>", unsafe_allow_html=True)
 
                 # Tabla mensual
                 st.markdown("<br>", unsafe_allow_html=True)
