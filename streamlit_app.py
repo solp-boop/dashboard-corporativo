@@ -774,7 +774,7 @@ border-radius:12px; border-top:3px solid {color_r}; border:1px solid rgba(255,25
                 df_rh_t2['_consol'] = df_rh_t2[col_rh_consol].apply(safe_num_rh)
                 df_rh_t2['_tt']     = df_rh_t2[col_rh_tt].apply(safe_num_rh)
                 df_rh_t2['_es_mono'] = df_rh_t2[col_rh_mono].astype(str).str.strip().str.upper().isin(['SI','SÍ','S','MONOPROVEEDOR'])
-                df_rh_t2['_puerto'] = df_rh_t2[col_rh_puerto].astype(str).str.strip()
+                df_rh_t2['_puerto'] = df_rh_t2[col_rh_puerto].astype(str).str.strip().str.title()
 
                 # ── VALIDACIONES: parsear targets ────────────────────────────
                 # Col E=idx4: Puerto-tipo, F=idx5: Consol target, G=idx6: TT target, H=idx7: Total target
@@ -815,13 +815,43 @@ border-radius:12px; border-top:3px solid {color_r}; border:1px solid rgba(255,25
                         st.info(f"Sin datos suficientes para {tipo_label}")
                         return
 
+                    # ── RESUMEN GLOBAL ───────────────────────────────────
+                    med_consol_g = df_sub['_consol'].dropna().median()
+                    med_tt_g     = df_sub['_tt'].dropna().median()
+                    total_g      = (med_consol_g if med_consol_g == med_consol_g else 0) + (med_tt_g if med_tt_g == med_tt_g else 0)
+                    color_tipo   = '#00a8ff' if tipo_key == 'MONO' else '#ffaa00'
+
+                    st.markdown(f"""
+<div style='background:rgba(255,255,255,0.02); border-radius:14px; border-left:4px solid {color_tipo};
+padding:18px 24px; margin-bottom:20px; display:flex; gap:32px; align-items:center; flex-wrap:wrap;'>
+<div>
+    <p style='color:#64748b; font-size:9px; letter-spacing:2px; margin:0 0 3px 0; text-transform:uppercase;'>{tipo_label} · Mediana Global 2026</p>
+    <p style='color:{color_tipo}; font-size:28px; font-weight:900; margin:0; line-height:1;'>{int(round(total_g))}d <span style='font-size:13px; color:#475569; font-weight:400;'>total</span></p>
+</div>
+<div style='width:1px; background:rgba(255,255,255,0.08); align-self:stretch;'></div>
+<div>
+    <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;'>CONSOLIDACIÓN</p>
+    <p style='color:#00a8ff; font-size:20px; font-weight:800; margin:0;'>{int(round(med_consol_g)) if med_consol_g==med_consol_g else '—'}d</p>
+</div>
+<div style='color:#334155; font-size:20px;'>+</div>
+<div>
+    <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;'>TRANSIT TIME</p>
+    <p style='color:#ffaa00; font-size:20px; font-weight:800; margin:0;'>{int(round(med_tt_g)) if med_tt_g==med_tt_g else '—'}d</p>
+</div>
+<div style='color:#334155; font-size:20px;'>=</div>
+<div>
+    <p style='color:#64748b; font-size:9px; letter-spacing:1px; margin:0 0 3px 0;'>TOTAL</p>
+    <p style='color:{color_tipo}; font-size:20px; font-weight:900; margin:0;'>{int(round(total_g))}d</p>
+</div>
+</div>""", unsafe_allow_html=True)
+
                     # Headers
                     h1,h2,h3,h4,h5,h6 = st.columns([1.4, 0.8, 0.8, 0.8, 0.8, 0.5])
                     h1.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700;'>PUERTO</p>", unsafe_allow_html=True)
                     h2.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>CONSOL (real)</p>", unsafe_allow_html=True)
                     h3.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>TT (real)</p>", unsafe_allow_html=True)
                     h4.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>TOTAL (real)</p>", unsafe_allow_html=True)
-                    h5.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>TARGET</p>", unsafe_allow_html=True)
+                    h5.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>T. VALIDACIONES</p>", unsafe_allow_html=True)
                     h6.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>🚦</p>", unsafe_allow_html=True)
                     st.markdown("<hr style='margin:4px 0 8px 0; border:none; border-top:1px solid rgba(255,255,255,0.12);'>", unsafe_allow_html=True)
 
@@ -830,7 +860,7 @@ border-radius:12px; border-top:3px solid {color_r}; border:1px solid rgba(255,25
                         mc = pr['med_consol']
                         mt = pr['med_tt']
                         total_real = (mc if mc == mc else 0) + (mt if mt == mt else 0)
-                        tgt = targets.get((puerto_n.upper(), tipo_key), {})
+                        tgt = targets.get((puerto_n.upper(), tipo_key), targets.get((puerto_n.title().upper(), tipo_key), {}))
                         tgt_total = tgt.get('total')
                         color_sem, ico = semaforo_color(total_real, tgt_total)
                         c1,c2,c3,c4,c5,c6 = st.columns([1.4, 0.8, 0.8, 0.8, 0.8, 0.5])
