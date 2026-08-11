@@ -2416,70 +2416,105 @@ border-radius:12px; border-top:2px solid {color};'>
 
                 df_ae_ind = load_ae_ind(base_url)
 
-                col_ae_tipo   = df_ae_ind.columns[8]   # I: Participación/Tipo negocio
-                col_ae_etd    = df_ae_ind.columns[14]  # O: ETD
-                col_ae_fpmin  = df_ae_ind.columns[9]   # J: F.Packeo Min
-                col_ae_fwh    = df_ae_ind.columns[11]  # L: Fecha ingreso WH
-                col_ae_eta    = df_ae_ind.columns[15]  # P: ETA
-                col_ae_etacal = df_ae_ind.columns[16]  # Q: ETA Caldas
+                col_ae_tipo   = df_ae_ind.columns[8]
+                col_ae_etd    = df_ae_ind.columns[14]
+                col_ae_fpmin  = df_ae_ind.columns[9]
+                col_ae_fwh    = df_ae_ind.columns[11]
+                col_ae_eta    = df_ae_ind.columns[15]
+                col_ae_etacal = df_ae_ind.columns[16]
 
                 def parse_dt_ae(v):
                     return pd.to_datetime(v, dayfirst=True, errors='coerce')
 
-                df_ae_ind['_etd_dt']   = df_ae_ind[col_ae_etd].apply(parse_dt_ae)
-                df_ae_ind['_fpmin_dt'] = df_ae_ind[col_ae_fpmin].apply(parse_dt_ae)
-                df_ae_ind['_fwh_dt']   = df_ae_ind[col_ae_fwh].apply(parse_dt_ae)
-                df_ae_ind['_eta_dt']   = df_ae_ind[col_ae_eta].apply(parse_dt_ae)
-                df_ae_ind['_etacal_dt']= df_ae_ind[col_ae_etacal].apply(parse_dt_ae)
-                df_ae_ind['_tipo']     = df_ae_ind[col_ae_tipo].astype(str).str.strip().replace({'': 'SIN CLASIFICAR', 'nan': 'SIN CLASIFICAR'})
+                df_ae_ind['_etd_dt']    = df_ae_ind[col_ae_etd].apply(parse_dt_ae)
+                df_ae_ind['_fpmin_dt']  = df_ae_ind[col_ae_fpmin].apply(parse_dt_ae)
+                df_ae_ind['_fwh_dt']    = df_ae_ind[col_ae_fwh].apply(parse_dt_ae)
+                df_ae_ind['_eta_dt']    = df_ae_ind[col_ae_eta].apply(parse_dt_ae)
+                df_ae_ind['_etacal_dt'] = df_ae_ind[col_ae_etacal].apply(parse_dt_ae)
+                df_ae_ind['_tipo']      = df_ae_ind[col_ae_tipo].astype(str).str.strip().replace({'': 'SIN CLASIFICAR', 'nan': 'SIN CLASIFICAR'})
 
-                # Filtrar ETD >= mayo 2026
                 df_ae_f = df_ae_ind[df_ae_ind['_etd_dt'] >= pd.Timestamp('2026-05-01')].copy()
 
                 def dias(a, b):
                     d = (b - a).dt.days
                     return d.apply(lambda x: x if pd.notna(x) and x >= 0 else None)
 
-                df_ae_f['_tt1'] = dias(df_ae_f['_fpmin_dt'], df_ae_f['_fwh_dt'])   # Packeo → WH
-                df_ae_f['_tt2'] = dias(df_ae_f['_fwh_dt'],   df_ae_f['_etd_dt'])   # WH → ETD
-                df_ae_f['_tt3'] = dias(df_ae_f['_etd_dt'],   df_ae_f['_eta_dt'])   # ETD → ETA
-                df_ae_f['_tt4'] = dias(df_ae_f['_eta_dt'],   df_ae_f['_etacal_dt'])# ETA → Caldas
-
-                # Headers tabla
-                h1,h2,h3,h4,h5,h6 = st.columns([1.4, 0.9, 0.9, 0.9, 0.9, 0.9])
-                h1.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700;'>TIPO DE NEGOCIO</p>", unsafe_allow_html=True)
-                h2.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>📦 Packeo→WH</p>", unsafe_allow_html=True)
-                h3.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>🏭 WH→ETD</p>", unsafe_allow_html=True)
-                h4.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>✈️ ETD→ETA</p>", unsafe_allow_html=True)
-                h5.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>🏠 ETA→Caldas</p>", unsafe_allow_html=True)
-                h6.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>⏱ TOTAL</p>", unsafe_allow_html=True)
-                st.markdown("<hr style='margin:4px 0 8px 0; border:none; border-top:1px solid rgba(255,255,255,0.12);'>", unsafe_allow_html=True)
+                df_ae_f['_tt1'] = dias(df_ae_f['_fpmin_dt'], df_ae_f['_fwh_dt'])
+                df_ae_f['_tt2'] = dias(df_ae_f['_fwh_dt'],   df_ae_f['_etd_dt'])
+                df_ae_f['_tt3'] = dias(df_ae_f['_etd_dt'],   df_ae_f['_eta_dt'])
+                df_ae_f['_tt4'] = dias(df_ae_f['_eta_dt'],   df_ae_f['_etacal_dt'])
+                df_ae_f['_mes_ae'] = df_ae_f['_etd_dt'].dt.to_period('M').astype(str)
 
                 COLORES_AE_IND = ['#a855f7','#00a8ff','#ffaa00','#00ff88','#ff4b4b','#06b6d4']
-                tipos_ae = df_ae_f['_tipo'].value_counts().index.tolist()
 
-                for pi, tipo in enumerate(tipos_ae):
-                    df_t = df_ae_f[df_ae_f['_tipo'] == tipo]
-                    col_p = COLORES_AE_IND[pi % len(COLORES_AE_IND)]
-                    def med_str(s): 
-                        v = s.dropna().median()
-                        return f"{int(round(v))}d" if pd.notna(v) else "—"
-                    t1 = med_str(df_t['_tt1'])
-                    t2 = med_str(df_t['_tt2'])
-                    t3 = med_str(df_t['_tt3'])
-                    t4 = med_str(df_t['_tt4'])
-                    # Total = sum of non-None medians
-                    vals = [df_t[c].dropna().median() for c in ['_tt1','_tt2','_tt3','_tt4']]
-                    tot  = sum(v for v in vals if pd.notna(v))
-                    tot_str = f"{int(round(tot))}d" if tot > 0 else "—"
+                def med_val(s):
+                    v = s.dropna().median()
+                    return v if pd.notna(v) else None
 
-                    c1,c2,c3,c4,c5,c6 = st.columns([1.4, 0.9, 0.9, 0.9, 0.9, 0.9])
-                    c1.markdown(f"<p style='color:{col_p}; font-size:14px; font-weight:800; margin:6px 0;'>{tipo}</p>", unsafe_allow_html=True)
-                    c2.markdown(f"<p style='color:#94a3b8; font-size:14px; text-align:center; margin:6px 0;'>{t1}</p>", unsafe_allow_html=True)
-                    c3.markdown(f"<p style='color:#94a3b8; font-size:14px; text-align:center; margin:6px 0;'>{t2}</p>", unsafe_allow_html=True)
-                    c4.markdown(f"<p style='color:#00a8ff; font-size:14px; font-weight:700; text-align:center; margin:6px 0;'>{t3}</p>", unsafe_allow_html=True)
-                    c5.markdown(f"<p style='color:#94a3b8; font-size:14px; text-align:center; margin:6px 0;'>{t4}</p>", unsafe_allow_html=True)
-                    c6.markdown(f"<p style='color:#a855f7; font-size:15px; font-weight:900; text-align:center; margin:6px 0;'>{tot_str}</p>", unsafe_allow_html=True)
+                def med_str_v(v):
+                    return f"{int(round(v))}d" if v is not None else "—"
+
+                def render_ae_detalle(df_sub, key_sfx):
+                    tipos_ae = df_sub['_tipo'].value_counts().index.tolist()
+                    h1,h2,h3,h4,h5,h6 = st.columns([1.4, 0.9, 0.9, 0.9, 0.9, 0.9])
+                    h1.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700;'>TIPO DE NEGOCIO</p>", unsafe_allow_html=True)
+                    h2.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>📦 Packeo→WH</p>", unsafe_allow_html=True)
+                    h3.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>🏭 WH→ETD</p>", unsafe_allow_html=True)
+                    h4.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>✈️ ETD→ETA</p>", unsafe_allow_html=True)
+                    h5.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>🏠 ETA→Caldas</p>", unsafe_allow_html=True)
+                    h6.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>⏱ TOTAL</p>", unsafe_allow_html=True)
+                    st.markdown("<hr style='margin:4px 0 8px 0; border:none; border-top:1px solid rgba(255,255,255,0.12);'>", unsafe_allow_html=True)
+                    for pi, tipo in enumerate(tipos_ae):
+                        df_t = df_sub[df_sub['_tipo'] == tipo]
+                        col_p = COLORES_AE_IND[pi % len(COLORES_AE_IND)]
+                        v1,v2,v3,v4 = med_val(df_t['_tt1']), med_val(df_t['_tt2']), med_val(df_t['_tt3']), med_val(df_t['_tt4'])
+                        tot = sum(v for v in [v1,v2,v3,v4] if v is not None)
+                        c1,c2,c3,c4,c5,c6 = st.columns([1.4, 0.9, 0.9, 0.9, 0.9, 0.9])
+                        c1.markdown(f"<p style='color:{col_p}; font-size:13px; font-weight:800; margin:5px 0;'>{tipo}</p>", unsafe_allow_html=True)
+                        c2.markdown(f"<p style='color:#94a3b8; font-size:13px; text-align:center; margin:5px 0;'>{med_str_v(v1)}</p>", unsafe_allow_html=True)
+                        c3.markdown(f"<p style='color:#94a3b8; font-size:13px; text-align:center; margin:5px 0;'>{med_str_v(v2)}</p>", unsafe_allow_html=True)
+                        c4.markdown(f"<p style='color:#00a8ff; font-size:13px; font-weight:700; text-align:center; margin:5px 0;'>{med_str_v(v3)}</p>", unsafe_allow_html=True)
+                        c5.markdown(f"<p style='color:#94a3b8; font-size:13px; text-align:center; margin:5px 0;'>{med_str_v(v4)}</p>", unsafe_allow_html=True)
+                        c6.markdown(f"<p style='color:#a855f7; font-size:14px; font-weight:900; text-align:center; margin:5px 0;'>{int(round(tot))}d if tot > 0 else '—'</p>", unsafe_allow_html=True)
+
+                # Resumen global
+                st.markdown("<p style='color:#a855f7; font-size:11px; font-weight:800; letter-spacing:3px; margin-bottom:12px;'>RESUMEN GLOBAL · MAYO–HOY 2026</p>", unsafe_allow_html=True)
+                render_ae_detalle(df_ae_f, "global")
+
+                # Por mes
+                meses_ae = sorted(df_ae_f['_mes_ae'].dropna().unique())
+                st.markdown("<br>", unsafe_allow_html=True)
+
+                MESES_ES = {'01':'ENE','02':'FEB','03':'MAR','04':'ABR','05':'MAY','06':'JUN','07':'JUL','08':'AGO','09':'SEP','10':'OCT','11':'NOV','12':'DIC'}
+                for mes in meses_ae:
+                    df_mes_ae = df_ae_f[df_ae_f['_mes_ae'] == mes]
+                    n_emb_ae  = len(df_mes_ae)
+                    partes    = mes.split('-')
+                    mes_label = f"{MESES_ES.get(partes[1], partes[1])} {partes[0]}" if len(partes)==2 else mes
+
+                    # Medianas globales del mes
+                    v1g = med_val(df_mes_ae['_tt1']); v2g = med_val(df_mes_ae['_tt2'])
+                    v3g = med_val(df_mes_ae['_tt3']); v4g = med_val(df_mes_ae['_tt4'])
+                    tot_g = sum(v for v in [v1g,v2g,v3g,v4g] if v is not None)
+
+                    cr1,cr2,cr3,cr4,cr5,cr6,cr7 = st.columns([1.2, 0.7, 0.7, 0.7, 0.7, 0.7, 0.5])
+                    cr1.markdown(f"<p style='color:#f8fafc; font-size:14px; font-weight:800; margin:8px 0;'>{mes_label}</p><p style='color:#475569; font-size:10px; margin:0 0 8px 0;'>{n_emb_ae} embarques</p>", unsafe_allow_html=True)
+                    cr2.markdown(f"<p style='color:#94a3b8; font-size:13px; text-align:center; margin:8px 0;'>{med_str_v(v1g)}</p>", unsafe_allow_html=True)
+                    cr3.markdown(f"<p style='color:#94a3b8; font-size:13px; text-align:center; margin:8px 0;'>{med_str_v(v2g)}</p>", unsafe_allow_html=True)
+                    cr4.markdown(f"<p style='color:#00a8ff; font-size:13px; font-weight:700; text-align:center; margin:8px 0;'>{med_str_v(v3g)}</p>", unsafe_allow_html=True)
+                    cr5.markdown(f"<p style='color:#94a3b8; font-size:13px; text-align:center; margin:8px 0;'>{med_str_v(v4g)}</p>", unsafe_allow_html=True)
+                    cr6.markdown(f"<p style='color:#a855f7; font-size:14px; font-weight:900; text-align:center; margin:8px 0;'>{int(round(tot_g))}d</p>", unsafe_allow_html=True)
+                    with cr7:
+                        if st.button("🔍 VER", key=f"btn_ae_det_{mes}", use_container_width=True):
+                            st.session_state[f"ae_det_{mes}"] = not st.session_state.get(f"ae_det_{mes}", False)
+
+                    if st.session_state.get(f"ae_det_{mes}", False):
+                        with st.container():
+                            st.markdown(f"<div style='background:rgba(168,85,247,0.04); border-radius:10px; padding:14px; margin-bottom:8px; border-left:3px solid #a855f7;'>", unsafe_allow_html=True)
+                            render_ae_detalle(df_mes_ae, mes)
+                            st.markdown("</div>", unsafe_allow_html=True)
+
+                    st.markdown("<hr style='margin:4px 0; border:none; border-top:1px solid rgba(255,255,255,0.05);'>", unsafe_allow_html=True)
 
             except Exception as e_ae_ind:
                 st.error(f"Error en Indicadores Aéreos: {e_ae_ind}")
