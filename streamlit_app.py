@@ -909,6 +909,184 @@ border-radius:12px; border-top:3px solid {color_r}; border:1px solid rgba(255,25
             with k3: st.markdown(f"<div class='metric-container'><p>PROVEEDORES</p><p style='color:#f8fafc; font-size:22px; font-weight:900; margin:0;'>{int(df_inst_s2['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
             with k4: st.markdown(f"<div class='metric-container'><p>FOB EN PROCESO</p><p style='color:#ffaa00; font-size:20px; font-weight:900; margin:0;'>USD {round(fob_total_clean/1_000_000,1)}M</p></div>", unsafe_allow_html=True)
 
+            # BLOQUE AEREO
+            st.markdown("<br><br>", unsafe_allow_html=True)
+            st.markdown("""
+<div style='border-bottom:2px solid rgba(168,85,247,0.3); padding-bottom:10px; margin-bottom:28px;'>
+<span style='color:#a855f7; font-size:13px; font-weight:800; letter-spacing:5px; text-transform:uppercase;'>AEREO</span>
+<span style='color:#475569; font-size:11px; letter-spacing:2px; margin-left:16px;'>SEGUIMIENTO ACTIVO</span>
+</div>""", unsafe_allow_html=True)
+
+            try:
+                @st.cache_data(ttl=60)
+                def load_aereos(base):
+                    url_ae = f"{base}/export?format=csv&gid=88538385"
+                    df_ae  = pd.read_csv(url_ae, engine='python', on_bad_lines='skip', header=0)
+                    df_ae.columns = [str(c).strip() for c in df_ae.columns]
+                    return df_ae
+
+                df_ae = load_aereos(base_url)
+                col_ae_estadio  = df_ae.columns[0]
+                col_ae_emb      = df_ae.columns[1]
+                col_ae_empresa  = df_ae.columns[2]
+                col_ae_partic   = df_ae.columns[8]
+                col_ae_m3       = df_ae.columns[21]
+                col_ae_cant     = df_ae.columns[23]
+                col_ae_tt_total = df_ae.columns[55]  # BD: Total P2P
+
+                ORDEN_ESTADIOS = ['WAREHOUSE', 'EN ORIGEN', 'COORDINANDO', 'EN TRANSITO', 'EN TRÁNSITO', 'ARRIBADO', 'NACIONALIZADO', 'NACIONAZALIDO']
+                COLORES_ESTADIOS = {
+                    'WAREHOUSE': '#06b6d4', 'EN ORIGEN': '#ffaa00', 'COORDINANDO': '#f97316',
+                    'EN TRANSITO': '#00a8ff', 'EN TRÁNSITO': '#00a8ff',
+                    'ARRIBADO': '#a855f7', 'NACIONALIZADO': '#00ff88', 'NACIONAZALIDO': '#00ff88',
+                }
+
+                df_ae_clean = df_ae.copy()
+                df_ae_clean[col_ae_estadio] = df_ae_clean[col_ae_estadio].astype(str).str.strip().str.upper()
+                df_ae_activos = df_ae_clean[
+                    df_ae_clean[col_ae_estadio].notna() &
+                    (df_ae_clean[col_ae_estadio] != '') &
+                    (df_ae_clean[col_ae_estadio] != 'NAN') &
+                    (~df_ae_clean[col_ae_estadio].isin(['ENTREGADO']))
+                ].copy()
+
+                def safe_num_ae(v):
+                    try: return float(str(v).replace(',', '.').strip())
+                    except: return 0.0
+
+                def safe_tt(v):
+                    try:
+                        val = float(str(v).replace(',', '.').strip())
+                        return val if val > 0 else None
+                    except: return None
+
+                df_ae_activos[col_ae_m3]  = df_ae_activos[col_ae_m3].apply(safe_num_ae)
+                df_ae_activos[col_ae_cant] = df_ae_activos[col_ae_cant].apply(safe_num_ae)
+                df_ae_activos['_tt_total'] = df_ae_activos[col_ae_tt_total].apply(safe_tt)
+                df_ae_activos['_partic']   = df_ae_activos[col_ae_partic].astype(str).str.strip()
+                df_ae_activos['_partic']   = df_ae_activos['_partic'].replace({'': 'SIN CLASIFICAR', 'nan': 'SIN CLASIFICAR'})
+
+                total_ae    = df_ae_activos[col_ae_emb].nunique()
+                m3_ae       = df_ae_activos[col_ae_m3].sum()
+                cant_ae     = df_ae_activos[col_ae_cant].sum()
+                empresas_ae = df_ae_activos[col_ae_empresa].nunique()
+
+                H_AE_PX = 280
+                col_ae_num, col_ae_estadios = st.columns([1, 2])
+                with col_ae_num:
+                    st.markdown(f"""
+<div style='background:linear-gradient(145deg,rgba(168,85,247,0.07),rgba(168,85,247,0.02));
+border-radius:20px; border:1px solid rgba(168,85,247,0.15); padding:24px;
+height:{H_AE_PX}px; box-sizing:border-box;
+display:flex; flex-direction:column; justify-content:space-between;'>
+<div>
+    <p style='color:#64748b; font-size:10px; letter-spacing:3px; margin:0 0 4px 0; text-transform:uppercase;'>Embarques aereos activos</p>
+    <p style='color:#f8fafc; font-size:80px; font-weight:900; margin:0; line-height:1; letter-spacing:-4px;'>{total_ae}</p>
+</div>
+<div style='display:flex; gap:16px; flex-wrap:wrap;'>
+    <div><p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 2px 0;'>VOLUMEN</p><p style='color:#a855f7; font-size:18px; font-weight:800; margin:0;'>{int(round(m3_ae)):,} M3</p></div>
+    <div><p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 2px 0;'>UNIDADES</p><p style='color:#a855f7; font-size:18px; font-weight:800; margin:0;'>{int(cant_ae):,}</p></div>
+    <div><p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 2px 0;'>EMPRESAS</p><p style='color:#a855f7; font-size:18px; font-weight:800; margin:0;'>{empresas_ae}</p></div>
+</div>
+</div>""", unsafe_allow_html=True)
+
+                # Participación por tipo — fila completa debajo
+                st.markdown("<br>", unsafe_allow_html=True)
+                COLORES_PARTIC = ['#a855f7', '#00a8ff', '#ffaa00', '#00ff88', '#ff4b4b', '#06b6d4']
+                conteo_partic = df_ae_activos.groupby('_partic').agg(
+                    Embarques=(col_ae_emb, 'nunique'),
+                    M3=(col_ae_m3, 'sum'),
+                    Unidades=(col_ae_cant, 'sum')
+                ).reset_index().sort_values('Embarques', ascending=False).reset_index(drop=True)
+                # Agregar tiempo punta a punta (col BB idx 53)
+                tt_por_tipo = df_ae_activos.groupby('_partic')['_tt_total'].median().reset_index()
+                tt_por_tipo.columns = ['_partic', 'TT_Med']
+                conteo_partic = conteo_partic.merge(tt_por_tipo, on='_partic', how='left')
+                total_emb_ae = conteo_partic['Embarques'].sum()
+
+                # Cards por tipo para director comercial
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("""
+<div style='border-bottom:1px solid rgba(168,85,247,0.2); padding-bottom:8px; margin-bottom:20px;'>
+<span style='color:#a855f7; font-size:11px; font-weight:800; letter-spacing:4px; text-transform:uppercase;'>PARTICIPACIÓN POR TIPO DE NEGOCIO</span>
+</div>""", unsafe_allow_html=True)
+
+                tt_global_med = conteo_partic['TT_Med'].median()
+
+                # Headers tabla
+                hh1,hh2,hh3,hh4,hh5,hh6 = st.columns([1.4, 0.7, 0.7, 0.7, 0.8, 0.7])
+                hh1.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700;'>TIPO DE NEGOCIO</p>", unsafe_allow_html=True)
+                hh2.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>EMBARQUES</p>", unsafe_allow_html=True)
+                hh3.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>%</p>", unsafe_allow_html=True)
+                hh4.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>M3</p>", unsafe_allow_html=True)
+                hh5.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>UNIDADES</p>", unsafe_allow_html=True)
+                hh6.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>✈️ P2P</p>", unsafe_allow_html=True)
+                st.markdown("<hr style='margin:4px 0 8px 0; border:none; border-top:1px solid rgba(255,255,255,0.12);'>", unsafe_allow_html=True)
+
+                for pi, (_, rp) in enumerate(conteo_partic.sort_values('Embarques', ascending=False).iterrows()):
+                    col_p = COLORES_PARTIC[pi % len(COLORES_PARTIC)]
+                    pct_p = round(rp['Embarques'] / total_emb_ae * 100) if total_emb_ae > 0 else 0
+                    tt_val = rp.get('TT_Med')
+                    if pd.notna(tt_val) and tt_val:
+                        tt_num = int(round(tt_val))
+                        if tt_global_med and pd.notna(tt_global_med):
+                            if tt_num <= tt_global_med:       tt_color = '#00ff88'
+                            elif tt_num <= tt_global_med*1.3: tt_color = '#ffaa00'
+                            else:                             tt_color = '#ff4b4b'
+                        else: tt_color = '#94a3b8'
+                        tt_str = f"{tt_num}d"
+                    else:
+                        tt_str = '—'; tt_color = '#475569'
+
+                    cc1,cc2,cc3,cc4,cc5,cc6 = st.columns([1.4, 0.7, 0.7, 0.7, 0.8, 0.7])
+                    cc1.markdown(f"<p style='color:{col_p}; font-size:14px; font-weight:800; margin:6px 0;'>{rp['_partic']}</p>", unsafe_allow_html=True)
+                    m3_val_ae  = int(round(rp['M3']))
+                    uni_val_ae = int(round(rp['Unidades']))
+                    cc2.markdown(f"<p style='color:#f8fafc; font-size:15px; font-weight:900; text-align:center; margin:6px 0;'>{int(rp['Embarques'])}</p>", unsafe_allow_html=True)
+                    cc3.markdown(f"<p style='color:{col_p}; font-size:14px; font-weight:700; text-align:center; margin:6px 0;'>{pct_p}%</p>", unsafe_allow_html=True)
+                    cc4.markdown(f"<p style='color:#00a8ff; font-size:14px; font-weight:700; text-align:center; margin:6px 0;'>{m3_val_ae:,}</p>", unsafe_allow_html=True)
+                    cc5.markdown(f"<p style='color:#94a3b8; font-size:14px; text-align:center; margin:6px 0;'>{uni_val_ae:,}</p>", unsafe_allow_html=True)
+                    cc6.markdown(f"<p style='color:{tt_color}; font-size:15px; font-weight:900; text-align:center; margin:6px 0;'>{tt_str}</p>", unsafe_allow_html=True)
+
+                st.markdown("<hr style='margin:8px 0 16px 0; border:none; border-top:1px solid rgba(255,255,255,0.08);'>", unsafe_allow_html=True)
+
+
+
+                with col_ae_estadios:
+                    st.markdown("<p style='color:#64748b; font-size:10px; letter-spacing:4px; font-weight:700; text-transform:uppercase; margin:0 0 6px 0;'>ESTADIOS DE LAS CARGAS</p>", unsafe_allow_html=True)
+                    orden_idx = {e: i for i, e in enumerate(ORDEN_ESTADIOS)}
+                    conteo_e = df_ae_activos.groupby(col_ae_estadio).agg(
+                        Embarques=(col_ae_emb, 'nunique'),
+                        M3=(col_ae_m3, 'sum')
+                    ).reset_index()
+                    conteo_e.columns = ['Estadio', 'Embarques', 'M3']
+                    conteo_e['_ord'] = conteo_e['Estadio'].map(lambda x: orden_idx.get(x, 99))
+                    conteo_e = conteo_e.sort_values('_ord').reset_index(drop=True)
+                    conteo_e['Color'] = conteo_e['Estadio'].map(lambda x: COLORES_ESTADIOS.get(x, '#94a3b8'))
+                    conteo_e['Label'] = conteo_e.apply(lambda r: f"  {int(r['Embarques'])} emb · {int(round(r['M3']))} M3", axis=1)
+
+                    fig_ae = px.bar(conteo_e, y='Estadio', x='Embarques', orientation='h',
+                        text='Label', color='Estadio',
+                        color_discrete_map={r['Estadio']: r['Color'] for _, r in conteo_e.iterrows()})
+                    fig_ae.update_traces(textposition='outside', cliponaxis=False,
+                        textfont=dict(size=11, color='#94a3b8', family='Outfit, sans-serif'),
+                        marker=dict(cornerradius=5))
+                    fig_ae.update_layout(height=H_AE_PX, showlegend=False,
+                        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                        font=dict(family='Outfit, sans-serif', color='#94a3b8', size=11),
+                        margin=dict(l=0, r=150, t=0, b=0),
+                        xaxis=dict(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.05)',
+                                   zeroline=False, showticklabels=False, title=''),
+                        yaxis=dict(showgrid=False, title='',
+                                   tickfont=dict(size=11, color='#94a3b8'),
+                                   categoryorder='array',
+                                   categoryarray=conteo_e['Estadio'].tolist()[::-1]))
+                    st.plotly_chart(fig_ae, use_container_width=True)
+
+            except Exception as e_ae:
+                st.error(f"Error en seccion Aereos: {e_ae}")
+                import traceback; st.code(traceback.format_exc())
+
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("""
 <div style='border-bottom:2px solid rgba(0,168,255,0.3); padding-bottom:10px; margin-bottom:28px;'>
@@ -1138,184 +1316,6 @@ min-height:{H_ROW3}; box-sizing:border-box; display:flex; flex-direction:column;
     <div style='height:5px; width:{min(int(round(med_spot_sem/20*100)), 100)}%; background:{cms}; border-radius:3px;'></div>
 </div>
 </div>""", unsafe_allow_html=True)
-
-            # BLOQUE AEREO
-            st.markdown("<br><br>", unsafe_allow_html=True)
-            st.markdown("""
-<div style='border-bottom:2px solid rgba(168,85,247,0.3); padding-bottom:10px; margin-bottom:28px;'>
-<span style='color:#a855f7; font-size:13px; font-weight:800; letter-spacing:5px; text-transform:uppercase;'>AEREO</span>
-<span style='color:#475569; font-size:11px; letter-spacing:2px; margin-left:16px;'>SEGUIMIENTO ACTIVO</span>
-</div>""", unsafe_allow_html=True)
-
-            try:
-                @st.cache_data(ttl=60)
-                def load_aereos(base):
-                    url_ae = f"{base}/export?format=csv&gid=88538385"
-                    df_ae  = pd.read_csv(url_ae, engine='python', on_bad_lines='skip', header=0)
-                    df_ae.columns = [str(c).strip() for c in df_ae.columns]
-                    return df_ae
-
-                df_ae = load_aereos(base_url)
-                col_ae_estadio  = df_ae.columns[0]
-                col_ae_emb      = df_ae.columns[1]
-                col_ae_empresa  = df_ae.columns[2]
-                col_ae_partic   = df_ae.columns[8]
-                col_ae_m3       = df_ae.columns[21]
-                col_ae_cant     = df_ae.columns[23]
-                col_ae_tt_total = df_ae.columns[55]  # BD: Total P2P
-
-                ORDEN_ESTADIOS = ['WAREHOUSE', 'EN ORIGEN', 'COORDINANDO', 'EN TRANSITO', 'EN TRÁNSITO', 'ARRIBADO', 'NACIONALIZADO', 'NACIONAZALIDO']
-                COLORES_ESTADIOS = {
-                    'WAREHOUSE': '#06b6d4', 'EN ORIGEN': '#ffaa00', 'COORDINANDO': '#f97316',
-                    'EN TRANSITO': '#00a8ff', 'EN TRÁNSITO': '#00a8ff',
-                    'ARRIBADO': '#a855f7', 'NACIONALIZADO': '#00ff88', 'NACIONAZALIDO': '#00ff88',
-                }
-
-                df_ae_clean = df_ae.copy()
-                df_ae_clean[col_ae_estadio] = df_ae_clean[col_ae_estadio].astype(str).str.strip().str.upper()
-                df_ae_activos = df_ae_clean[
-                    df_ae_clean[col_ae_estadio].notna() &
-                    (df_ae_clean[col_ae_estadio] != '') &
-                    (df_ae_clean[col_ae_estadio] != 'NAN') &
-                    (~df_ae_clean[col_ae_estadio].isin(['ENTREGADO']))
-                ].copy()
-
-                def safe_num_ae(v):
-                    try: return float(str(v).replace(',', '.').strip())
-                    except: return 0.0
-
-                def safe_tt(v):
-                    try:
-                        val = float(str(v).replace(',', '.').strip())
-                        return val if val > 0 else None
-                    except: return None
-
-                df_ae_activos[col_ae_m3]  = df_ae_activos[col_ae_m3].apply(safe_num_ae)
-                df_ae_activos[col_ae_cant] = df_ae_activos[col_ae_cant].apply(safe_num_ae)
-                df_ae_activos['_tt_total'] = df_ae_activos[col_ae_tt_total].apply(safe_tt)
-                df_ae_activos['_partic']   = df_ae_activos[col_ae_partic].astype(str).str.strip()
-                df_ae_activos['_partic']   = df_ae_activos['_partic'].replace({'': 'SIN CLASIFICAR', 'nan': 'SIN CLASIFICAR'})
-
-                total_ae    = df_ae_activos[col_ae_emb].nunique()
-                m3_ae       = df_ae_activos[col_ae_m3].sum()
-                cant_ae     = df_ae_activos[col_ae_cant].sum()
-                empresas_ae = df_ae_activos[col_ae_empresa].nunique()
-
-                H_AE_PX = 280
-                col_ae_num, col_ae_estadios = st.columns([1, 2])
-                with col_ae_num:
-                    st.markdown(f"""
-<div style='background:linear-gradient(145deg,rgba(168,85,247,0.07),rgba(168,85,247,0.02));
-border-radius:20px; border:1px solid rgba(168,85,247,0.15); padding:24px;
-height:{H_AE_PX}px; box-sizing:border-box;
-display:flex; flex-direction:column; justify-content:space-between;'>
-<div>
-    <p style='color:#64748b; font-size:10px; letter-spacing:3px; margin:0 0 4px 0; text-transform:uppercase;'>Embarques aereos activos</p>
-    <p style='color:#f8fafc; font-size:80px; font-weight:900; margin:0; line-height:1; letter-spacing:-4px;'>{total_ae}</p>
-</div>
-<div style='display:flex; gap:16px; flex-wrap:wrap;'>
-    <div><p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 2px 0;'>VOLUMEN</p><p style='color:#a855f7; font-size:18px; font-weight:800; margin:0;'>{int(round(m3_ae)):,} M3</p></div>
-    <div><p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 2px 0;'>UNIDADES</p><p style='color:#a855f7; font-size:18px; font-weight:800; margin:0;'>{int(cant_ae):,}</p></div>
-    <div><p style='color:#64748b; font-size:10px; letter-spacing:1px; margin:0 0 2px 0;'>EMPRESAS</p><p style='color:#a855f7; font-size:18px; font-weight:800; margin:0;'>{empresas_ae}</p></div>
-</div>
-</div>""", unsafe_allow_html=True)
-
-                # Participación por tipo — fila completa debajo
-                st.markdown("<br>", unsafe_allow_html=True)
-                COLORES_PARTIC = ['#a855f7', '#00a8ff', '#ffaa00', '#00ff88', '#ff4b4b', '#06b6d4']
-                conteo_partic = df_ae_activos.groupby('_partic').agg(
-                    Embarques=(col_ae_emb, 'nunique'),
-                    M3=(col_ae_m3, 'sum'),
-                    Unidades=(col_ae_cant, 'sum')
-                ).reset_index().sort_values('Embarques', ascending=False).reset_index(drop=True)
-                # Agregar tiempo punta a punta (col BB idx 53)
-                tt_por_tipo = df_ae_activos.groupby('_partic')['_tt_total'].median().reset_index()
-                tt_por_tipo.columns = ['_partic', 'TT_Med']
-                conteo_partic = conteo_partic.merge(tt_por_tipo, on='_partic', how='left')
-                total_emb_ae = conteo_partic['Embarques'].sum()
-
-                # Cards por tipo para director comercial
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.markdown("""
-<div style='border-bottom:1px solid rgba(168,85,247,0.2); padding-bottom:8px; margin-bottom:20px;'>
-<span style='color:#a855f7; font-size:11px; font-weight:800; letter-spacing:4px; text-transform:uppercase;'>PARTICIPACIÓN POR TIPO DE NEGOCIO</span>
-</div>""", unsafe_allow_html=True)
-
-                tt_global_med = conteo_partic['TT_Med'].median()
-
-                # Headers tabla
-                hh1,hh2,hh3,hh4,hh5,hh6 = st.columns([1.4, 0.7, 0.7, 0.7, 0.8, 0.7])
-                hh1.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700;'>TIPO DE NEGOCIO</p>", unsafe_allow_html=True)
-                hh2.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>EMBARQUES</p>", unsafe_allow_html=True)
-                hh3.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>%</p>", unsafe_allow_html=True)
-                hh4.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>M3</p>", unsafe_allow_html=True)
-                hh5.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>UNIDADES</p>", unsafe_allow_html=True)
-                hh6.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>✈️ P2P</p>", unsafe_allow_html=True)
-                st.markdown("<hr style='margin:4px 0 8px 0; border:none; border-top:1px solid rgba(255,255,255,0.12);'>", unsafe_allow_html=True)
-
-                for pi, (_, rp) in enumerate(conteo_partic.sort_values('Embarques', ascending=False).iterrows()):
-                    col_p = COLORES_PARTIC[pi % len(COLORES_PARTIC)]
-                    pct_p = round(rp['Embarques'] / total_emb_ae * 100) if total_emb_ae > 0 else 0
-                    tt_val = rp.get('TT_Med')
-                    if pd.notna(tt_val) and tt_val:
-                        tt_num = int(round(tt_val))
-                        if tt_global_med and pd.notna(tt_global_med):
-                            if tt_num <= tt_global_med:       tt_color = '#00ff88'
-                            elif tt_num <= tt_global_med*1.3: tt_color = '#ffaa00'
-                            else:                             tt_color = '#ff4b4b'
-                        else: tt_color = '#94a3b8'
-                        tt_str = f"{tt_num}d"
-                    else:
-                        tt_str = '—'; tt_color = '#475569'
-
-                    cc1,cc2,cc3,cc4,cc5,cc6 = st.columns([1.4, 0.7, 0.7, 0.7, 0.8, 0.7])
-                    cc1.markdown(f"<p style='color:{col_p}; font-size:14px; font-weight:800; margin:6px 0;'>{rp['_partic']}</p>", unsafe_allow_html=True)
-                    m3_val_ae  = int(round(rp['M3']))
-                    uni_val_ae = int(round(rp['Unidades']))
-                    cc2.markdown(f"<p style='color:#f8fafc; font-size:15px; font-weight:900; text-align:center; margin:6px 0;'>{int(rp['Embarques'])}</p>", unsafe_allow_html=True)
-                    cc3.markdown(f"<p style='color:{col_p}; font-size:14px; font-weight:700; text-align:center; margin:6px 0;'>{pct_p}%</p>", unsafe_allow_html=True)
-                    cc4.markdown(f"<p style='color:#00a8ff; font-size:14px; font-weight:700; text-align:center; margin:6px 0;'>{m3_val_ae:,}</p>", unsafe_allow_html=True)
-                    cc5.markdown(f"<p style='color:#94a3b8; font-size:14px; text-align:center; margin:6px 0;'>{uni_val_ae:,}</p>", unsafe_allow_html=True)
-                    cc6.markdown(f"<p style='color:{tt_color}; font-size:15px; font-weight:900; text-align:center; margin:6px 0;'>{tt_str}</p>", unsafe_allow_html=True)
-
-                st.markdown("<hr style='margin:8px 0 16px 0; border:none; border-top:1px solid rgba(255,255,255,0.08);'>", unsafe_allow_html=True)
-
-
-
-                with col_ae_estadios:
-                    st.markdown("<p style='color:#64748b; font-size:10px; letter-spacing:4px; font-weight:700; text-transform:uppercase; margin:0 0 6px 0;'>ESTADIOS DE LAS CARGAS</p>", unsafe_allow_html=True)
-                    orden_idx = {e: i for i, e in enumerate(ORDEN_ESTADIOS)}
-                    conteo_e = df_ae_activos.groupby(col_ae_estadio).agg(
-                        Embarques=(col_ae_emb, 'nunique'),
-                        M3=(col_ae_m3, 'sum')
-                    ).reset_index()
-                    conteo_e.columns = ['Estadio', 'Embarques', 'M3']
-                    conteo_e['_ord'] = conteo_e['Estadio'].map(lambda x: orden_idx.get(x, 99))
-                    conteo_e = conteo_e.sort_values('_ord').reset_index(drop=True)
-                    conteo_e['Color'] = conteo_e['Estadio'].map(lambda x: COLORES_ESTADIOS.get(x, '#94a3b8'))
-                    conteo_e['Label'] = conteo_e.apply(lambda r: f"  {int(r['Embarques'])} emb · {int(round(r['M3']))} M3", axis=1)
-
-                    fig_ae = px.bar(conteo_e, y='Estadio', x='Embarques', orientation='h',
-                        text='Label', color='Estadio',
-                        color_discrete_map={r['Estadio']: r['Color'] for _, r in conteo_e.iterrows()})
-                    fig_ae.update_traces(textposition='outside', cliponaxis=False,
-                        textfont=dict(size=11, color='#94a3b8', family='Outfit, sans-serif'),
-                        marker=dict(cornerradius=5))
-                    fig_ae.update_layout(height=H_AE_PX, showlegend=False,
-                        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                        font=dict(family='Outfit, sans-serif', color='#94a3b8', size=11),
-                        margin=dict(l=0, r=150, t=0, b=0),
-                        xaxis=dict(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.05)',
-                                   zeroline=False, showticklabels=False, title=''),
-                        yaxis=dict(showgrid=False, title='',
-                                   tickfont=dict(size=11, color='#94a3b8'),
-                                   categoryorder='array',
-                                   categoryarray=conteo_e['Estadio'].tolist()[::-1]))
-                    st.plotly_chart(fig_ae, use_container_width=True)
-
-            except Exception as e_ae:
-                st.error(f"Error en seccion Aereos: {e_ae}")
-                import traceback; st.code(traceback.format_exc())
 
         except Exception as e:
             st.error(f"Error en Coordinacion Activa: {e}")
@@ -2501,6 +2501,32 @@ border-radius:12px; border-top:2px solid {color};'>
                 eh7.markdown("", unsafe_allow_html=True)
                 st.markdown("<hr style='margin:4px 0 8px 0; border:none; border-top:1px solid rgba(255,255,255,0.12);'>", unsafe_allow_html=True)
 
+                @st.dialog("✈️ DETALLE AÉREO POR TIPO DE NEGOCIO", width="large")
+                def show_detalle_ae(df_sub, mes_lbl):
+                    st.markdown(f"**Análisis AÉREO - {mes_lbl}**")
+                    tipos_d = df_sub['_tipo'].value_counts().index.tolist()
+                    import pandas as _pd2
+                    rows = []
+                    for tipo in tipos_d:
+                        df_t = df_sub[df_sub['_tipo'] == tipo]
+                        v1 = med_val(df_t['_tt1']); v2 = med_val(df_t['_tt2'])
+                        v3 = med_val(df_t['_tt3']); v4 = med_val(df_t['_tt4'])
+                        tot = sum(v for v in [v1,v2,v3,v4] if v is not None)
+                        rows.append({
+                            'Tipo': tipo,
+                            'Embs': len(df_t),
+                            'Packeo→WH': med_str_v(v1),
+                            'WH→ETD': med_str_v(v2),
+                            'ETD→ETA': med_str_v(v3),
+                            'ETA→Caldas': med_str_v(v4),
+                            'Total': f"{int(round(tot))}d" if tot > 0 else "—"
+                        })
+                    st.dataframe(
+                        _pd2.DataFrame(rows),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+
                 for mes in meses_ae:
                     df_mes_ae = df_ae_f[df_ae_f['_mes_ae'] == mes]
                     n_emb_ae  = len(df_mes_ae)
@@ -2521,13 +2547,7 @@ border-radius:12px; border-top:2px solid {color};'>
                     cr6.markdown(f"<p style='color:#a855f7; font-size:14px; font-weight:900; text-align:center; margin:8px 0;'>{int(round(tot_g))}d</p>", unsafe_allow_html=True)
                     with cr7:
                         if st.button("🔍 VER", key=f"btn_ae_det_{mes}", use_container_width=True):
-                            st.session_state[f"ae_det_{mes}"] = not st.session_state.get(f"ae_det_{mes}", False)
-
-                    if st.session_state.get(f"ae_det_{mes}", False):
-                        with st.container():
-                            st.markdown(f"<div style='background:rgba(168,85,247,0.04); border-radius:10px; padding:14px; margin-bottom:8px; border-left:3px solid #a855f7;'>", unsafe_allow_html=True)
-                            render_ae_detalle(df_mes_ae, mes)
-                            st.markdown("</div>", unsafe_allow_html=True)
+                            show_detalle_ae(df_mes_ae, mes_label)
 
                     st.markdown("<hr style='margin:4px 0; border:none; border-top:1px solid rgba(255,255,255,0.05);'>", unsafe_allow_html=True)
 
