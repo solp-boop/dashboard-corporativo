@@ -2433,7 +2433,11 @@ border-radius:12px; border-top:2px solid {color};'>
                 df_ae_ind['_etacal_dt'] = df_ae_ind[col_ae_etacal].apply(parse_dt_ae)
                 df_ae_ind['_tipo']      = df_ae_ind[col_ae_tipo].astype(str).str.strip().replace({'': 'SIN CLASIFICAR', 'nan': 'SIN CLASIFICAR'})
 
-                df_ae_f = df_ae_ind[df_ae_ind['_etd_dt'] >= pd.Timestamp('2026-05-01')].copy()
+                col_ae_estadio_ind = df_ae_ind.columns[0]  # A: Estadio
+                df_ae_f = df_ae_ind[
+                    (df_ae_ind['_etd_dt'] >= pd.Timestamp('2026-05-01')) &
+                    (df_ae_ind[col_ae_estadio_ind].astype(str).str.strip().str.upper() == 'ENTREGADO')
+                ].copy()
 
                 def dias(a, b):
                     d = (b - a).dt.days
@@ -2639,6 +2643,7 @@ border-radius:12px; border-top:2px solid {color};'>
                     col_aeh_m3   = df_ae_h.columns[21]  # V: M3
                     col_aeh_uni  = df_ae_h.columns[23]  # X: Unidades
                     col_aeh_fob  = df_ae_h.columns[19]  # T: FOB SIMI TOTAL
+                    col_aeh_cw   = df_ae_h.columns[57]  # BF: Chargeable Weight
 
                     df_ae_h['_etd_h'] = pd.to_datetime(df_ae_h[col_aeh_etd], dayfirst=True, errors='coerce')
                     mask_ae_2026 = df_ae_h['_etd_h'].dt.year == 2026
@@ -2658,6 +2663,7 @@ border-radius:12px; border-top:2px solid {color};'>
                     df_ae_h2['_m3']  = df_ae_h2[col_aeh_m3].apply(safe_n_ae)
                     df_ae_h2['_uni'] = df_ae_h2[col_aeh_uni].apply(safe_n_ae)
                     df_ae_h2['_fob'] = df_ae_h2[col_aeh_fob].apply(safe_n_ae)
+                    df_ae_h2['_cw']  = df_ae_h2[col_aeh_cw].apply(safe_n_ae)
                     df_ae_h2['_mes'] = df_ae_h2['_etd_h'].dt.to_period('M').astype(str)
 
                     # KPIs aéreos
@@ -2680,34 +2686,34 @@ border-radius:12px; border-top:2px solid {color};'>
                         M3=('_m3', 'sum'),
                         Unidades=('_uni', 'sum'),
                         FOB=('_fob', 'sum'),
+                        CW=('_cw', 'sum'),
                     ).reset_index().sort_values('_mes')
-                    mes_ae['Delta_Pct'] = (mes_ae['M3'].pct_change() * 100).round(1)
 
                     ha1,ha2,ha3,ha4,ha5 = st.columns([1.2, 0.8, 0.8, 0.9, 0.9])
                     ha1.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700;'>MES ETD</p>", unsafe_allow_html=True)
                     ha2.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>EMBARQUES</p>", unsafe_allow_html=True)
                     ha3.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>M3</p>", unsafe_allow_html=True)
-                    ha4.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>Δ% vs anterior</p>", unsafe_allow_html=True)
+                    ha4.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>CHARGEABLE W.</p>", unsafe_allow_html=True)
                     ha5.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>FOB USD</p>", unsafe_allow_html=True)
                     st.markdown("<hr style='margin:4px 0 8px 0; border:none; border-top:1px solid rgba(255,255,255,0.12);'>", unsafe_allow_html=True)
 
                     for _, r in mes_ae.iterrows():
-                        pct_a = r['Delta_Pct']
-                        pct_a_str = "—" if pd.isna(pct_a) else (f"+{pct_a:.1f}%" if pct_a > 0 else f"{pct_a:.1f}%")
+                        cw_str  = f"{int(round(r['CW'])):,} kg" if r['CW'] > 0 else "—"
                         fob_a_str = f"USD {r['FOB']/1_000_000:.1f}M" if r['FOB'] >= 1_000_000 else f"USD {r['FOB']/1_000:.0f}K"
                         ca1,ca2,ca3,ca4,ca5 = st.columns([1.2, 0.8, 0.8, 0.9, 0.9])
                         ca1.markdown(f"<p style='color:#f8fafc; font-size:14px; font-weight:600; margin:6px 0;'>{r['_mes']}</p>", unsafe_allow_html=True)
                         ca2.markdown(f"<p style='color:#94a3b8; font-size:14px; text-align:center; margin:6px 0;'>{int(r['Embarques'])}</p>", unsafe_allow_html=True)
                         ca3.markdown(f"<p style='color:#a855f7; font-size:15px; font-weight:700; text-align:center; margin:6px 0;'>{int(round(r['M3'])):,}</p>", unsafe_allow_html=True)
-                        ca4.markdown(f"<p style='color:#94a3b8; font-size:14px; text-align:center; margin:6px 0;'>{pct_a_str}</p>", unsafe_allow_html=True)
+                        ca4.markdown(f"<p style='color:#00a8ff; font-size:14px; font-weight:700; text-align:center; margin:6px 0;'>{cw_str}</p>", unsafe_allow_html=True)
                         ca5.markdown(f"<p style='color:#ffaa00; font-size:14px; font-weight:600; text-align:center; margin:6px 0;'>{fob_a_str}</p>", unsafe_allow_html=True)
 
+                    tot_ae_cw = df_ae_h2['_cw'].sum()
                     st.markdown("<hr style='margin:8px 0; border:none; border-top:1px solid rgba(255,255,255,0.3);'>", unsafe_allow_html=True)
                     ta1,ta2,ta3,ta4,ta5 = st.columns([1.2, 0.8, 0.8, 0.9, 0.9])
                     ta1.markdown("<p style='color:#f8fafc; font-size:15px; font-weight:800; margin:6px 0;'>TOTAL 2026</p>", unsafe_allow_html=True)
                     ta2.markdown(f"<p style='color:#f8fafc; font-size:15px; font-weight:800; text-align:center; margin:6px 0;'>{tot_ae_emb}</p>", unsafe_allow_html=True)
                     ta3.markdown(f"<p style='color:#a855f7; font-size:16px; font-weight:900; text-align:center; margin:6px 0;'>{int(round(tot_ae_m3)):,}</p>", unsafe_allow_html=True)
-                    ta4.markdown("<p style='color:#475569; font-size:14px; text-align:center; margin:6px 0;'>—</p>", unsafe_allow_html=True)
+                    ta4.markdown(f"<p style='color:#00a8ff; font-size:15px; font-weight:800; text-align:center; margin:6px 0;'>{int(round(tot_ae_cw)):,} kg</p>", unsafe_allow_html=True)
                     ta5.markdown(f"<p style='color:#ffaa00; font-size:15px; font-weight:800; text-align:center; margin:6px 0;'>USD {tot_ae_fob/1_000_000:.1f}M</p>", unsafe_allow_html=True)
 
                 except Exception as e_ae_h:
