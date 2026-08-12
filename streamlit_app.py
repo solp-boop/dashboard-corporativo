@@ -2434,8 +2434,10 @@ border-radius:12px; border-top:2px solid {color};'>
                 df_ae_ind['_tipo']      = df_ae_ind[col_ae_tipo].astype(str).str.strip().replace({'': 'SIN CLASIFICAR', 'nan': 'SIN CLASIFICAR'})
 
                 col_ae_estadio_ind = df_ae_ind.columns[0]  # A: Estadio
+                hoy_ae = pd.Timestamp.now().normalize()
                 df_ae_f = df_ae_ind[
                     (df_ae_ind['_etd_dt'] >= pd.Timestamp('2026-05-01')) &
+                    (df_ae_ind['_etd_dt'] <= hoy_ae) &
                     (df_ae_ind[col_ae_estadio_ind].astype(str).str.strip().str.upper() == 'ENTREGADO')
                 ].copy()
 
@@ -2460,7 +2462,7 @@ border-radius:12px; border-top:2px solid {color};'>
 
                 def render_ae_detalle(df_sub, key_sfx):
                     tipos_ae = df_sub['_tipo'].value_counts().index.tolist()
-                    h1,h2,h3,h4,h5,h6 = st.columns([1.4, 0.9, 0.9, 0.9, 0.9, 0.9])
+                    h1,h2,h3,h4,h5,h6 = st.columns([1.5, 0.8, 0.8, 0.8, 0.8, 0.8])
                     h1.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700;'>TIPO DE NEGOCIO</p>", unsafe_allow_html=True)
                     h2.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>📦 Packeo→WH</p>", unsafe_allow_html=True)
                     h3.markdown("<p style='color:#94a3b8; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>🏭 WH→ETD</p>", unsafe_allow_html=True)
@@ -2473,7 +2475,7 @@ border-radius:12px; border-top:2px solid {color};'>
                         col_p = COLORES_AE_IND[pi % len(COLORES_AE_IND)]
                         v1,v2,v3,v4 = med_val(df_t['_tt1']), med_val(df_t['_tt2']), med_val(df_t['_tt3']), med_val(df_t['_tt4'])
                         tot = sum(v for v in [v1,v2,v3,v4] if v is not None)
-                        c1,c2,c3,c4,c5,c6 = st.columns([1.4, 0.9, 0.9, 0.9, 0.9, 0.9])
+                        c1,c2,c3,c4,c5,c6 = st.columns([1.5, 0.8, 0.8, 0.8, 0.8, 0.8])
                         c1.markdown(f"<p style='color:{col_p}; font-size:13px; font-weight:800; margin:5px 0;'>{tipo}</p>", unsafe_allow_html=True)
                         c2.markdown(f"<p style='color:#94a3b8; font-size:13px; text-align:center; margin:5px 0;'>{med_str_v(v1)}</p>", unsafe_allow_html=True)
                         c3.markdown(f"<p style='color:#94a3b8; font-size:13px; text-align:center; margin:5px 0;'>{med_str_v(v2)}</p>", unsafe_allow_html=True)
@@ -2498,7 +2500,7 @@ border-radius:12px; border-top:2px solid {color};'>
                     v3g = med_val(df_mes_ae['_tt3']); v4g = med_val(df_mes_ae['_tt4'])
                     tot_g = sum(v for v in [v1g,v2g,v3g,v4g] if v is not None)
 
-                    cr1,cr2,cr3,cr4,cr5,cr6,cr7 = st.columns([1.2, 0.7, 0.7, 0.7, 0.7, 0.7, 0.5])
+                    cr1,cr2,cr3,cr4,cr5,cr6,cr7 = st.columns([1.2, 0.7, 0.7, 0.7, 0.7, 0.9, 0.5])
                     cr1.markdown(f"<p style='color:#f8fafc; font-size:14px; font-weight:800; margin:8px 0;'>{mes_label}</p><p style='color:#475569; font-size:10px; margin:0 0 8px 0;'>{n_emb_ae} embarques</p>", unsafe_allow_html=True)
                     cr2.markdown(f"<p style='color:#94a3b8; font-size:13px; text-align:center; margin:8px 0;'>{med_str_v(v1g)}</p>", unsafe_allow_html=True)
                     cr3.markdown(f"<p style='color:#94a3b8; font-size:13px; text-align:center; margin:8px 0;'>{med_str_v(v2g)}</p>", unsafe_allow_html=True)
