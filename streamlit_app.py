@@ -905,12 +905,13 @@ border-radius:12px; border-top:3px solid {color_r}; border:1px solid rgba(255,25
 
             k1, k2, k3, k4 = st.columns(4)
             # KPIs aéreos — se completan después de cargar df_ae_activos
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<div style='text-align:center; padding:20px; background:rgba(168,85,247,0.05); border-radius:20px; margin-bottom:24px;'><h2 style='color:#a855f7; font-weight:800; letter-spacing:5px; margin:0;'>GESTIÓN AÉREA</h2></div>", unsafe_allow_html=True)
             _kpi_ae_placeholder = st.columns(4)
             _kpi_ae_cols = _kpi_ae_placeholder
 
             # BLOQUE AEREO
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("<div style='text-align:center; padding:20px; background:rgba(168,85,247,0.05); border-radius:20px; margin-bottom:24px;'><h2 style='color:#a855f7; font-weight:800; letter-spacing:5px; margin:0;'>GESTIÓN AÉREA</h2></div>", unsafe_allow_html=True)
             st.markdown("""
 <div style='border-bottom:2px solid rgba(168,85,247,0.3); padding-bottom:10px; margin-bottom:28px;'>
 <span style='color:#a855f7; font-size:13px; font-weight:800; letter-spacing:5px; text-transform:uppercase;'>AEREO</span>
