@@ -895,7 +895,7 @@ border-radius:12px; border-top:3px solid {color_r}; border:1px solid rgba(255,25
                 elif d <= sla * 1.4: return "#ffaa00"
                 else: return "#ff4b4b"
 
-            H_ROW1  = "240px"
+            H_ROW1  = "260px"
             H_ROW2  = "180px"
             H_ROW3  = "170px"
             H_AE    = "240px"
@@ -904,10 +904,9 @@ border-radius:12px; border-top:3px solid {color_r}; border:1px solid rgba(255,25
             st.markdown("<div style='text-align:center; padding:20px; background:rgba(0,168,255,0.05); border-radius:20px; margin-bottom:30px;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>COORDINACIÓN ACTIVA</h2></div>", unsafe_allow_html=True)
 
             k1, k2, k3, k4 = st.columns(4)
-            with k1: st.markdown(f"<div class='metric-container'><p>SO EN PROCESO</p><p style='color:#f8fafc; font-size:22px; font-weight:900; margin:0;'>{int(df_inst_s2['SO'].nunique())}</p></div>", unsafe_allow_html=True)
-            with k2: st.markdown(f"<div class='metric-container'><p>VOLUMEN TOTAL</p><p style='color:#00a8ff; font-size:22px; font-weight:900; margin:0;'>{int(round(m3_total_clean)):,} <span style='font-size:13px; color:#475569;'>M3</span></p></div>", unsafe_allow_html=True)
-            with k3: st.markdown(f"<div class='metric-container'><p>PROVEEDORES</p><p style='color:#f8fafc; font-size:22px; font-weight:900; margin:0;'>{int(df_inst_s2['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
-            with k4: st.markdown(f"<div class='metric-container'><p>FOB EN PROCESO</p><p style='color:#ffaa00; font-size:20px; font-weight:900; margin:0;'>USD {round(fob_total_clean/1_000_000,1)}M</p></div>", unsafe_allow_html=True)
+            # KPIs aéreos — se completan después de cargar df_ae_activos
+            _kpi_ae_placeholder = st.columns(4)
+            _kpi_ae_cols = _kpi_ae_placeholder
 
             # BLOQUE AEREO
             st.markdown("<br><br>", unsafe_allow_html=True)
@@ -971,7 +970,29 @@ border-radius:12px; border-top:3px solid {color_r}; border:1px solid rgba(255,25
                 cant_ae     = df_ae_activos[col_ae_cant].sum()
                 empresas_ae = df_ae_activos[col_ae_empresa].nunique()
 
-                H_AE_PX = 280
+                # FOB y Kilos para KPIs
+                col_ae_fob_act = df_ae.columns[19]   # T: FOB SIMI TOTAL
+                col_ae_cw_act  = df_ae.columns[57]   # BF: Chargeable Weight
+                def safe_ae_num(v):
+                    try:
+                        s = str(v).strip().replace(' ','')
+                        if s in ['','nan','None','-']: return 0.0
+                        if ',' in s and '.' in s:
+                            if s.index('.') < s.index(','): s = s.replace('.','').replace(',','.')
+                            else: s = s.replace(',','')
+                        elif ',' in s: s = s.replace(',','.')
+                        return float(s)
+                    except: return 0.0
+                fob_ae_act = df_ae_activos[col_ae_fob_act].apply(safe_ae_num).sum()
+                cw_ae_act  = df_ae_activos[col_ae_cw_act].apply(safe_ae_num).sum()
+
+                # Llenar KPIs aéreos arriba
+                with _kpi_ae_cols[0]: st.markdown(f"<div class='metric-container'><p>EMBARQUES AÉREOS</p><p style='color:#a855f7; font-size:22px; font-weight:900; margin:0;'>{total_ae}</p></div>", unsafe_allow_html=True)
+                with _kpi_ae_cols[1]: st.markdown(f"<div class='metric-container'><p>VOLUMEN</p><p style='color:#a855f7; font-size:22px; font-weight:900; margin:0;'>{int(round(m3_ae)):,} <span style='font-size:13px; color:#475569;'>M3</span></p></div>", unsafe_allow_html=True)
+                with _kpi_ae_cols[2]: st.markdown(f"<div class='metric-container'><p>FOB AÉREO</p><p style='color:#ffaa00; font-size:20px; font-weight:900; margin:0;'>USD {fob_ae_act/1_000_000:.1f}M</p></div>", unsafe_allow_html=True)
+                with _kpi_ae_cols[3]: st.markdown(f"<div class='metric-container'><p>CHARGEABLE WEIGHT</p><p style='color:#00a8ff; font-size:20px; font-weight:900; margin:0;'>{int(round(cw_ae_act)):,} <span style='font-size:13px; color:#475569;'>kg</span></p></div>", unsafe_allow_html=True)
+
+                H_AE_PX = 260
                 col_ae_num, col_ae_estadios = st.columns([1, 2])
                 with col_ae_num:
                     st.markdown(f"""
@@ -1087,6 +1108,13 @@ display:flex; flex-direction:column; justify-content:space-between;'>
                 st.error(f"Error en seccion Aereos: {e_ae}")
                 import traceback; st.code(traceback.format_exc())
 
+            st.markdown("<br>", unsafe_allow_html=True)
+            # KPIs marítimos
+            km1,km2,km3,km4 = st.columns(4)
+            with km1: st.markdown(f"<div class='metric-container'><p>SO EN PROCESO</p><p style='color:#f8fafc; font-size:22px; font-weight:900; margin:0;'>{int(df_inst_s2['SO'].nunique())}</p></div>", unsafe_allow_html=True)
+            with km2: st.markdown(f"<div class='metric-container'><p>VOLUMEN TOTAL</p><p style='color:#00a8ff; font-size:22px; font-weight:900; margin:0;'>{int(round(m3_total_clean)):,} <span style='font-size:13px; color:#475569;'>M3</span></p></div>", unsafe_allow_html=True)
+            with km3: st.markdown(f"<div class='metric-container'><p>PROVEEDORES</p><p style='color:#f8fafc; font-size:22px; font-weight:900; margin:0;'>{int(df_inst_s2['Proveedor'].nunique())}</p></div>", unsafe_allow_html=True)
+            with km4: st.markdown(f"<div class='metric-container'><p>FOB EN PROCESO</p><p style='color:#ffaa00; font-size:20px; font-weight:900; margin:0;'>USD {round(fob_total_clean/1_000_000,1)}M</p></div>", unsafe_allow_html=True)
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("""
 <div style='border-bottom:2px solid rgba(0,168,255,0.3); padding-bottom:10px; margin-bottom:28px;'>
