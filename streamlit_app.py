@@ -2489,6 +2489,18 @@ border-radius:12px; border-top:2px solid {color};'>
                 st.markdown("<br>", unsafe_allow_html=True)
 
                 MESES_ES = {'01':'ENE','02':'FEB','03':'MAR','04':'ABR','05':'MAY','06':'JUN','07':'JUL','08':'AGO','09':'SEP','10':'OCT','11':'NOV','12':'DIC'}
+
+                # Encabezados de columna
+                eh1,eh2,eh3,eh4,eh5,eh6,eh7 = st.columns([1.5, 0.8, 0.8, 0.8, 0.8, 0.9, 0.5])
+                eh1.markdown("<p style='color:#64748b; font-size:10px; letter-spacing:1px; font-weight:700;'>MES ETD</p>", unsafe_allow_html=True)
+                eh2.markdown("<p style='color:#64748b; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>📦 Packeo→WH</p>", unsafe_allow_html=True)
+                eh3.markdown("<p style='color:#64748b; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>🏭 WH→ETD</p>", unsafe_allow_html=True)
+                eh4.markdown("<p style='color:#64748b; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>✈️ ETD→ETA</p>", unsafe_allow_html=True)
+                eh5.markdown("<p style='color:#64748b; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>🏠 ETA→Caldas</p>", unsafe_allow_html=True)
+                eh6.markdown("<p style='color:#64748b; font-size:10px; letter-spacing:1px; font-weight:700; text-align:center;'>⏱ TOTAL</p>", unsafe_allow_html=True)
+                eh7.markdown("", unsafe_allow_html=True)
+                st.markdown("<hr style='margin:4px 0 8px 0; border:none; border-top:1px solid rgba(255,255,255,0.12);'>", unsafe_allow_html=True)
+
                 for mes in meses_ae:
                     df_mes_ae = df_ae_f[df_ae_f['_mes_ae'] == mes]
                     n_emb_ae  = len(df_mes_ae)
@@ -2500,7 +2512,7 @@ border-radius:12px; border-top:2px solid {color};'>
                     v3g = med_val(df_mes_ae['_tt3']); v4g = med_val(df_mes_ae['_tt4'])
                     tot_g = sum(v for v in [v1g,v2g,v3g,v4g] if v is not None)
 
-                    cr1,cr2,cr3,cr4,cr5,cr6,cr7 = st.columns([1.2, 0.7, 0.7, 0.7, 0.7, 0.9, 0.5])
+                    cr1,cr2,cr3,cr4,cr5,cr6,cr7 = st.columns([1.5, 0.8, 0.8, 0.8, 0.8, 0.9, 0.5])
                     cr1.markdown(f"<p style='color:#f8fafc; font-size:14px; font-weight:800; margin:8px 0;'>{mes_label}</p><p style='color:#475569; font-size:10px; margin:0 0 8px 0;'>{n_emb_ae} embarques</p>", unsafe_allow_html=True)
                     cr2.markdown(f"<p style='color:#94a3b8; font-size:13px; text-align:center; margin:8px 0;'>{med_str_v(v1g)}</p>", unsafe_allow_html=True)
                     cr3.markdown(f"<p style='color:#94a3b8; font-size:13px; text-align:center; margin:8px 0;'>{med_str_v(v2g)}</p>", unsafe_allow_html=True)
