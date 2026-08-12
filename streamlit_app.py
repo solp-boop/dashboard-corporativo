@@ -909,7 +909,8 @@ border-radius:12px; border-top:3px solid {color_r}; border:1px solid rgba(255,25
             _kpi_ae_cols = _kpi_ae_placeholder
 
             # BLOQUE AEREO
-            st.markdown("<br><br>", unsafe_allow_html=True)
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<div style='text-align:center; padding:20px; background:rgba(168,85,247,0.05); border-radius:20px; margin-bottom:24px;'><h2 style='color:#a855f7; font-weight:800; letter-spacing:5px; margin:0;'>GESTIÓN AÉREA</h2></div>", unsafe_allow_html=True)
             st.markdown("""
 <div style='border-bottom:2px solid rgba(168,85,247,0.3); padding-bottom:10px; margin-bottom:28px;'>
 <span style='color:#a855f7; font-size:13px; font-weight:800; letter-spacing:5px; text-transform:uppercase;'>AEREO</span>
@@ -1109,6 +1110,7 @@ display:flex; flex-direction:column; justify-content:space-between;'>
                 import traceback; st.code(traceback.format_exc())
 
             st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<div style='text-align:center; padding:20px; background:rgba(0,168,255,0.05); border-radius:20px; margin-bottom:24px;'><h2 style='color:#00a8ff; font-weight:800; letter-spacing:5px; margin:0;'>GESTIÓN MARÍTIMA</h2></div>", unsafe_allow_html=True)
             # KPIs marítimos
             km1,km2,km3,km4 = st.columns(4)
             with km1: st.markdown(f"<div class='metric-container'><p>SO EN PROCESO</p><p style='color:#f8fafc; font-size:22px; font-weight:900; margin:0;'>{int(df_inst_s2['SO'].nunique())}</p></div>", unsafe_allow_html=True)
@@ -1127,7 +1129,7 @@ display:flex; flex-direction:column; justify-content:space-between;'>
                 st.markdown(f"""
 <div style='background:linear-gradient(145deg, rgba(0,168,255,0.07), rgba(0,168,255,0.02));
 border-radius:20px; border:1px solid rgba(0,168,255,0.15); padding:28px;
-min-height:{H_ROW1}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
+min-height:260px; height:auto; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
 <div>
     <p style='color:#64748b; font-size:11px; letter-spacing:3px; margin:0 0 6px 0; text-transform:uppercase;'>Embarques bajo gestion</p>
     <p style='color:#f8fafc; font-size:88px; font-weight:900; margin:0; line-height:1; letter-spacing:-4px;'>{total_mar}</p>
@@ -1176,7 +1178,7 @@ min-height:{H_ROW1}; box-sizing:border-box; display:flex; flex-direction:column;
                 st.markdown(f"""
 <div style='background:rgba(255,255,255,0.02); border-radius:20px;
 border:1px solid rgba(255,255,255,0.07); padding:24px;
-min-height:{H_ROW1}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
+min-height:260px; height:auto; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
 <div>
     <p style='color:#64748b; font-size:11px; letter-spacing:3px; margin:0 0 8px 0; text-transform:uppercase;'>Estado ETD</p>
     <div style='display:flex; align-items:baseline; gap:12px;'>
@@ -1201,7 +1203,7 @@ min-height:{H_ROW1}; box-sizing:border-box; display:flex; flex-direction:column;
                 st.markdown(f"""
 <div style='background:rgba(255,255,255,0.03); border-radius:16px;
 border:1px solid rgba(255,255,255,0.07); padding:24px;
-min-height:{H_ROW2}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
+min-height:180px; height:auto; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
 <p style='color:#64748b; font-size:10px; letter-spacing:3px; margin:0; text-transform:uppercase;'>Estructura de carga</p>
 <div>
     <div style='display:flex; justify-content:space-between; margin-bottom:5px;'>
@@ -1229,7 +1231,7 @@ min-height:{H_ROW2}; box-sizing:border-box; display:flex; flex-direction:column;
                 st.markdown(f"""
 <div style='background:rgba(255,255,255,0.03); border-radius:16px;
 border:1px solid rgba(255,255,255,0.07); padding:24px;
-min-height:{H_ROW2}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
+min-height:180px; height:auto; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
 <p style='color:#64748b; font-size:10px; letter-spacing:3px; margin:0; text-transform:uppercase;'>Modalidad de booking</p>
 <div>
     <div style='display:flex; justify-content:space-between; margin-bottom:5px;'>
@@ -1259,7 +1261,7 @@ min-height:{H_ROW2}; box-sizing:border-box; display:flex; flex-direction:column;
                 st.markdown(f"""
 <div style='background:rgba(255,255,255,0.03); border-radius:16px;
 border:1px solid rgba(255,255,255,0.07); padding:24px;
-min-height:{H_ROW2}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
+min-height:180px; height:auto; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
 <p style='color:#64748b; font-size:10px; letter-spacing:3px; margin:0; text-transform:uppercase;'>Tiempo de consolidacion (mediana)</p>
 <div style='display:grid; grid-template-columns:1fr 1fr; gap:8px; flex:1; align-content:center;'>
     <div style='background:rgba(0,168,255,0.07); border-radius:10px; padding:10px; text-align:center;'>
@@ -1299,7 +1301,7 @@ min-height:{H_ROW2}; box-sizing:border-box; display:flex; flex-direction:column;
                 st.markdown(f"""
 <div style='background:linear-gradient(145deg, rgba(0,168,255,0.07), rgba(0,168,255,0.02));
 border-radius:16px; border:1px solid rgba(0,168,255,0.15); padding:22px;
-min-height:{H_ROW3}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
+min-height:170px; height:auto; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
 <p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0; text-transform:uppercase;'>Embarques con ETD OK</p>
 <p style='color:#f8fafc; font-size:58px; font-weight:900; margin:0; line-height:1; letter-spacing:-2px;'>{cant_etd_sem}</p>
 <div>
@@ -1311,7 +1313,7 @@ min-height:{H_ROW3}; box-sizing:border-box; display:flex; flex-direction:column;
                 st.markdown(f"""
 <div style='background:rgba(255,255,255,0.03); border-radius:16px;
 border:1px solid rgba(255,255,255,0.07); padding:22px;
-min-height:{H_ROW3}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
+min-height:170px; height:auto; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
 <p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0; text-transform:uppercase;'>Volumen a zarpar</p>
 <p style='color:#f8fafc; font-size:48px; font-weight:900; margin:0; line-height:1;'>{int(round(m3_etd_sem)):,}</p>
 <p style='color:#475569; font-size:13px; font-weight:600; margin:0;'>M3 esta semana</p>
@@ -1320,7 +1322,7 @@ min-height:{H_ROW3}; box-sizing:border-box; display:flex; flex-direction:column;
                 st.markdown(f"""
 <div style='background:rgba(0,255,136,0.04); border-radius:16px;
 border:1px solid rgba(0,255,136,0.1); padding:22px;
-min-height:{H_ROW3}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
+min-height:170px; height:auto; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
 <p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0; text-transform:uppercase;'>Consolidacion In Advance (mediana)</p>
 <div>
     <p style='color:{cma}; font-size:52px; font-weight:900; margin:0; line-height:1;'>{int(round(med_adv_sem))}d</p>
@@ -1334,7 +1336,7 @@ min-height:{H_ROW3}; box-sizing:border-box; display:flex; flex-direction:column;
                 st.markdown(f"""
 <div style='background:rgba(148,163,184,0.04); border-radius:16px;
 border:1px solid rgba(148,163,184,0.1); padding:22px;
-min-height:{H_ROW3}; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
+min-height:170px; height:auto; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden;'>
 <p style='color:#64748b; font-size:10px; letter-spacing:2px; margin:0; text-transform:uppercase;'>Consolidacion Spot (mediana)</p>
 <div>
     <p style='color:{cms}; font-size:52px; font-weight:900; margin:0; line-height:1;'>{int(round(med_spot_sem))}d</p>
