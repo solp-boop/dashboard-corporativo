@@ -2475,7 +2475,8 @@ border-radius:12px; border-top:2px solid {color};'>
                         c3.markdown(f"<p style='color:#94a3b8; font-size:13px; text-align:center; margin:5px 0;'>{med_str_v(v2)}</p>", unsafe_allow_html=True)
                         c4.markdown(f"<p style='color:#00a8ff; font-size:13px; font-weight:700; text-align:center; margin:5px 0;'>{med_str_v(v3)}</p>", unsafe_allow_html=True)
                         c5.markdown(f"<p style='color:#94a3b8; font-size:13px; text-align:center; margin:5px 0;'>{med_str_v(v4)}</p>", unsafe_allow_html=True)
-                        c6.markdown(f"<p style='color:#a855f7; font-size:14px; font-weight:900; text-align:center; margin:5px 0;'>{int(round(tot))}d if tot > 0 else '—'</p>", unsafe_allow_html=True)
+                        tot_ae_str = f"{int(round(tot))}d" if tot > 0 else "—"
+                        c6.markdown(f"<p style='color:#a855f7; font-size:14px; font-weight:900; text-align:center; margin:5px 0;'>{tot_ae_str}</p>", unsafe_allow_html=True)
 
                 # Resumen global
                 st.markdown("<p style='color:#a855f7; font-size:11px; font-weight:800; letter-spacing:3px; margin-bottom:12px;'>RESUMEN GLOBAL · MAYO–HOY 2026</p>", unsafe_allow_html=True)
