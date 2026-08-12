@@ -2478,10 +2478,6 @@ border-radius:12px; border-top:2px solid {color};'>
                         tot_ae_str = f"{int(round(tot))}d" if tot > 0 else "—"
                         c6.markdown(f"<p style='color:#a855f7; font-size:14px; font-weight:900; text-align:center; margin:5px 0;'>{tot_ae_str}</p>", unsafe_allow_html=True)
 
-                # Resumen global
-                st.markdown("<p style='color:#a855f7; font-size:11px; font-weight:800; letter-spacing:3px; margin-bottom:12px;'>RESUMEN GLOBAL · MAYO–HOY 2026</p>", unsafe_allow_html=True)
-                render_ae_detalle(df_ae_f, "global")
-
                 # Por mes
                 meses_ae = sorted(df_ae_f['_mes_ae'].dropna().unique())
                 st.markdown("<br>", unsafe_allow_html=True)
