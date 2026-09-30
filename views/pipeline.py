@@ -1,0 +1,181 @@
+"""Pipeline de origen (Planif cargas): qué volumen viene, cuándo sale y cuánto falta instruir."""
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
+import streamlit as st
+
+from components import charts
+from components.kpi_cards import KPI, kpi_row
+from components.layout import chart_title, coverage, empty, filter_notes, guard, require, section
+from components.tables import ColSpec, data_table
+from config import settings
+from utils import calculations as calc
+from utils import formatting as fmt
+from views._common import ctx, filtered, month_labels, today
+
+ESTADOS = ["Instruida", "Pendiente", "Sin clasificar"]
+ESTADO_COLORS = {"Instruida": settings.SERIES[0], "Pendiente": settings.SERIES[1],
+                 "Sin clasificar": settings.SERIES_OTHER}
+METRICS = {"M3": ("m3", "m³"), "FOB (USD)": ("fob", "USD"), "Cantidad de SO": ("so", "SO")}
+
+
+def per_so(df: pd.DataFrame) -> pd.DataFrame:
+    """Una fila por SO (Planif tiene una fila por línea de producto)."""
+    g = df.groupby("so", sort=False)
+    first_cols = ["embarque", "proveedor", "puerto", "destino", "estado_instruccion", "estructura",
+                  "tipo_negocio", "responsable", "tipo_carga", "category_manager"]
+    out = g[first_cols].first()  # primer valor no vacío de cada SO
+    out = out.join(g.agg(f_instruccion=("f_instruccion", "min"), etd=("etd", "min"), eta=("eta", "min"),
+                         m3=("m3", "sum"), fob=("fob", "sum")))
+    return out.reset_index()
+
+
+def _agg(df: pd.DataFrame, by: list[str], metric: str) -> pd.DataFrame:
+    if metric == "so":
+        return df.groupby(by, observed=True)["so"].nunique().rename("valor").reset_index()
+    return df.groupby(by, observed=True)[metric].sum().rename("valor").reset_index()
+
+
+def render() -> None:
+    bundle, filters = ctx()
+    base = require(bundle, "planif")
+    if base is None:
+        return
+    df = filtered(bundle, "planif", filters)
+
+    section("Mercadería en origen", "Órdenes de compra (SO) de Planificación de cargas, por fecha ETD.")
+    with guard("KPIs de origen"):
+        so = per_so(df) if not df.empty else df
+        total_m3 = so["m3"].sum() if len(so) else 0
+        inst = so[so["estado_instruccion"] == "Instruida"] if len(so) else so
+        pend = so[so["estado_instruccion"] == "Pendiente"] if len(so) else so
+        sincl = so[so["estado_instruccion"] == "Sin clasificar"] if len(so) else so
+        kpi_row([
+            KPI("SO", fmt.fmt_int(len(so)), sub=f"<b>{fmt.fmt_int(df['proveedor'].nunique())}</b> proveedores"),
+            KPI("Volumen", fmt.fmt_int(total_m3), unit="m³"),
+            KPI("FOB", fmt.fmt_usd(so["fob"].sum() if len(so) else 0)),
+            KPI("Instruido", fmt.fmt_pct(inst["m3"].sum() / total_m3 if total_m3 else np.nan),
+                sub=f"<b>{fmt.fmt_int(len(inst))}</b> SO · {fmt.fmt_int(inst['m3'].sum())} m³ del volumen"),
+            KPI("Pendiente de instruir", fmt.fmt_int(len(pend)), unit="SO",
+                sub=f"<b>{fmt.fmt_int(pend['m3'].sum())} m³</b>"
+                    + (f" · {fmt.fmt_int(len(sincl))} SO sin estado claro" if len(sincl) else "")),
+        ])
+        filter_notes(base, filters, "Planificación de cargas")
+        if len(sincl):
+            st.caption(f"«Sin clasificar»: {fmt.fmt_int(len(sincl))} SO con un valor en «Fecha de Instrucción» "
+                       "que no es fecha ni «SIN INSTRUCCION». Se listan en la tabla de abajo.")
+
+    if df.empty:
+        empty()
+        return
+
+    section("¿Cuándo sale el volumen?", "Proyección por mes. Los meses anteriores al actual se agrupan en «Anteriores».")
+    with guard("Proyección mensual"):
+        a, b = st.columns([1, 1])
+        metric_label = a.segmented_control("Medida", list(METRICS), default="M3", key="pl_metric")
+        date_label = b.segmented_control("Fecha", ["ETD", "ETA"], default="ETD", key="pl_date")
+        metric_label = metric_label or "M3"
+        date_col = "eta" if date_label == "ETA" else "etd"
+        metric, unit = METRICS[metric_label]
+        d = df.dropna(subset=[date_col]).copy()
+        this_month = today().to_period("M").to_timestamp()
+        d["mes"] = calc.month_start(d[date_col])
+        d.loc[d["mes"] < this_month, "mes"] = pd.Timestamp("1900-01-01")
+        g = _agg(d, ["mes", "estado_instruccion"], metric)
+        months = sorted(g["mes"].unique())
+        labels = {mm: ("Anteriores" if mm.year == 1900 else fmt.fmt_month(mm)) for mm in months}
+        fig = go.Figure()
+        for est in ESTADOS:
+            s = g[g["estado_instruccion"] == est].set_index("mes")["valor"].reindex(months).fillna(0)
+            if s.sum() == 0:
+                continue
+            fig.add_bar(x=[labels[mm] for mm in months], y=s.values, name=est,
+                        marker=dict(color=ESTADO_COLORS[est], cornerradius=3),
+                        hovertemplate=f"%{{x}} · {est}: %{{y:,.0f}} {unit}<extra></extra>")
+        totals = g.groupby("mes")["valor"].sum().reindex(months)
+        fig.add_scatter(x=[labels[mm] for mm in months], y=totals.values, mode="text",
+                        text=[fmt.fmt_usd(v) if metric == "fob" else fmt.fmt_int(v) for v in totals.values],
+                        textposition="top center", showlegend=False, hoverinfo="skip",
+                        textfont=dict(size=11, color=settings.COLORS["slate"]))
+        fig.update_layout(barmode="stack")
+        charts.theme(fig, height=360, y_title=unit)
+        chart_title(f"{metric_label} por mes de {date_label} y estado de instrucción")
+        charts.show(fig, key="pl_mes")
+        sin_fecha = df[date_col].isna().sum()
+        if sin_fecha:
+            st.caption(f"{fmt.fmt_int(sin_fecha)} líneas sin {date_label} no se muestran en el gráfico.")
+
+    c1, c2 = st.columns(2, gap="medium")
+    with c1, guard("Volumen por puerto"):
+        chart_title("Volumen por puerto de salida", "m³ · 10 puertos principales")
+        g = df.groupby(["puerto", "estado_instruccion"], observed=True)["m3"].sum().reset_index()
+        order = g.groupby("puerto")["m3"].sum().sort_values(ascending=False)
+        top = list(order.index[:10])
+        fig = go.Figure()
+        for est in ESTADOS:
+            s = g[g["estado_instruccion"] == est].set_index("puerto")["m3"].reindex(top).fillna(0)
+            if s.sum() == 0:
+                continue
+            fig.add_bar(y=top, x=s.values, name=est, orientation="h",
+                        marker=dict(color=ESTADO_COLORS[est], cornerradius=3),
+                        hovertemplate=f"%{{y}} · {est}: %{{x:,.0f}} m³<extra></extra>")
+        fig.update_layout(barmode="stack")
+        charts.theme(fig, height=max(260, 30 * len(top) + 80), y_title="m³", horizontal=True)
+        fig.update_yaxes(autorange="reversed")
+        charts.show(fig, key="pl_puerto")
+        if len(order) > 10:
+            st.caption(f"Otros {len(order) - 10} puertos: {fmt.fmt_int(order.iloc[10:].sum())} m³.")
+
+    with c2, guard("Semana a semana"):
+        chart_title("Semana a semana (ETD)", "Base para reservar espacio y negociar tarifas")
+        months_avail = sorted(calc.month_start(df["etd"].dropna()).unique())
+        future = [m for m in months_avail if m >= today().to_period("M").to_timestamp()] or months_avail
+        if not future:
+            empty()
+        else:
+            sel = st.selectbox("Mes ETD", future, format_func=lambda m: fmt.fmt_month(m, long=True),
+                               key="pl_week_month", label_visibility="collapsed")
+            w = df[calc.month_start(df["etd"]) == sel].copy()
+            w["semana"] = calc.week_start(w["etd"])
+            t = w.groupby("semana").agg(so=("so", "nunique"), m3=("m3", "sum"), fob=("fob", "sum"),
+                                         proveedores=("proveedor", "nunique")).reset_index()
+            mono = w[w["estructura"] == "Monoproveedor"].groupby(calc.week_start(w["etd"]))["m3"].sum()
+            t["mono"] = t["semana"].map(mono).fillna(0)
+            t["cons"] = t["m3"] - t["mono"]
+            t["semana_txt"] = t["semana"].map(lambda s: f"{s:%d/%m} – {(s + pd.Timedelta(days=6)):%d/%m}")
+            data_table(t, [
+                ColSpec("semana_txt", "Semana"), ColSpec("so", "SO", "int"),
+                ColSpec("m3", "M3 total", "int"), ColSpec("mono", "M3 mono", "int"),
+                ColSpec("cons", "M3 consolidado", "int"), ColSpec("proveedores", "Proveedores", "int"),
+                ColSpec("fob", "FOB (USD)", "usd"),
+            ], key="pl_weeks", filename="proyeccion_semanal", search=False)
+
+    section("Tipo de negocio", "Clasificación por marca y tipo de envío (muestras y repuestos aparte).")
+    with guard("Tipo de negocio"):
+        so = per_so(df)
+        tn = so.pivot_table(index="tipo_negocio", columns="estado_instruccion", values="so",
+                            aggfunc="count", fill_value=0)
+        tn = tn.reindex(columns=[e for e in ESTADOS if e in tn.columns])
+        tn["Total SO"] = tn.sum(axis=1)
+        tn["M3"] = so.groupby("tipo_negocio")["m3"].sum()
+        tn = tn.sort_values("Total SO", ascending=False).reset_index().rename(columns={"tipo_negocio": "Tipo de negocio"})
+        cols = [ColSpec("Tipo de negocio", "Tipo de negocio")] + \
+               [ColSpec(c, f"SO {c.lower()}", "int") for c in ESTADOS if c in tn.columns] + \
+               [ColSpec("Total SO", "Total SO", "int"), ColSpec("M3", "M3", "int")]
+        data_table(tn, cols, key="pl_tn", filename="tipo_negocio", search=False)
+
+    section("Detalle por SO")
+    with guard("Detalle por SO"):
+        so = per_so(df).sort_values(["etd", "so"])
+        coverage(int(so["etd"].notna().sum()), len(so), "SO con ETD")
+        data_table(so, [
+            ColSpec("so", "SO"), ColSpec("estado_instruccion", "Estado"), ColSpec("embarque", "Embarque"),
+            ColSpec("proveedor", "Proveedor", width="medium"), ColSpec("puerto", "Puerto"),
+            ColSpec("destino", "Destino"), ColSpec("estructura", "Estructura"),
+            ColSpec("tipo_negocio", "Tipo de negocio"), ColSpec("f_instruccion", "Instrucción", "date"),
+            ColSpec("etd", "ETD", "date"), ColSpec("eta", "ETA", "date"),
+            ColSpec("m3", "M3", "num"), ColSpec("fob", "FOB (USD)", "usd"),
+            ColSpec("responsable", "Responsable"),
+        ], key="pl_so", filename="pipeline_so")
