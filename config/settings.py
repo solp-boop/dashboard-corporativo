@@ -144,3 +144,7 @@ KPI_CERTIFICACION_TARGET = 0.75
 # Recomendación de forwarder: un ETD se considera "en fecha" si el ETD real
 # difiere de la ETD estimada en hasta estos días.
 ETD_TOLERANCIA_DIAS = 3
+
+# Proyección de contenedores para SO sin embarque asignado: m³ / este valor
+# (mismo criterio que la versión anterior del tablero).
+M3_POR_CONTENEDOR = 60

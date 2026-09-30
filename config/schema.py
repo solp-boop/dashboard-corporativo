@@ -196,6 +196,7 @@ PLANIF = DatasetSchema(
         C("responsable", "Responsable de la carga", kind="category"),
         C("status_final", "Status Final", kind="category"),
         C("f_packeo", "Unificacion Fecha de Packeo", "Fecha de Packeo", kind="date"),
+        C("modalidad", "Modalidad de Costeo Reposicion", "Modalidad de Costeo Reposición", kind="category"),
     ),
 )
 

@@ -12,13 +12,15 @@ from components.layout import chart_title, coverage, empty, filter_notes, guard,
 from components.tables import ColSpec, data_table
 from config import settings
 from utils import calculations as calc
+from utils import data_cleaning as dc
 from utils import formatting as fmt
 from views._common import ctx, filtered, month_labels, today
 
 ESTADOS = ["Instruida", "Pendiente", "Sin clasificar"]
 ESTADO_COLORS = {"Instruida": settings.SERIES[0], "Pendiente": settings.SERIES[1],
                  "Sin clasificar": settings.SERIES_OTHER}
-METRICS = {"M3": ("m3", "m³"), "FOB (USD)": ("fob", "USD"), "Cantidad de SO": ("so", "SO")}
+METRICS = {"M3": ("m3", "m³"), "Contenedores": ("cnt", "cont."), "FOB (USD)": ("fob", "USD"),
+           "Cantidad de SO": ("so", "SO")}
 
 
 def per_so(df: pd.DataFrame) -> pd.DataFrame:
@@ -30,6 +32,34 @@ def per_so(df: pd.DataFrame) -> pd.DataFrame:
     out = out.join(g.agg(f_instruccion=("f_instruccion", "min"), etd=("etd", "min"), eta=("eta", "min"),
                          m3=("m3", "sum"), fob=("fob", "sum")))
     return out.reset_index()
+
+
+def es_maritimo(df: pd.DataFrame) -> pd.Series:
+    """SO que viajan en barco según la modalidad de costeo (Barco… o Costo Híbrido Puerto ZFLP)."""
+    mod = df["modalidad"].map(lambda v: dc.fold(v) if v else "")
+    return mod.str.startswith("barco") | mod.str.contains("costo hibrido puerto zflp", regex=False)
+
+
+def containers(d: pd.DataFrame, embarque_cnt: dict[str, float]) -> pd.DataFrame:
+    """Contenedores por mes y estado.
+
+    - SO con embarque cargado en Reservas: contenedores reales de ese embarque
+      (cada embarque se cuenta una sola vez, en el mes de su primera SO).
+    - El resto de las SO marítimas: estimado = m³ / M3_POR_CONTENEDOR.
+    """
+    d = d[es_maritimo(d)].copy()
+    d["_emb"] = d["embarque"].map(lambda v: dc.fold(v) if v else "")
+    has_real = d["_emb"].isin(embarque_cnt)
+    real = (d[has_real].sort_values("mes").groupby("_emb", as_index=False)
+            .agg(mes=("mes", "first"), estado_instruccion=("estado_instruccion", "first")))
+    real["valor"] = real["_emb"].map(embarque_cnt)
+    real = real.groupby(["mes", "estado_instruccion"], as_index=False)["valor"].sum()
+    est = d[~has_real].groupby(["mes", "estado_instruccion"], as_index=False)["m3"].sum()
+    est["valor"] = est["m3"] / settings.M3_POR_CONTENEDOR
+    out = pd.concat([real, est[["mes", "estado_instruccion", "valor"]]])
+    out = out.groupby(["mes", "estado_instruccion"], as_index=False)["valor"].sum()
+    out["valor"] = out["valor"].round(0)
+    return out
 
 
 def _agg(df: pd.DataFrame, by: list[str], metric: str) -> pd.DataFrame:
@@ -83,7 +113,20 @@ def render() -> None:
         this_month = today().to_period("M").to_timestamp()
         d["mes"] = calc.month_start(d[date_col])
         d.loc[d["mes"] < this_month, "mes"] = pd.Timestamp("1900-01-01")
-        g = _agg(d, ["mes", "estado_instruccion"], metric)
+        if metric == "cnt":
+            emb_cnt = {}
+            for key in ("historicas", "reservas"):  # Reservas (más actual) pisa a Históricas
+                src = bundle.get(key)
+                if src is not None:
+                    ok = src.dropna(subset=["embarque"])
+                    ok = ok[ok["contenedores"] > 0]
+                    emb_cnt.update(dict(zip(ok["embarque"].map(dc.fold), ok["contenedores"])))
+            g = containers(d, emb_cnt)
+        else:
+            g = _agg(d, ["mes", "estado_instruccion"], metric)
+        if metric == "cnt":  # meses sin contenedores marítimos no aportan
+            tot = g.groupby("mes")["valor"].sum()
+            g = g[g["mes"].isin(tot[tot > 0].index)]
         months = sorted(g["mes"].unique())
         labels = {mm: ("Anteriores" if mm.year == 1900 else fmt.fmt_month(mm)) for mm in months}
         fig = go.Figure()
@@ -103,6 +146,9 @@ def render() -> None:
         charts.theme(fig, height=360, y_title=unit)
         chart_title(f"{metric_label} por mes de {date_label} y estado de instrucción")
         charts.show(fig, key="pl_mes")
+        if metric == "cnt":
+            st.caption("Contenedores reales para las SO que ya tienen embarque en Reservas; para el resto se estima "
+                       f"m³ / {settings.M3_POR_CONTENEDOR}. Solo SO marítimas (modalidad Barco o Costo Híbrido Puerto ZFLP).")
         sin_fecha = df[date_col].isna().sum()
         if sin_fecha:
             st.caption(f"{fmt.fmt_int(sin_fecha)} líneas sin {date_label} no se muestran en el gráfico.")
@@ -144,11 +190,15 @@ def render() -> None:
             mono = w[w["estructura"] == "Monoproveedor"].groupby(calc.week_start(w["etd"]))["m3"].sum()
             t["mono"] = t["semana"].map(mono).fillna(0)
             t["cons"] = t["m3"] - t["mono"]
+            m3_mar = w[es_maritimo(w)].groupby(calc.week_start(w[es_maritimo(w)]["etd"]))["m3"].sum()
+            t["cnt_est"] = (t["semana"].map(m3_mar).fillna(0) / settings.M3_POR_CONTENEDOR).round(0)
             t["semana_txt"] = t["semana"].map(lambda s: f"{s:%d/%m} – {(s + pd.Timedelta(days=6)):%d/%m}")
             data_table(t, [
                 ColSpec("semana_txt", "Semana"), ColSpec("so", "SO", "int"),
                 ColSpec("m3", "M3 total", "int"), ColSpec("mono", "M3 mono", "int"),
-                ColSpec("cons", "M3 consolidado", "int"), ColSpec("proveedores", "Proveedores", "int"),
+                ColSpec("cons", "M3 consolidado", "int"),
+                ColSpec("cnt_est", f"Cont. estimados (m³/{settings.M3_POR_CONTENEDOR})", "int"),
+                ColSpec("proveedores", "Proveedores", "int"),
                 ColSpec("fob", "FOB (USD)", "usd"),
             ], key="pl_weeks", filename="proyeccion_semanal", search=False)
 
