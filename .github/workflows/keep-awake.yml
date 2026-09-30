@@ -1,0 +1,22 @@
+name: Mantener el dashboard despierto
+
+on:
+  schedule:
+    # Cada 6 horas (hora UTC). Streamlit Community Cloud duerme las apps sin visitas.
+    - cron: "17 */6 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  visitar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Agregá o quitá links separados por coma.
+      APP_URLS: "https://dashboard-comex.streamlit.app,https://dashboard-corporativo-axcpd9x9oaphrarmmzkpy3.streamlit.app"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install playwright && python -m playwright install --with-deps chromium
+      - run: python scripts/keep_awake.py

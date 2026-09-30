@@ -142,6 +142,16 @@ archivo principal sigue siendo `streamlit_app.py`.
 
 Los errores técnicos quedan en **Manage app → Logs**. El usuario nunca ve un traceback.
 
+### App dormida ("Your app is in the oven")
+
+Streamlit Community Cloud duerme las apps que no reciben visitas. Para evitarlo,
+el workflow `.github/workflows/keep-awake.yml` abre el dashboard cada 6 horas y,
+si lo encuentra dormido, lo despierta. Los links se configuran en `APP_URLS`
+dentro de ese archivo.
+
+GitHub solo ejecuta los workflows programados desde la rama principal (`main`).
+Para probarlo a mano: pestaña *Actions* → "Mantener el dashboard despierto" → *Run workflow*.
+
 ## 7. Cómo funciona
 
 ```
