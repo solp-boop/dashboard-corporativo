@@ -14,7 +14,7 @@ st.set_page_config(
 )
 
 from components.filters import render_filters  # noqa: E402
-from components.layout import load_css, page_header  # noqa: E402
+from components.layout import guard, load_css, page_header  # noqa: E402
 from services.data_loader import SourceError, clear_cache, get_data  # noqa: E402
 from utils.logger import get_logger  # noqa: E402
 from views import (  # noqa: E402
@@ -79,4 +79,5 @@ with st.sidebar:
                 st.caption(f"• {e}")
 
 page_header(pg.title, bundle, filters)
-pg.run()
+with guard(pg.title):  # red de seguridad: un error inesperado nunca muestra un traceback
+    pg.run()

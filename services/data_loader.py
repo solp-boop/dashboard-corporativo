@@ -79,6 +79,7 @@ class DataBundle:
     source_name: str
     source_modified: dict[str, dt.datetime | None] = field(default_factory=dict)
     stale: bool = False  # True si son datos de una carga anterior (la última falló)
+    code_version: str = ""
 
     def get(self, key: str) -> pd.DataFrame | None:
         return self.datasets.get(key)
@@ -570,8 +571,29 @@ def make_source() -> SheetSource:
     return PublicCsvSource(books, settings.SHEET_GIDS)
 
 
+def _code_version() -> str:
+    """Huella del código que arma los datos.
+
+    Se usa como parte de la clave de caché: cuando se publica una versión nueva
+    que cambia columnas o cálculos, el caché anterior no se reutiliza.
+    """
+    import hashlib
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    files = ["services/data_loader.py", "services/google_sheets.py", "config/schema.py",
+             "config/mappings.py", "config/settings.py", "utils/data_cleaning.py", "utils/calculations.py"]
+    h = hashlib.sha1()
+    for f in files:
+        try:
+            h.update((root / f).read_bytes())
+        except OSError:
+            pass
+    return h.hexdigest()[:12]
+
+
 @st.cache_resource(ttl=settings.CACHE_TTL_SECONDS, show_spinner="Cargando datos de la planilla…")
-def _load_bundle() -> DataBundle:
+def _load_bundle(code_version: str = "") -> DataBundle:
     """Una sola carga compartida por todos los usuarios hasta que vence el TTL.
 
     Se usa cache_resource (y no cache_data) para no copiar los DataFrames en
@@ -579,6 +601,7 @@ def _load_bundle() -> DataBundle:
     (apply_filters siempre devuelve una copia).
     """
     bundle = build_bundle(make_source())
+    bundle.code_version = code_version
     if not bundle.datasets:
         # Una excepción no queda cacheada: se reintenta en la próxima interacción.
         raise SourceError(" ".join(bundle.errors) or "No se pudo cargar ningún dataset.")
@@ -594,14 +617,14 @@ def get_data() -> DataBundle:
     """Datos normalizados. Si la fuente falla, devuelve la última carga válida."""
     store = _last_good()
     try:
-        bundle = _load_bundle()
+        bundle = _load_bundle(_code_version())
         store["bundle"] = bundle
         return bundle
     except Exception as exc:
         msg = str(exc) if isinstance(exc, SourceError) else f"Error inesperado al cargar los datos ({type(exc).__name__})."
         log.exception("Fallo de carga")
         prev = store.get("bundle")
-        if prev is not None:
+        if prev is not None and getattr(prev, "code_version", None) == _code_version():
             import copy
 
             stale = copy.copy(prev)
