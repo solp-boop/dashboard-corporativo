@@ -262,6 +262,27 @@ AIR_DURATIONS = {
 }
 
 
+def add_freight(df: pd.DataFrame) -> pd.DataFrame:
+    """Costos por contenedor y por m³ de cada embarque (Reservas Históricas).
+
+    En la planilla, Flete Int PAGADO, Gastos Locales y Total Gastos Origen son
+    por embarque; se dividen por la cantidad de contenedores.
+    """
+    cont = df["contenedores"].where(df["contenedores"] > 0)
+    pagado = df["flete_pagado"].where(df["flete_pagado"] > 0)
+    unit = df["flete_unitario"].where(df["flete_unitario"] > 0)
+    df["flete_por_ctnr"] = unit.fillna(pagado / cont)
+    df["locales_por_ctnr"] = df["gastos_locales"].where(df["gastos_locales"] > 0) / cont
+    df["origen_por_ctnr"] = df["gastos_origen"].where(df["gastos_origen"] > 0) / cont
+    df["costo_total"] = (pagado.fillna(0) + df["gastos_locales"].fillna(0).clip(lower=0)
+                         + df["gastos_origen"].fillna(0).clip(lower=0)).where(pagado.notna())
+    m3 = df["m3"].where(df["m3"] > 0)
+    df["costo_por_m3"] = df["costo_total"] / m3
+    df["tipo_ctnr"] = df["tipo_carga"].map(
+        lambda v: mappings.CTNR_POR_TIPO_CARGA.get(dc.fold(v)) if v else None)
+    return df
+
+
 def tipo_negocio_planif(row_marca, row_clase) -> str:
     c = dc.fold(row_clase)
     if "muestra" in c:
@@ -297,6 +318,8 @@ def finish_dataset(key: str, df: pd.DataFrame, sla: pd.DataFrame, q: DatasetQual
     if "tipo_carga" in df or "embarque" in df:
         df["modo"] = derive_modo(df)
 
+    if key == "historicas":
+        df = add_freight(df)
     if key in ("reservas", "historicas"):
         df = add_durations(df, MARITIME_DURATIONS, q)
         df = add_sla(df, sla)
@@ -317,6 +340,10 @@ def finish_dataset(key: str, df: pd.DataFrame, sla: pd.DataFrame, q: DatasetQual
         df["tipo_negocio"] = [tipo_negocio_planif(m, c) for m, c in zip(df["marca"], df["clase"])]
         df["fob"] = df["fob_real"].where(df["fob_real"] > 0, df["fob_simi"])
     if key == "cotizaciones":
+        def pod_country(v):
+            f = dc.fold(v)
+            return next((c for k, c in mappings.DESTINO_POR_POD if k in f), None) if f else None
+        df["destino"] = df["pod"].map(pod_country)
         df["tipo_ctnr"] = df["tipo_ctnr"].map(
             lambda v: mappings.VALUE_ALIASES["tipo_ctnr"].get(dc.fold(v), v) if v else v)
         bad = df["flete"].notna() & (df["flete"] < 100)   # p. ej. "2,7" cargado en miles

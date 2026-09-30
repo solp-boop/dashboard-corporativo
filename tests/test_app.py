@@ -14,8 +14,8 @@ from streamlit.testing.v1 import AppTest
 
 ROOT = Path(__file__).resolve().parent.parent
 RUNNER = str(ROOT / "tests" / "page_runner.py")
-PAGES = ["resumen", "pipeline", "embarques", "aereos", "lead_times", "agentes", "fletes",
-         "historico", "calidad", "buscar"]
+PAGES = ["resumen", "pipeline", "embarques", "aereos", "lead_times", "agentes", "fletes_pagados",
+         "cotizaciones", "historico", "calidad", "buscar"]
 
 REAL = os.environ.get("DASHBOARD_TEST_XLSX")
 REAL_COT = os.environ.get("DASHBOARD_TEST_COTIZACIONES_XLSX")

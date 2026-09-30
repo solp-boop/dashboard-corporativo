@@ -25,6 +25,7 @@ utils/
   data_cleaning.py            Parsers tolerantes de fecha, número, flag y texto
   calculations.py             Mediana/P25/P75, SLA, semáforo, cumplimiento
   filters.py                  FilterState + apply_filters() + opciones dependientes
+  freight.py                  Mercado, pagado vs mercado y recomendación de forwarder
   formatting.py               Formato es-AR: 1.234,5 · USD 18,2 M · 24 d · 52 %
   logger.py                   Logging centralizado
 components/
@@ -40,7 +41,8 @@ views/                        Una página por tema
   aereos.py                   Aéreos y courier
   lead_times.py               Lead times y SLA
   agentes.py                  Forwarders y analistas
-  fletes.py                   Cotizaciones de fletes
+  fletes_pagados.py           Fletes y gastos pagados (vs mercado, certificación, validación)
+  cotizaciones.py             Cotizaciones vigentes y recomendación de forwarder
   historico.py                Histórico mensual e interanual
   buscar.py                   Buscador por SO / embarque
   calidad.py                  Calidad de datos

@@ -139,3 +139,22 @@ ESTADIOS_CERRADOS = {"ENTREGADO", "NACIONALIZADO"}
 
 # Embarques que no son operaciones reales (filas de relleno).
 EMBARQUES_NO_OPERATIVOS = {"air proyeccion", "proyeccion"}
+
+# Tipo de carga (Reservas) -> tipo de contenedor de las cotizaciones.
+CTNR_POR_TIPO_CARGA = {
+    "40 hq": "40ST/40HQ", "40 st": "40ST/40HQ", "20 st": "20ST", "40 nor": "40NOR",
+}
+
+# Aerolíneas escritas de distintas formas.
+VALUE_ALIASES["aerolinea"] = {"british": "British Airways", "british airways": "British Airways"}
+VALUE_ALIASES["resultado_validacion"] = {"validado": "Validado", "observado": "Observado"}
+VALUE_ALIASES["motivo_observacion"] = {"diferencia en el flete": "Diferencia en el flete"}
+
+# Puerto de destino (POD) de las cotizaciones -> país de destino.
+# Se busca en orden: la primera palabra que aparece define el país.
+DESTINO_POR_POD = [
+    ("buenos aires", "Argentina"), ("la plata", "Argentina"), ("tecplata", "Argentina"),
+    ("manzanillo", "México"), ("lazaro", "México"), ("veracruz", "México"),
+    ("montevideo", "Uruguay"), ("mvd", "Uruguay"),
+    ("santos", "Brasil"), ("ssz", "Brasil"),
+]

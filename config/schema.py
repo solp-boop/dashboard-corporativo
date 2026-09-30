@@ -120,8 +120,14 @@ HISTORICAS = DatasetSchema(
         C("m3", "M3", kind="number"),
         C("gastos_origen", "TOTAL GASTOS ORIGEN", kind="number"),
         C("flete_pagado", "Flete Int PAGADO", kind="number"),
+        C("flete_unitario", "Flete Int unitario PAGADO", kind="number"),
         C("flete_certificado", "Flete Certificado", kind="number"),
         C("gastos_locales", "Gastos Locales", kind="number"),
+        C("flete_cotizado", "Flete Cotizado control", kind="number"),
+        C("resultado_validacion", "Resultado Validación", "Resultado Validacion", kind="category"),
+        C("motivo_observacion", "Motivo de Observación", "Motivo de Observacion", kind="category"),
+        C("capacidad", "Capacidad contenedor", kind="number"),
+        C("indice_carga", "Índice de carga completa", "Indice de carga completa", kind="number"),
         C("linea", "Linea Maritima", "Línea Marítima", kind="category"),
         C("medio", "Barco/Avión", "Barco/Avion", kind="category"),
     ),
@@ -161,6 +167,8 @@ AEREOS = DatasetSchema(
         C("aerolinea", "AEROLINEA", kind="category"),
         C("flete_pagado", "Flete total", kind="number"),
         C("flete_certificado", "Flete certificado", kind="number"),
+        C("gastos_origen", "Gastos en Origen", kind="number"),
+        C("gastos_locales", "Gastos Locales", kind="number"),
     ),
 )
 

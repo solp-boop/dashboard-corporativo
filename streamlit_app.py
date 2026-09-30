@@ -18,7 +18,8 @@ from components.layout import load_css, page_header  # noqa: E402
 from services.data_loader import SourceError, clear_cache, get_data  # noqa: E402
 from utils.logger import get_logger  # noqa: E402
 from views import (  # noqa: E402
-    aereos, agentes, buscar, calidad, embarques, fletes, historico, lead_times, pipeline, resumen,
+    aereos, agentes, buscar, calidad, cotizaciones, embarques, fletes_pagados, historico, lead_times, pipeline,
+    resumen,
 )
 
 log = get_logger("app")
@@ -37,8 +38,13 @@ PAGES = {
     "Desempeño": [
         st.Page(lead_times.render, title="Lead times y SLA", icon=":material/timer:", url_path="sla"),
         st.Page(agentes.render, title="Agentes y analistas", icon=":material/groups:", url_path="agentes"),
-        st.Page(fletes.render, title="Fletes y cotizaciones", icon=":material/payments:", url_path="fletes"),
         st.Page(historico.render, title="Histórico", icon=":material/insights:", url_path="historico"),
+    ],
+    "Fletes": [
+        st.Page(fletes_pagados.render, title="Fletes y gastos pagados", icon=":material/payments:",
+                url_path="fletes"),
+        st.Page(cotizaciones.render, title="Cotizaciones", icon=":material/request_quote:",
+                url_path="cotizaciones"),
     ],
     "Herramientas": [
         st.Page(buscar.render, title="Buscar SO / embarque", icon=":material/search:", url_path="buscar"),

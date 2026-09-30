@@ -20,7 +20,7 @@
 | ORIGEN | **Pipeline de origen**: meses en orden cronológico, estado de instrucción sin huecos, tipo de negocio corregido |
 | MERCADERÍA EN PROCESO | **Embarques en curso** + **Aéreos** |
 | PERFORMANCE AGENTES/ANALISTAS | **Agentes y analistas**: medianas, % SLA, desvío de ETD, % flete certificado con n visible |
-| FLETES, GASTOS Y CERTIFICACIONES | **Fletes y cotizaciones**: lee la planilla de cotizaciones, solapa "Cotizaciones Maritimos Negociado" |
+| FLETES, GASTOS Y CERTIFICACIONES | Dividida en dos páginas: **Fletes y gastos pagados** (lo que pagamos, contra el mercado) y **Cotizaciones** (con quién conviene embarcar) |
 | PROYECCIÓN SEMANAL ETD | Integrada en **Pipeline de origen** (semana a semana) |
 | INDICADORES | **Lead times y SLA** (marítimo) + **Aéreos** (tramos) |
 | HISTÓRICO | **Histórico**, con comparación interanual además de la mensual |
@@ -28,6 +28,22 @@
 | Barra "Panorama de mercado" | Eliminada: nunca mostró datos |
 | — | Nuevo: **Resumen ejecutivo** con alertas de qué requiere atención |
 | — | Nuevo: **Calidad de datos** |
+
+## Fletes: dos páginas
+
+**Fletes y gastos pagados** usa Reservas Históricas y Seguimiento Aéreos:
+- Costo logístico total (flete + locales + origen), flete y gastos por contenedor, costo por m³ y llenado del contenedor.
+- **Pagado vs mercado**: el flete pagado por contenedor comparado con el promedio de las cotizaciones del mismo mes, tipo de contenedor y destino.
+- % de flete certificado contra el objetivo del 75 %.
+- Tabla por forwarder y resultado de la validación, con los embarques observados y su motivo.
+- Aéreos: flete pagado y USD por kg chargeable.
+
+**Cotizaciones** recomienda con quién embarcar:
+- Se elige destino, puerto, tipo de contenedor, fecha y prioridad (precio / equilibrado / servicio).
+- Costo por contenedor = flete + gastos locales de cada cotización vigente ese día.
+- El costo se combina con el desempeño real del forwarder en los últimos 12 meses: % de ETD cumplido (±3 días) y rapidez de instrucción → ETD.
+- Muestra la recomendación, el ahorro contra el promedio, el ranking completo, el mapa de mejores tarifas por puerto y la evolución del mercado.
+- Las tarifas se separan por destino según el POD, así que las tarifas a México no se comparan con las de Argentina.
 
 ## Mejoras realizadas
 

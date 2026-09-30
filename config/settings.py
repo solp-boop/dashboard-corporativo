@@ -140,3 +140,7 @@ SERIES_OTHER = "#A9B1BC"
 
 # Certificación de fletes: flete certificado / flete pagado (objetivo mínimo).
 KPI_CERTIFICACION_TARGET = 0.75
+
+# Recomendación de forwarder: un ETD se considera "en fecha" si el ETD real
+# difiere de la ETD estimada en hasta estos días.
+ETD_TOLERANCIA_DIAS = 3

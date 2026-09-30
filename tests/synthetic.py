@@ -72,6 +72,13 @@ def write_synthetic(folder: Path) -> dict[str, str]:
         r["Cant CTNRS"] = rnd.choice([1, 1, 2, 3])
         r["Flete Int PAGADO"] = rnd.choice(["", "USD 3.500,00", "4200"])
         r["Flete Certificado"] = rnd.choice(["", "3000", "USD 2.000,00"])
+        r["Flete Int unitario PAGADO"] = rnd.choice(["", "1.800,00", "2500"])
+        r["Gastos Locales"] = rnd.choice(["", "805", "USD 1.610,00"])
+        r["TOTAL GASTOS ORIGEN"] = rnd.choice(["0", "", "390"])
+        r["Resultado Validación"] = rnd.choice(["VALIDADO", "OBSERVADO", ""])
+        r["Motivo de Observación"] = rnd.choice(["", "Diferencia en el Flete "])
+        r["Linea Maritima"] = rnd.choice(["MSC", "Maersk"])
+        r["Índice de carga completa"] = rnd.choice(["0,9", "0.75", ""])
         r["Shipper"] = rnd.choice(["Electro Trade LLC", "#N/A", "#REF!"])
         hist.append(r)
     hist.append(dict(hist[0]))  # duplicado
