@@ -118,8 +118,8 @@ def render() -> None:
     # ------------------------------------------------------------------ SLA
     periodo = periodo_txt(filters)
     section("¿Estamos cumpliendo SLA?",
-            "Embarques marítimos ya zarpados. Arriba, el acumulado del período elegido en la barra lateral; "
-            "abajo, solo el último mes cerrado. Consolidación = ETD − fecha de packeo mínima; "
+            "Embarques marítimos ya zarpados. Primero, el acumulado del período elegido en la barra lateral "
+            "con su evolución mensual; después, solo el último mes cerrado. Consolidación = ETD − fecha de packeo mínima; "
             "los tiempos son medianas.")
     hist_all = require(bundle, "historicas")
     if hist_all is not None:
@@ -133,9 +133,6 @@ def render() -> None:
 
             st.markdown(f'<div class="row-label">Acumulado · {html_escape(periodo)}</div>', unsafe_allow_html=True)
             kpi_row(sla_cards(hist))
-            st.markdown(f'<div class="row-label">Último mes cerrado · {html_escape(mes_last.lower())}</div>',
-                        unsafe_allow_html=True)
-            kpi_row(sla_cards(hist[m == last], hist[m == prev], mes_prev))
             tot = calc.describe(hist["dias_total"])
             cons = calc.describe(hist["dias_consolidacion"])
             coverage(cons.n, len(hist), "embarques con fechas de packeo y ETD válidas",
@@ -192,6 +189,10 @@ def render() -> None:
                     charts.show(fig, key="res_sla_puerto")
                     from components.layout import semaforo_legend
                     semaforo_legend()
+
+            st.markdown(f'<div class="row-label">Último mes cerrado · {html_escape(mes_last.lower())}</div>',
+                        unsafe_allow_html=True)
+            kpi_row(sla_cards(hist[m == last], hist[m == prev], mes_prev))
 
     # ------------------------------------------------------------------ aéreos
     section("Cumplimiento de SLA · aéreos")
