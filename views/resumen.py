@@ -4,6 +4,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+import streamlit as st
 
 from components import charts
 from components.kpi_cards import KPI, kpi_row, status_for
@@ -48,6 +49,59 @@ def alerts(res: pd.DataFrame) -> pd.DataFrame:
     return out.sort_values(["prioridad", "etd"], ascending=[True, True])
 
 
+def html_escape(v) -> str:
+    import html
+
+    return html.escape(str(v))
+
+
+def sla_cards(d: pd.DataFrame, prev: pd.DataFrame | None = None, prev_label: str = "") -> list:
+    """Cuatro tarjetas de SLA para un conjunto de embarques.
+
+    Si se pasa `prev` (mes anterior), cada tarjeta muestra la variación.
+    """
+    def cmp_pct(cur, old):
+        if prev is None or old != old or cur != cur:
+            return ""
+        dpts = round((cur - old) * 100)
+        if dpts == 0:
+            return f"<br>Igual que {prev_label}"
+        return f"<br>{'▲' if dpts > 0 else '▼'} {abs(dpts)} puntos vs {prev_label} ({fmt.fmt_pct(old)})"
+
+    def cmp_days(cur, old):
+        if prev is None or old != old or cur != cur:
+            return ""
+        dd = round(cur - old)
+        if dd == 0:
+            return f"<br>Igual que {prev_label}"
+        return f"<br>{'▲' if dd > 0 else '▼'} {abs(dd)} d vs {prev_label} ({fmt.fmt_int(old)} d)"
+
+    pct, n = calc.cumplimiento(d["dias_consolidacion"], d["sla_consolidacion"])
+    n_ok = int((d["dias_consolidacion"] <= d["sla_consolidacion"]).sum())
+    old_pct = calc.cumplimiento(prev["dias_consolidacion"], prev["sla_consolidacion"])[0] if prev is not None else np.nan
+    min_n = settings.MIN_SAMPLE
+    cards = [KPI("Cumplimiento SLA consolidación", fmt.fmt_pct(pct) if n >= min_n else "—",
+                 sub=f"<b>{fmt.fmt_int(n_ok)}</b> de {fmt.fmt_int(n)} embarques dentro del SLA" + cmp_pct(pct, old_pct))]
+    for est in ("Monoproveedor", "Consolidado"):
+        sub = d[d["estructura"] == est]
+        s = calc.describe(sub["dias_consolidacion"])
+        old = (calc.describe(prev.loc[prev["estructura"] == est, "dias_consolidacion"]).median
+               if prev is not None else np.nan)
+        sla_ref = float(sub["sla_consolidacion"].median()) if len(sub) else np.nan
+        stt, badge = status_for(s.median, sla_ref) if s.enough else ("", "")
+        cards.append(KPI(f"Consolidación {est.lower()}", fmt.fmt_int(s.median) if s.enough else "—",
+                         unit="d", status=stt, badge=badge,
+                         sub=f"SLA {fmt.fmt_int(sla_ref)} d · n={fmt.fmt_int(s.n)}" + cmp_days(s.median, old)))
+    tot = calc.describe(d["dias_total"])
+    old_tot = calc.describe(prev["dias_total"]).median if prev is not None else np.nan
+    sla_tot = float(d["sla_total"].median()) if len(d) else np.nan
+    s_tot, b_tot = status_for(tot.median, sla_tot) if tot.enough else ("", "")
+    cards.append(KPI("Fin de producción → ETA", fmt.fmt_int(tot.median) if tot.enough else "—",
+                     unit="d", status=s_tot, badge=b_tot,
+                     sub=f"Target {fmt.fmt_int(sla_tot)} d · n={fmt.fmt_int(tot.n)}" + cmp_days(tot.median, old_tot)))
+    return cards
+
+
 def render() -> None:
     bundle, filters = ctx()
 
@@ -64,53 +118,25 @@ def render() -> None:
     # ------------------------------------------------------------------ SLA
     periodo = periodo_txt(filters)
     section("¿Estamos cumpliendo SLA?",
-            f"Embarques marítimos que zarparon {periodo} (período de la barra lateral). "
-            "La segunda tarjeta muestra solo el último mes cerrado. "
-            "Consolidación = ETD − fecha de packeo mínima; los tiempos son medianas.")
+            "Embarques marítimos ya zarpados. Arriba, el acumulado del período elegido en la barra lateral; "
+            "abajo, solo el último mes cerrado. Consolidación = ETD − fecha de packeo mínima; "
+            "los tiempos son medianas.")
     hist_all = require(bundle, "historicas")
     if hist_all is not None:
         with guard("Cumplimiento de SLA"):
             hist = filtered(bundle, "historicas", filters)
             hist = hist[hist["modo"].isin(MODOS_MARITIMOS) & (hist["etd"] <= today())]
-            tot = calc.describe(hist["dias_total"])
-            pct, n_pct = calc.cumplimiento(hist["dias_consolidacion"], hist["sla_consolidacion"])
-
             last, prev = calc.last_closed_months(hist["etd"])
             m = calc.month_start(hist["etd"])
-            p_last, _ = calc.cumplimiento(hist.loc[m == last, "dias_consolidacion"], hist.loc[m == last, "sla_consolidacion"])
-            p_prev, _ = calc.cumplimiento(hist.loc[m == prev, "dias_consolidacion"], hist.loc[m == prev, "sla_consolidacion"])
-            delta = (p_last - p_prev) if not (np.isnan(p_last) or np.isnan(p_prev)) else np.nan
-            n_ok = int((hist["dias_consolidacion"] <= hist["sla_consolidacion"]).sum())
-            cards = [KPI("Cumplimiento SLA · período",
-                         fmt.fmt_pct(pct) if n_pct >= settings.MIN_SAMPLE else "—",
-                         sub=f"<b>{fmt.fmt_int(n_ok)}</b> de {fmt.fmt_int(n_pct)} embarques dentro del SLA")]
-            mes_last = fmt.fmt_month(last, long=True).split()[0]
-            if np.isnan(p_last):
-                cards.append(KPI(f"Cumplimiento SLA · {mes_last.lower()}", "—", sub="Sin embarques ese mes"))
-            else:
-                if np.isnan(delta):
-                    comp = ""
-                elif round(delta * 100) == 0:
-                    comp = f"Igual que {fmt.fmt_month(prev, long=True).split()[0].lower()}"
-                else:
-                    comp = (f"{'▲' if delta > 0 else '▼'} {fmt.fmt_int(abs(delta * 100))} puntos vs "
-                            f"{fmt.fmt_month(prev, long=True).split()[0].lower()} ({fmt.fmt_pct(p_prev)})")
-                cards.append(KPI(f"Cumplimiento SLA · {mes_last.lower()}", fmt.fmt_pct(p_last),
-                                 sub=f"Último mes cerrado<br>{comp}"))
-            for est in ("Monoproveedor", "Consolidado"):
-                sub = hist[hist["estructura"] == est]
-                s = calc.describe(sub["dias_consolidacion"])
-                sla_ref = float(sub["sla_consolidacion"].median()) if len(sub) else np.nan
-                stt, badge = status_for(s.median, sla_ref) if s.enough else ("", "")
-                cards.append(KPI(f"Consolidación {est.lower()}", fmt.fmt_int(s.median) if s.enough else "—",
-                                 unit="d", status=stt, badge=badge,
-                                 sub=f"SLA {fmt.fmt_int(sla_ref)} d · " + stat_sub(s)))
-            sla_tot = float(hist["sla_total"].median()) if len(hist) else np.nan
-            s_tot, b_tot = status_for(tot.median, sla_tot) if tot.enough else ("", "")
-            cards.append(KPI("Fin de producción → ETA", fmt.fmt_int(tot.median) if tot.enough else "—",
-                             unit="d", status=s_tot, badge=b_tot,
-                             sub=f"Target {fmt.fmt_int(sla_tot)} d · " + stat_sub(tot)))
-            kpi_row(cards)
+            mes_last = fmt.fmt_month(last, long=True)
+            mes_prev = fmt.fmt_month(prev, long=True).split()[0].lower()
+
+            st.markdown(f'<div class="row-label">Acumulado · {html_escape(periodo)}</div>', unsafe_allow_html=True)
+            kpi_row(sla_cards(hist))
+            st.markdown(f'<div class="row-label">Último mes cerrado · {html_escape(mes_last.lower())}</div>',
+                        unsafe_allow_html=True)
+            kpi_row(sla_cards(hist[m == last], hist[m == prev], mes_prev))
+            tot = calc.describe(hist["dias_total"])
             cons = calc.describe(hist["dias_consolidacion"])
             coverage(cons.n, len(hist), "embarques con fechas de packeo y ETD válidas",
                      f"fin de producción → ETA: {fmt.fmt_int(tot.n)} con fecha de fin de producción")
