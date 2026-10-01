@@ -8,13 +8,12 @@ import streamlit as st
 
 from components import charts
 from components.kpi_cards import KPI, kpi_row, status_for
-from components.layout import chart_title, coverage, empty, filter_notes, guard, require, section, semaforo_legend
+from components.layout import chart_title, coverage, empty, guard, section, semaforo_legend
 from components.tables import ColSpec, data_table
 from config import settings
-from config.mappings import MODOS_MARITIMOS
 from utils import calculations as calc
 from utils import formatting as fmt
-from views._common import ctx, en_curso, filtered, kpis_en_curso, stat_sub, today
+from views._common import ctx, en_curso, kpis_en_curso, stat_sub, today
 
 
 def render() -> None:

@@ -14,7 +14,7 @@ from config import settings
 from utils import calculations as calc
 from utils import data_cleaning as dc
 from utils import formatting as fmt
-from views._common import ctx, filtered, month_labels, today
+from views._common import ctx, filtered, today
 
 ESTADOS = ["Instruida", "Pendiente", "Sin clasificar"]
 ESTADO_COLORS = {"Instruida": settings.SERIES[0], "Pendiente": settings.SERIES[1],

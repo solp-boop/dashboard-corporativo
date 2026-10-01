@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import datetime as dt
 
-import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -18,7 +17,6 @@ from components.layout import chart_title, empty, esc, filter_notes, guard, requ
 from components.tables import ColSpec, data_table
 from config import settings
 from config.mappings import MODOS_MARITIMOS
-from utils import calculations as calc
 from utils import formatting as fmt
 from utils import freight
 from views._common import ctx, filtered, month_labels, today

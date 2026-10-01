@@ -150,3 +150,9 @@ ETD_TOLERANCIA_DIAS = 3
 # Proyección de contenedores para SO sin embarque asignado: m³ / este valor
 # (mismo criterio que la versión anterior del tablero).
 M3_POR_CONTENEDOR = 60
+
+# Objetivo de cumplimiento de SLA (% de embarques dentro del SLA). Mientras sea
+# None, el cumplimiento se muestra sin semáforo ni línea de objetivo.
+# Ejemplo: CUMPLIMIENTO_OBJETIVO = 0.80 y CUMPLIMIENTO_MINIMO = 0.60
+CUMPLIMIENTO_OBJETIVO = None
+CUMPLIMIENTO_MINIMO = None

@@ -7,7 +7,6 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from components import charts
-from components.kpi_cards import KPI, kpi_row, status_for
 from components.layout import (chart_title, coverage, empty, filter_notes, guard, require, section,
                                semaforo_legend)
 from components.tables import ColSpec, data_table
@@ -15,7 +14,9 @@ from config import settings
 from config.mappings import MODOS_MARITIMOS
 from utils import calculations as calc
 from utils import formatting as fmt
-from views._common import ctx, filtered, month_labels, stat_sub, today
+from components import sla as sla_view
+from utils import sla
+from views._common import ctx, filtered, month_labels, today
 
 ETAPAS = [
     ("dias_comex", "Comex: packeo → instrucción"),
@@ -41,29 +42,20 @@ def render() -> None:
         empty()
         return
 
-    section("Indicadores del período")
-    with guard("KPIs de SLA"):
-        cards = []
-        pct, n = calc.cumplimiento(df["dias_consolidacion"], df["sla_consolidacion"])
-        cards.append(KPI("Cumplimiento SLA",
-                         fmt.fmt_pct(pct) if n >= settings.MIN_SAMPLE else "—",
-                         sub=f"n={fmt.fmt_int(n)} embarques"))
-        for est in ("Monoproveedor", "Consolidado"):
-            sub = df[df["estructura"] == est]
-            s = calc.describe(sub["dias_consolidacion"])
-            sla = float(sub["sla_consolidacion"].median()) if len(sub) else np.nan
-            p, pn = calc.cumplimiento(sub["dias_consolidacion"], sub["sla_consolidacion"])
-            stt, badge = status_for(s.median, sla) if s.enough else ("", "")
-            cards.append(KPI(f"Consolidación {est.lower()}", fmt.fmt_int(s.median) if s.enough else "—", unit="d",
-                             status=stt, badge=badge,
-                             sub=f"SLA {fmt.fmt_int(sla)} d · cumple <b>{fmt.fmt_pct(p)}</b> · " + stat_sub(s)))
-        tt = calc.describe(df["dias_tt"])
-        stt, badge = status_for(tt.median, float(df["sla_tt"].median())) if tt.enough else ("", "")
-        cards.append(KPI("Tránsito ETD→ETA", fmt.fmt_int(tt.median) if tt.enough else "—", unit="d",
-                         status=stt, badge=badge, sub=stat_sub(tt)))
-        kpi_row(cards)
-        coverage(int(df["dias_consolidacion"].notna().sum()), len(df), "embarques con consolidación calculable")
+    section("Cierre de mes · marítimo",
+            "El período elegido en la barra lateral, los dos últimos meses cerrados y cómo viene el mes en curso.")
+    with guard("Cierre de mes"):
+        # Los meses usan los filtros de la barra lateral salvo el período.
+        sc = sla.scorecard(filtered(bundle, "historicas", filters, use_period=False),
+                           filtered(bundle, "reservas", filters, use_period=False),
+                           df, today(), lambda m: fmt.fmt_month(m, long=True).split()[0])
+        sla_view.scorecard_table(sc)
+        coverage(int(df["dias_consolidacion"].notna().sum()), len(df), "embarques del período con consolidación calculable")
 
+    section("Cierre de mes · aéreo")
+    empty("Espacio reservado para el SLA de aéreos: se arma con la definición que nos vas a pasar.")
+
+    section("Apertura del período")
     c1, c2 = st.columns(2, gap="medium")
     with c1, guard("Cumplimiento mensual"):
         chart_title("Cumplimiento de SLA por mes", "% dentro de SLA de consolidación · mes de ETD")

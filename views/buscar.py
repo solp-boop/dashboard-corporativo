@@ -17,7 +17,6 @@ import streamlit as st
 from components.kpi_cards import KPI, kpi_row
 from components.layout import empty, esc, guard, section
 from components.tables import ColSpec, data_table
-from utils import calculations as calc
 from utils import formatting as fmt
 from utils.data_cleaning import fold
 from views._common import ctx

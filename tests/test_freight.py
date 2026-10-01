@@ -80,3 +80,32 @@ def test_pagado_vs_mercado():
     assert out.loc[0, "mercado_mes"] == pytest.approx(6266.67, rel=1e-3)
     assert out.loc[0, "vs_mercado"] == pytest.approx(5940 / 6266.67 - 1, rel=1e-3)
     assert np.isnan(out.loc[1, "vs_mercado"])
+
+
+def test_sla_scorecard_y_proyectado():
+    from utils import sla
+
+    hoy = pd.Timestamp("2026-10-15")
+    base = dict(modo="Marítimo FCL", sla_consolidacion=25.0, sla_total=75.0, dias_total=70.0)
+    hist = pd.DataFrame([
+        {**base, "embarque": "FCL 1", "etd": pd.Timestamp("2026-08-10"), "dias_consolidacion": 20, "estructura": "Consolidado"},
+        {**base, "embarque": "FCL 2", "etd": pd.Timestamp("2026-09-10"), "dias_consolidacion": 30, "estructura": "Consolidado"},
+        {**base, "embarque": "FCL 3", "etd": pd.Timestamp("2026-10-05"), "dias_consolidacion": 10, "estructura": "Consolidado"},
+    ])
+    res = pd.DataFrame([
+        {**base, "embarque": "FCL 3", "etd": pd.Timestamp("2026-10-05"), "dias_consolidacion": 99,
+         "estructura": "Consolidado", "responsable": "Sol"},  # ya zarpó: no se duplica
+        {**base, "embarque": "FCL 4", "etd": pd.Timestamp("2026-10-25"), "dias_consolidacion": 40,
+         "estructura": "Consolidado", "responsable": "Sol"},
+        {**base, "embarque": "FCL 5", "etd": pd.Timestamp("2026-10-26"), "dias_consolidacion": 5,
+         "estructura": "Consolidado", "responsable": None},   # sin responsable: no cuenta
+    ])
+    proj = sla.projected_month(hist, res, pd.Timestamp("2026-10-01"), hoy)
+    assert sorted(proj["embarque"]) == ["FCL 3", "FCL 4"]
+    sc = sla.scorecard(hist, res, hist, hoy, lambda m: m.strftime("%b"))
+    cumpl = dict(sc.filas)["Cumplimiento SLA consolidación"]
+    assert cumpl[1].valor == 1.0 and cumpl[2].valor == 0.0          # agosto 100 %, septiembre 0 %
+    assert cumpl[3].startswith("▼")                                   # variación
+    assert cumpl[4].n == 1 and cumpl[5].n == 2                        # octubre zarpados / proyectado
+    m = sla.monthly_compliance(hist)
+    assert list(m["n"]) == [1, 1, 1]
