@@ -64,8 +64,9 @@ def render() -> None:
     # ------------------------------------------------------------------ SLA
     periodo = periodo_txt(filters)
     section("¿Estamos cumpliendo SLA?",
-            f"Embarques marítimos que zarparon {periodo}. Consolidación = ETD − fecha de packeo mínima. "
-            "Los tiempos se informan con la mediana.")
+            f"Embarques marítimos que zarparon {periodo} (período de la barra lateral). "
+            "La segunda tarjeta muestra solo el último mes cerrado. "
+            "Consolidación = ETD − fecha de packeo mínima; los tiempos son medianas.")
     hist_all = require(bundle, "historicas")
     if hist_all is not None:
         with guard("Cumplimiento de SLA"):
@@ -80,17 +81,22 @@ def render() -> None:
             p_prev, _ = calc.cumplimiento(hist.loc[m == prev, "dias_consolidacion"], hist.loc[m == prev, "sla_consolidacion"])
             delta = (p_last - p_prev) if not (np.isnan(p_last) or np.isnan(p_prev)) else np.nan
             n_ok = int((hist["dias_consolidacion"] <= hist["sla_consolidacion"]).sum())
-            if np.isnan(delta):
-                delta_txt = ""
-            else:
-                cambio = ("igual que" if round(delta * 100) == 0 else
-                          f"{fmt.fmt_int(abs(delta * 100))} puntos {'más' if delta > 0 else 'menos'} que")
-                delta_txt = (f"<br>Último mes cerrado ({fmt.fmt_month(last, long=True).lower()}): "
-                             f"<b>{fmt.fmt_pct(p_last)}</b>, {cambio} {fmt.fmt_month(prev, long=True).split()[0].lower()}")
-
-            cards = [KPI("Cumplimiento SLA consolidación",
+            cards = [KPI("Cumplimiento SLA · período",
                          fmt.fmt_pct(pct) if n_pct >= settings.MIN_SAMPLE else "—",
-                         sub=f"<b>{fmt.fmt_int(n_ok)}</b> de {fmt.fmt_int(n_pct)} embarques dentro del SLA" + delta_txt)]
+                         sub=f"<b>{fmt.fmt_int(n_ok)}</b> de {fmt.fmt_int(n_pct)} embarques dentro del SLA")]
+            mes_last = fmt.fmt_month(last, long=True).split()[0]
+            if np.isnan(p_last):
+                cards.append(KPI(f"Cumplimiento SLA · {mes_last.lower()}", "—", sub="Sin embarques ese mes"))
+            else:
+                if np.isnan(delta):
+                    comp = ""
+                elif round(delta * 100) == 0:
+                    comp = f"Igual que {fmt.fmt_month(prev, long=True).split()[0].lower()}"
+                else:
+                    comp = (f"{'▲' if delta > 0 else '▼'} {fmt.fmt_int(abs(delta * 100))} puntos vs "
+                            f"{fmt.fmt_month(prev, long=True).split()[0].lower()} ({fmt.fmt_pct(p_prev)})")
+                cards.append(KPI(f"Cumplimiento SLA · {mes_last.lower()}", fmt.fmt_pct(p_last),
+                                 sub=f"Último mes cerrado<br>{comp}"))
             for est in ("Monoproveedor", "Consolidado"):
                 sub = hist[hist["estructura"] == est]
                 s = calc.describe(sub["dias_consolidacion"])
