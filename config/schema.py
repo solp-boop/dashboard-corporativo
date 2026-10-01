@@ -226,6 +226,15 @@ COTIZACIONES = DatasetSchema(
     ),
 )
 
+# Mismas columnas que las cotizaciones negociadas: es la tarifa original de cada
+# forwarder, antes de negociar. Se usa para medir la rebaja obtenida.
+COT_SIN_NEGOCIAR = DatasetSchema(
+    key="cot_sin_negociar",
+    title="Cotizaciones sin negociar",
+    columns=COTIZACIONES.columns,
+    date_ref="validez_desde",
+)
+
 # Embarques Historicos (una fila por SO × embarque): solo se usa para traer la
 # fecha de fin de producción real a cada embarque.
 EMB_HIST = DatasetSchema(
@@ -247,7 +256,7 @@ EMB_HIST = DatasetSchema(
 )
 
 SCHEMAS: dict[str, DatasetSchema] = {
-    s.key: s for s in (RESERVAS, HISTORICAS, AEREOS, PLANIF, COTIZACIONES, EMB_HIST)
+    s.key: s for s in (RESERVAS, HISTORICAS, AEREOS, PLANIF, COTIZACIONES, COT_SIN_NEGOCIAR, EMB_HIST)
 }
 
 # Solapa Validaciones: se interpreta por posición relativa porque tiene

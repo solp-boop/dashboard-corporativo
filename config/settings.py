@@ -30,6 +30,7 @@ DATASET_SOURCES: dict[str, tuple[str, str]] = {
     "validaciones": ("tablero", "Validaciones"),
     "emb_hist": ("tablero", "Embarques Historicos"),
     "cotizaciones": ("cotizaciones", "Cotizaciones Maritimos Negociado"),
+    "cot_sin_negociar": ("cotizaciones", "Cotizaciones Maritimos SIN NEGOCIAR"),
 }
 
 # gid de cada solapa (el número "gid=" de la URL al abrir la solapa). Se usa
@@ -46,6 +47,7 @@ SHEET_GIDS: dict[str, dict[str, int]] = {
     },
     "cotizaciones": {
         "Cotizaciones Maritimos Negociado": 0,
+        "Cotizaciones Maritimos SIN NEGOCIAR": 1339275364,
     },
 }
 

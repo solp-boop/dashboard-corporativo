@@ -40,6 +40,7 @@ KEY_FIELDS = {
                "f_ingreso_wh": "Ingreso WH", "eta_caldas": "ETA Caldas", "forwarder": "Forwarder"},
     "planif": {"etd": "ETD", "puerto": "Puerto de salida", "proveedor": "Proveedor", "m3": "M3"},
     "emb_hist": {"fin_produccion": "Fecha fin de producción real"},
+    "cot_sin_negociar": {"flete": "Valor flete", "tipo_ctnr": "Tipo contenedor", "validez_desde": "Validez desde"},
     "cotizaciones": {"flete": "Valor flete", "puerto": "POL", "tipo_ctnr": "Tipo contenedor",
                      "validez_desde": "Validez desde", "validez_hasta": "Validez hasta"},
 }
@@ -418,7 +419,7 @@ def finish_dataset(key: str, df: pd.DataFrame, sla: pd.DataFrame, q: DatasetQual
         df["f_instruccion"] = pd.to_datetime(df["f_instruccion"], errors="coerce")
         df["tipo_negocio"] = [tipo_negocio_planif(m, c) for m, c in zip(df["marca"], df["clase"])]
         df["fob"] = df["fob_real"].where(df["fob_real"] > 0, df["fob_simi"])
-    if key == "cotizaciones":
+    if key in ("cotizaciones", "cot_sin_negociar"):
         def pod_country(v):
             f = dc.fold(v)
             return next((c for k, c in mappings.DESTINO_POR_POD if k in f), None) if f else None

@@ -117,6 +117,10 @@ def render() -> None:
             d = productos.base_lines(bundle.get("emb_hist"), today())
             sla_view.productos_table(productos.summary(d, today()))
 
+    # ------------------------------------------------------------------ fletes
+    if bundle.get("historicas") is not None:
+        render_fletes(bundle, filters)
+
     # ------------------------------------------------------------------ atención
     section("¿Qué operaciones requieren atención?",
             f"ETD en los próximos {settings.ALERT_HORIZON_DAYS} días sin confirmar, zarpados sin documentación, "
@@ -139,3 +143,113 @@ def render() -> None:
                     ColSpec("m3", "M3", "num"),
                     ColSpec("estado_consolidacion", "Consolidación", "status"),
                 ], key="alertas", filename="alertas_embarques")
+
+
+def render_fletes(bundle, filters) -> None:
+    """¿Cuánto pagamos y cuánto capturamos? Resumen de la gestión de fletes."""
+    import plotly.graph_objects as go
+
+    from components import charts
+    from components.kpi_cards import KPI, kpi_row
+    from config.mappings import MODOS_MARITIMOS
+    from utils import freight
+
+    periodo = periodo_txt(filters)
+    section("¿Cuánto pagamos y cuánto capturamos?",
+            f"Embarques que zarparon {periodo}. El detalle por forwarder y por embarque está en "
+            "Fletes y gastos pagados; las tarifas, en Cotizaciones.")
+    with guard("Fletes y gastos"):
+        t = today()
+        cot = bundle.get("cotizaciones")
+        h = filtered(bundle, "historicas", filters)
+        h = h[h["modo"].isin(MODOS_MARITIMOS) & (h["etd"] <= t) & (h["flete_pagado"] > 0)]
+        h = freight.add_market_reference(h, cot)
+        a = bundle.get("aereos")
+        a = filtered(bundle, "aereos", filters) if a is not None else pd.DataFrame()
+        if len(a):
+            a = a[(a["etd"] <= t) & (a["flete_pagado"] > 0)]
+
+        flete = h["flete_pagado"].sum() + (a["flete_pagado"].sum() if len(a) else 0)
+        origen = h["gastos_origen"].clip(lower=0).sum() + (a["gastos_origen"].clip(lower=0).sum() if len(a) else 0)
+        destino = h["gastos_locales"].clip(lower=0).sum() + (a["gastos_locales"].clip(lower=0).sum() if len(a) else 0)
+        total = flete + origen + destino
+
+        ahorro = freight.savings_vs_market(h)
+        n_ref = int(ahorro.notna().sum())
+        ah_total = float(ahorro.sum())
+        mercado_total = float((h["mercado_mes"] * h["contenedores"]).sum())
+        ah_pct = ah_total / mercado_total if mercado_total else np.nan
+
+        neg = freight.negotiation(cot, bundle.get("cot_sin_negociar"))
+        if len(neg) and filters.has_period:
+            if filters.start:
+                neg = neg[neg["validez_desde"] >= pd.Timestamp(filters.start)]
+            if filters.end:
+                neg = neg[neg["validez_desde"] <= pd.Timestamp(filters.end)]
+        neg = neg[neg["validez_desde"] <= t] if len(neg) else neg
+        mej = neg[neg["rebaja"] > 0] if len(neg) else neg
+
+        ok_cert = h["flete_pagado"] > 0
+        cert = (h.loc[ok_cert, "flete_certificado"].sum() / h.loc[ok_cert, "flete_pagado"].sum()
+                if ok_cert.any() else np.nan)
+        cert_ok = cert == cert and cert >= settings.KPI_CERTIFICACION_TARGET
+
+        kpi_row([
+            KPI("Costo logístico pagado", fmt.fmt_usd(total),
+                sub=f"Flete <b>{fmt.fmt_usd(flete)}</b> · origen {fmt.fmt_usd(origen)} · destino {fmt.fmt_usd(destino)}"),
+            KPI("Ahorro vs mercado", fmt.fmt_usd(ah_total) if n_ref else "—",
+                status=("ok" if ah_total >= 0 else "bad") if n_ref >= settings.MIN_SAMPLE else "",
+                sub=(f"Flete marítimo {fmt.fmt_pct(-ah_pct, signed=True)} vs promedio de mercado · "
+                     f"{fmt.fmt_int(n_ref)} embarques") if n_ref else "Sin cotizaciones para comparar"),
+            KPI("Rebaja negociada", fmt.fmt_pct(mej["rebaja_pct"].median()) if len(mej) else "—",
+                sub=(f"<b>{fmt.fmt_int(len(mej))}</b> tarifas mejoradas · mediana "
+                     f"{fmt.fmt_usd(mej['rebaja'].median(), compact=False)} por contenedor") if len(mej)
+                else "Sin tarifas renegociadas en el período"),
+            KPI("Flete certificado", fmt.fmt_pct(cert),
+                status="ok" if cert_ok else ("bad" if cert == cert else ""),
+                sub=f"Objetivo ≥ {fmt.fmt_pct(settings.KPI_CERTIFICACION_TARGET)}"),
+        ])
+        con_origen = int((h["gastos_origen"] > 0).sum())
+        st.caption(f"Gastos en origen cargados en {fmt.fmt_int(con_origen)} de {fmt.fmt_int(len(h))} embarques "
+                   "marítimos. «Ahorro vs mercado» compara el flete por contenedor con el promedio de las "
+                   "cotizaciones del mismo mes, tipo de contenedor y destino. «Rebaja negociada» compara cada "
+                   "tarifa negociada con la original del forwarder.")
+
+        c1, c2 = st.columns(2, gap="medium")
+        with c1:
+            chart_title("Costo pagado por mes", "USD · marítimo y aéreo, por mes de ETD")
+            parts = []
+            for df_ in (h, a):
+                if len(df_):
+                    parts.append(df_.assign(mes=calc.month_start(df_["etd"]))[
+                        ["mes", "flete_pagado", "gastos_origen", "gastos_locales"]])
+            if not parts:
+                empty()
+            else:
+                mm = pd.concat(parts).groupby("mes").sum(min_count=1).clip(lower=0).sort_index().tail(12)
+                x = [fmt.fmt_month(m) for m in mm.index]
+                fig = go.Figure()
+                for i, (col, lab) in enumerate((("flete_pagado", "Flete"), ("gastos_origen", "Gastos en origen"),
+                                                ("gastos_locales", "Gastos en destino"))):
+                    fig.add_bar(x=x, y=mm[col].fillna(0), name=lab, marker=dict(color=settings.SERIES[i], cornerradius=3),
+                                hovertemplate=f"%{{x}} · {lab}: USD %{{y:,.0f}}<extra></extra>")
+                fig.update_layout(barmode="stack")
+                charts.theme(fig, height=300, y_title="USD")
+                charts.show(fig, key="res_costo_mes")
+        with c2:
+            chart_title("Ahorro vs mercado por mes", "USD · flete marítimo. Positivo = pagamos menos que el promedio")
+            hh = h.assign(ah=ahorro, mes=calc.month_start(h["etd"])).dropna(subset=["ah"])
+            if hh.empty:
+                empty("Sin cotizaciones para comparar.")
+            else:
+                g = hh.groupby("mes")["ah"].agg(["sum", "size"]).sort_index().tail(12)
+                fig = go.Figure(go.Bar(
+                    x=[fmt.fmt_month(m) for m in g.index], y=g["sum"],
+                    marker=dict(color=[settings.COLORS["green"] if v >= 0 else settings.COLORS["red"] for v in g["sum"]],
+                                cornerradius=3),
+                    text=[fmt.fmt_usd(v) for v in g["sum"]], textposition="outside", cliponaxis=False,
+                    textfont=dict(size=11, color=settings.COLORS["slate"]), customdata=g["size"],
+                    hovertemplate="%{x}<br>USD %{y:,.0f}<br>Embarques: %{customdata}<extra></extra>"))
+                charts.theme(fig, height=300, y_title="USD", legend=False)
+                fig.update_yaxes(rangemode="normal", zeroline=True, zerolinecolor=settings.COLORS["grey"])
+                charts.show(fig, key="res_ahorro_mes")

@@ -161,3 +161,30 @@ def recommend(cot: pd.DataFrame, hist: pd.DataFrame | None, fecha: pd.Timestamp,
     prom = float(best["costo_total"].mean())
     best["vs_promedio"] = (best["costo_total"] - prom) / prom
     return Recomendacion(best, prom, fecha)
+
+
+# ---------------------------------------------------------------------------
+# Gestión: rebaja negociada y ahorro contra el mercado
+# ---------------------------------------------------------------------------
+NEG_KEYS = ["forwarder", "agente", "puerto", "linea", "tipo_ctnr", "validez_desde", "validez_hasta"]
+
+
+def negotiation(cot: pd.DataFrame | None, sin: pd.DataFrame | None) -> pd.DataFrame:
+    """Une cada tarifa negociada con su tarifa original (sin negociar).
+
+    Devuelve una fila por tarifa con: flete_original, flete_negociado, rebaja (USD) y rebaja_pct.
+    """
+    cols = NEG_KEYS + ["flete"]
+    if cot is None or sin is None or cot.empty or sin.empty:
+        return pd.DataFrame(columns=NEG_KEYS + ["flete_original", "flete_negociado", "rebaja", "rebaja_pct"])
+    a = sin[cols].rename(columns={"flete": "flete_original"})
+    b = cot[cols + (["destino"] if "destino" in cot else [])].rename(columns={"flete": "flete_negociado"})
+    m = a.merge(b, on=NEG_KEYS, how="inner").drop_duplicates(NEG_KEYS)
+    m["rebaja"] = m["flete_original"] - m["flete_negociado"]
+    m["rebaja_pct"] = m["rebaja"] / m["flete_original"]
+    return m
+
+
+def savings_vs_market(hist: pd.DataFrame) -> pd.Series:
+    """USD ahorrados contra el promedio de mercado del mes, por embarque (negativo = pagamos más)."""
+    return (hist["mercado_mes"] - hist["flete_por_ctnr"]) * hist["contenedores"]
