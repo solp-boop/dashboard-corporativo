@@ -69,8 +69,15 @@ def render() -> None:
                 ColSpec("ult_pct", f"{fmt.fmt_month(last, long=True)} · % dentro", "pct"),
                 ColSpec("ult_n", "n  ", "int"),
             ], key="lt_air", filename="sla_aereo_por_tipo", search=False)
-            chart_title("Tiempo total aéreo mes a mes", "Mediana (días). En gris, los meses anteriores al SLA")
-            sla_view.air_chart(a, today(), key="lt_air_chart")
+            c1, c2 = st.columns(2, gap="medium")
+            with c1:
+                chart_title("Cumplimiento mes a mes",
+                            "% dentro del SLA de su tipo. En gris, meses anteriores al SLA (referencia)")
+                sla_view.air_compliance_chart(a, today(), key="lt_air_pct")
+            with c2:
+                chart_title("Días contra el SLA, por tipo de negocio",
+                            "Mediana de Total − SLA del tipo. 0 = justo en el SLA; positivo = tarde")
+                sla_view.air_deviation_chart(a, today(), key="lt_air_dev")
 
     if bundle.get("emb_hist") is not None:
         section("SKU nuevos y top ranking · objetivo −15 %",

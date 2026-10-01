@@ -194,3 +194,71 @@ def productos_chart(monthly: pd.DataFrame, summary: pd.DataFrame, grupo_label: s
                             hovertemplate=f"Objetivo {est.lower()}: %{{y:.1f}} d<extra></extra>")
     charts.theme(fig, height=300, y_title="días (mediana)")
     charts.show(fig, key=key)
+
+
+def _air_monthly(a: pd.DataFrame) -> pd.DataFrame:
+    d = a[a["sla_aereo"].notna()].assign(mes=lambda x: x["etd"].dt.to_period("M").dt.to_timestamp())
+    d["ok"] = d["dias_aereo"] <= d["sla_aereo"]
+    d["desvio"] = d["dias_aereo"] - d["sla_aereo"]
+    return d
+
+
+def air_compliance_chart(a: pd.DataFrame, today: pd.Timestamp, key: str, height: int = 300) -> None:
+    """% dentro del SLA de su tipo, por mes. Antes del SLA: referencia en gris."""
+    d = _air_monthly(a)
+    if d.empty:
+        st.markdown('<div class="empty">Sin embarques aéreos con «Total» y tipo con SLA.</div>',
+                    unsafe_allow_html=True)
+        return
+    desde = pd.Timestamp(settings.SLA_AEREO_DESDE)
+    this_month = today.to_period("M").to_timestamp()
+    m = d.groupby("mes").agg(pct=("ok", "mean"), n=("ok", "size")).reset_index().sort_values("mes").tail(13)
+    vig = m["mes"] >= desde
+    labels = [fmt.fmt_month(x) + (" (parcial)" if x == this_month else "") for x in m["mes"]]
+    fig = go.Figure(go.Bar(
+        x=labels, y=m["pct"] * 100,
+        marker=dict(color=[settings.SERIES[0] if v else settings.SERIES_OTHER for v in vig], cornerradius=4,
+                    pattern=dict(shape=["/" if x == this_month else "" for x in m["mes"]], fgcolor="white", size=6)),
+        text=[fmt.fmt_pct(v) for v in m["pct"]], textposition="outside", cliponaxis=False,
+        customdata=list(zip(m["n"], ["SLA vigente" if v else "Referencia (antes del SLA)" for v in vig])),
+        hovertemplate="%{x}<br>Dentro del SLA: %{y:.0f} %<br>%{customdata[1]}<br>Embarques: %{customdata[0]}"
+                      "<extra></extra>",
+    ))
+    if settings.CUMPLIMIENTO_OBJETIVO is not None:
+        fig.add_hline(y=settings.CUMPLIMIENTO_OBJETIVO * 100, line=dict(color=settings.COLORS["slate"], width=1.2,
+                                                                         dash="dash"))
+    if vig.any() and not vig.all():
+        i = int(vig.values.argmax())
+        fig.add_vline(x=i - 0.5, line=dict(color=settings.COLORS["slate"], width=1.2, dash="dot"))
+        fig.add_annotation(x=i - 0.5, y=1, yref="paper", text="SLA vigente", showarrow=False, xanchor="left",
+                           font=dict(size=11, color=settings.COLORS["slate"]))
+    charts.theme(fig, height=height, y_suffix=" %", legend=False)
+    fig.update_yaxes(range=[0, 110])
+    charts.show(fig, key=key)
+
+
+def air_deviation_chart(a: pd.DataFrame, today: pd.Timestamp, key: str, height: int = 320) -> None:
+    """Días contra el SLA (Total − SLA del tipo), mediana por mes y tipo de negocio. 0 = justo en el SLA."""
+    d = _air_monthly(a)
+    if d.empty:
+        st.markdown('<div class="empty">Sin datos.</div>', unsafe_allow_html=True)
+        return
+    months = sorted(d["mes"].unique())[-13:]
+    x = [fmt.fmt_month(m) for m in months]
+    top = list(d["tipo_sla"].value_counts().index[:4])
+    cmap = charts.color_map([TIPO_LABEL.get(t, t) for t in top])
+    fig = go.Figure()
+    for t in top:
+        s = d[d["tipo_sla"] == t].groupby("mes")["desvio"].agg(["median", "size"]).reindex(months)
+        name = TIPO_LABEL.get(t, t)
+        fig.add_scatter(x=x, y=s["median"], name=name, mode="lines+markers", connectgaps=True,
+                        line=dict(color=cmap[name], width=2), marker=dict(size=8), customdata=s["size"].fillna(0),
+                        hovertemplate=f"{name}: %{{y:+.0f}} d vs SLA (%{{customdata}} emb.)<extra></extra>")
+    fig.add_hline(y=0, line=dict(color=settings.COLORS["slate"], width=1.2, dash="dash"),
+                  annotation_text="SLA", annotation_position="top left",
+                  annotation_font=dict(size=11, color=settings.COLORS["slate"]))
+    charts.theme(fig, height=height, y_title="días vs SLA (mediana)")
+    fig.update_yaxes(rangemode="normal", zeroline=False)
+    charts.show(fig, key=key)
+    if d["tipo_sla"].nunique() > 4:
+        st.caption("Se muestran los 4 tipos con más embarques; el resto está en la tabla.")

@@ -101,11 +101,12 @@ def render() -> None:
                     f'<div class="mode-head"><span class="big">'
                     f'{fmt.fmt_pct(pct_a) if n_a >= settings.MIN_SAMPLE else "—"}</span>'
                     f'<span class="lbl">{fmt.fmt_int(ok_a)} de {fmt.fmt_int(n_a)} embarques dentro del SLA · '
-                    f'mediana del año {fmt.fmt_int(a["dias_aereo"].median())} d</span></div></div>',
+                    f'cada embarque contra el SLA de su tipo</span></div></div>',
                     unsafe_allow_html=True)
-                chart_title("Tiempo total mes a mes",
-                            "Mediana de la columna Total (días). En gris, los meses anteriores al SLA")
-                sla_view.air_chart(a, t, key="res_sla_aer")
+                chart_title("Cumplimiento mes a mes",
+                            "% de embarques dentro del SLA de su tipo de negocio. En gris, meses anteriores "
+                            "al SLA (referencia)")
+                sla_view.air_compliance_chart(a, t, key="res_sla_aer")
 
     # ------------------------------------------------------------------ objetivo −15 %
     if bundle.get("emb_hist") is not None:
