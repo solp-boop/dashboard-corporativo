@@ -147,7 +147,7 @@ Los errores técnicos quedan en **Manage app → Logs**. El usuario nunca ve un 
 ### App dormida ("Your app is in the oven")
 
 Streamlit Community Cloud duerme las apps que no reciben visitas. Para evitarlo,
-el workflow `.github/workflows/keep-awake.yml` abre el dashboard cada 6 horas y,
+el workflow `.github/workflows/keep-awake.yml` abre el dashboard cada 3 horas (Streamlit los duerme a las 12 horas sin visitas) y,
 si lo encuentra dormido, lo despierta. Los links se configuran en `APP_URLS`
 dentro de ese archivo.
 

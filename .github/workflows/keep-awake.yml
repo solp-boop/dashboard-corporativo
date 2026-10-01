@@ -2,8 +2,9 @@ name: Mantener el dashboard despierto
 
 on:
   schedule:
-    # Cada 6 horas (hora UTC). Streamlit Community Cloud duerme las apps sin visitas.
-    - cron: "17 */6 * * *"
+    # Cada 3 horas (hora UTC). Streamlit Community Cloud duerme las apps
+    # después de 12 horas sin visitas; GitHub a veces demora estas ejecuciones.
+    - cron: "17 */3 * * *"
   workflow_dispatch: {}
 
 jobs:

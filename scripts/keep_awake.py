@@ -1,7 +1,7 @@
 """Abre el dashboard para que Streamlit Community Cloud no lo ponga a dormir.
 
 Si la app ya está dormida, aprieta el botón para despertarla.
-Lo ejecuta .github/workflows/keep-awake.yml cada pocas horas.
+Lo ejecuta .github/workflows/keep-awake.yml cada 3 horas.
 Las URLs se configuran en la variable de entorno APP_URLS (separadas por coma).
 """
 import os
@@ -15,14 +15,16 @@ WAKE_TEXT = "Yes, get this app back up"
 
 def visit(page, url: str) -> None:
     page.goto(url, wait_until="domcontentloaded", timeout=90_000)
-    page.wait_for_timeout(8_000)
+    page.wait_for_timeout(10_000)
     button = page.get_by_role("button", name=WAKE_TEXT)
     if button.count():
         print(f"{url}: estaba dormida, despertando…")
         button.first.click()
-        page.wait_for_timeout(60_000)
+        page.wait_for_timeout(90_000)  # tiempo para que la app termine de arrancar
     else:
         print(f"{url}: activa")
+    # Mantener la sesión abierta unos segundos para que cuente como visita.
+    page.wait_for_timeout(20_000)
 
 
 def main() -> int:
