@@ -193,6 +193,7 @@ PLANIF = DatasetSchema(
         C("m3", "M3 Total", kind="number"),
         C("fob_simi", "Fob Total SIMI", kind="number"),
         C("fob_real", "Fob Total Real", kind="number"),
+        C("fob_origen", "Fob total Origen", "FOB Total Origen", kind="number"),
         C("estructura", "¿ES MONOPROVEEDOR?", kind="category"),
         C("responsable", "Responsable de la carga", kind="category"),
         C("status_final", "Status Final", kind="category"),

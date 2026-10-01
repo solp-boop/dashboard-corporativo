@@ -418,7 +418,10 @@ def finish_dataset(key: str, df: pd.DataFrame, sla: pd.DataFrame, q: DatasetQual
         df["f_instruccion"] = df["f_instruccion_raw"].map(lambda v: dc.parse_date_value(v)[0])
         df["f_instruccion"] = pd.to_datetime(df["f_instruccion"], errors="coerce")
         df["tipo_negocio"] = [tipo_negocio_planif(m, c) for m, c in zip(df["marca"], df["clase"])]
-        df["fob"] = df["fob_real"].where(df["fob_real"] > 0, df["fob_simi"])
+        # FOB del pipeline: "Fob total Origen" (el más completo); si viene vacío o en 0, Real y después SIMI.
+        fob_alt = df["fob_real"].where(df["fob_real"] > 0, df["fob_simi"])
+        fob_origen = df["fob_origen"] if "fob_origen" in df else pd.Series(np.nan, index=df.index)
+        df["fob"] = fob_origen.where(fob_origen > 0, fob_alt)
     if key in ("cotizaciones", "cot_sin_negociar"):
         def pod_country(v):
             f = dc.fold(v)
