@@ -35,19 +35,19 @@ def best_by_forwarder(d: pd.DataFrame, value: str = "flete") -> pd.DataFrame:
 
 
 def market(d: pd.DataFrame) -> tuple[float, float, str]:
-    """(promedio de mercado, mejor tarifa, forwarder de la mejor tarifa).
+    """(mediana de mercado, mejor tarifa, forwarder de la mejor tarifa).
 
-    El promedio se calcula sobre la mejor tarifa de cada forwarder, para que un
+    La mediana se calcula sobre la mejor tarifa de cada forwarder, para que un
     agente con muchas líneas cotizadas no pese más que otro.
     """
     if d.empty:
         return np.nan, np.nan, ""
     best = best_by_forwarder(d)
-    return float(best["flete"].mean()), float(best["flete"].iloc[0]), str(best["forwarder"].iloc[0])
+    return float(best["flete"].median()), float(best["flete"].iloc[0]), str(best["forwarder"].iloc[0])
 
 
 def market_by_month(cot: pd.DataFrame) -> pd.DataFrame:
-    """Promedio de mercado y mejor oferta por mes (inicio de validez) y tipo de contenedor."""
+    """Mediana de mercado y mejor oferta por mes (inicio de validez) y tipo de contenedor."""
     d = cot.dropna(subset=["validez_desde", "tipo_ctnr"]).copy()
     if d.empty:
         return pd.DataFrame(columns=["mes", "tipo_ctnr", "mercado", "mejor", "n_ffww"])
@@ -60,7 +60,7 @@ def market_by_month(cot: pd.DataFrame) -> pd.DataFrame:
 
 
 def add_market_reference(hist: pd.DataFrame, cot: pd.DataFrame | None) -> pd.DataFrame:
-    """Agrega al histórico el promedio de mercado del mes de ETD y la diferencia pagado vs mercado."""
+    """Agrega al histórico la mediana de mercado del mes de ETD y la diferencia pagado vs mercado."""
     out = hist.copy()
     out["mercado_mes"] = np.nan
     out["vs_mercado"] = np.nan
@@ -119,7 +119,7 @@ PRIORIDADES = {
 @dataclass
 class Recomendacion:
     opciones: pd.DataFrame      # ranking completo
-    mercado: float              # promedio de mercado (costo total)
+    mercado: float              # mediana de mercado (costo total)
     fecha: pd.Timestamp
 
 
@@ -158,7 +158,7 @@ def recommend(cot: pd.DataFrame, hist: pd.DataFrame | None, fecha: pd.Timestamp,
     best["puntaje"] = peso_precio * best["score_precio"] + (1 - peso_precio) * best["score_servicio"]
     best = best.sort_values(["puntaje", "costo_total"], ascending=[False, True]).reset_index(drop=True)
     best.insert(0, "ranking", range(1, len(best) + 1))
-    prom = float(best["costo_total"].mean())
+    prom = float(best["costo_total"].median())
     best["vs_promedio"] = (best["costo_total"] - prom) / prom
     return Recomendacion(best, prom, fecha)
 
@@ -186,7 +186,7 @@ def negotiation(cot: pd.DataFrame | None, sin: pd.DataFrame | None) -> pd.DataFr
 
 
 def savings_vs_market(hist: pd.DataFrame) -> pd.Series:
-    """USD ahorrados contra el promedio de mercado del mes, por embarque (negativo = pagamos más)."""
+    """USD ahorrados contra la mediana de mercado del mes, por embarque (negativo = pagamos más)."""
     return (hist["mercado_mes"] - hist["flete_por_ctnr"]) * hist["contenedores"]
 
 

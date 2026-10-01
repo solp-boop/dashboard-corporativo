@@ -1,4 +1,4 @@
-"""Resumen ejecutivo: ¿cómo estamos?, ¿cumplimos SLA?, ¿qué requiere atención?"""
+"""Resumen ejecutivo: ¿cómo estamos?, ¿cumplimos SLA?, ¿cuánto pagamos y capturamos?"""
 from __future__ import annotations
 
 import numpy as np
@@ -7,43 +7,11 @@ import streamlit as st
 
 from components import sla as sla_view
 from components.layout import chart_title, empty, guard, require, section
-from components.tables import ColSpec, data_table
 from config import settings
 from utils import calculations as calc
 from utils import formatting as fmt
 from utils import productos, sla
 from views._common import ctx, en_curso, filtered, kpis_en_curso, periodo_txt, today
-
-
-def alerts(res: pd.DataFrame) -> pd.DataFrame:
-    """Embarques en curso que requieren acción, con el motivo."""
-    t = today()
-    horizon = t + pd.Timedelta(days=settings.ALERT_HORIZON_DAYS)
-    upcoming = res["etd"].between(t, horizon)
-    reasons = pd.Series([[] for _ in range(len(res))], index=res.index)
-
-    def add(mask, text):
-        for i in res.index[mask.fillna(False)]:
-            reasons[i] = reasons[i] + [text if isinstance(text, str) else text(res.loc[i])]
-
-    mar = res["grupo_modo"] == "Marítimo" if "grupo_modo" in res else pd.Series(True, index=res.index)
-    add(upcoming & ~res["etd_ok"], "ETD sin confirmar por el forwarder")
-    docs_missing = mar & ((res["draft_bl"].fillna("NO").astype(str).str.upper() != "SI") |
-                          (res["pl_final"].fillna("NO").astype(str).str.upper() != "SI"))
-    sailed = res["etd"].between(t - pd.Timedelta(days=30), t - pd.Timedelta(days=3))
-    add(sailed & docs_missing, "Zarpó hace más de 3 días sin Draft BL / Packing list final")
-    future = res["etd"] >= t
-    add(future & mar & (res["estado_consolidacion"] == calc.SEMAFORO_BAD),
-        lambda r: f"Consolidación proyectada {fmt.fmt_int(r['dias_consolidacion'])} d "
-                  f"(SLA {fmt.fmt_int(r['sla_consolidacion'])} d)")
-    add(res["etd"].isna() & res["f_instruccion"].notna(), "Instruido sin ETD cargado")
-
-    out = res[reasons.map(len) > 0].copy()
-    out["motivo"] = reasons[out.index].map(" · ".join)
-    out["n_motivos"] = reasons[out.index].map(len)
-    days_to = (out["etd"] - t).dt.days
-    out["prioridad"] = np.where(days_to.le(3) | (out["n_motivos"] >= 2), "Alta", "Media")
-    return out.sort_values(["prioridad", "etd"], ascending=[True, True])
 
 
 def render() -> None:
@@ -121,29 +89,6 @@ def render() -> None:
     if bundle.get("historicas") is not None:
         render_fletes(bundle, filters)
 
-    # ------------------------------------------------------------------ atención
-    section("¿Qué operaciones requieren atención?",
-            f"ETD en los próximos {settings.ALERT_HORIZON_DAYS} días sin confirmar, zarpados sin documentación, "
-            "consolidación proyectada fuera de SLA o instruidos sin ETD.")
-    if res is not None:
-        with guard("Alertas"):
-            al = alerts(res)
-            if al.empty:
-                empty("No hay alertas para los filtros seleccionados.")
-            else:
-                data_table(al, [
-                    ColSpec("prioridad", "Prioridad"),
-                    ColSpec("embarque", "Embarque"),
-                    ColSpec("grupo_modo", "Modo"),
-                    ColSpec("motivo", "Motivo", width="large"),
-                    ColSpec("etd", "ETD", "date"),
-                    ColSpec("forwarder", "Forwarder"),
-                    ColSpec("puerto", "Puerto"),
-                    ColSpec("responsable", "Responsable"),
-                    ColSpec("m3", "M3", "num"),
-                    ColSpec("estado_consolidacion", "Consolidación", "status"),
-                ], key="alertas", filename="alertas_embarques")
-
 
 def render_fletes(bundle, filters) -> None:
     """¿Cuánto pagamos y cuánto capturamos? Resumen de la gestión de fletes."""
@@ -180,14 +125,6 @@ def render_fletes(bundle, filters) -> None:
         mercado_total = float((h["mercado_mes"] * h["contenedores"]).sum())
         ah_pct = ah_total / mercado_total if mercado_total else np.nan
 
-        neg = freight.negotiation(cot, bundle.get("cot_sin_negociar"))
-        if len(neg) and filters.has_period:
-            if filters.start:
-                neg = neg[neg["validez_desde"] >= pd.Timestamp(filters.start)]
-            if filters.end:
-                neg = neg[neg["validez_desde"] <= pd.Timestamp(filters.end)]
-        neg = neg[neg["validez_desde"] <= t] if len(neg) else neg
-        mej = neg[neg["rebaja"] > 0] if len(neg) else neg
 
         ok_cert = h["flete_pagado"] > 0
         cert = (h.loc[ok_cert, "flete_certificado"].sum() / h.loc[ok_cert, "flete_pagado"].sum()
@@ -201,12 +138,8 @@ def render_fletes(bundle, filters) -> None:
                 sub=f"Flete <b>{fmt.fmt_usd(flete)}</b> · origen {fmt.fmt_usd(origen)} · destino {fmt.fmt_usd(destino)}"),
             KPI("Ahorro vs mercado", fmt.fmt_usd(ah_total) if n_ref else "—",
                 status=("ok" if ah_total >= 0 else "bad") if n_ref >= settings.MIN_SAMPLE else "",
-                sub=(f"Flete marítimo {fmt.fmt_pct(-ah_pct, signed=True)} vs promedio de mercado · "
+                sub=(f"Flete marítimo {fmt.fmt_pct(-ah_pct, signed=True)} vs mediana de mercado · "
                      f"{fmt.fmt_int(n_ref)} embarques") if n_ref else "Sin cotizaciones para comparar"),
-            KPI("Rebaja negociada", fmt.fmt_pct(mej["rebaja_pct"].median()) if len(mej) else "—",
-                sub=(f"<b>{fmt.fmt_int(len(mej))}</b> tarifas mejoradas · mediana "
-                     f"{fmt.fmt_usd(mej['rebaja'].median(), compact=False)} por contenedor") if len(mej)
-                else "Sin tarifas renegociadas en el período"),
             KPI("Ahorro por usar 40 NOR", fmt.fmt_usd(nor_ok["ahorro"].sum()) if len(nor_ok) else "—",
                 status=("ok" if nor_ok["ahorro"].sum() >= 0 else "bad") if len(nor_ok) else "",
                 sub=(f"<b>{fmt.fmt_int(nor_ok['contenedores'].sum())}</b> contenedores 40 NOR vs 40 ST/HQ del mismo mes"
@@ -218,15 +151,14 @@ def render_fletes(bundle, filters) -> None:
         ])
         con_origen = int((h["gastos_origen"] > 0).sum())
         st.caption(f"Gastos en origen cargados en {fmt.fmt_int(con_origen)} de {fmt.fmt_int(len(h))} embarques "
-                   "marítimos. «Ahorro vs mercado» compara el flete por contenedor con el promedio de las "
-                   "cotizaciones del mismo mes, tipo de contenedor y destino. «Rebaja negociada» compara cada "
-                   "tarifa negociada con la original del forwarder. «Ahorro por usar 40 NOR» compara el flete pagado de cada "
+                   "marítimos. «Ahorro vs mercado» compara el flete por contenedor con la mediana de las "
+                   "cotizaciones del mismo mes, tipo de contenedor y destino. «Ahorro por usar 40 NOR» compara el flete pagado de cada "
                    "contenedor 40 NOR con la mediana pagada por un 40 ST/HQ ese mismo mes; «por m³» corrige por la "
                    "menor capacidad del 40 NOR.")
 
         c1, c2 = st.columns(2, gap="medium")
         with c1:
-            chart_title("Costo pagado por mes", "USD · marítimo y aéreo, por mes de ETD")
+            chart_title("Costo pagado por mes", "USD · total pagado (suma), marítimo y aéreo, por mes de ETD")
             parts = []
             for df_ in (h, a):
                 if len(df_):
@@ -246,7 +178,7 @@ def render_fletes(bundle, filters) -> None:
                 charts.theme(fig, height=300, y_title="USD")
                 charts.show(fig, key="res_costo_mes")
         with c2:
-            chart_title("Ahorro vs mercado por mes", "USD · flete marítimo. Positivo = pagamos menos que el promedio")
+            chart_title("Ahorro vs mercado por mes", "USD · flete marítimo. Positivo = pagamos menos que la mediana de mercado")
             hh = h.assign(ah=ahorro, mes=calc.month_start(h["etd"])).dropna(subset=["ah"])
             if hh.empty:
                 empty("Sin cotizaciones para comparar.")

@@ -46,7 +46,7 @@ def test_vigentes_excluye_vencidas():
 def test_mercado_usa_mejor_tarifa_por_forwarder():
     prom, mejor, ffww = freight.market(freight.vigentes(cot(), HOY, "40ST/40HQ"))
     assert mejor == 5800 and ffww == "B"
-    assert prom == pytest.approx((6000 + 5800 + 7000) / 3)
+    assert prom == pytest.approx(6000)  # mediana de 5800, 6000, 7000
 
 
 def test_recomendacion_combina_precio_y_servicio():
@@ -76,9 +76,9 @@ def test_pagado_vs_mercado():
     h = pd.DataFrame({"etd": pd.to_datetime(["2026-09-20", "2026-09-25"]), "tipo_ctnr": ["40ST/40HQ", None],
                       "flete_por_ctnr": [5940.0, 3000.0], "destino": ["Argentina", "Argentina"]})
     out = freight.add_market_reference(h, cot())
-    # mercado sept 40ST/40HQ = promedio de la mejor de cada forwarder con validez que empieza en sept: A 6000, B 5800, C 7000
-    assert out.loc[0, "mercado_mes"] == pytest.approx(6266.67, rel=1e-3)
-    assert out.loc[0, "vs_mercado"] == pytest.approx(5940 / 6266.67 - 1, rel=1e-3)
+    # mercado sept 40ST/40HQ = mediana de la mejor de cada forwarder con validez que empieza en sept: A 6000, B 5800, C 7000
+    assert out.loc[0, "mercado_mes"] == pytest.approx(6000)
+    assert out.loc[0, "vs_mercado"] == pytest.approx(5940 / 6000 - 1)
     assert np.isnan(out.loc[1, "vs_mercado"])
 
 

@@ -18,7 +18,7 @@ from components.layout import guard, load_css, page_header  # noqa: E402
 from services.data_loader import SourceError, clear_cache, get_data  # noqa: E402
 from utils.logger import get_logger  # noqa: E402
 from views import (  # noqa: E402
-    aereos, agentes, buscar, calidad, cotizaciones, embarques, fletes_pagados, historico, lead_times, pipeline,
+    aereos, agentes, alertas, buscar, calidad, cotizaciones, embarques, fletes_pagados, historico, lead_times, pipeline,
     resumen,
 )
 
@@ -29,6 +29,9 @@ PAGES = {
     "General": [
         st.Page(resumen.render, title="Resumen ejecutivo", icon=":material/dashboard:",
                 url_path="resumen", default=True),
+    ],
+    "Alertas": [
+        st.Page(alertas.render, title="Alertas", icon=":material/notifications:", url_path="alertas"),
     ],
     "Operación": [
         st.Page(pipeline.render, title="Pipeline de origen", icon=":material/inventory_2:", url_path="pipeline"),

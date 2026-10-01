@@ -53,7 +53,7 @@ def render() -> None:
     d = freight.add_market_reference(d, bundle.get("cotizaciones"))
     filter_notes(base, filters, "Reservas Históricas")
     st.caption("Embarques marítimos ya zarpados (Reservas Históricas). Los montos por contenedor dividen el total "
-               "del embarque por la cantidad de contenedores. «vs mercado» compara el flete pagado con el promedio "
+               "del embarque por la cantidad de contenedores. «vs mercado» compara el flete pagado con la mediana "
                "de las cotizaciones del mismo mes y tipo de contenedor.")
     con_flete = d[d["flete_pagado"] > 0]
     if d.empty:
@@ -110,7 +110,7 @@ def render() -> None:
 
     with c2, guard("Pagado vs mercado"):
         chart_title("Flete por contenedor: pagado vs mercado",
-                    "Destino Argentina · mediana pagada vs promedio y mejor cotización del mes")
+                    "Destino Argentina · mediana pagada vs mediana de mercado y mejor cotización del mes")
         tipo = st.segmented_control("Tipo de contenedor", TIPOS, default=TIPOS[0], key="fp_tipo",
                                     label_visibility="collapsed") or TIPOS[0]
         t = con_flete[(con_flete["tipo_ctnr"] == tipo) & (con_flete["destino"] == "Argentina")].assign(mes=lambda x: calc.month_start(x["etd"]))
@@ -130,9 +130,9 @@ def render() -> None:
                             line=dict(color=settings.SERIES[0], width=2.5), marker=dict(size=8), customdata=n.values,
                             hovertemplate="Pagado: USD %{y:,.0f} (%{customdata} emb.)<extra></extra>")
             if len(mk):
-                fig.add_scatter(x=x, y=mk["mercado"].reindex(months).values, name="Promedio de mercado",
+                fig.add_scatter(x=x, y=mk["mercado"].reindex(months).values, name="Mediana de mercado",
                                 mode="lines+markers", line=dict(color=settings.SERIES[1], width=2),
-                                marker=dict(size=8), hovertemplate="Mercado: USD %{y:,.0f}<extra></extra>")
+                                marker=dict(size=8), hovertemplate="Mercado (mediana): USD %{y:,.0f}<extra></extra>")
                 fig.add_scatter(x=x, y=mk["mejor"].reindex(months).values, name="Mejor cotización",
                                 mode="lines", line=dict(color=settings.SERIES[2], width=1.5, dash="dash"),
                                 hovertemplate="Mejor: USD %{y:,.0f}<extra></extra>")

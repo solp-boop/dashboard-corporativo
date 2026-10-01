@@ -84,8 +84,8 @@ def render() -> None:
                 sub=f"Flete {fmt.fmt_usd(top['flete'], compact=False)} + locales "
                     f"{fmt.fmt_usd(top['locales_calc'], compact=False)}"
                     + (" (estimados)" if top["locales_estimados"] else "")),
-            KPI("vs promedio de mercado", fmt.fmt_pct(top["vs_promedio"], signed=True),
-                sub=f"Ahorro <b>{fmt.fmt_usd(ahorro, compact=False)}</b> por contenedor · promedio "
+            KPI("vs mediana de mercado", fmt.fmt_pct(top["vs_promedio"], signed=True),
+                sub=f"Ahorro <b>{fmt.fmt_usd(ahorro, compact=False)}</b> por contenedor · mediana "
                     f"{fmt.fmt_usd(rec.mercado, compact=False)}"),
             KPI("Desempeño", _fmt_pct_or(top["etd_en_fecha"]) if top["historial"] == "Con historial" else "—",
                 unit=" ETD en fecha" if top["historial"] == "Con historial" else "", sub=hist_txt),
@@ -122,7 +122,7 @@ def render() -> None:
         fig.update_yaxes(autorange="reversed")
         fig.update_xaxes(range=[0, o["costo_total"].max() * 1.25])
         fig.add_vline(x=rec.mercado, line=dict(color=settings.COLORS["slate"], width=1.5, dash="dash"),
-                      annotation_text="Promedio", annotation_position="top",
+                      annotation_text="Mediana", annotation_position="top",
                       annotation_font=dict(size=11, color=settings.COLORS["slate"]))
         charts.show(fig, key="ct_opciones")
 
@@ -146,7 +146,7 @@ def render() -> None:
             ColSpec("ranking", "#", "int"), ColSpec("forwarder", "Forwarder"), ColSpec("agente", "Agente origen"),
             ColSpec("puerto", "POL"), ColSpec("linea", "Línea"), ColSpec("costo_total", "Costo / cont. (USD)", "usd"),
             ColSpec("flete", "Flete (USD)", "usd"), ColSpec("locales_calc", "Locales (USD)", "usd"),
-            ColSpec("vs_promedio", "vs promedio", "pct"), ColSpec("tt", "TT (d)", "days"),
+            ColSpec("vs_promedio", "vs mediana", "pct"), ColSpec("tt", "TT (d)", "days"),
             ColSpec("dias_libres", "Días libres"), ColSpec("embarques_12m", "Embarques 12 m", "int"),
             ColSpec("etd_en_fecha", "% ETD en fecha", "pct"), ColSpec("instr_etd", "Instr.→ETD (d)", "days"),
             ColSpec("cumple_sla", "% SLA consol.", "pct"), ColSpec("puntaje", "Puntaje", "num"),
@@ -178,7 +178,7 @@ def render() -> None:
                        + [ColSpec("Forwarders cotizando", "Forwarders", "int")],
                        key="ct_mapa", filename=f"mapa_tarifas_{fecha:%Y%m%d}", search=False)
 
-    section("Evolución del mercado", f"{tipo} · destino {destino} · promedio de mercado y mejor oferta por mes de inicio de validez")
+    section("Evolución del mercado", f"{tipo} · destino {destino} · mediana de mercado y mejor oferta por mes de inicio de validez")
     with guard("Evolución mensual"):
         h = filtered(bundle, "cotizaciones", filters)
         h = h[h["destino"] == destino]
@@ -190,9 +190,9 @@ def render() -> None:
             mk["target"] = mk["mercado"] * (1 - settings.TARGET_DESCUENTO_FLETE)
             x = month_labels(mk["mes"])
             fig = go.Figure()
-            fig.add_scatter(x=x, y=mk["mercado"], name="Promedio de mercado", mode="lines+markers",
+            fig.add_scatter(x=x, y=mk["mercado"], name="Mediana de mercado", mode="lines+markers",
                             line=dict(color=settings.SERIES[0], width=2), marker=dict(size=8), customdata=mk["n_ffww"],
-                            hovertemplate="Promedio: USD %{y:,.0f} (%{customdata} forwarders)<extra></extra>")
+                            hovertemplate="Mediana: USD %{y:,.0f} (%{customdata} forwarders)<extra></extra>")
             fig.add_scatter(x=x, y=mk["mejor"], name="Mejor oferta", mode="lines+markers",
                             line=dict(color=settings.SERIES[2], width=2), marker=dict(size=8),
                             hovertemplate="Mejor: USD %{y:,.0f}<extra></extra>")
