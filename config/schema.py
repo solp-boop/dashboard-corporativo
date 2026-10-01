@@ -167,6 +167,7 @@ AEREOS = DatasetSchema(
         C("aerolinea", "AEROLINEA", kind="category"),
         C("flete_pagado", "Flete total", kind="number"),
         C("flete_certificado", "Flete certificado", kind="number"),
+        C("total_dias", "Total", kind="number"),
         C("gastos_origen", "Gastos en Origen", kind="number"),
         C("gastos_locales", "Gastos Locales", kind="number"),
     ),
@@ -237,6 +238,11 @@ EMB_HIST = DatasetSchema(
         C("fin_produccion", "Fecha de fin de produccion real", "Fecha de fin de producción real",
           kind="date", required=True),
         C("etd", "ETD", kind="date"),
+        C("codigo", "Código", "Codigo", kind="text"),
+        C("ranking", "Demanda Efectiva -Ranking Utilidad Total", kind="text"),
+        C("sku_nuevo", "¿SKU nuevo?", "SKU nuevo", kind="text"),
+        C("tiempo_consolidacion", "Tiempo de consolidacion", "Tiempo de consolidación", kind="number"),
+        C("estructura_eh", "¿ES MONOPROVEEDOR?", kind="category"),
     ),
 )
 

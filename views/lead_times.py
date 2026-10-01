@@ -15,7 +15,7 @@ from config.mappings import MODOS_MARITIMOS
 from utils import calculations as calc
 from utils import formatting as fmt
 from components import sla as sla_view
-from utils import sla
+from utils import productos, sla
 from views._common import ctx, filtered, month_labels, today
 
 ETAPAS = [
@@ -52,8 +52,39 @@ def render() -> None:
         sla_view.scorecard_table(sc)
         coverage(int(df["dias_consolidacion"].notna().sum()), len(df), "embarques del período con consolidación calculable")
 
-    section("Cierre de mes · aéreo")
-    empty("Espacio reservado para el SLA de aéreos: se arma con la definición que nos vas a pasar.")
+    section("Cierre de mes · aéreo",
+            f"Columna Total de Seguimiento Aéreos por tipo de negocio. El SLA rige desde el "
+            f"{settings.SLA_AEREO_DESDE:%d/%m/%Y}; antes se muestran solo los tiempos.")
+    if bundle.get("aereos") is not None:
+        with guard("Cierre aéreo"):
+            a = sla_view.air_zarpados(filtered(bundle, "aereos", filters), today())
+            t_air = sla_view.air_table(a, today())
+            last = today().to_period("M").to_timestamp() - pd.offsets.MonthBegin(1)
+            data_table(t_air, [
+                ColSpec("tipo", "Tipo de negocio"), ColSpec("sla", "SLA (d)", "days"),
+                ColSpec("antes", "Antes del SLA · mediana (d)", "days"), ColSpec("antes_n", "n", "int"),
+                ColSpec("desde", "Desde el SLA · mediana (d)", "days"),
+                ColSpec("desde_pct", "Desde el SLA · % dentro", "pct"), ColSpec("desde_n", "n ", "int"),
+                ColSpec("ult", f"{fmt.fmt_month(last, long=True)} · mediana (d)", "days"),
+                ColSpec("ult_pct", f"{fmt.fmt_month(last, long=True)} · % dentro", "pct"),
+                ColSpec("ult_n", "n  ", "int"),
+            ], key="lt_air", filename="sla_aereo_por_tipo", search=False)
+            chart_title("Tiempo total aéreo mes a mes", "Mediana (días). En gris, los meses anteriores al SLA")
+            sla_view.air_chart(a, today(), key="lt_air_chart")
+
+    if bundle.get("emb_hist") is not None:
+        section("SKU nuevos y top ranking · objetivo −15 %",
+                "Evolución de la mediana del tiempo de consolidación por SO, contra el objetivo de reducirla un "
+                f"{fmt.fmt_pct(settings.REDUCCION_OBJETIVO)} respecto de la base.")
+        with guard("SKU nuevos y top ranking"):
+            dp = productos.base_lines(bundle.get("emb_hist"), today())
+            summ = productos.summary(dp, today())
+            sla_view.productos_table(summ)
+            g1, g2 = st.columns(2, gap="medium")
+            for col, (grupo, label) in zip((g1, g2), productos.GRUPOS.items()):
+                with col:
+                    chart_title(label, "Mediana mensual por estructura · línea punteada = objetivo")
+                    sla_view.productos_chart(productos.monthly(dp, grupo), summ, label, key=f"lt_prod_{grupo}")
 
     section("Apertura del período")
     c1, c2 = st.columns(2, gap="medium")

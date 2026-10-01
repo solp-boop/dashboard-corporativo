@@ -90,6 +90,7 @@ DURATION_RANGES: dict[str, tuple[int, int]] = {
     "dias_etd_eta": (0, 45),
     "dias_eta_caldas": (0, 45),
     "dias_total_aereo": (0, 240),
+    "tiempo_consolidacion_so": (0, 240),
 }
 
 # --------------------------------------------------------------------------
@@ -154,5 +155,32 @@ M3_POR_CONTENEDOR = 60
 # Objetivo de cumplimiento de SLA (% de embarques dentro del SLA). Mientras sea
 # None, el cumplimiento se muestra sin semáforo ni línea de objetivo.
 # Ejemplo: CUMPLIMIENTO_OBJETIVO = 0.80 y CUMPLIMIENTO_MINIMO = 0.60
-CUMPLIMIENTO_OBJETIVO = None
-CUMPLIMIENTO_MINIMO = None
+CUMPLIMIENTO_OBJETIVO = 0.50
+CUMPLIMIENTO_MINIMO = 0.50   # igual al objetivo: verde desde 50 %, rojo por debajo
+
+# --------------------------------------------------------------------------
+# SLA aéreo: columna "Total" de SEGUIMIENTO AEREOS, por tipo de negocio
+# (columna "Parcipacion de DJI + miami +consolidado aereo").
+# --------------------------------------------------------------------------
+SLA_AEREO_POR_TIPO = {
+    "GADNIC": 24,
+    "DJI": 24,
+    "REPUESTOS": 24,
+    "MUESTRAS": 30,
+    "DJI AGRAS": 26,
+    "MARCAS": 16,
+}
+# Variantes que usan el SLA de otro tipo (clave y valor en mayúsculas).
+SLA_AEREO_ALIAS = {"DJI RCONLINE": "DJI", "DJI BAYNAL": "DJI"}
+# El SLA aéreo rige para embarques con ETD desde esta fecha; antes solo se
+# muestran los tiempos.
+SLA_AEREO_DESDE = dt.date(2026, 8, 1)
+
+# --------------------------------------------------------------------------
+# Productos nuevos y top ranking: objetivo de reducir la consolidación
+# --------------------------------------------------------------------------
+TOP_RANKING_MAX = 100                    # posición en "Demanda Efectiva -Ranking Utilidad Total"
+REDUCCION_OBJETIVO = 0.15                # −15 % contra la base
+BASE_DESDE = dt.date(2026, 1, 1)         # período base (mes de ETD)
+BASE_HASTA = dt.date(2026, 3, 31)
+COMPARACION_MESES = 3                    # últimos N meses cerrados contra la base

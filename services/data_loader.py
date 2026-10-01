@@ -285,6 +285,57 @@ def add_freight(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def add_air_sla(df: pd.DataFrame, q: DatasetQuality) -> pd.DataFrame:
+    """SLA aéreo: columna Total contra el objetivo de su tipo de negocio."""
+    lo, hi = settings.DURATION_RANGES["dias_total_aereo"]
+    tot = df["total_dias"]
+    bad = tot.notna() & ((tot < lo) | (tot > hi))
+    if bad.any():
+        q.out_of_range["Total aéreo (días)"] = int(bad.sum())
+    df["dias_aereo"] = tot.mask(bad)
+    targets = {k.upper(): v for k, v in settings.SLA_AEREO_POR_TIPO.items()}
+    alias = {k.upper(): v.upper() for k, v in settings.SLA_AEREO_ALIAS.items()}
+
+    def tipo_sla(v):
+        if not v:
+            return None
+        k = dc.fold(v).upper()
+        k = alias.get(k, k)
+        return k if k in targets else None
+
+    df["tipo_sla"] = df["tipo_negocio"].map(tipo_sla)
+    df["sla_aereo"] = df["tipo_sla"].map(targets).astype(float)
+    df["sla_vigente"] = df["etd"] >= pd.Timestamp(settings.SLA_AEREO_DESDE)
+    df["estado_aereo"] = calc.semaforo(df["dias_aereo"], df["sla_aereo"])
+    return df
+
+
+def prepare_emb_hist(eh: pd.DataFrame, hist: pd.DataFrame | None) -> None:
+    """Marca SKU nuevo y top ranking y toma la estructura (mono/consolidado) de Reservas Históricas."""
+    lo, hi = settings.DURATION_RANGES["tiempo_consolidacion_so"]
+    t = eh["tiempo_consolidacion"]
+    eh["tiempo_consolidacion"] = t.where(t.between(lo, hi))
+    nuevo = eh["sku_nuevo"].map(lambda v: dc.fold(v) if v else "")
+    # La columna trae "SI"/"NO" o, en los SKU nuevos, el código del producto.
+    eh["es_nuevo"] = (nuevo == "si") | ~nuevo.isin(["", "no", "si"])
+    rank = pd.to_numeric(eh["ranking"], errors="coerce")
+    eh["ranking_pos"] = rank
+    eh["es_top"] = rank.between(1, settings.TOP_RANKING_MAX)
+    est_eh = eh["estructura_eh"].map(lambda v: {"consolidado": "Consolidado",
+                                                "monoproveedor": "Monoproveedor"}.get(dc.fold(v)) if v else None)
+    key = dc.id_key(eh["embarque"])
+    if hist is not None and not hist.empty and "estructura" in hist:
+        h = hist.assign(_k=dc.id_key(hist["embarque"]))
+        h_est = h.dropna(subset=["estructura"]).drop_duplicates("_k").set_index("_k")["estructura"]
+        est_h = key.map(h_est)
+        est_h = est_h.map(lambda v: {"consolidado": "Consolidado", "monoproveedor": "Monoproveedor"}.get(dc.fold(v), v)
+                          if isinstance(v, str) else None)
+        eh["estructura"] = est_h.where(est_h.notna(), est_eh)
+    else:
+        eh["estructura"] = est_eh
+    eh["maritimo"] = eh["embarque"].map(lambda v: str(v).strip().upper().startswith(("FCL", "LCL")))
+
+
 def attach_fin_produccion(frames: dict[str, pd.DataFrame]) -> None:
     """Agrega a Reservas e Históricas la fecha de fin de producción de cada embarque.
 
@@ -293,6 +344,8 @@ def attach_fin_produccion(frames: dict[str, pd.DataFrame]) -> None:
     packeo mínimo.
     """
     eh = frames.get("emb_hist")
+    if eh is not None and not eh.empty:
+        prepare_emb_hist(eh, frames.get("historicas"))
     if eh is None or eh.empty:
         for key in ("reservas", "historicas"):
             if key in frames:
@@ -358,6 +411,7 @@ def finish_dataset(key: str, df: pd.DataFrame, sla: pd.DataFrame, q: DatasetQual
         df["fob"] = df["fob_simi"]
         df["modo"] = df["modo"].fillna("Aéreo")
         df["etd_ok"] = df["etd_ok"].fillna(False).astype(bool)
+        df = add_air_sla(df, q)
     if key == "planif":
         df["estado_instruccion"] = df["f_instruccion_raw"].map(estado_instruccion)
         df["f_instruccion"] = df["f_instruccion_raw"].map(lambda v: dc.parse_date_value(v)[0])

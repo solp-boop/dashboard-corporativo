@@ -109,3 +109,33 @@ def test_sla_scorecard_y_proyectado():
     assert cumpl[4].n == 1 and cumpl[5].n == 2                        # octubre zarpados / proyectado
     m = sla.monthly_compliance(hist)
     assert list(m["n"]) == [1, 1, 1]
+
+
+def test_productos_resumen_objetivo():
+    from utils import productos
+
+    hoy = pd.Timestamp("2026-10-01")
+    rows = []
+    for mes, t in [("2026-01-10", 20), ("2026-02-10", 20), ("2026-03-10", 20),
+                   ("2026-07-10", 16), ("2026-08-10", 16), ("2026-09-10", 16)]:
+        for i in range(6):
+            rows.append({"so": f"SO-{mes}-{i}", "embarque": "FCL 1", "etd": pd.Timestamp(mes),
+                         "tiempo_consolidacion": t, "estructura": "Consolidado", "maritimo": True,
+                         "es_nuevo": True, "es_top": False})
+    d = productos.base_lines(pd.DataFrame(rows), hoy)
+    s = productos.summary(d, hoy).set_index(["grupo", "estructura"])
+    r = s.loc[("SKU nuevos", "Consolidado")]
+    assert r["base"] == 20 and r["actual"] == 16 and r["objetivo"] == 17
+    assert r["variacion"] == pytest.approx(-0.20) and r["estado"] == "Cumple"
+
+
+def test_sla_aereo_por_tipo():
+    from services.data_loader import DatasetQuality, add_air_sla
+
+    a = pd.DataFrame({"tipo_negocio": ["DJI", "DJI RCONLINE", "Marcas", "Defectuosos"],
+                      "total_dias": [20.0, 30.0, 16.0, 10.0],
+                      "etd": pd.to_datetime(["2026-08-05", "2026-08-05", "2026-07-01", "2026-08-05"])})
+    out = add_air_sla(a, DatasetQuality("aereos", "Aéreos"))
+    assert list(out["sla_aereo"].fillna(0)) == [24, 24, 16, 0]
+    assert list(out["sla_vigente"]) == [True, True, False, True]
+    assert list(out["estado_aereo"].fillna("")) == ["Dentro de SLA", "Fuera de SLA", "Dentro de SLA", ""]

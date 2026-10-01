@@ -11,7 +11,7 @@ from components.tables import ColSpec, data_table
 from config import settings
 from utils import calculations as calc
 from utils import formatting as fmt
-from utils import sla
+from utils import productos, sla
 from views._common import ctx, en_curso, filtered, kpis_en_curso, periodo_txt, today
 
 
@@ -63,7 +63,8 @@ def render() -> None:
     periodo = periodo_txt(filters)
     section("¿Estamos cumpliendo SLA?",
             f"Embarques que zarparon {periodo}, mes a mes. El mes en curso se muestra rayado porque está "
-            "incompleto. La apertura por mes cerrado, estructura, puerto y forwarder está en Lead times y SLA.")
+            f"incompleto. Objetivo de cumplimiento: {fmt.fmt_pct(settings.CUMPLIMIENTO_OBJETIVO)}. "
+            "La apertura por mes cerrado, estructura, puerto y forwarder está en Lead times y SLA.")
     c_mar, c_aer = st.columns(2, gap="medium")
     with c_mar:
         st.markdown('<div class="row-label">Marítimo</div>', unsafe_allow_html=True)
@@ -87,12 +88,33 @@ def render() -> None:
                 sla_view.compliance_chart(sla.monthly_compliance(z), t, key="res_sla_mar")
     with c_aer:
         st.markdown('<div class="row-label">Aéreo</div>', unsafe_allow_html=True)
-        st.markdown('<div class="panel"><div class="panel-title">Cumplimiento SLA aéreo · período</div>'
-                    '<div class="mode-head"><span class="big">—</span>'
-                    '<span class="lbl">Pendiente de definir cómo se mide</span></div></div>',
+        if require(bundle, "aereos") is not None:
+            with guard("SLA aéreo"):
+                t = today()
+                a = sla_view.air_zarpados(filtered(bundle, "aereos", filters), t)
+                vig = a[a["sla_vigente"] & a["sla_aereo"].notna()]
+                pct_a, n_a = calc.cumplimiento(vig["dias_aereo"], vig["sla_aereo"])
+                ok_a = int((vig["dias_aereo"] <= vig["sla_aereo"]).sum())
+                st.markdown(
+                    f'<div class="panel"><div class="panel-title">Cumplimiento SLA aéreo · desde '
+                    f'{settings.SLA_AEREO_DESDE:%d/%m/%Y}</div>'
+                    f'<div class="mode-head"><span class="big">'
+                    f'{fmt.fmt_pct(pct_a) if n_a >= settings.MIN_SAMPLE else "—"}</span>'
+                    f'<span class="lbl">{fmt.fmt_int(ok_a)} de {fmt.fmt_int(n_a)} embarques dentro del SLA · '
+                    f'mediana del año {fmt.fmt_int(a["dias_aereo"].median())} d</span></div></div>',
                     unsafe_allow_html=True)
-        chart_title("Cumplimiento mes a mes", "Se completa con la definición del SLA aéreo")
-        empty("Espacio reservado para el SLA de aéreos: se arma con la definición que nos vas a pasar.")
+                chart_title("Tiempo total mes a mes",
+                            "Mediana de la columna Total (días). En gris, los meses anteriores al SLA")
+                sla_view.air_chart(a, t, key="res_sla_aer")
+
+    # ------------------------------------------------------------------ objetivo −15 %
+    if bundle.get("emb_hist") is not None:
+        section("Objetivo −15 % · consolidación de SKU nuevos y top ranking",
+                "Tiempo de consolidación por SO, separado en monoproveedor y consolidado. "
+                "La evolución mes a mes está en Lead times y SLA.")
+        with guard("Objetivo −15 %"):
+            d = productos.base_lines(bundle.get("emb_hist"), today())
+            sla_view.productos_table(productos.summary(d, today()))
 
     # ------------------------------------------------------------------ atención
     section("¿Qué operaciones requieren atención?",
