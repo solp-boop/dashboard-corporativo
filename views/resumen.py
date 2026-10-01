@@ -51,8 +51,7 @@ def render() -> None:
     bundle, filters = ctx()
 
     # ------------------------------------------------------------------ hoy
-    section("¿Cómo estamos hoy?", "Embarques en curso: marítimos y camión de Reservas (con responsable asignado) "
-            "y aéreos de Seguimiento Aéreos que no están entregados.")
+    section("¿Cómo estamos hoy?")
     res = None
     with guard("Operación en curso"):
         res, info = en_curso(bundle, filters)

@@ -103,3 +103,23 @@ h1, h2, h3 { color: var(--ink); letter-spacing: -0.01em; }
 @media (max-width: 1100px) {
   .kpi .value { font-size: 1.35rem; }
 }
+
+/* ---- ¿Cómo estamos hoy? ---------------------------------------------------- */
+.today-grid { display: grid; grid-template-columns: 3fr 2fr; gap: .75rem; margin: .1rem 0 .4rem 0; }
+@media (max-width: 1000px) { .today-grid { grid-template-columns: 1fr; } }
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: .9rem 1.1rem; }
+.panel-title { font-size: .74rem; font-weight: 600; color: var(--ink-3); text-transform: uppercase;
+  letter-spacing: .04em; margin-bottom: .7rem; }
+.splitbar { display: flex; height: 30px; border-radius: 6px; overflow: hidden; gap: 2px; background: var(--card); }
+.splitbar .seg { display: flex; align-items: center; justify-content: center; color: #fff; font-size: .8rem;
+  font-weight: 600; min-width: 4px; }
+.legend-row { display: flex; flex-wrap: wrap; gap: .4rem 1.6rem; margin-top: .8rem; }
+.legend-row .item { display: flex; align-items: baseline; gap: .4rem; font-size: .9rem; color: var(--ink); }
+.legend-row .item i { width: .7rem; height: .7rem; border-radius: 3px; display: inline-block; align-self: center; }
+.legend-row .item span { color: var(--ink-3); font-size: .82rem; }
+.panel .big { font-size: 1.6rem; font-weight: 650; color: var(--ink); line-height: 1.2; font-variant-numeric: tabular-nums; }
+.panel .big span { font-size: .95rem; font-weight: 500; color: var(--ink-3); }
+.panel .muted { font-size: .8rem; color: var(--ink-3); margin-top: .15rem; }
+.progress-label { display: flex; justify-content: space-between; font-size: .82rem; color: var(--ink-2); margin-top: .85rem; }
+.progress { height: 8px; background: var(--grey-track, #E7EAEE); border-radius: 999px; overflow: hidden; margin-top: .3rem; }
+.progress > div { height: 100%; background: #2456A6; border-radius: 999px; }

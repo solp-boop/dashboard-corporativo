@@ -87,8 +87,14 @@ def en_curso(bundle: DataBundle, filters: FilterState) -> tuple[pd.DataFrame, di
     return apply_filters(df, filters, use_period=False), info
 
 
-def kpis_en_curso(df: pd.DataFrame, info: dict) -> None:
-    """Las dos filas de KPIs de operación en curso (mismas cifras en Resumen y Embarques)."""
+def kpis_en_curso(df: pd.DataFrame, info: dict | None = None) -> None:
+    """Bloque «¿Cómo estamos hoy?»: mismas cifras en Resumen y Embarques en curso.
+
+    Fila 1: los cuatro números principales.
+    Fila 2: cómo viajan (reparto por modo) y qué pasa en los próximos 7 días.
+    """
+    import html
+
     import numpy as np
     import streamlit as st
 
@@ -99,36 +105,50 @@ def kpis_en_curso(df: pd.DataFrame, info: dict) -> None:
     t = today()
     week = df["etd"].between(t, t + pd.Timedelta(days=settings.ALERT_HORIZON_DAYS))
     ok_n = int(df["etd_ok"].sum())
-    mar = df[df["grupo_modo"] == "Marítimo"]
-
-    def share(g: str) -> KPI:
-        sub = df[df["grupo_modo"] == g]
-        pct = len(sub) / n if n else np.nan
-        extra = (f" · <b>{fmt.fmt_int(sub['contenedores'].sum())}</b> contenedores" if g == "Marítimo" else "")
-        return KPI(g, fmt.fmt_pct(pct), sub=f"<b>{fmt.fmt_int(len(sub))}</b> embarques{extra}")
+    is_mar = df["grupo_modo"] == "Marítimo"
 
     kpi_row([
-        KPI("Embarques en curso", fmt.fmt_int(n),
-            sub="Reservas con responsable + aéreos no entregados"),
-        share("Marítimo"), share("Aéreo"), share("Camión"),
-    ])
-    kpi_row([
-        KPI("Contenedores (marítimo)", fmt.fmt_int(mar["contenedores"].sum()),
-            sub=f"<b>{fmt.fmt_int(len(mar))}</b> embarques marítimos"),
-        KPI("Volumen en proceso", fmt.fmt_int(df["m3"].sum()), unit="m³",
-            sub=f"Marítimo {fmt.fmt_int(mar['m3'].sum())} · aéreo "
-                f"{fmt.fmt_num(df.loc[df['grupo_modo'] == 'Aéreo', 'm3'].sum(), 0)}"),
+        KPI("Embarques en curso", fmt.fmt_int(n)),
+        KPI("Contenedores marítimos", fmt.fmt_int(df.loc[is_mar, "contenedores"].sum())),
+        KPI("Volumen en proceso", fmt.fmt_int(df["m3"].sum()), unit="m³"),
         KPI("FOB en proceso", fmt.fmt_usd(df["fob"].sum())),
-        KPI("ETD confirmado", fmt.fmt_pct(ok_n / n if n else np.nan),
-            sub=f"<b>{fmt.fmt_int(ok_n)}</b> OK · <b>{fmt.fmt_int(n - ok_n)}</b> pendientes"),
-        KPI(f"Zarpan en {settings.ALERT_HORIZON_DAYS} días", fmt.fmt_int(week.sum()), unit="emb.",
-            sub=f"<b>{fmt.fmt_int(df.loc[week, 'm3'].sum())} m³</b> · "
-                f"{fmt.fmt_int(df.loc[week & (df['grupo_modo'] == 'Marítimo'), 'contenedores'].sum())} cont."),
     ])
-    notas = []
-    if info.get("sin_responsable"):
-        notas.append(f"{info['sin_responsable']} reservas sin «Responsable de la carga» no se cuentan")
-    if info.get("air_en_reservas"):
-        notas.append(f"los {info['air_en_reservas']} AIR de Reservas se toman de Seguimiento Aéreos")
-    notas.append("el filtro de período no se aplica a lo que está en curso")
-    st.caption("Nota: " + "; ".join(notas) + ".")
+
+    # ---- ¿Cómo viajan? (barra 100 % por modo)
+    colors = {"Marítimo": settings.SERIES[0], "Aéreo": settings.SERIES[1], "Camión": settings.SERIES[2]}
+    segs, legend = [], []
+    for g in GRUPOS_MODO:
+        k = int((df["grupo_modo"] == g).sum())
+        if not k:
+            continue
+        pct = k / n
+        label = f"{fmt.fmt_pct(pct)}" if pct >= 0.08 else ""
+        segs.append(f'<div class="seg" style="width:{pct * 100:.2f}%;background:{colors[g]}" '
+                    f'title="{g}: {k} embarques ({fmt.fmt_pct(pct)})">{label}</div>')
+        extra = (f" · {fmt.fmt_int(df.loc[df['grupo_modo'] == g, 'contenedores'].sum())} cont."
+                 if g == "Marítimo" else "")
+        legend.append(f'<div class="item"><i style="background:{colors[g]}"></i><b>{g}</b>'
+                      f'<span>{fmt.fmt_pct(pct)} · {fmt.fmt_int(k)} emb.{extra}</span></div>')
+
+    # ---- Próximos 7 días
+    pct_ok = ok_n / n if n else np.nan
+    wk_cont = int(df.loc[week & is_mar, "contenedores"].sum())
+    st.markdown(
+        f"""<div class="today-grid">
+          <div class="panel">
+            <div class="panel-title">¿Cómo viajan?</div>
+            <div class="splitbar">{''.join(segs)}</div>
+            <div class="legend-row">{''.join(legend)}</div>
+          </div>
+          <div class="panel">
+            <div class="panel-title">Próximos {settings.ALERT_HORIZON_DAYS} días</div>
+            <div class="big">{fmt.fmt_int(week.sum())} <span>embarques zarpan</span></div>
+            <div class="muted">{fmt.fmt_int(df.loc[week, "m3"].sum())} m³ · {fmt.fmt_int(wk_cont)} contenedores</div>
+            <div class="progress-label"><span>ETD confirmado por el forwarder</span>
+              <b>{html.escape(fmt.fmt_pct(pct_ok))}</b></div>
+            <div class="progress"><div style="width:{(pct_ok if pct_ok == pct_ok else 0) * 100:.1f}%"></div></div>
+            <div class="muted">{fmt.fmt_int(ok_n)} confirmados · {fmt.fmt_int(n - ok_n)} pendientes</div>
+          </div>
+        </div>""",
+        unsafe_allow_html=True,
+    )
