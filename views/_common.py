@@ -91,7 +91,7 @@ def kpis_en_curso(df: pd.DataFrame, info: dict | None = None) -> None:
     """Bloque «¿Cómo estamos hoy?»: mismas cifras en Resumen y Embarques en curso.
 
     Fila 1: los cuatro números principales.
-    Fila 2: cómo viajan (reparto por modo) y qué pasa en los próximos 7 días.
+    Fila 2: medio de envío (reparto por modo) y qué pasa en los próximos 7 días.
     """
     import html
 
@@ -114,7 +114,7 @@ def kpis_en_curso(df: pd.DataFrame, info: dict | None = None) -> None:
         KPI("FOB en proceso", fmt.fmt_usd(df["fob"].sum())),
     ])
 
-    # ---- ¿Cómo viajan? (barra 100 % por modo)
+    # ---- Medio de envío (barra 100 % por modo)
     colors = {"Marítimo": settings.SERIES[0], "Aéreo": settings.SERIES[1], "Camión": settings.SERIES[2]}
     segs, legend = [], []
     for g in GRUPOS_MODO:
@@ -136,7 +136,7 @@ def kpis_en_curso(df: pd.DataFrame, info: dict | None = None) -> None:
     st.markdown(
         f"""<div class="today-grid">
           <div class="panel">
-            <div class="panel-title">¿Cómo viajan?</div>
+            <div class="panel-title">Medio de envío</div>
             <div class="splitbar">{''.join(segs)}</div>
             <div class="legend-row">{''.join(legend)}</div>
           </div>
