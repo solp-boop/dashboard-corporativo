@@ -139,6 +139,35 @@ def render() -> None:
             charts.theme(fig, y_title="USD por contenedor")
             charts.show(fig, key="fp_vs_mercado")
 
+    section("Ahorro por usar 40 NOR",
+            "Cada contenedor 40 NOR contra la mediana pagada por un 40 ST/40 HQ en el mismo mes (Argentina y otros "
+            "destinos). «Por m³» corrige por la menor capacidad del 40 NOR.")
+    with guard("Ahorro 40 NOR"):
+        nor = freight.nor_savings(con_flete)
+        nor = nor.dropna(subset=["ahorro"]) if len(nor) else nor
+        if nor.empty:
+            empty("No hay embarques en 40 NOR con flete pagado en el período.")
+        else:
+            cap_hq, cap_nor = nor.attrs.get("cap_hq"), nor.attrs.get("cap_nor")
+            kpi_row([
+                KPI("Ahorro por contenedor", fmt.fmt_usd(nor["ahorro"].sum()),
+                    sub=f"<b>{fmt.fmt_int(nor['contenedores'].sum())}</b> contenedores · {fmt.fmt_int(len(nor))} embarques"),
+                KPI("Ahorro por m³", fmt.fmt_usd(nor["ahorro_m3"].sum()) if nor["ahorro_m3"].notna().any() else "—",
+                    sub=f"Capacidad 40 NOR {fmt.fmt_int(cap_nor)} m³ vs 40 ST/HQ {fmt.fmt_int(cap_hq)} m³"),
+                KPI("Diferencia por contenedor", fmt.fmt_usd((nor["ref_hq"] - nor["flete_por_ctnr"]).median(), compact=False),
+                    sub="Mediana: 40 ST/HQ − 40 NOR"),
+            ], columns=3)
+            g = nor.groupby("mes").agg(embarques=("embarque", "count"), contenedores=("contenedores", "sum"),
+                                       nor=("flete_por_ctnr", "median"), hq=("ref_hq", "first"),
+                                       ahorro=("ahorro", "sum"), ahorro_m3=("ahorro_m3", "sum")).reset_index()
+            g["mes_txt"] = g["mes"].map(lambda m: fmt.fmt_month(m, long=True))
+            data_table(g.iloc[::-1], [
+                ColSpec("mes_txt", "Mes ETD"), ColSpec("embarques", "Embarques", "int"),
+                ColSpec("contenedores", "Contenedores", "int"), ColSpec("hq", "40 ST/HQ · mediana (USD)", "usd"),
+                ColSpec("nor", "40 NOR · mediana (USD)", "usd"), ColSpec("ahorro", "Ahorro (USD)", "usd"),
+                ColSpec("ahorro_m3", "Ahorro por m³ (USD)", "usd"),
+            ], key="fp_nor", filename="ahorro_40nor", search=False)
+
     section("¿A quién le pagamos?", "Por forwarder, ordenado por costo total. Montos por contenedor = mediana.")
     with guard("Tabla por forwarder"):
         data_table(by_forwarder(d), [

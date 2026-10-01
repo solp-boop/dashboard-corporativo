@@ -139,3 +139,15 @@ def test_sla_aereo_por_tipo():
     assert list(out["sla_aereo"].fillna(0)) == [24, 24, 16, 0]
     assert list(out["sla_vigente"]) == [True, True, False, True]
     assert list(out["estado_aereo"].fillna("")) == ["Dentro de SLA", "Fuera de SLA", "Dentro de SLA", ""]
+
+
+def test_ahorro_40nor():
+    h = pd.DataFrame({
+        "embarque": ["A", "B", "C", "N1", "N2"], "etd": pd.to_datetime(["2026-09-05"] * 5),
+        "tipo_ctnr": ["40ST/40HQ", "40ST/40HQ", "40ST/40HQ", "40NOR", "40NOR"],
+        "flete_por_ctnr": [8000.0, 8200.0, 9000.0, 6000.0, 7000.0], "contenedores": [1, 1, 1, 2, 1],
+        "capacidad": [68.0, 68.0, 68.0, 60.0, 60.0], "m3": [60.0, 60.0, 60.0, 100.0, 50.0],
+    })
+    nor = freight.nor_savings(h)
+    assert list(nor["ref_hq"]) == [8200.0, 8200.0]
+    assert list(nor["ahorro"]) == [4400.0, 1200.0]

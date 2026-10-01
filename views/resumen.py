@@ -193,6 +193,8 @@ def render_fletes(bundle, filters) -> None:
         cert = (h.loc[ok_cert, "flete_certificado"].sum() / h.loc[ok_cert, "flete_pagado"].sum()
                 if ok_cert.any() else np.nan)
         cert_ok = cert == cert and cert >= settings.KPI_CERTIFICACION_TARGET
+        nor = freight.nor_savings(h)
+        nor_ok = nor.dropna(subset=["ahorro"]) if len(nor) else nor
 
         kpi_row([
             KPI("Costo logístico pagado", fmt.fmt_usd(total),
@@ -205,6 +207,11 @@ def render_fletes(bundle, filters) -> None:
                 sub=(f"<b>{fmt.fmt_int(len(mej))}</b> tarifas mejoradas · mediana "
                      f"{fmt.fmt_usd(mej['rebaja'].median(), compact=False)} por contenedor") if len(mej)
                 else "Sin tarifas renegociadas en el período"),
+            KPI("Ahorro por usar 40 NOR", fmt.fmt_usd(nor_ok["ahorro"].sum()) if len(nor_ok) else "—",
+                status=("ok" if nor_ok["ahorro"].sum() >= 0 else "bad") if len(nor_ok) else "",
+                sub=(f"<b>{fmt.fmt_int(nor_ok['contenedores'].sum())}</b> contenedores 40 NOR vs 40 ST/HQ del mismo mes"
+                     + (f" · por m³: {fmt.fmt_usd(nor_ok['ahorro_m3'].sum())}" if nor_ok["ahorro_m3"].notna().any() else ""))
+                if len(nor_ok) else "Sin embarques en 40 NOR"),
             KPI("Flete certificado", fmt.fmt_pct(cert),
                 status="ok" if cert_ok else ("bad" if cert == cert else ""),
                 sub=f"Objetivo ≥ {fmt.fmt_pct(settings.KPI_CERTIFICACION_TARGET)}"),
@@ -213,7 +220,9 @@ def render_fletes(bundle, filters) -> None:
         st.caption(f"Gastos en origen cargados en {fmt.fmt_int(con_origen)} de {fmt.fmt_int(len(h))} embarques "
                    "marítimos. «Ahorro vs mercado» compara el flete por contenedor con el promedio de las "
                    "cotizaciones del mismo mes, tipo de contenedor y destino. «Rebaja negociada» compara cada "
-                   "tarifa negociada con la original del forwarder.")
+                   "tarifa negociada con la original del forwarder. «Ahorro por usar 40 NOR» compara el flete pagado de cada "
+                   "contenedor 40 NOR con la mediana pagada por un 40 ST/HQ ese mismo mes; «por m³» corrige por la "
+                   "menor capacidad del 40 NOR.")
 
         c1, c2 = st.columns(2, gap="medium")
         with c1:

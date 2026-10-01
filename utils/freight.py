@@ -188,3 +188,30 @@ def negotiation(cot: pd.DataFrame | None, sin: pd.DataFrame | None) -> pd.DataFr
 def savings_vs_market(hist: pd.DataFrame) -> pd.Series:
     """USD ahorrados contra el promedio de mercado del mes, por embarque (negativo = pagamos más)."""
     return (hist["mercado_mes"] - hist["flete_por_ctnr"]) * hist["contenedores"]
+
+
+def nor_savings(hist: pd.DataFrame) -> pd.DataFrame:
+    """Ahorro por usar 40 NOR en lugar de 40 ST/40 HQ.
+
+    Para cada embarque en 40 NOR: (mediana del flete por contenedor pagado en
+    40 ST/40 HQ ese mismo mes − flete por contenedor pagado en 40 NOR) × contenedores.
+    También se calcula por m³, porque el 40 NOR carga un poco menos: se usa la
+    capacidad de cada tipo (columna "Capacidad contenedor").
+    """
+    d = hist[(hist["flete_por_ctnr"] > 0) & hist["etd"].notna()].copy()
+    d["mes"] = calc.month_start(d["etd"])
+    hq = d[d["tipo_ctnr"] == "40ST/40HQ"]
+    nor = d[d["tipo_ctnr"] == "40NOR"].copy()
+    if nor.empty:
+        return nor.assign(ref_hq=np.nan, ahorro=np.nan, ahorro_m3=np.nan)
+    ref = hq.groupby("mes")["flete_por_ctnr"].median()
+    cap_hq = hq["capacidad"].median() if "capacidad" in hq and hq["capacidad"].notna().any() else np.nan
+    cap_nor = nor["capacidad"].median() if "capacidad" in nor and nor["capacidad"].notna().any() else np.nan
+    nor["ref_hq"] = nor["mes"].map(ref)
+    nor["ahorro"] = (nor["ref_hq"] - nor["flete_por_ctnr"]) * nor["contenedores"]
+    if cap_hq == cap_hq and cap_nor == cap_nor and cap_hq and cap_nor:
+        nor["ahorro_m3"] = (nor["ref_hq"] / cap_hq - nor["flete_por_ctnr"] / cap_nor) * nor["m3"]
+    else:
+        nor["ahorro_m3"] = np.nan
+    nor.attrs.update(cap_hq=cap_hq, cap_nor=cap_nor)
+    return nor
