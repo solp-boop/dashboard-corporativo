@@ -12,7 +12,7 @@ from utils import formatting as fmt
 from utils.filters import apply_filters
 from views._common import ctx
 
-ORDER = ["reservas", "historicas", "aereos", "planif", "cotizaciones"]
+ORDER = ["reservas", "historicas", "aereos", "planif", "emb_hist", "cotizaciones"]
 
 
 def problem_rows(key: str, df: pd.DataFrame) -> pd.DataFrame:

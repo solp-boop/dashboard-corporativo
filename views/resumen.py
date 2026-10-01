@@ -13,7 +13,8 @@ from config import settings
 from config.mappings import MODOS_MARITIMOS
 from utils import calculations as calc
 from utils import formatting as fmt
-from views._common import ctx, en_curso, filtered, kpis_en_curso, month_labels, stat_sub, today
+from views._common import (ctx, en_curso, filtered, kpis_en_curso, month_labels, periodo_txt, stat_sub,
+                           today)
 
 
 def alerts(res: pd.DataFrame) -> pd.DataFrame:
@@ -61,9 +62,10 @@ def render() -> None:
             kpis_en_curso(res, info)
 
     # ------------------------------------------------------------------ SLA
+    periodo = periodo_txt(filters)
     section("¿Estamos cumpliendo SLA?",
-            "Embarques marítimos realizados (Reservas Históricas) en el período. "
-            "Consolidación = ETD − fecha de packeo mínima. Mediana como indicador principal.")
+            f"Embarques marítimos que zarparon {periodo}. Consolidación = ETD − fecha de packeo mínima. "
+            "Los tiempos se informan con la mediana.")
     hist_all = require(bundle, "historicas")
     if hist_all is not None:
         with guard("Cumplimiento de SLA"):
@@ -77,12 +79,18 @@ def render() -> None:
             p_last, _ = calc.cumplimiento(hist.loc[m == last, "dias_consolidacion"], hist.loc[m == last, "sla_consolidacion"])
             p_prev, _ = calc.cumplimiento(hist.loc[m == prev, "dias_consolidacion"], hist.loc[m == prev, "sla_consolidacion"])
             delta = (p_last - p_prev) if not (np.isnan(p_last) or np.isnan(p_prev)) else np.nan
-            delta_txt = (f"{fmt.fmt_month(last)}: <b>{fmt.fmt_pct(p_last)}</b> "
-                         f"({'+' if delta > 0 else ''}{fmt.fmt_num(delta * 100, 0)} pp vs {fmt.fmt_month(prev)})"
-                         if not np.isnan(delta) else "Sin comparación mensual")
+            n_ok = int((hist["dias_consolidacion"] <= hist["sla_consolidacion"]).sum())
+            if np.isnan(delta):
+                delta_txt = ""
+            else:
+                cambio = ("igual que" if round(delta * 100) == 0 else
+                          f"{fmt.fmt_int(abs(delta * 100))} puntos {'más' if delta > 0 else 'menos'} que")
+                delta_txt = (f"<br>Último mes cerrado ({fmt.fmt_month(last, long=True).lower()}): "
+                             f"<b>{fmt.fmt_pct(p_last)}</b>, {cambio} {fmt.fmt_month(prev, long=True).split()[0].lower()}")
 
-            cards = [KPI("Cumplimiento SLA",
-                         fmt.fmt_pct(pct) if n_pct >= settings.MIN_SAMPLE else "—", sub=delta_txt)]
+            cards = [KPI("Cumplimiento SLA consolidación",
+                         fmt.fmt_pct(pct) if n_pct >= settings.MIN_SAMPLE else "—",
+                         sub=f"<b>{fmt.fmt_int(n_ok)}</b> de {fmt.fmt_int(n_pct)} embarques dentro del SLA" + delta_txt)]
             for est in ("Monoproveedor", "Consolidado"):
                 sub = hist[hist["estructura"] == est]
                 s = calc.describe(sub["dias_consolidacion"])
@@ -93,12 +101,13 @@ def render() -> None:
                                  sub=f"SLA {fmt.fmt_int(sla_ref)} d · " + stat_sub(s)))
             sla_tot = float(hist["sla_total"].median()) if len(hist) else np.nan
             s_tot, b_tot = status_for(tot.median, sla_tot) if tot.enough else ("", "")
-            cards.append(KPI("Total packeo→ETA (mediana)", fmt.fmt_int(tot.median) if tot.enough else "—",
+            cards.append(KPI("Fin de producción → ETA", fmt.fmt_int(tot.median) if tot.enough else "—",
                              unit="d", status=s_tot, badge=b_tot,
                              sub=f"Target {fmt.fmt_int(sla_tot)} d · " + stat_sub(tot)))
             kpi_row(cards)
             cons = calc.describe(hist["dias_consolidacion"])
-            coverage(cons.n, len(hist), "embarques con fechas de packeo y ETD válidas")
+            coverage(cons.n, len(hist), "embarques con fechas de packeo y ETD válidas",
+                     f"fin de producción → ETA: {fmt.fmt_int(tot.n)} con fecha de fin de producción")
 
             c1, c2 = st_columns()
             with c1:
@@ -152,6 +161,10 @@ def render() -> None:
                     from components.layout import semaforo_legend
                     semaforo_legend()
 
+    # ------------------------------------------------------------------ aéreos
+    section("Cumplimiento de SLA · aéreos")
+    st_placeholder()
+
     # ------------------------------------------------------------------ atención
     section("¿Qué operaciones requieren atención?",
             f"ETD en los próximos {settings.ALERT_HORIZON_DAYS} días sin confirmar, zarpados sin documentación, "
@@ -180,3 +193,9 @@ def st_columns():
     import streamlit as st
 
     return st.columns(2, gap="medium")
+
+
+def st_placeholder():
+    from components.layout import empty as _empty
+
+    _empty("Espacio reservado para el SLA de aéreos: se arma con la definición que nos vas a pasar.")

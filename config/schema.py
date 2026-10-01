@@ -225,8 +225,23 @@ COTIZACIONES = DatasetSchema(
     ),
 )
 
+# Embarques Historicos (una fila por SO × embarque): solo se usa para traer la
+# fecha de fin de producción real a cada embarque.
+EMB_HIST = DatasetSchema(
+    key="emb_hist",
+    title="Embarques Históricos (SO × embarque)",
+    id_column=None,
+    columns=(
+        C("embarque", "Embarque", kind="text", required=True),
+        C("so", "SO", kind="text"),
+        C("fin_produccion", "Fecha de fin de produccion real", "Fecha de fin de producción real",
+          kind="date", required=True),
+        C("etd", "ETD", kind="date"),
+    ),
+)
+
 SCHEMAS: dict[str, DatasetSchema] = {
-    s.key: s for s in (RESERVAS, HISTORICAS, AEREOS, PLANIF, COTIZACIONES)
+    s.key: s for s in (RESERVAS, HISTORICAS, AEREOS, PLANIF, COTIZACIONES, EMB_HIST)
 }
 
 # Solapa Validaciones: se interpreta por posición relativa porque tiene

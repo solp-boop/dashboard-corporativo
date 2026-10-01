@@ -28,6 +28,7 @@ DATASET_SOURCES: dict[str, tuple[str, str]] = {
     "aereos": ("tablero", "SEGUIMIENTO AEREOS"),
     "planif": ("tablero", "Planif cargas"),
     "validaciones": ("tablero", "Validaciones"),
+    "emb_hist": ("tablero", "Embarques Historicos"),
     "cotizaciones": ("cotizaciones", "Cotizaciones Maritimos Negociado"),
 }
 
@@ -41,6 +42,7 @@ SHEET_GIDS: dict[str, dict[str, int]] = {
         "Reservas Historicas": 32771816,
         "SEGUIMIENTO AEREOS": 88538385,
         "Validaciones": 889641786,
+        "Embarques Historicos": 50628730,
     },
     "cotizaciones": {
         "Cotizaciones Maritimos Negociado": 0,
@@ -95,7 +97,7 @@ DURATION_RANGES: dict[str, tuple[int, int]] = {
 # --------------------------------------------------------------------------
 # Consolidación (ETD - Packeo mín.). Monoproveedor usa un SLA fijo; consolidado
 # usa el target por puerto de la solapa Validaciones.
-SLA_CONSOLIDACION_MONO = 7
+SLA_CONSOLIDACION_MONO = 15
 SLA_CONSOLIDACION_DEFAULT = 25   # si el puerto no tiene target
 SLA_TT_DEFAULT = 50
 SLA_TOTAL_DEFAULT = 75

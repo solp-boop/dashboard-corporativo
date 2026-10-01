@@ -22,7 +22,7 @@ ETAPAS = [
     ("dias_agente", "Agente: instrucción → ETD"),
     ("dias_consolidacion", "Consolidación: packeo → ETD"),
     ("dias_tt", "Tránsito: ETD → ETA"),
-    ("dias_total", "Total: packeo → ETA"),
+    ("dias_total", "Total: fin de producción → ETA"),
 ]
 
 
@@ -114,7 +114,7 @@ def render() -> None:
 
     section("Tiempos por puerto de origen",
             f"Mediana real vs target de Validaciones · puertos con ≥ {settings.MIN_SAMPLE} embarques. "
-            "El semáforo compara el total (packeo → ETA) con el target total.")
+            "El semáforo compara el total (fin de producción → ETA) con el target total.")
     with guard("Tabla por puerto"):
         semaforo_legend()
         g = df.groupby("puerto").agg(

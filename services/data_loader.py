@@ -39,6 +39,7 @@ KEY_FIELDS = {
     "aereos": {"etd": "ETD", "eta": "ETA", "f_packeo_min": "Fecha packeo mín.",
                "f_ingreso_wh": "Ingreso WH", "eta_caldas": "ETA Caldas", "forwarder": "Forwarder"},
     "planif": {"etd": "ETD", "puerto": "Puerto de salida", "proveedor": "Proveedor", "m3": "M3"},
+    "emb_hist": {"fin_produccion": "Fecha fin de producción real"},
     "cotizaciones": {"flete": "Valor flete", "puerto": "POL", "tipo_ctnr": "Tipo contenedor",
                      "validez_desde": "Validez desde", "validez_hasta": "Validez hasta"},
 }
@@ -239,7 +240,7 @@ def add_durations(df: pd.DataFrame, specs: dict[str, tuple[str, str]], q: Datase
 METRIC_LABELS = {
     "dias_comex": "packeo → instrucción", "dias_agente": "instrucción → ETD",
     "dias_consolidacion": "consolidación (packeo → ETD)", "dias_tt": "tránsito (ETD → ETA)",
-    "dias_total": "total (packeo → ETA)", "desvio_etd": "desvío ETD vs estimada",
+    "dias_total": "total (fin de producción → ETA)", "desvio_etd": "desvío ETD vs estimada",
     "dias_espera": "espera (packeo mín. → máx.)", "dias_packeo_wh": "packeo → WH",
     "dias_wh_etd": "WH → ETD", "dias_etd_eta": "ETD → ETA", "dias_eta_caldas": "ETA → Caldas",
     "dias_total_aereo": "total aéreo (packeo → Caldas)",
@@ -250,7 +251,7 @@ MARITIME_DURATIONS = {
     "dias_agente": ("etd", "f_instruccion"),
     "dias_consolidacion": ("etd", "f_packeo_min"),
     "dias_tt": ("eta", "etd"),
-    "dias_total": ("eta", "f_packeo_min"),
+    "dias_total": ("eta", "f_fin_produccion"),
     "desvio_etd": ("etd", "etd_estimada"),
     "dias_espera": ("f_packeo_max", "f_packeo_min"),
 }
@@ -282,6 +283,28 @@ def add_freight(df: pd.DataFrame) -> pd.DataFrame:
     df["tipo_ctnr"] = df["tipo_carga"].map(
         lambda v: mappings.CTNR_POR_TIPO_CARGA.get(dc.fold(v)) if v else None)
     return df
+
+
+def attach_fin_produccion(frames: dict[str, pd.DataFrame]) -> None:
+    """Agrega a Reservas e Históricas la fecha de fin de producción de cada embarque.
+
+    Viene de Embarques Historicos (una fila por SO). Se toma la fecha MÁS
+    TEMPRANA entre las SO del embarque, igual que la consolidación usa el
+    packeo mínimo.
+    """
+    eh = frames.get("emb_hist")
+    if eh is None or eh.empty:
+        for key in ("reservas", "historicas"):
+            if key in frames:
+                frames[key]["f_fin_produccion"] = pd.NaT
+        return
+    fp = (eh.dropna(subset=["fin_produccion"])
+            .assign(_k=lambda d: dc.id_key(d["embarque"]))
+            .groupby("_k")["fin_produccion"].min())
+    for key in ("reservas", "historicas"):
+        if key in frames:
+            df = frames[key]
+            df["f_fin_produccion"] = pd.to_datetime(dc.id_key(df["embarque"]).map(fp), errors="coerce")
 
 
 def tipo_negocio_planif(row_marca, row_clase) -> str:
@@ -517,6 +540,8 @@ def build_bundle(source: SheetSource, datasets: dict[str, tuple[str, str]] | Non
                 f[fieldname] = dc.unify(f[fieldname], canon)
         if fieldname == "puerto" and not sla.empty:
             sla["puerto"] = dc.unify(sla["puerto"], canon)
+
+    attach_fin_produccion(frames)
 
     for key in list(frames):
         q = quality[key]

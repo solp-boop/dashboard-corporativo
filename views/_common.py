@@ -30,6 +30,16 @@ def today() -> pd.Timestamp:
     return pd.Timestamp.today().normalize()
 
 
+def periodo_txt(filters: FilterState) -> str:
+    """'entre el 01/01/2026 y hoy' según el período elegido en la barra lateral."""
+    if not filters.has_period:
+        return "en todo el histórico"
+    a = f"el {filters.start:%d/%m/%Y}" if filters.start else "el inicio del histórico"
+    if filters.end and pd.Timestamp(filters.end) < today():
+        return f"entre {a} y el {filters.end:%d/%m/%Y}"
+    return f"entre {a} y hoy"
+
+
 def stat_sub(stat, unit: str = "d") -> str:
     """'P25–P75: 15–31 d · n=120'."""
     if not stat.n:
