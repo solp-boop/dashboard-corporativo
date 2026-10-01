@@ -13,7 +13,7 @@ from config import settings
 from config.mappings import MODOS_MARITIMOS
 from utils import calculations as calc
 from utils import formatting as fmt
-from views._common import ctx, filtered, month_labels, stat_sub, today
+from views._common import ctx, en_curso, filtered, kpis_en_curso, month_labels, stat_sub, today
 
 
 def alerts(res: pd.DataFrame) -> pd.DataFrame:
@@ -27,13 +27,14 @@ def alerts(res: pd.DataFrame) -> pd.DataFrame:
         for i in res.index[mask.fillna(False)]:
             reasons[i] = reasons[i] + [text if isinstance(text, str) else text(res.loc[i])]
 
+    mar = res["grupo_modo"] == "Marítimo" if "grupo_modo" in res else pd.Series(True, index=res.index)
     add(upcoming & ~res["etd_ok"], "ETD sin confirmar por el forwarder")
-    docs_missing = (res["draft_bl"].fillna("NO").str.upper() != "SI") | \
-                   (res["pl_final"].fillna("NO").str.upper() != "SI")
+    docs_missing = mar & ((res["draft_bl"].fillna("NO").astype(str).str.upper() != "SI") |
+                          (res["pl_final"].fillna("NO").astype(str).str.upper() != "SI"))
     sailed = res["etd"].between(t - pd.Timedelta(days=30), t - pd.Timedelta(days=3))
     add(sailed & docs_missing, "Zarpó hace más de 3 días sin Draft BL / Packing list final")
     future = res["etd"] >= t
-    add(future & (res["estado_consolidacion"] == calc.SEMAFORO_BAD),
+    add(future & mar & (res["estado_consolidacion"] == calc.SEMAFORO_BAD),
         lambda r: f"Consolidación proyectada {fmt.fmt_int(r['dias_consolidacion'])} d "
                   f"(SLA {fmt.fmt_int(r['sla_consolidacion'])} d)")
     add(res["etd"].isna() & res["f_instruccion"].notna(), "Instruido sin ETD cargado")
@@ -50,29 +51,15 @@ def render() -> None:
     bundle, filters = ctx()
 
     # ------------------------------------------------------------------ hoy
-    section("¿Cómo estamos hoy?", "Embarques cargados en Reservas (en curso), con los filtros aplicados.")
-    res_all = require(bundle, "reservas")
+    section("¿Cómo estamos hoy?", "Embarques en curso: marítimos y camión de Reservas (con responsable asignado) "
+            "y aéreos de Seguimiento Aéreos que no están entregados.")
     res = None
-    if res_all is not None:
-        with guard("Operación en curso"):
-            res = filtered(bundle, "reservas", filters)
-            t = today()
-            week = res["etd"].between(t, t + pd.Timedelta(days=settings.ALERT_HORIZON_DAYS))
-            mar = res[res["modo"].isin(MODOS_MARITIMOS)]
-            ok_n = int(mar["etd_ok"].sum())
-            pct_ok = ok_n / len(mar) if len(mar) else np.nan
-            kpi_row([
-                KPI("Embarques en curso", fmt.fmt_int(len(res)),
-                    sub=f"<b>{fmt.fmt_int(res['contenedores'].sum())}</b> contenedores"),
-                KPI("Volumen en proceso", fmt.fmt_int(res["m3"].sum()), unit="m³"),
-                KPI("FOB en proceso", fmt.fmt_usd(res["fob"].sum())),
-                KPI("ETD confirmado", fmt.fmt_pct(pct_ok),
-                    sub=f"<b>{fmt.fmt_int(ok_n)}</b> OK · <b>{fmt.fmt_int(len(mar) - ok_n)}</b> pendientes"),
-                KPI(f"Zarpan en {settings.ALERT_HORIZON_DAYS} días", fmt.fmt_int(week.sum()),
-                    sub=f"<b>{fmt.fmt_int(res.loc[week, 'm3'].sum())} m³</b> · "
-                        f"{fmt.fmt_int(res.loc[week, 'contenedores'].sum())} cont."),
-            ])
-            filter_notes(res_all, filters, "Reservas")
+    with guard("Operación en curso"):
+        res, info = en_curso(bundle, filters)
+        if res.empty:
+            empty()
+        else:
+            kpis_en_curso(res, info)
 
     # ------------------------------------------------------------------ SLA
     section("¿Estamos cumpliendo SLA?",
@@ -179,6 +166,7 @@ def render() -> None:
                 data_table(al, [
                     ColSpec("prioridad", "Prioridad"),
                     ColSpec("embarque", "Embarque"),
+                    ColSpec("grupo_modo", "Modo"),
                     ColSpec("motivo", "Motivo", width="large"),
                     ColSpec("etd", "ETD", "date"),
                     ColSpec("forwarder", "Forwarder"),

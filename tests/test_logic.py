@@ -142,3 +142,30 @@ def test_exportacion_excel_y_csv_respetan_filas():
     csv = to_csv(disp).decode("utf-8-sig")
     assert csv.splitlines()[0] == "Embarque;M3;ETD;Estado"
     assert "FCL 1;1,5;01/09/2026" in csv
+
+
+def test_en_curso_reglas():
+    """Reservas con responsable (sin AIR) + aéreos no entregados; el período no filtra."""
+    import datetime as dt
+
+    from services.data_loader import DataBundle
+    from views._common import en_curso
+
+    res = pd.DataFrame({
+        "embarque": ["FCL 1", "FCL 2", "AIR 9", "TRUCK 1"], "responsable": ["Sol", None, "Sofi", "David"],
+        "modo": ["Marítimo FCL", "Marítimo FCL", "Aéreo", "Terrestre"], "etd_ok": [True, False, True, False],
+        "etd": pd.to_datetime(["2020-01-01", "2026-10-02", "2026-10-02", None]),
+        "contenedores": [2, 1, None, 1], "m3": [60, 30, 1, 5], "fob": [1, 1, 1, 1], "fecha_ref": pd.NaT,
+    })
+    aer = pd.DataFrame({
+        "embarque": ["AIR 1", "AIR 2", "AIR 3"], "estadio": ["ENTREGADO", "EN ORIGEN", "NACIONALIZADO"],
+        "modo": ["Aéreo"] * 3, "etd_ok": [True, False, True], "etd": pd.to_datetime(["2026-09-01"] * 3),
+        "m3": [1, 2, 3], "fob": [1, 1, 1], "fecha_ref": pd.NaT,
+    })
+    b = DataBundle(datasets={"reservas": res, "aereos": aer}, sla_puertos=pd.DataFrame(), quality={},
+                   errors=[], loaded_at=dt.datetime.now(), source_name="test")
+    df, info = en_curso(b, FilterState(dt.date(2026, 1, 1), None, {}))
+    assert sorted(df["embarque"]) == ["AIR 2", "AIR 3", "FCL 1", "TRUCK 1"]
+    assert info == {"sin_responsable": 1, "air_en_reservas": 1, "aereos_entregados": 1}
+    assert df.set_index("embarque")["grupo_modo"].to_dict() == {
+        "FCL 1": "Marítimo", "TRUCK 1": "Camión", "AIR 2": "Aéreo", "AIR 3": "Aéreo"}

@@ -334,6 +334,7 @@ def finish_dataset(key: str, df: pd.DataFrame, sla: pd.DataFrame, q: DatasetQual
             {e.upper() for e in mappings.ESTADIOS_CERRADOS})
         df["fob"] = df["fob_simi"]
         df["modo"] = df["modo"].fillna("Aéreo")
+        df["etd_ok"] = df["etd_ok"].fillna(False).astype(bool)
     if key == "planif":
         df["estado_instruccion"] = df["f_instruccion_raw"].map(estado_instruccion)
         df["f_instruccion"] = df["f_instruccion_raw"].map(lambda v: dc.parse_date_value(v)[0])
@@ -368,6 +369,8 @@ def _is_filler(key: str, df: pd.DataFrame) -> pd.Series:
         no_data = df[business].isna().all(axis=1)
         if "m3" in df:
             no_data &= ~(df["m3"] > 0)
+        if "estadio" in df:  # aéreos: con estadio cargado ya es una operación
+            no_data &= df["estadio"].isna()
         return non_op | no_data
     return non_op
 

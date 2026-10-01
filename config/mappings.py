@@ -134,8 +134,8 @@ MODO_POR_PREFIJO: dict[str, str] = {
 }
 MODOS_MARITIMOS = {"Marítimo FCL", "Marítimo LCL"}
 
-# Estadios aéreos que se consideran cerrados.
-ESTADIOS_CERRADOS = {"ENTREGADO", "NACIONALIZADO"}
+# Estadios aéreos que se consideran cerrados (el resto está "en curso").
+ESTADIOS_CERRADOS = {"ENTREGADO"}
 
 # Embarques que no son operaciones reales (filas de relleno).
 EMBARQUES_NO_OPERATIVOS = {"air proyeccion", "proyeccion"}

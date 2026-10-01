@@ -14,46 +14,29 @@ from config import settings
 from config.mappings import MODOS_MARITIMOS
 from utils import calculations as calc
 from utils import formatting as fmt
-from views._common import ctx, filtered, stat_sub, today
+from views._common import ctx, en_curso, filtered, kpis_en_curso, stat_sub, today
 
 
 def render() -> None:
     bundle, filters = ctx()
-    base = require(bundle, "reservas")
-    if base is None:
-        return
-    df = filtered(bundle, "reservas", filters)
-    filter_notes(base, filters, "Reservas")
+    df, info = en_curso(bundle, filters)
     if df.empty:
         empty()
         return
 
     t = today()
     week_start = t - pd.Timedelta(days=t.weekday())
-    week_end = week_start + pd.Timedelta(days=6)
-    mar = df[df["modo"].isin(MODOS_MARITIMOS)]
+    mar = df[df["grupo_modo"] == "Marítimo"]
 
-    section("Estado de las reservas", "Todos los embarques cargados en la solapa Reservas.")
-    with guard("KPIs de reservas"):
-        ok_n = int(mar["etd_ok"].sum())
-        this_week = df["etd"].between(week_start, week_end)
+    section("Estado de los embarques en curso",
+            "Marítimos y camión de Reservas (con responsable asignado) + aéreos de Seguimiento Aéreos no entregados.")
+    with guard("KPIs de embarques en curso"):
+        kpis_en_curso(df, info)
         mono_n = int((mar["estructura"] == "Monoproveedor").sum())
         cons_n = int((mar["estructura"] == "Consolidado").sum())
         adv = mar["booking"].value_counts()
-        kpi_row([
-            KPI("Embarques", fmt.fmt_int(len(df)),
-                sub=f"<b>{fmt.fmt_int(len(mar))}</b> marítimos · {fmt.fmt_int(len(df) - len(mar))} otros"),
-            KPI("Contenedores", fmt.fmt_int(df["contenedores"].sum()),
-                sub=f"<b>{fmt.fmt_int(df['m3'].sum())} m³</b> · {fmt.fmt_usd(df['fob'].sum())}"),
-            KPI("ETD confirmado", fmt.fmt_pct(ok_n / len(mar) if len(mar) else np.nan),
-                sub=f"<b>{fmt.fmt_int(ok_n)}</b> OK · <b>{fmt.fmt_int(len(mar) - ok_n)}</b> pendientes"),
-            KPI(f"Semana {week_start:%d/%m}–{week_end:%d/%m}", fmt.fmt_int(this_week.sum()), unit="emb.",
-                sub=f"<b>{fmt.fmt_int(df.loc[this_week, 'm3'].sum())} m³</b> · "
-                    f"{fmt.fmt_int(df.loc[this_week, 'contenedores'].sum())} cont."),
-            KPI("Mono / Consolidado", f"{fmt.fmt_int(mono_n)} / {fmt.fmt_int(cons_n)}",
-                sub=f"In advance <b>{fmt.fmt_int(adv.get('In advance', 0))}</b> · "
-                    f"Spot <b>{fmt.fmt_int(adv.get('Spot', 0))}</b>"),
-        ])
+        st.caption(f"Marítimo: {fmt.fmt_int(mono_n)} monoproveedor / {fmt.fmt_int(cons_n)} consolidado · "
+                   f"in advance {fmt.fmt_int(adv.get('In advance', 0))} / spot {fmt.fmt_int(adv.get('Spot', 0))}.")
 
     section("Consolidación de los embarques en curso",
             "ETD (confirmado o previsto) − fecha de packeo mínima. Mediana contra SLA.")
@@ -99,8 +82,8 @@ def render() -> None:
             charts.show(fig, key="emb_semana")
 
     with c2, guard("Pendientes por forwarder"):
-        chart_title("ETD pendiente de confirmar, por forwarder", "Embarques marítimos sin «ETD OK FFWW»")
-        pend = mar[~mar["etd_ok"]]
+        chart_title("ETD pendiente de confirmar, por forwarder", "Embarques en curso sin «ETD OK FFWW»")
+        pend = df[~df["etd_ok"]]
         g = pend.groupby("forwarder").size().sort_values(ascending=False)
         if g.empty:
             empty("Todos los embarques tienen el ETD confirmado.")
@@ -116,7 +99,8 @@ def render() -> None:
         semaforo_legend()
         tbl = df.sort_values("etd")
         data_table(tbl, [
-            ColSpec("embarque", "Embarque"), ColSpec("empresa", "Empresa"), ColSpec("puerto", "Puerto"),
+            ColSpec("embarque", "Embarque"), ColSpec("grupo_modo", "Modo"), ColSpec("estadio", "Estadio (aéreo)"),
+            ColSpec("empresa", "Empresa"), ColSpec("puerto", "Puerto"),
             ColSpec("forwarder", "Forwarder"), ColSpec("tipo_carga", "Tipo carga"),
             ColSpec("estructura", "Estructura"), ColSpec("booking", "Booking"),
             ColSpec("contenedores", "Cont.", "int"), ColSpec("m3", "M3", "num"), ColSpec("fob", "FOB (USD)", "usd"),
