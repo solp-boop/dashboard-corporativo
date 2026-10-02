@@ -17,7 +17,7 @@ from components.tables import ColSpec, data_table
 from config import settings
 from utils import calculations as calc
 from utils import formatting as fmt
-from views._common import ctx, filtered, month_labels, today
+from views._common import ctx, filtered, month_labels, sla_por_grupo, today
 
 TRAMOS = [
     ("dias_packeo_wh", "Packeo → WH"),
@@ -25,6 +25,12 @@ TRAMOS = [
     ("dias_etd_eta", "ETD → ETA"),
     ("dias_eta_caldas", "ETA → Caldas"),
 ]
+
+
+def riesgo_aereo(act: pd.DataFrame, today: pd.Timestamp) -> pd.DataFrame:
+    """Aéreos activos proyectados fuera del SLA de su tipo y todavía sin ETD OK FFWW."""
+    r = riesgo(act, today)
+    return r[r["estado_sla"].isin([calc.SEMAFORO_WARN, calc.SEMAFORO_BAD]) & ~r["etd_ok"].fillna(False).astype(bool)]
 
 
 def riesgo(act: pd.DataFrame, today: pd.Timestamp) -> pd.DataFrame:
@@ -56,8 +62,8 @@ def render_en_curso(bundle=None, filters=None) -> None:
     todos = filtered(bundle, "aereos", filters, use_period=False)
     act = todos[todos["activo"]]
 
-    section("Aéreos en gestión", "Seguimiento Aéreos: todo lo que no está ENTREGADO. Los tiempos por mes, "
-            "tramos y tipo de negocio están en Histórico.")
+    section("Aéreos en gestión", "Seguimiento Aéreos: todo lo que no está ENTREGADO. Los tiempos por mes y por tramo están en "
+            "Histórico.")
     if act.empty:
         empty("No hay aéreos activos.")
         return
@@ -72,36 +78,22 @@ def render_en_curso(bundle=None, filters=None) -> None:
             KPI("FOB activo", fmt.fmt_usd(act["fob"].sum())),
             KPI("Chargeable weight", fmt.fmt_int(act["chargeable"].sum()), unit="kg"),
             KPI("En riesgo", fmt.fmt_int(len(en_riesgo)), status="bad" if len(en_riesgo) else "ok",
-                sub="proyectados fuera del SLA de su tipo, sin ETD OK"),
+                sub="fuera del SLA de su tipo, sin ETD OK · detalle en Control → Alertas"),
         ])
 
-    c1, _ = st.columns(2, gap="medium")
-    with c1, guard("Estadios"):
-        chart_title("Embarques activos por estadio")
-        g = act.groupby("estadio").size().sort_values(ascending=False)
-        if g.empty:
-            empty("No hay aéreos activos.")
-        else:
-            charts.show(charts.hbar(g.index, g.values, text=[str(v) for v in g.values],
-                                    hover="%{y}: %{x} embarques<extra></extra>", x_title="embarques"),
-                        key="aer_estadio")
-
-    section("Detalle de embarques en riesgo",
-            "Tiempo total proyectado (packeo mínimo → ETA Caldas) fuera del SLA de su tipo (Atención o Fuera de SLA) "
-            "y todavía sin «ETD OK FFWW». Ordenado por ETD.")
-    with guard("Aéreos en riesgo"):
-        if en_riesgo.empty:
-            empty("No hay aéreos en riesgo.")
-        else:
-            data_table(en_riesgo.sort_values("etd"), [
-                ColSpec("embarque", "Embarque"), ColSpec("forwarder", "Forwarder"), ColSpec("etd", "ETD", "date"),
-                ColSpec("tipo_negocio", "Tipo de negocio"), ColSpec("estadio", "Estadio"),
-                ColSpec("dias_proyectados", "Total proyectado (d)", "days"), ColSpec("sla_aereo", "SLA (d)", "days"),
-                ColSpec("estado_sla", "Estado", "status"),
-            ], key="aer_riesgo", filename="aereos_en_riesgo", search=False)
-        sin_sla = int(r["sla_aereo"].isna().sum())
-        if sin_sla:
-            st.caption(f"{fmt.fmt_int(sin_sla)} aéreos activos sin SLA para su tipo de negocio no se evalúan.")
+    section("Operaciones por tipo de negocio",
+            "Aéreos en curso por tipo de negocio y estadio, y cuántos están dentro o fuera del SLA de su tipo "
+            "(tiempo total proyectado). Seguimiento Aéreos no tiene responsable de la carga, por eso se abre por "
+            "tipo de negocio.")
+    with guard("Operaciones por tipo de negocio"):
+        r2 = r.assign(tipo_negocio=r["tipo_sla"].where(r["tipo_sla"].notna(), r["tipo_negocio"]))
+        estadios = r2["estadio"].value_counts().index.tolist()
+        chart_title("Por estadio")
+        st.markdown(sla_por_grupo(r2, "tipo_negocio", "estado_sla", "Tipo de negocio",
+                                  extra=estadios, extra_col="estadio", extra_label="Estadio", sla=False),
+                    unsafe_allow_html=True)
+        chart_title("Dentro / fuera del SLA de su tipo", "Tiempo total proyectado · Fuera = Atención + Fuera de SLA")
+        st.markdown(sla_por_grupo(r2, "tipo_negocio", "estado_sla", "Tipo de negocio"), unsafe_allow_html=True)
 
 
 def render_historico(bundle, filters) -> None:

@@ -10,7 +10,8 @@ from components.tables import ColSpec, data_table
 from config import settings
 from utils import calculations as calc
 from utils import formatting as fmt
-from views._common import ctx, en_curso, today
+from views import aereos
+from views._common import ctx, en_curso, filtered, maritimos_en_curso, riesgo_maritimo, today
 
 # Tipos de alerta (clave, título de la tarjeta).
 TIPOS = [
@@ -55,6 +56,40 @@ def alerts(res: pd.DataFrame) -> pd.DataFrame:
     return out.sort_values(["prioridad", "etd"], ascending=[True, True])
 
 
+def _tabla_alertas(bundle, filters) -> None:
+    res, _ = en_curso(bundle, filters)
+    if res.empty:
+        empty()
+        return
+    al = alerts(res)
+    if al.empty:
+        empty("No hay alertas para los filtros seleccionados.")
+        return
+
+    n_alta = int((al["prioridad"] == "Alta").sum())
+    cards = [KPI("Embarques con alerta", fmt.fmt_int(len(al)),
+                 sub=f"<b>{fmt.fmt_int(n_alta)}</b> de prioridad alta",
+                 status="bad" if n_alta else "warn")]
+    for key, label in TIPOS:
+        n = int(al["tipos"].map(lambda ts, k=key: k in ts).sum())
+        cards.append(KPI(label, fmt.fmt_int(n), status="warn" if n else "ok"))
+    kpi_row(cards)
+
+    data_table(al, [
+        ColSpec("prioridad", "Prioridad"),
+        ColSpec("embarque", "Embarque"),
+        ColSpec("grupo_modo", "Modo"),
+        ColSpec("motivo", "Motivo", width="large"),
+        ColSpec("etd", "ETD", "date"),
+        ColSpec("forwarder", "Forwarder"),
+        ColSpec("puerto", "Puerto"),
+        ColSpec("responsable", "Responsable"),
+        ColSpec("m3", "M3", "num"),
+        ColSpec("estado_consolidacion", "Consolidación", "status"),
+    ], key="alertas", filename="alertas_embarques")
+
+
+
 def render() -> None:
     bundle, filters = ctx()
     section("Alertas",
@@ -62,33 +97,43 @@ def render() -> None:
             "sin confirmar, zarpados sin documentación, consolidación proyectada fuera de SLA o instruidos sin ETD. "
             "Prioridad alta: sale en 3 días o menos, o tiene más de un motivo.")
     with guard("Alertas"):
-        res, _ = en_curso(bundle, filters)
-        if res.empty:
-            empty()
-            return
-        al = alerts(res)
-        if al.empty:
-            empty("No hay alertas para los filtros seleccionados.")
-            return
+        _tabla_alertas(bundle, filters)
 
-        n_alta = int((al["prioridad"] == "Alta").sum())
-        cards = [KPI("Embarques con alerta", fmt.fmt_int(len(al)),
-                     sub=f"<b>{fmt.fmt_int(n_alta)}</b> de prioridad alta",
-                     status="bad" if n_alta else "warn")]
-        for key, label in TIPOS:
-            n = int(al["tipos"].map(lambda ts, k=key: k in ts).sum())
-            cards.append(KPI(label, fmt.fmt_int(n), status="warn" if n else "ok"))
-        kpi_row(cards)
+    # ------------------------------------------------------------------ en riesgo
+    res, _ = en_curso(bundle, filters)
+    section("Marítimos en riesgo",
+            "Consolidación proyectada fuera del SLA (Atención o Fuera de SLA) y todavía sin «ETD OK FFWW»: "
+            "donde aún hay margen de acción. Ordenado por ETD.")
+    with guard("Marítimos en riesgo"):
+        rm = riesgo_maritimo(maritimos_en_curso(res)) if len(res) else pd.DataFrame()
+        if rm.empty:
+            empty("No hay marítimos en riesgo.")
+        else:
+            data_table(rm.sort_values("etd"), [
+                ColSpec("embarque", "Embarque"), ColSpec("forwarder", "Forwarder"), ColSpec("etd", "ETD", "date"),
+                ColSpec("responsable", "Responsable de la carga"), ColSpec("estructura", "Estructura"),
+                ColSpec("dias_consolidacion", "Consolidación total (d)", "days"),
+                ColSpec("sla_consolidacion", "SLA (d)", "days"),
+                ColSpec("estado_consolidacion", "Estado", "status"),
+            ], key="al_riesgo_mar", filename="maritimos_en_riesgo", search=False)
 
-        data_table(al, [
-            ColSpec("prioridad", "Prioridad"),
-            ColSpec("embarque", "Embarque"),
-            ColSpec("grupo_modo", "Modo"),
-            ColSpec("motivo", "Motivo", width="large"),
-            ColSpec("etd", "ETD", "date"),
-            ColSpec("forwarder", "Forwarder"),
-            ColSpec("puerto", "Puerto"),
-            ColSpec("responsable", "Responsable"),
-            ColSpec("m3", "M3", "num"),
-            ColSpec("estado_consolidacion", "Consolidación", "status"),
-        ], key="alertas", filename="alertas_embarques")
+    section("Aéreos en riesgo",
+            "Tiempo total proyectado (packeo mínimo → ETA Caldas) fuera del SLA de su tipo (Atención o Fuera de SLA) "
+            "y todavía sin «ETD OK FFWW». Ordenado por ETD.")
+    with guard("Aéreos en riesgo"):
+        aer = bundle.get("aereos")
+        if aer is None:
+            empty("Sin datos de Seguimiento Aéreos.")
+        else:
+            todos = filtered(bundle, "aereos", filters, use_period=False)
+            act = todos[todos["activo"]]
+            ra = aereos.riesgo_aereo(act, today()) if len(act) else pd.DataFrame()
+            if ra.empty:
+                empty("No hay aéreos en riesgo.")
+            else:
+                data_table(ra.sort_values("etd"), [
+                    ColSpec("embarque", "Embarque"), ColSpec("forwarder", "Forwarder"), ColSpec("etd", "ETD", "date"),
+                    ColSpec("tipo_negocio", "Tipo de negocio"), ColSpec("estadio", "Estadio"),
+                    ColSpec("dias_proyectados", "Total proyectado (d)", "days"), ColSpec("sla_aereo", "SLA (d)", "days"),
+                    ColSpec("estado_sla", "Estado", "status"),
+                ], key="al_riesgo_aer", filename="aereos_en_riesgo", search=False)

@@ -169,3 +169,80 @@ def kpis_en_curso(df: pd.DataFrame, info: dict | None = None) -> None:
         </div>""",
         unsafe_allow_html=True,
     )
+
+
+# ---------------------------------------------------------------------------
+# Operaciones en curso: marítimos, riesgo y tablas de SLA por grupo
+# ---------------------------------------------------------------------------
+def maritimos_en_curso(df: pd.DataFrame) -> pd.DataFrame:
+    """Marítimos en curso (los embarques que empiezan con AIR son aéreos y se excluyen)."""
+    es_air = df["embarque"].astype(str).str.strip().str.upper().str.startswith("AIR")
+    return df[(df["grupo_modo"] == "Marítimo") & ~es_air]
+
+
+def riesgo_maritimo(mar: pd.DataFrame) -> pd.DataFrame:
+    """Consolidación proyectada fuera de SLA (Atención o Fuera) y todavía sin ETD OK FFWW."""
+    from utils import calculations as calc
+    return mar[mar["estado_consolidacion"].isin([calc.SEMAFORO_WARN, calc.SEMAFORO_BAD])
+               & ~mar["etd_ok"].fillna(False).astype(bool)]
+
+
+def sla_por_grupo(d: pd.DataFrame, by: str, estado_col: str, by_label: str,
+                  estructuras: bool = False, extra: list[str] | None = None, extra_col: str = "",
+                  extra_label: str = "", sla: bool = True) -> str:
+    """Tabla HTML: por grupo, operaciones, % y cuántas dentro / fuera del SLA.
+
+    Fuera = Atención + Fuera de SLA. Sin dato = sin fechas para calcular o sin SLA.
+    estructuras=True abre monoproveedor / consolidado. extra = columnas de conteo por valor de extra_col.
+    """
+    import html as _h
+
+    from utils import calculations as calc
+    ok_v, bad_v = calc.SEMAFORO_OK, (calc.SEMAFORO_WARN, calc.SEMAFORO_BAD)
+    est_list = ["Monoproveedor", "Consolidado"] if estructuras else []
+    extra = extra or []
+    total_ops = len(d)
+
+    def counts(g):
+        ok = int((g[estado_col] == ok_v).sum())
+        bad = int(g[estado_col].isin(bad_v).sum())
+        return len(g), ok, bad, len(g) - ok - bad
+
+    head1 = [f'<th rowspan="2">{_h.escape(by_label)}</th>', '<th rowspan="2">Ops</th>', '<th rowspan="2">% ops</th>']
+    head2 = []
+    for e in est_list:
+        head1.append(f'<th colspan="3" style="text-align:center">{e}</th>')
+        head2 += ["<th>Ops</th>", "<th>Dentro</th>", "<th>Fuera</th>"]
+    if extra:
+        head1.append(f'<th colspan="{len(extra)}" style="text-align:center">{_h.escape(extra_label)}</th>')
+        head2 += [f"<th>{_h.escape(str(x))}</th>" for x in extra]
+    if sla:
+        head1.append('<th colspan="4" style="text-align:center">SLA</th>')
+        head2 += ["<th>Dentro</th>", "<th>Fuera</th>", "<th>Sin dato</th>", "<th>% dentro</th>"]
+
+    groups = d[by].astype(object).where(d[by].notna(), "Sin asignar")
+    order = groups.value_counts().index.tolist()
+    rows = []
+    for key in order + ["Total"]:
+        g = d if key == "Total" else d[groups == key]
+        n, ok, bad, sin = counts(g)
+        con = ok + bad
+        style = " style='font-weight:600'" if key == "Total" else ""
+        cells = [f"<th class='rowh'>{_h.escape(str(key))}</th>", f"<td>{fmt.fmt_int(n)}</td>",
+                 f"<td>{fmt.fmt_pct(n / total_ops if total_ops else float('nan'))}</td>"]
+        for e in est_list:
+            ge = g[g["estructura"] == e]
+            ne, oke, bade, _ = counts(ge)
+            cells += [f"<td>{fmt.fmt_int(ne)}</td>", f"<td>{fmt.fmt_int(oke)}</td>",
+                      f"<td>{fmt.fmt_int(bade)}</td>"]
+        for x in extra:
+            v = int((g[extra_col] == x).sum())
+            cells.append(f"<td>{fmt.fmt_int(v) if v else '—'}</td>")
+        pct = ok / con if con else float("nan")
+        dot = ("ok" if pct >= 0.5 else "bad") if con else ""
+        dot_html = f'<i class="dot {dot}"></i>' if dot else ""
+        cells += [] if not sla else [f"<td>{fmt.fmt_int(ok)}</td>", f"<td>{fmt.fmt_int(bad)}</td>", f"<td>{fmt.fmt_int(sin)}</td>",
+                  f"<td style='text-align:left'>{dot_html}{fmt.fmt_pct(pct)}</td>"]
+        rows.append(f"<tr{style}>" + "".join(cells) + "</tr>")
+    return ('<div class="scorecard compact"><table><thead><tr>' + "".join(head1) + "</tr><tr>" + "".join(head2)
+            + f'</tr></thead><tbody>{"".join(rows)}</tbody></table></div>')
