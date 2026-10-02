@@ -1,12 +1,14 @@
-"""Resumen: nuestro año, ¿cumplimos SLA?, ¿cuánto pagamos y capturamos?"""
+"""Resumen: nuestro año, velocidad, eficiencia operativa, costos y captura, cargas especiales."""
 from __future__ import annotations
+
+import html
 
 import numpy as np
 import pandas as pd
 import streamlit as st
 
 from components import sla as sla_view
-from components.layout import chart_title, empty, guard, require, section
+from components.layout import block, chart_title, empty, guard, require, subsection
 from config import settings
 from utils import calculations as calc
 from utils import formatting as fmt
@@ -14,6 +16,7 @@ from utils import productos, sla
 from components.kpi_cards import KPI, kpi_row
 from components.tables import ColSpec, data_table
 from utils import anio
+from utils import resumen_kpis as rk
 from views._common import ctx, filtered, periodo_txt, split_html, today
 
 
@@ -29,8 +32,7 @@ def render_anio(bundle, filters) -> None:
     """Nuestro año: lo embarcado en el año calendario, total y mes a mes."""
     t = today()
     hist = filtered(bundle, "historicas", filters, use_period=False)
-    section(f"Nuestro {t.year}",
-            "Operaciones embarcadas.")
+    block(1, f"Nuestro {t.year}", "¿Cuánto movimos? Operaciones embarcadas.")
     if hist is None or hist.empty:
         empty()
         return
@@ -76,27 +78,101 @@ def render_anio(bundle, filters) -> None:
     data_table(show, cols, key="anio", filename=f"embarques_{t.year}", search=False, row_styles=styles)
 
 
+def _tt_cards(tt: rk.TT, umbral_txt: str) -> None:
+    if not tt.n:
+        empty("Sin embarques con ETD y ETA válidas.")
+        return
+    if tt.comparable:
+        diff = tt.med_act - tt.med_prev
+        flecha = "▲" if diff > 0 else "▼" if diff < 0 else "="
+        comp = (f"{tt.q_act[:2]}: <b>{fmt.fmt_int(tt.med_act)} d</b> vs {tt.q_prev[:2]} {fmt.fmt_int(tt.med_prev)} d "
+                f"({flecha} {fmt.fmt_int(abs(diff))} d)")
+    else:
+        comp = "Sin trimestres cerrados comparables"
+    kpi_row([
+        KPI("Transit time (mediana)", fmt.fmt_int(tt.mediana) if tt.enough else "—", unit="d",
+            sub=f"n={fmt.fmt_int(tt.n)} · {comp}"),
+        KPI("P90", fmt.fmt_int(tt.p90) if tt.enough else "—", unit="d",
+            sub="el 10 % más lento tarda más que esto"),
+        KPI(f"Más de {umbral_txt}", fmt.fmt_pct(tt.pct_sobre) if tt.enough else "—",
+            status=("warn" if tt.pct_sobre > 0.10 else "ok") if tt.enough else "",
+            sub=f"<b>{fmt.fmt_int(tt.n_sobre)}</b> de {fmt.fmt_int(tt.n)} casos"),
+    ])
+
+
+def _ocupacion_table(r: pd.DataFrame) -> None:
+    head = ["Tipo", "Capacidad", "Contenedores", "Ocupación (mediana)",
+            f"≥ {fmt.fmt_pct(settings.OCUPACION_UMBRAL)}", f"< {fmt.fmt_pct(settings.OCUPACION_UMBRAL)}"]
+    rows = []
+    for _, x in r.iterrows():
+        tot = x["tipo"] == "Total"
+        cap = "—" if tot else f"{fmt.fmt_int(x['cap'])} m³"
+        style = " style='font-weight:600'" if tot else ""
+        rows.append(
+            f"<tr{style}><th class='rowh'>{html.escape(x['tipo'])}</th><td>{cap}</td>"
+            f"<td>{fmt.fmt_int(x['contenedores'])}</td><td>{fmt.fmt_pct(x['mediana'])}</td>"
+            f"<td>{fmt.fmt_int(x['ok'])}<span class='n'>{fmt.fmt_pct(x['pct_ok'])}</span></td>"
+            f"<td>{fmt.fmt_int(x['bajo'])}<span class='n'>{fmt.fmt_pct(1 - x['pct_ok'])}</span></td></tr>")
+    st.markdown('<div class="scorecard compact"><table><thead><tr>' + "".join(f"<th>{h}</th>" for h in head)
+                + f'</tr></thead><tbody>{"".join(rows)}</tbody></table></div>', unsafe_allow_html=True)
+
+
+def _especial_cards(e: rk.Especial, modo: str) -> None:
+    mar = modo == "Marítimo"
+    nombre = "IMO" if mar else "DG"
+    if not e.total:
+        empty()
+        return
+    if e.n < settings.MIN_SAMPLE:
+        kpi_row([KPI(f"{'Embarques' if mar else 'Cargas'} {nombre}", fmt.fmt_int(e.n),
+                     sub=f"{fmt.fmt_pct(e.pct)} de {fmt.fmt_int(e.total)} · volumen insuficiente para comparar")])
+        return
+    unidad = "por contenedor" if mar else "por kg chargeable"
+    costo_v = (fmt.fmt_usd(e.costo, compact=False) if mar else f"USD {fmt.fmt_num(e.costo, 1)}") if e.n_costo else "—"
+    if e.costo_comparable:
+        extra = (fmt.fmt_usd(e.extra, compact=False) if mar else f"USD {fmt.fmt_num(e.extra, 1)}")
+        signo = "+" if e.extra > 0 else ""
+        costo_sub = (f"<b>{signo}{extra}</b> ({fmt.fmt_pct(e.extra_pct, signed=True)}) vs "
+                     f"{'no IMO' if mar else 'aéreo estándar'} comparable · n={fmt.fmt_int(e.n_pares)}")
+    else:
+        costo_sub = f"Sin volumen comparable suficiente (n={fmt.fmt_int(e.n_pares)})"
+    if e.tt_comparable:
+        d = e.tt - e.tt_ref
+        tt_sub = (f"<b>{('+' if d > 0 else '') + fmt.fmt_int(d) + ' d' if round(d) else '='}</b> vs {'no IMO' if mar else 'no DG'} "
+                  f"({fmt.fmt_int(e.tt_ref)} d) · n={fmt.fmt_int(e.n_tt)}")
+    else:
+        tt_sub = f"Sin volumen comparable suficiente (n={fmt.fmt_int(e.n_tt)})"
+    kpi_row([
+        KPI(f"{'Embarques' if mar else 'Cargas'} {nombre}", fmt.fmt_int(e.n),
+            sub=f"<b>{fmt.fmt_pct(e.pct)}</b> de {fmt.fmt_int(e.total)} {'marítimos' if mar else 'aéreos'}"),
+        KPI(f"{'Flete' if mar else 'USD/kg'} {nombre} (mediana)", costo_v, sub=f"{unidad} · {costo_sub}"),
+        KPI(f"Transit time {nombre}", fmt.fmt_int(e.tt) if e.n_tt else "—", unit="d", sub=tt_sub),
+    ])
+
+
 def render() -> None:
     bundle, filters = ctx()
+    t = today()
+    periodo = periodo_txt(filters)
+    hist = filtered(bundle, "historicas", filters) if bundle.get("historicas") is not None else None
+    z = sla.zarpados(hist, t) if hist is not None else pd.DataFrame()
+    aer = filtered(bundle, "aereos", filters) if bundle.get("aereos") is not None else None
+    aer_z = aer[aer["etd"] <= t] if aer is not None else pd.DataFrame()
 
-    # ------------------------------------------------------------------ año
+    # ================================================================== 1 · Nuestro año
     with guard("Nuestro año"):
         render_anio(bundle, filters)
 
-    # ------------------------------------------------------------------ SLA
-    periodo = periodo_txt(filters)
-    section("¿Estamos cumpliendo SLA?",
-            f"Embarques que zarparon {periodo}, mes a mes. El mes en curso se muestra rayado porque está "
-            f"incompleto. Objetivo de cumplimiento: {fmt.fmt_pct(settings.CUMPLIMIENTO_OBJETIVO)}. "
-            "La apertura por mes cerrado, estructura, puerto y forwarder está en Lead times y SLA.")
+    # ================================================================== 2 · Velocidad
+    block(2, "Velocidad", f"¿Cuánto tardamos? Embarques que zarparon {periodo}. Tiempos por mediana; n = casos con dato. "
+            "El detalle por mes cerrado, puerto y forwarder está en Lead times y SLA.")
+    subsection("SLA", f"El mes en curso se muestra rayado porque está incompleto. "
+               f"Objetivo de cumplimiento: {fmt.fmt_pct(settings.CUMPLIMIENTO_OBJETIVO)}.")
     c_mar, c_aer = st.columns(2, gap="medium")
     with c_mar:
         st.markdown('<div class="row-label">Marítimo</div>', unsafe_allow_html=True)
         if require(bundle, "historicas") is not None:
             with guard("SLA marítimo"):
-                t = today()
-                hist = filtered(bundle, "historicas", filters)
-                z = sla.zarpados(hist, t)
                 pct, n = calc.cumplimiento(z["dias_consolidacion"], z["sla_consolidacion"])
                 n_ok = int((z["dias_consolidacion"] <= z["sla_consolidacion"]).sum())
                 last = t.to_period("M").to_timestamp() - pd.offsets.MonthBegin(1)
@@ -114,8 +190,7 @@ def render() -> None:
         st.markdown('<div class="row-label">Aéreo</div>', unsafe_allow_html=True)
         if require(bundle, "aereos") is not None:
             with guard("SLA aéreo"):
-                t = today()
-                a = sla_view.air_zarpados(filtered(bundle, "aereos", filters), t)
+                a = sla_view.air_zarpados(aer, t)
                 vig = a[a["sla_vigente"] & a["sla_aereo"].notna()]
                 pct_a, n_a = calc.cumplimiento(vig["dias_aereo"], vig["sla_aereo"])
                 ok_a = int((vig["dias_aereo"] <= vig["sla_aereo"]).sum())
@@ -132,13 +207,32 @@ def render() -> None:
                             "al SLA (referencia)")
                 sla_view.air_compliance_chart(a, t, key="res_sla_aer")
 
-    # ------------------------------------------------------------------ objetivo −15 %
+    subsection("Transit time · ETD → ETA",
+               "Mediana, P90 (dispersión) y casos largos. La comparación es el último trimestre cerrado contra el anterior.")
+    c_mar, c_aer = st.columns(2, gap="medium")
+    with c_mar, guard("Transit time marítimo"):
+        st.markdown('<div class="row-label">Marítimo</div>', unsafe_allow_html=True)
+        if len(z):
+            _tt_cards(rk.transit_time(z, "dias_tt", settings.TT_MARITIMO_UMBRAL, t),
+                      f"{settings.TT_MARITIMO_UMBRAL} días")
+        else:
+            empty()
+    with c_aer, guard("Transit time aéreo"):
+        st.markdown('<div class="row-label">Aéreo · sin courier</div>', unsafe_allow_html=True)
+        if len(aer_z):
+            _tt_cards(rk.transit_time(aer_z[aer_z["modo"] == "Aéreo"], "dias_etd_eta", settings.TT_AEREO_UMBRAL, t),
+                      f"{settings.TT_AEREO_UMBRAL} días")
+        else:
+            empty()
+
+    # ================================================================== 3 · Eficiencia operativa
+    block(3, "Eficiencia operativa", "¿Qué tan eficientemente usamos los recursos? Consolidación y uso de la capacidad "
+            "de los contenedores.")
     if bundle.get("emb_hist") is not None:
-        t = today()
-        section("Objetivo −15 % · consolidación de SKU nuevos y top ranking",
-                f"Mediana de días de consolidación por SO, por trimestre de {t.year}. La base es Q1 y el objetivo "
-                "es bajarla un 15 %: se compara el último trimestre cerrado contra Q1. "
-                "La apertura mes a mes está en Lead times y SLA.")
+        subsection("Objetivo −15 % · consolidación de SKU nuevos y top ranking",
+                   f"Mediana de días de consolidación por SO, por trimestre de {t.year}. La base es Q1 y el objetivo "
+                   "es bajarla un 15 %: se compara el último trimestre cerrado contra Q1. "
+                   "La apertura mes a mes está en Lead times y SLA.")
         with guard("Objetivo −15 %"):
             d = productos.base_lines(bundle.get("emb_hist"), t)
             summ = productos.summary(d, t)
@@ -149,9 +243,76 @@ def render() -> None:
                     sla_view.productos_q_chart(summ, label, t, key=f"res_prod_{grupo}")
             sla_view.productos_table(summ, t)
 
-    # ------------------------------------------------------------------ fletes
+    umbral = fmt.fmt_pct(settings.OCUPACION_UMBRAL)
+    subsection("Utilización de contenedores",
+               f"Ocupación = m³ cargados / (contenedores × capacidad del tipo). Embarques FCL que zarparon {periodo}; "
+               "cada contenedor cuenta con la ocupación de su embarque.")
+    occ = pd.DataFrame()
+    with guard("Utilización de contenedores"):
+        occ = rk.ocupacion(z) if len(z) else pd.DataFrame()
+        r = rk.ocupacion_resumen(occ) if len(occ) else pd.DataFrame()
+        if r.empty:
+            empty("Sin embarques FCL con m³ y tipo de contenedor.")
+        else:
+            tot = r[r["tipo"] == "Total"].iloc[0]
+            c1, c2 = st.columns([2, 3], gap="medium")
+            with c1:
+                kpi_row([
+                    KPI("Ocupación (mediana)", fmt.fmt_pct(tot["mediana"]),
+                        sub=f"{fmt.fmt_int(tot['contenedores'])} contenedores"),
+                    KPI(f"Contenedores ≥ {umbral}", fmt.fmt_int(tot["ok"]), status="ok",
+                        sub=f"<b>{fmt.fmt_pct(tot['pct_ok'])}</b> del total"),
+                    KPI(f"Contenedores < {umbral}", fmt.fmt_int(tot["bajo"]),
+                        status="warn" if tot["bajo"] else "ok",
+                        sub=f"<b>{fmt.fmt_pct(1 - tot['pct_ok'])}</b> del total"),
+                ], columns=1)
+            with c2:
+                _ocupacion_table(r)
+
+    subsection("Uso de 20 ST",
+               f"Un 20 ST con ocupación menor al {umbral} no es necesariamente una mala decisión: puede estar "
+               "justificado por la prioridad de la carga o la necesidad de salida.")
+    with guard("Uso de 20 ST"):
+        u = rk.uso_20st(occ) if len(occ) else rk.Uso20()
+        if not u.total:
+            empty("Sin 20 ST en el período.")
+        else:
+            sin = "Sin datos suficientes"
+            kpi_row([
+                KPI("20 ST utilizados", fmt.fmt_int(u.total)),
+                KPI(f"Con ocupación < {umbral}", fmt.fmt_int(u.bajos),
+                    sub=f"<b>{fmt.fmt_pct(u.bajos / u.total)}</b> de los 20 ST"),
+                KPI("Justificados por prioridad", fmt.fmt_int(u.justificados) if u.tiene_campo else "—",
+                    sub=(f"con dato: {fmt.fmt_int(u.con_dato)} de {fmt.fmt_int(u.bajos)}" if u.tiene_campo else sin)),
+                KPI("% de 20 ST bajos justificados", fmt.fmt_pct(u.pct_justificados) if u.tiene_campo else "—",
+                    sub=("KPI principal" if u.tiene_campo else
+                         "Sin datos suficientes: falta un campo de prioridad / motivo en Reservas Históricas")),
+            ])
+
+    # ================================================================== 4 · Costos y captura
     if bundle.get("historicas") is not None:
         render_fletes(bundle, filters)
+
+    # ================================================================== 5 · Cargas especiales
+    block(5, "Cargas especiales", f"¿Qué impacto tienen las cargas IMO / DG? Embarques que zarparon {periodo}. "
+            "Costos y tiempos por mediana, comparados solo contra carga comparable (mismo mes y tipo de "
+            "contenedor / origen).")
+    c_mar, c_aer = st.columns(2, gap="medium")
+    with c_mar, guard("IMO marítimo"):
+        st.markdown('<div class="row-label">Marítimo · IMO</div>', unsafe_allow_html=True)
+        if len(z) and "dg" in z:
+            _especial_cards(rk.imo_maritimo(z), "Marítimo")
+            st.caption("Columna «DG» de Reservas Históricas. Comparable: mismo tipo de contenedor, mes de ETD y destino.")
+        else:
+            empty("Sin columna DG en Reservas Históricas.")
+    with c_aer, guard("DG aéreo"):
+        st.markdown('<div class="row-label">Aéreo · DG</div>', unsafe_allow_html=True)
+        if len(aer_z) and "dg" in aer_z:
+            _especial_cards(rk.dg_aereo(aer_z), "Aéreo")
+            st.caption("Columna «CARGA IMO» de Seguimiento Aéreos, sin courier. USD/kg = flete total / chargeable. "
+                       "Comparable: mismo mes de ETD y origen.")
+        else:
+            empty("Sin columna CARGA IMO en Seguimiento Aéreos.")
 
 
 def render_fletes(bundle, filters) -> None:
@@ -164,9 +325,9 @@ def render_fletes(bundle, filters) -> None:
     from utils import freight
 
     periodo = periodo_txt(filters)
-    section("¿Cuánto pagamos y cuánto capturamos?",
-            f"Embarques que zarparon {periodo}. El detalle por forwarder y por embarque está en "
-            "Fletes y gastos pagados; las tarifas, en Cotizaciones.")
+    block(4, "Costos y captura",
+            f"¿Cuánto nos costó y cuánto capturamos? Embarques que zarparon {periodo}. El detalle por forwarder y "
+            "por embarque está en Fletes y gastos pagados; las tarifas, en Cotizaciones.")
     with guard("Fletes y gastos"):
         t = today()
         cot = bundle.get("cotizaciones")

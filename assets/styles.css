@@ -42,6 +42,11 @@ h1, h2, h3 { color: var(--ink); letter-spacing: -0.01em; }
 
 /* ---- Secciones ----------------------------------------------------------- */
 .section-title { margin: 1.6rem 0 .1rem 0; font-size: 1.02rem; font-weight: 650; color: var(--ink); }
+.block-title { margin: 2.2rem 0 .15rem 0; padding-top: 1.1rem; border-top: 1px solid var(--line);
+  font-size: 1.22rem; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: .55rem; }
+.block-title .block-num { display: inline-flex; align-items: center; justify-content: center; width: 1.6rem;
+  height: 1.6rem; border-radius: 50%; background: var(--blue); color: #fff; font-size: .82rem; font-weight: 650; }
+.subsection-title { margin: 1.1rem 0 .1rem 0; font-size: .92rem; font-weight: 650; color: var(--ink-2); }
 .section-sub { margin: 0 0 .7rem 0; font-size: .82rem; color: var(--ink-3); }
 
 /* ---- KPI cards ------------------------------------------------------------ */

@@ -187,3 +187,18 @@ REDUCCION_OBJETIVO = 0.15                # −15 % contra la base
 BASE_DESDE = dt.date(2026, 1, 1)         # período base (mes de ETD)
 BASE_HASTA = dt.date(2026, 3, 31)
 COMPARACION_MESES = 3                    # últimos N meses cerrados contra la base
+
+# ---------------------------------------------------------------------------
+# Resumen · Velocidad, eficiencia y cargas especiales
+# ---------------------------------------------------------------------------
+# Transit time marítimo (ETD → ETA): umbral de casos largos.
+TT_MARITIMO_UMBRAL = 45
+# Transit time aéreo (ETD → ETA, solo «Aéreo», sin courier): umbral de casos fuera de rango.
+# A confirmar con el área; se cambia acá.
+TT_AEREO_UMBRAL = 7
+# Ocupación de contenedores = m³ / (contenedores × capacidad). La capacidad sale de la columna
+# «Capacidad contenedor» de Reservas Históricas; si falta, se usa esta tabla.
+CAPACIDAD_CTNR = {"20 ST": 30, "40 ST": 60, "40 HQ": 68, "40 NOR": 60}
+OCUPACION_UMBRAL = 0.70
+# Valores de la columna de prioridad que justifican un 20 ST con baja ocupación.
+PRIORIDAD_JUSTIFICA = {"si", "alta", "urgente", "prioritaria", "prioridad", "critica", "crítica"}

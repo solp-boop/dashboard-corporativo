@@ -186,3 +186,40 @@ def test_nuestro_anio_mensual():
     assert ene["embarques"] == 3 and ene["contenedores"] == 3  # el aéreo no suma contenedores
     assert ene["pct_mono"] == 0.5 and ene["pct_Aéreo"] == pytest.approx(1 / 3)
     assert tot["embarques"] == 4 and tot["fob_simi"] == 200 and pd.isna(tot["mes"])
+
+
+def test_resumen_transit_time_y_ocupacion():
+    from utils import resumen_kpis as rk
+
+    hoy = pd.Timestamp("2026-10-02")
+    z = pd.DataFrame({
+        "etd": pd.to_datetime(["2026-04-10"] * 5 + ["2026-07-10"] * 5),
+        "dias_tt": [40, 42, 44, 46, 60, 45, 47, 49, 50, 70],
+        "tipo_carga": ["20 ST"] * 2 + ["40 HQ"] * 8,
+        "contenedores": [1] * 10, "m3": [10, 25] + [68] * 7 + [30], "capacidad": [30, 30] + [68] * 8,
+    })
+    tt = rk.transit_time(z, "dias_tt", 45, hoy)
+    assert tt.n == 10 and tt.n_sobre == 6 and tt.mediana == 46.5
+    assert tt.q_act.startswith("Q3") and tt.med_act == 49 and tt.med_prev == 44 and tt.comparable
+    occ = rk.ocupacion(z)
+    r = rk.ocupacion_resumen(occ).set_index("tipo")
+    assert r.loc["20 ST", "bajo"] == 1 and r.loc["40 HQ", "bajo"] == 1 and r.loc["Total", "contenedores"] == 10
+    u = rk.uso_20st(occ)
+    assert u.total == 2 and u.bajos == 1 and not u.tiene_campo and np.isnan(u.pct_justificados)
+    z["prioridad_carga"] = ["Alta", None] + [None] * 8
+    u = rk.uso_20st(rk.ocupacion(z))
+    assert u.tiene_campo and u.justificados == 1 and u.pct_justificados == 1.0
+
+
+def test_resumen_imo_comparable():
+    from utils import resumen_kpis as rk
+
+    rows = []
+    for i in range(6):
+        rows.append({"etd": pd.Timestamp("2026-08-05"), "tipo_carga": "40 HQ", "destino": "Argentina",
+                     "flete_por_ctnr": 6000.0, "dias_tt": 50, "dg": True})
+        rows.append({"etd": pd.Timestamp("2026-08-05"), "tipo_carga": "40 HQ", "destino": "Argentina",
+                     "flete_por_ctnr": 5000.0, "dias_tt": 45, "dg": False})
+    e = rk.imo_maritimo(pd.DataFrame(rows))
+    assert e.n == 6 and e.pct == 0.5 and e.extra == 1000 and e.extra_pct == pytest.approx(0.2)
+    assert e.costo_comparable and e.tt - e.tt_ref == 5

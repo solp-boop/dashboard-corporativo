@@ -60,6 +60,21 @@ def section(title: str, subtitle: str = "") -> None:
         st.markdown(f'<div class="section-sub">{esc(subtitle)}</div>', unsafe_allow_html=True)
 
 
+def block(num: int, title: str, subtitle: str = "") -> None:
+    """Bloque principal de una página larga (Resumen): número + título con separador."""
+    st.markdown(f'<div class="block-title"><span class="block-num">{num}</span>{esc(title)}</div>',
+                unsafe_allow_html=True)
+    if subtitle:
+        st.markdown(f'<div class="section-sub">{esc(subtitle)}</div>', unsafe_allow_html=True)
+
+
+def subsection(title: str, subtitle: str = "") -> None:
+    """Sub-bloque dentro de una sección."""
+    st.markdown(f'<div class="subsection-title">{esc(title)}</div>', unsafe_allow_html=True)
+    if subtitle:
+        st.markdown(f'<div class="section-sub">{esc(subtitle)}</div>', unsafe_allow_html=True)
+
+
 def chart_title(title: str, subtitle: str = "") -> None:
     st.markdown(f'<div class="chart-title">{esc(title)}</div>'
                 + (f'<div class="chart-sub">{esc(subtitle)}</div>' if subtitle else ""),

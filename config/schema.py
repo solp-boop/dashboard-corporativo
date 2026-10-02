@@ -130,6 +130,12 @@ HISTORICAS = DatasetSchema(
         C("indice_carga", "Índice de carga completa", "Indice de carga completa", kind="number"),
         C("linea", "Linea Maritima", "Línea Marítima", kind="category"),
         C("medio", "Barco/Avión", "Barco/Avion", kind="category"),
+        C("tt_real", "TT real", "TT Real", kind="number"),
+        C("dg", "DG", "IMO", "CARGA IMO", "Carga IMO", kind="flag"),
+        # Aún no existe en la planilla: si se agrega una columna de prioridad / motivo de uso del
+        # contenedor, el análisis de 20 ST la toma sola.
+        C("prioridad_carga", "Prioridad", "Prioridad de carga", "Prioridad carga", "Motivo uso 20 ST",
+          "Justificacion 20 ST", "Justificación 20 ST", kind="category"),
     ),
 )
 
@@ -170,6 +176,7 @@ AEREOS = DatasetSchema(
         C("total_dias", "Total", kind="number"),
         C("gastos_origen", "Gastos en Origen", kind="number"),
         C("gastos_locales", "Gastos Locales", kind="number"),
+        C("dg", "CARGA IMO", "Carga IMO", "DG", kind="flag"),
     ),
 )
 
