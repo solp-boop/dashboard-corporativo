@@ -90,8 +90,12 @@ def to_excel(df: pd.DataFrame, sheet: str = "Datos") -> bytes:
 
 
 def data_table(df: pd.DataFrame, cols: list[ColSpec], key: str, filename: str,
-               height: int | None = None, search: bool = True, caption: str = "") -> None:
+               height: int | None = None, search: bool = True, caption: str = "",
+               row_styles: pd.Series | None = None) -> None:
+    """row_styles: CSS por fila (alineado con el índice de df), p. ej. para resaltar un récord."""
     display, config = _display_frame(df, cols)
+    styles = (row_styles.reindex(df.index).fillna("").reset_index(drop=True)
+              if row_styles is not None else None)
     top = st.columns([4, 1, 1]) if search else st.columns([2, 1, 1])
     query = ""
     if search:
@@ -108,5 +112,9 @@ def data_table(df: pd.DataFrame, cols: list[ColSpec], key: str, filename: str,
         return
     rows = len(shown)
     h = height or min(560, 38 + 35 * rows)
-    st.dataframe(shown, column_config=config, hide_index=True, height=h, width="stretch", placeholder="—")
+    data = shown
+    if styles is not None and styles.loc[shown.index].ne("").any():
+        css = styles.loc[shown.index]
+        data = shown.style.apply(lambda row: [css[row.name]] * len(row), axis=1)
+    st.dataframe(data, column_config=config, hide_index=True, height=h, width="stretch", placeholder="—")
     st.caption((caption + " · " if caption else "") + f"{rows:,} filas".replace(",", "."))

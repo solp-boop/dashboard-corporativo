@@ -17,6 +17,14 @@ from utils import anio
 from views._common import ctx, filtered, periodo_txt, split_html, today
 
 
+def _record_txt(tab: pd.DataFrame) -> str:
+    m = tab[tab["mes"].notna()]
+    if m.empty or not m["m3"].gt(0).any():
+        return ""
+    r = m.loc[m["m3"].idxmax()]
+    return f"Récord: <b>{fmt.fmt_month(r['mes'], long=True).lower()}</b> · {fmt.fmt_int(r['m3'])} m³"
+
+
 def render_anio(bundle, filters) -> None:
     """Nuestro año: lo embarcado en el año calendario, total y mes a mes."""
     t = today()
@@ -37,7 +45,7 @@ def render_anio(bundle, filters) -> None:
         KPI("Embarques", fmt.fmt_int(tot["embarques"])),
         KPI("Contenedores", fmt.fmt_int(tot["contenedores"]), sub="marítimos"),
         KPI("FOB SIMI", fmt.fmt_usd(tot["fob_simi"])),
-        KPI("Volumen", fmt.fmt_int(tot["m3"]), unit="m³"),
+        KPI("Volumen", fmt.fmt_int(tot["m3"]), unit="m³", sub=_record_txt(tab)),
     ])
     colors = dict(zip(anio.MEDIOS, settings.SERIES + ["#8A8F98"]))
     medios = split_html([(m, int((d["medio"] == m).sum()), colors[m],
@@ -59,7 +67,14 @@ def render_anio(bundle, filters) -> None:
             ColSpec("contenedores", "Contenedores", "int"), ColSpec("fob_simi", "FOB SIMI (USD)", "usd"),
             ColSpec("m3", "M3", "num"), ColSpec("pct_mono", "% Mono", "pct"), ColSpec("pct_cons", "% Consolidado", "pct")]
     cols += [ColSpec(f"pct_{m}", f"% {m}", "pct") for m in anio.medios_presentes(d)]
-    data_table(show, cols, key="anio", filename=f"embarques_{t.year}", search=False)
+    meses = show[show["mes"].notna()]
+    rec = meses["m3"].idxmax() if meses["m3"].gt(0).any() else None
+    styles = pd.Series("", index=show.index)
+    styles.iloc[-1] = "font-weight: 600; background-color: rgba(120,130,150,0.10)"
+    if rec is not None:
+        show.loc[rec, "mes_txt"] = "★ " + show.loc[rec, "mes_txt"] + " · récord m³"
+        styles.loc[rec] = "font-weight: 600; background-color: rgba(36,86,166,0.14)"
+    data_table(show, cols, key="anio", filename=f"embarques_{t.year}", search=False, row_styles=styles)
 
 
 def render() -> None:
