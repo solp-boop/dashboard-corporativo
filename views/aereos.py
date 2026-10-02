@@ -1,6 +1,7 @@
-"""Aéreos y courier (Seguimiento Aéreos): estado y tiempos por tramo.
+"""Aéreos y courier (Seguimiento Aéreos).
 
-Se muestra dentro de «Embarques en curso» (pestaña Aéreo).
+- render_en_curso: lo activo, en la pestaña Aéreo de «Embarques en curso».
+- render_historico: tiempos por mes, tramos y tipo de negocio, en «Histórico».
 """
 from __future__ import annotations
 
@@ -11,12 +12,12 @@ import streamlit as st
 
 from components import charts
 from components.kpi_cards import KPI, kpi_row
-from components.layout import chart_title, coverage, empty, filter_notes, guard, require, section
+from components.layout import chart_title, coverage, empty, guard, require, section
 from components.tables import ColSpec, data_table
 from config import settings
 from utils import calculations as calc
 from utils import formatting as fmt
-from views._common import ctx, filtered, month_labels, stat_sub
+from views._common import ctx, filtered, month_labels, today
 
 TRAMOS = [
     ("dias_packeo_wh", "Packeo → WH"),
@@ -26,35 +27,97 @@ TRAMOS = [
 ]
 
 
-def render(bundle=None, filters=None) -> None:
+def riesgo(act: pd.DataFrame, today: pd.Timestamp) -> pd.DataFrame:
+    """Aéreos activos con su tiempo total proyectado (packeo mínimo → ETA Caldas) contra el SLA de su tipo.
+
+    Proyección: «Total» si ya está cargado; si no, ETA Caldas; si no, ETA + mediana ETA→Caldas;
+    si no, ETD + mediana ETD→Caldas; si no, hoy. Siempre desde F.Packeo Min.
+    """
+    d = act.copy()
+    med_eta_cal = d["dias_eta_caldas"].median() if "dias_eta_caldas" in d else np.nan
+    med_etd_cal = (d["dias_etd_eta"] + d["dias_eta_caldas"]).median() if "dias_etd_eta" in d else np.nan
+    fin = d["eta_caldas"].copy()
+    if med_eta_cal == med_eta_cal:
+        fin = fin.fillna(d["eta"] + pd.to_timedelta(med_eta_cal, unit="D"))
+    if med_etd_cal == med_etd_cal:
+        fin = fin.fillna(d["etd"] + pd.to_timedelta(med_etd_cal, unit="D"))
+    fin = fin.fillna(today)
+    proy = (fin - d["f_packeo_min"]).dt.days.astype(float)
+    d["dias_proyectados"] = d["dias_aereo"].fillna(proy) if "dias_aereo" in d else proy
+    d["estado_sla"] = calc.semaforo(d["dias_proyectados"], d["sla_aereo"])
+    return d
+
+
+def render_en_curso(bundle=None, filters=None) -> None:
     if bundle is None:
         bundle, filters = ctx()
-    base = require(bundle, "aereos")
-    if base is None:
+    if require(bundle, "aereos") is None:
         return
-    df = filtered(bundle, "aereos", filters)
-    filter_notes(base, filters, "Seguimiento Aéreos")
-    # Activos: sin filtro de período (un aéreo en curso cuenta aunque su ETD esté fuera del rango).
     todos = filtered(bundle, "aereos", filters, use_period=False)
     act = todos[todos["activo"]]
 
-    section("Aéreos en gestión", "Seguimiento Aéreos: todo lo que no está ENTREGADO. "
-            "Los tiempos son de los aéreos con ETD en el período elegido.")
+    section("Aéreos en gestión", "Seguimiento Aéreos: todo lo que no está ENTREGADO. Los tiempos por mes, "
+            "tramos y tipo de negocio están en Histórico.")
+    if act.empty:
+        empty("No hay aéreos activos.")
+        return
+    t = today()
+    r = riesgo(act, t)
+    en_riesgo = r[r["estado_sla"].isin([calc.SEMAFORO_WARN, calc.SEMAFORO_BAD]) & ~r["etd_ok"].fillna(False).astype(bool)]
     with guard("KPIs aéreos"):
-        tot = calc.describe(df["dias_total_aereo"])
         kpi_row([
-            KPI("Aéreos activos", fmt.fmt_int(len(act)), sub=f"<b>{fmt.fmt_int(len(df))}</b> aéreos con ETD en el período"),
+            KPI("Aéreos activos", fmt.fmt_int(len(act))),
             KPI("Volumen activo", fmt.fmt_num(act["m3"].sum(), 0), unit="m³",
                 sub=f"<b>{fmt.fmt_int(act['unidades'].sum())}</b> unidades"),
             KPI("FOB activo", fmt.fmt_usd(act["fob"].sum())),
             KPI("Chargeable weight", fmt.fmt_int(act["chargeable"].sum()), unit="kg"),
-            KPI("Packeo → Caldas (mediana)", fmt.fmt_int(tot.median) if tot.enough else "—", unit="d",
-                sub=stat_sub(tot)),
+            KPI("En riesgo", fmt.fmt_int(len(en_riesgo)), status="bad" if len(en_riesgo) else "ok",
+                sub="proyectados fuera del SLA de su tipo, sin ETD OK"),
         ])
-        coverage(tot.n, len(df), "embarques con fecha de packeo y ETA Caldas válidas")
 
-    c1, c2 = st.columns([3, 2], gap="medium")
-    with c1, guard("Tiempos por tramo"):
+    c1, _ = st.columns(2, gap="medium")
+    with c1, guard("Estadios"):
+        chart_title("Embarques activos por estadio")
+        g = act.groupby("estadio").size().sort_values(ascending=False)
+        if g.empty:
+            empty("No hay aéreos activos.")
+        else:
+            charts.show(charts.hbar(g.index, g.values, text=[str(v) for v in g.values],
+                                    hover="%{y}: %{x} embarques<extra></extra>", x_title="embarques"),
+                        key="aer_estadio")
+
+    section("Detalle de embarques en riesgo",
+            "Tiempo total proyectado (packeo mínimo → ETA Caldas) fuera del SLA de su tipo (Atención o Fuera de SLA) "
+            "y todavía sin «ETD OK FFWW». Ordenado por ETD.")
+    with guard("Aéreos en riesgo"):
+        if en_riesgo.empty:
+            empty("No hay aéreos en riesgo.")
+        else:
+            data_table(en_riesgo.sort_values("etd"), [
+                ColSpec("embarque", "Embarque"), ColSpec("forwarder", "Forwarder"), ColSpec("etd", "ETD", "date"),
+                ColSpec("tipo_negocio", "Tipo de negocio"), ColSpec("estadio", "Estadio"),
+                ColSpec("dias_proyectados", "Total proyectado (d)", "days"), ColSpec("sla_aereo", "SLA (d)", "days"),
+                ColSpec("estado_sla", "Estado", "status"),
+            ], key="aer_riesgo", filename="aereos_en_riesgo", search=False)
+        sin_sla = int(r["sla_aereo"].isna().sum())
+        if sin_sla:
+            st.caption(f"{fmt.fmt_int(sin_sla)} aéreos activos sin SLA para su tipo de negocio no se evalúan.")
+
+
+def render_historico(bundle, filters) -> None:
+    """Tiempos de los aéreos con ETD en el período: total por mes, tramos y tipo de negocio."""
+    base = require(bundle, "aereos")
+    if base is None:
+        return
+    df = filtered(bundle, "aereos", filters)
+    df = df[df["etd"] <= today()]
+    section("Aéreos · tiempos", "Seguimiento Aéreos · aéreos con ETD en el período.")
+    if df.empty:
+        empty()
+        return
+    tot = calc.describe(df["dias_total_aereo"])
+    coverage(tot.n, len(df), "embarques con fecha de packeo y ETA Caldas válidas")
+    with guard("Tiempos por tramo"):
         chart_title("Tiempo total por mes de ETD", "Mediana de packeo mínimo → ETA Caldas · barra = P25 a P75")
         d = df.dropna(subset=["dias_total_aereo", "etd"]).copy()
         d["mes"] = calc.month_start(d["etd"])
@@ -76,17 +139,7 @@ def render(bundle=None, filters=None) -> None:
             charts.theme(fig, y_title="días", legend=False)
             charts.show(fig, key="aer_total_mes")
 
-    with c2, guard("Estadios"):
-        chart_title("Embarques activos por estadio")
-        g = act.groupby("estadio").size().sort_values(ascending=False)
-        if g.empty:
-            empty("No hay aéreos activos.")
-        else:
-            charts.show(charts.hbar(g.index, g.values, text=[str(v) for v in g.values],
-                                    hover="%{y}: %{x} embarques<extra></extra>", x_title="embarques"),
-                        key="aer_estadio")
-
-    section("¿En qué tramo se demora?", "Mediana de cada tramo por mes de ETD (días). "
+    section("Aéreos · ¿en qué tramo se demora?", "Mediana de cada tramo por mes de ETD (días). "
             "Los tramos se calculan por separado: no se suman para dar el total.")
     with guard("Tabla de tramos"):
         d = df.dropna(subset=["etd"]).copy()
@@ -103,7 +156,7 @@ def render(bundle=None, filters=None) -> None:
                    + [ColSpec(lbl, lbl, "days") for _, lbl in TRAMOS] + [ColSpec("Total", "Total (d)", "days")],
                    key="aer_tramos", filename="aereos_tramos", search=False)
 
-    section("Participación por tipo de negocio")
+    section("Aéreos · participación por tipo de negocio")
     with guard("Tipo de negocio"):
         g = df.groupby(df["tipo_negocio"].fillna("Sin clasificar")).agg(
             embarques=("embarque", "count"), m3=("m3", "sum"), unidades=("unidades", "sum"),

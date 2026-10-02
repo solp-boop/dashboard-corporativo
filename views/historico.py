@@ -142,3 +142,7 @@ def render() -> None:
                     ColSpec("m3", "M3", "num"), ColSpec("chargeable", "Chargeable (kg)", "int"),
                     ColSpec("fob", "FOB (USD)", "usd"), ColSpec("total", "Packeo→Caldas mediana (d)", "days"),
                 ], key="hi_aereo", filename="historico_aereo", search=False)
+
+    if aer is not None:
+        from views import aereos
+        aereos.render_historico(bundle, filters)

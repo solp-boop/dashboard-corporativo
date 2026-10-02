@@ -17,6 +17,9 @@ from views import aereos
 from views._common import ctx, en_curso, kpis_en_curso, stat_sub, today
 
 
+CHART_H = 420  # mismo alto para los dos gráficos de «Próximas semanas»
+
+
 def render() -> None:
     bundle, filters = ctx()
     df, info = en_curso(bundle, filters)
@@ -26,7 +29,8 @@ def render() -> None:
 
     t = today()
     week_start = t - pd.Timedelta(days=t.weekday())
-    mar = df[df["grupo_modo"] == "Marítimo"]
+    es_air = df["embarque"].astype(str).str.strip().str.upper().str.startswith("AIR")
+    mar = df[(df["grupo_modo"] == "Marítimo") & ~es_air]
 
     section("¿Cómo estamos hoy?")
     with guard("KPIs de embarques en curso"):
@@ -40,7 +44,7 @@ def render() -> None:
     section("Próximas semanas", "Marítimos y aéreos en curso.")
     c1, c2 = st.columns(2, gap="medium")
     with c1, guard("ETD por semana"):
-        chart_title("Volumen a zarpar por semana", "m³ por semana de ETD · próximas 8 semanas")
+        chart_title("Volumen a zarpar por semana", f"m³ por semana de ETD · próximas 8 semanas · total {fmt.fmt_int(df.loc[(df['etd'] >= week_start) & (df['etd'] < week_start + pd.Timedelta(weeks=8)), 'm3'].sum())} m³")
         horizon = df[(df["etd"] >= week_start) & (df["etd"] < week_start + pd.Timedelta(weeks=8))].copy()
         if horizon.empty:
             empty("No hay ETD en las próximas 8 semanas.")
@@ -56,8 +60,14 @@ def render() -> None:
                 fig.add_bar(x=labels, y=s.values, name=name, marker=dict(color=color, cornerradius=3),
                             customdata=n.values,
                             hovertemplate=f"Semana del %{{x}} · {name}: %{{y:,.0f}} m³ (%{{customdata}} emb.)<extra></extra>")
+            tot = horizon.groupby("semana")["m3"].sum().reindex(weeks).fillna(0)
+            fig.add_scatter(x=labels, y=tot.values, mode="text", showlegend=False, hoverinfo="skip",
+                            text=[f"{fmt.fmt_int(v)} m³" if v else "" for v in tot.values],
+                            textposition="top center", cliponaxis=False,
+                            textfont=dict(size=11, color=settings.COLORS["slate"]))
             fig.update_layout(barmode="stack")
-            charts.theme(fig, y_title="m³", x_title="Semana (lunes)")
+            charts.theme(fig, height=CHART_H, y_title="m³", x_title="Semana (lunes)")
+            fig.update_yaxes(range=[0, float(tot.max()) * 1.18 if tot.max() else 1])
             charts.show(fig, key="emb_semana")
 
     with c2, guard("Pendientes por forwarder"):
@@ -70,11 +80,26 @@ def render() -> None:
             total = len(pend)
             fig = charts.hbar(g.index, g.values,
                               text=[f"{v} · {fmt.fmt_pct(v / total)}" for v in g.values],
-                              hover="%{y}: %{x} embarques<extra></extra>", x_title="embarques")
+                              hover="%{y}: %{x} embarques<extra></extra>", x_title="embarques", height=CHART_H)
             charts.show(fig, key="emb_pend_ffww")
 
     tab_mar, tab_aer = st.tabs(["Marítimo", "Aéreo"])
     with tab_mar:
+        section("Marítimos en gestión", "Reservas con «Responsable de la carga» (sin los AIR).")
+        with guard("KPIs marítimos"):
+            riesgo_mar = mar[mar["estado_consolidacion"].isin([calc.SEMAFORO_WARN, calc.SEMAFORO_BAD])
+                             & ~mar["etd_ok"]]
+            kpi_row([
+                KPI("Marítimos activos", fmt.fmt_int(len(mar)),
+                    sub=f"<b>{fmt.fmt_int((mar['estructura'] == 'Monoproveedor').sum())}</b> mono · "
+                        f"{fmt.fmt_int((mar['estructura'] == 'Consolidado').sum())} consolidado"),
+                KPI("Contenedores", fmt.fmt_int(mar["contenedores"].sum())),
+                KPI("Volumen activo", fmt.fmt_int(mar["m3"].sum()), unit="m³"),
+                KPI("FOB activo", fmt.fmt_usd(mar["fob"].sum())),
+                KPI("En riesgo", fmt.fmt_int(len(riesgo_mar)), status="bad" if len(riesgo_mar) else "ok",
+                    sub="consolidación fuera de SLA, sin ETD OK"),
+            ])
+
         section("Consolidación de los embarques en curso",
                 "ETD (confirmado o previsto) − fecha de packeo mínima. Mediana contra SLA.")
         with guard("Consolidación en curso"):
@@ -95,27 +120,21 @@ def render() -> None:
             kpi_row(cards)
             coverage(int(mar["dias_consolidacion"].notna().sum()), len(mar), "embarques marítimos",
                      "sin fecha de packeo o con fechas inconsistentes no se consideran")
-    with tab_aer:
-        aereos.render(bundle, filters)
 
-    section("Detalle de embarques", "Ordenado por ETD. El semáforo compara la consolidación con su SLA.")
-    with guard("Tabla de embarques"):
-        semaforo_legend()
-        tbl = df.sort_values("etd")
-        data_table(tbl, [
-            ColSpec("embarque", "Embarque"), ColSpec("grupo_modo", "Modo"), ColSpec("estadio", "Estadio (aéreo)"),
-            ColSpec("empresa", "Empresa"), ColSpec("puerto", "Puerto"),
-            ColSpec("forwarder", "Forwarder"), ColSpec("tipo_carga", "Tipo carga"),
-            ColSpec("estructura", "Estructura"), ColSpec("booking", "Booking"),
-            ColSpec("contenedores", "Cont.", "int"), ColSpec("m3", "M3", "num"), ColSpec("fob", "FOB (USD)", "usd"),
-            ColSpec("f_packeo_min", "Packeo mín.", "date"), ColSpec("f_instruccion", "Instrucción", "date"),
-            ColSpec("etd", "ETD", "date"), ColSpec("eta", "ETA", "date"), ColSpec("etd_ok", "ETD OK", "bool"),
-            ColSpec("tipo_negocio", "Tipo de negocio (aéreo)"), ColSpec("eta_caldas", "ETA Caldas", "date"),
-            ColSpec("chargeable", "Chargeable (kg)", "int"), ColSpec("guia", "Guía"),
-            ColSpec("draft_bl", "Draft BL"), ColSpec("pl_final", "PL final"), ColSpec("fotos", "Fotos"),
-            ColSpec("dias_consolidacion", "Consolidación (d)", "days"),
-            ColSpec("sla_consolidacion", "SLA (d)", "days"),
-            ColSpec("estado_consolidacion", "Estado", "status"),
-            ColSpec("responsable", "Responsable"), ColSpec("tipo_demora", "Tipo de demora"),
-            ColSpec("observaciones", "Observaciones", width="large"),
-        ], key="emb_tabla", filename="embarques_en_curso")
+        section("Detalle de embarques en riesgo",
+                "Consolidación proyectada fuera del SLA (Atención o Fuera de SLA) y todavía sin «ETD OK FFWW»: "
+                "donde aún hay margen de acción. Ordenado por ETD.")
+        with guard("Marítimos en riesgo"):
+            if riesgo_mar.empty:
+                empty("No hay marítimos en riesgo.")
+            else:
+                semaforo_legend()
+                data_table(riesgo_mar.sort_values("etd"), [
+                    ColSpec("embarque", "Embarque"), ColSpec("forwarder", "Forwarder"), ColSpec("etd", "ETD", "date"),
+                    ColSpec("responsable", "Responsable de la carga"),
+                    ColSpec("dias_consolidacion", "Consolidación total (d)", "days"),
+                    ColSpec("sla_consolidacion", "SLA (d)", "days"),
+                    ColSpec("estado_consolidacion", "Estado", "status"),
+                ], key="emb_riesgo", filename="maritimos_en_riesgo", search=False)
+    with tab_aer:
+        aereos.render_en_curso(bundle, filters)

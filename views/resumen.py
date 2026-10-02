@@ -226,8 +226,40 @@ def render() -> None:
             empty()
 
     # ================================================================== 3 · Eficiencia operativa
-    block(3, "Eficiencia operativa", "¿Qué tan eficientemente usamos los recursos? Consolidación y uso de la capacidad "
+    block(3, "Eficiencia operativa", "¿Qué tan eficientemente usamos los recursos? Tope GADNIC, consolidación y uso de la capacidad "
             "de los contenedores.")
+    lim = settings.SLA_AEREO_POR_TIPO.get("GADNIC", 24)
+    subsection(f"GADNIC · tope de {lim} días",
+               f"Crítico para la compañía. Aéreos GADNIC: tiempo total (packeo mínimo → ETA Caldas, columna «Total») "
+               f"contra el tope de {lim} días. Zarpados {periodo}, y los activos con su tiempo proyectado.")
+    with guard("GADNIC"):
+        if aer is None or aer.empty:
+            empty("Sin datos de Seguimiento Aéreos.")
+        else:
+            from views import aereos as aereos_view
+            gz = aer_z[(aer_z["tipo_sla"] == "GADNIC") & aer_z["dias_aereo"].notna()]
+            todos = filtered(bundle, "aereos", filters, use_period=False)
+            act = todos[todos["activo"] & (todos["tipo_sla"] == "GADNIC")]
+            proy = aereos_view.riesgo(act, t) if len(act) else act
+            n_g = len(gz)
+            ok_g = int((gz["dias_aereo"] <= lim).sum())
+            st_g = calc.describe(gz["dias_aereo"])
+            pct_g = ok_g / n_g if n_g else np.nan
+            obj = settings.CUMPLIMIENTO_OBJETIVO
+            n_riesgo = int((proy["dias_proyectados"] > lim).sum()) if len(proy) else 0
+            kpi_row([
+                KPI(f"Dentro de {lim} días", fmt.fmt_pct(pct_g) if n_g >= settings.MIN_SAMPLE else "—",
+                    status=("ok" if pct_g >= obj else "bad") if n_g >= settings.MIN_SAMPLE else "",
+                    sub=f"<b>{fmt.fmt_int(ok_g)}</b> de {fmt.fmt_int(n_g)} embarques"),
+                KPI("Tiempo total (mediana)", fmt.fmt_int(st_g.median) if st_g.enough else "—", unit="d",
+                    status=("ok" if st_g.median <= lim else "bad") if st_g.enough else "",
+                    sub=f"P90 <b>{fmt.fmt_int(gz['dias_aereo'].quantile(.9)) if n_g else '—'} d</b> · n={fmt.fmt_int(n_g)}"),
+                KPI(f"Más de {lim} días", fmt.fmt_int(n_g - ok_g), status="bad" if n_g - ok_g else "ok",
+                    sub="embarques zarpados en el período"),
+                KPI("Activos en riesgo", fmt.fmt_int(n_riesgo), status="bad" if n_riesgo else "ok",
+                    sub=f"de <b>{fmt.fmt_int(len(act))}</b> GADNIC activos con tiempo proyectado > {lim} d"),
+            ])
+
     if bundle.get("emb_hist") is not None:
         subsection("Objetivo −15 % · consolidación de SKU nuevos y top ranking",
                    f"Mediana de días de consolidación por SO, por trimestre de {t.year}. La base es Q1 y el objetivo "
