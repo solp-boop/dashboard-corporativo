@@ -18,18 +18,18 @@
 | Antes | Ahora |
 |---|---|
 | ORIGEN | **Pipeline de origen**: meses en orden cronológico, estado de instrucción sin huecos, tipo de negocio corregido |
-| MERCADERÍA EN PROCESO | **Embarques en curso** + **Aéreos** |
-| PERFORMANCE AGENTES/ANALISTAS | **Agentes y analistas**: medianas, % SLA, desvío de ETD, % flete certificado con n visible |
+| MERCADERÍA EN PROCESO | **Embarques en curso** (marítimos y aéreos juntos; pestañas Marítimo / Aéreo) |
+| PERFORMANCE AGENTES/ANALISTAS | **Agentes** y **Analistas** (páginas separadas; Analistas suma la carga actual): medianas, % SLA, desvío de ETD, % flete certificado con n visible |
 | FLETES, GASTOS Y CERTIFICACIONES | Dividida en dos páginas: **Fletes y gastos pagados** (lo que pagamos, contra el mercado) y **Cotizaciones** (con quién conviene embarcar) |
 | PROYECCIÓN SEMANAL ETD | Integrada en **Pipeline de origen** (semana a semana) |
-| INDICADORES | **Lead times y SLA** (marítimo) + **Aéreos** (tramos) |
+| INDICADORES | **Lead times y SLA** + tramos aéreos en **Embarques en curso → Aéreo** |
 | HISTÓRICO | **Histórico**, con comparación interanual además de la mensual |
 | ASK COMEX | **Buscar SO / embarque**, reescrito. El chat IA se eliminó, según lo pedido |
 | Barra "Panorama de mercado" | Eliminada: nunca mostró datos |
-| — | Nuevo: **Resumen ejecutivo** con alertas de qué requiere atención |
+| — | Nuevo: **Resumen** (nuestro año, SLA, objetivo −15 %, fletes) y **Control → Alertas** |
 | — | Nuevo: **Calidad de datos** |
 
-## Fletes: dos páginas
+## Gastos: dos páginas
 
 **Fletes y gastos pagados** usa Reservas Históricas y Seguimiento Aéreos:
 - Costo logístico total (flete + locales + origen), flete y gastos por contenedor, costo por m³ y llenado del contenedor.
@@ -101,7 +101,7 @@
 
 ## Pendientes a confirmar
 
-1. **Criterio de alertas del Resumen**: ETD en 7 días sin confirmar, zarpado hace más de 3 días sin Draft BL o PL final, consolidación proyectada fuera de SLA, instruido sin ETD. Se ajusta en `views/resumen.py → alerts()`.
+1. **Criterio de alertas del Resumen**: ETD en 7 días sin confirmar, zarpado hace más de 3 días sin Draft BL o PL final, consolidación proyectada fuera de SLA, instruido sin ETD. Se ajusta en `views/alertas.py → alerts()`.
 2. **Privacidad**: el repositorio es público y las planillas se leen por enlace público, igual que en la versión anterior. Se recomienda:
    - hacer el repositorio privado;
    - borrar `cargas.csv`;

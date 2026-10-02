@@ -1,4 +1,4 @@
-"""Embarques en curso (Reservas): qué zarpa, qué falta confirmar y con qué agente."""
+"""Embarques en curso, marítimos y aéreos: qué zarpa, qué falta confirmar y con qué agente."""
 from __future__ import annotations
 
 import numpy as np
@@ -13,6 +13,7 @@ from components.tables import ColSpec, data_table
 from config import settings
 from utils import calculations as calc
 from utils import formatting as fmt
+from views import aereos
 from views._common import ctx, en_curso, kpis_en_curso, stat_sub, today
 
 
@@ -36,27 +37,7 @@ def render() -> None:
         st.caption(f"Marítimo: {fmt.fmt_int(mono_n)} monoproveedor / {fmt.fmt_int(cons_n)} consolidado · "
                    f"in advance {fmt.fmt_int(adv.get('In advance', 0))} / spot {fmt.fmt_int(adv.get('Spot', 0))}.")
 
-    section("Consolidación de los embarques en curso",
-            "ETD (confirmado o previsto) − fecha de packeo mínima. Mediana contra SLA.")
-    with guard("Consolidación en curso"):
-        cards = []
-        for est, sla in (("Monoproveedor", settings.SLA_CONSOLIDACION_MONO), ("Consolidado", None)):
-            sub = mar[mar["estructura"] == est]
-            s = calc.describe(sub["dias_consolidacion"])
-            sla_v = sla if sla is not None else (float(sub["sla_consolidacion"].median()) if len(sub) else np.nan)
-            stt, badge = status_for(s.median, sla_v) if s.enough else ("", "")
-            cards.append(KPI(est, fmt.fmt_int(s.median) if s.enough else "—", unit="d", status=stt, badge=badge,
-                             sub=f"SLA {fmt.fmt_int(sla_v)} d · " + stat_sub(s)))
-        for bk in ("In advance", "Spot"):
-            sub = mar[mar["booking"] == bk]
-            s = calc.describe(sub["dias_consolidacion"])
-            stt, badge = status_for(s.median, settings.REF_CONSOLIDACION_BOOKING) if s.enough else ("", "")
-            cards.append(KPI(bk, fmt.fmt_int(s.median) if s.enough else "—", unit="d", status=stt, badge=badge,
-                             sub=f"Ref. {settings.REF_CONSOLIDACION_BOOKING} d · " + stat_sub(s)))
-        kpi_row(cards)
-        coverage(int(mar["dias_consolidacion"].notna().sum()), len(mar), "embarques marítimos",
-                 "sin fecha de packeo o con fechas inconsistentes no se consideran")
-
+    section("Próximas semanas", "Marítimos y aéreos en curso.")
     c1, c2 = st.columns(2, gap="medium")
     with c1, guard("ETD por semana"):
         chart_title("Volumen a zarpar por semana", "m³ por semana de ETD · próximas 8 semanas")
@@ -92,6 +73,31 @@ def render() -> None:
                               hover="%{y}: %{x} embarques<extra></extra>", x_title="embarques")
             charts.show(fig, key="emb_pend_ffww")
 
+    tab_mar, tab_aer = st.tabs(["Marítimo", "Aéreo"])
+    with tab_mar:
+        section("Consolidación de los embarques en curso",
+                "ETD (confirmado o previsto) − fecha de packeo mínima. Mediana contra SLA.")
+        with guard("Consolidación en curso"):
+            cards = []
+            for est, sla in (("Monoproveedor", settings.SLA_CONSOLIDACION_MONO), ("Consolidado", None)):
+                sub = mar[mar["estructura"] == est]
+                s = calc.describe(sub["dias_consolidacion"])
+                sla_v = sla if sla is not None else (float(sub["sla_consolidacion"].median()) if len(sub) else np.nan)
+                stt, badge = status_for(s.median, sla_v) if s.enough else ("", "")
+                cards.append(KPI(est, fmt.fmt_int(s.median) if s.enough else "—", unit="d", status=stt, badge=badge,
+                                 sub=f"SLA {fmt.fmt_int(sla_v)} d · " + stat_sub(s)))
+            for bk in ("In advance", "Spot"):
+                sub = mar[mar["booking"] == bk]
+                s = calc.describe(sub["dias_consolidacion"])
+                stt, badge = status_for(s.median, settings.REF_CONSOLIDACION_BOOKING) if s.enough else ("", "")
+                cards.append(KPI(bk, fmt.fmt_int(s.median) if s.enough else "—", unit="d", status=stt, badge=badge,
+                                 sub=f"Ref. {settings.REF_CONSOLIDACION_BOOKING} d · " + stat_sub(s)))
+            kpi_row(cards)
+            coverage(int(mar["dias_consolidacion"].notna().sum()), len(mar), "embarques marítimos",
+                     "sin fecha de packeo o con fechas inconsistentes no se consideran")
+    with tab_aer:
+        aereos.render(bundle, filters)
+
     section("Detalle de embarques", "Ordenado por ETD. El semáforo compara la consolidación con su SLA.")
     with guard("Tabla de embarques"):
         semaforo_legend()
@@ -104,6 +110,8 @@ def render() -> None:
             ColSpec("contenedores", "Cont.", "int"), ColSpec("m3", "M3", "num"), ColSpec("fob", "FOB (USD)", "usd"),
             ColSpec("f_packeo_min", "Packeo mín.", "date"), ColSpec("f_instruccion", "Instrucción", "date"),
             ColSpec("etd", "ETD", "date"), ColSpec("eta", "ETA", "date"), ColSpec("etd_ok", "ETD OK", "bool"),
+            ColSpec("tipo_negocio", "Tipo de negocio (aéreo)"), ColSpec("eta_caldas", "ETA Caldas", "date"),
+            ColSpec("chargeable", "Chargeable (kg)", "int"), ColSpec("guia", "Guía"),
             ColSpec("draft_bl", "Draft BL"), ColSpec("pl_final", "PL final"), ColSpec("fotos", "Fotos"),
             ColSpec("dias_consolidacion", "Consolidación (d)", "days"),
             ColSpec("sla_consolidacion", "SLA (d)", "days"),

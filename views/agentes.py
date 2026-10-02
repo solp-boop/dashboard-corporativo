@@ -1,9 +1,8 @@
-"""Agentes (forwarders) y analistas: quién demora y dónde intervenir."""
+"""Agentes (forwarders): quién demora y dónde intervenir."""
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
 
 from components import charts
@@ -14,7 +13,7 @@ from config import settings
 from config.mappings import MODOS_MARITIMOS
 from utils import calculations as calc
 from utils import formatting as fmt
-from views._common import ctx, filtered, month_labels, stat_sub, today
+from views._common import ctx, filtered, stat_sub, today
 
 
 def _group(df: pd.DataFrame, by: str) -> pd.DataFrame:
@@ -104,32 +103,3 @@ def render() -> None:
             ColSpec("in_advance", "% in advance", "pct"), ColSpec("certificacion", "% flete certificado", "pct"),
         ], key="ag_ffww", filename="forwarders", search=False,
             caption="Medianas en días. Desvío ETD = ETD real − ETD estimada")
-
-    section("Analistas (responsable de la carga)")
-    by_resp = _group(df, "responsable")
-    c1, c2 = st.columns([2, 3], gap="medium")
-    with c1, guard("Tabla de analistas"):
-        data_table(by_resp, [
-            ColSpec("responsable", "Responsable"), ColSpec("embarques", "Embarques", "int"),
-            ColSpec("consolidacion", "Consolidación (d)", "days"), ColSpec("cumple", "% SLA", "pct"),
-            ColSpec("agente", "Instr.→ETD (d)", "days"),
-        ], key="ag_resp", filename="analistas", search=False)
-    with c2, guard("Evolución por analista"):
-        chart_title("Embarques por mes y analista", "Mes de ETD · los 4 con más embarques; el resto en «Otros»")
-        d = df.dropna(subset=["responsable"]).copy()
-        if d.empty:
-            empty()
-        else:
-            d["mes"] = calc.month_start(d["etd"])
-            top = list(d["responsable"].value_counts().index[:4])
-            d["grupo"] = d["responsable"].where(d["responsable"].isin(top), "Otros")
-            months = sorted(d["mes"].unique())[-12:]
-            cmap = charts.color_map(top)
-            fig = go.Figure()
-            for name in top + (["Otros"] if (d["grupo"] == "Otros").any() else []):
-                s = d[d["grupo"] == name].groupby("mes").size().reindex(months).fillna(0)
-                fig.add_scatter(x=month_labels(pd.Series(months)), y=s.values, name=name, mode="lines+markers",
-                                line=dict(color=cmap[name], width=2), marker=dict(size=8),
-                                hovertemplate=f"{name}: %{{y}} embarques<extra></extra>")
-            charts.theme(fig, y_title="embarques")
-            charts.show(fig, key="ag_resp_mes")

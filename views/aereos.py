@@ -1,4 +1,7 @@
-"""Aéreos y courier (Seguimiento Aéreos): estado actual y tiempos por tramo."""
+"""Aéreos y courier (Seguimiento Aéreos): estado y tiempos por tramo.
+
+Se muestra dentro de «Embarques en curso» (pestaña Aéreo).
+"""
 from __future__ import annotations
 
 import numpy as np
@@ -23,23 +26,24 @@ TRAMOS = [
 ]
 
 
-def render() -> None:
-    bundle, filters = ctx()
+def render(bundle=None, filters=None) -> None:
+    if bundle is None:
+        bundle, filters = ctx()
     base = require(bundle, "aereos")
     if base is None:
         return
     df = filtered(bundle, "aereos", filters)
     filter_notes(base, filters, "Seguimiento Aéreos")
-    if df.empty:
-        empty()
-        return
-    act = df[df["activo"]]
+    # Activos: sin filtro de período (un aéreo en curso cuenta aunque su ETD esté fuera del rango).
+    todos = filtered(bundle, "aereos", filters, use_period=False)
+    act = todos[todos["activo"]]
 
-    section("Aéreos en gestión", "Embarques cuyo estadio no es ENTREGADO / NACIONALIZADO.")
+    section("Aéreos en gestión", "Seguimiento Aéreos: todo lo que no está ENTREGADO. "
+            "Los tiempos son de los aéreos con ETD en el período elegido.")
     with guard("KPIs aéreos"):
         tot = calc.describe(df["dias_total_aereo"])
         kpi_row([
-            KPI("Aéreos activos", fmt.fmt_int(len(act)), sub=f"de <b>{fmt.fmt_int(len(df))}</b> en el período"),
+            KPI("Aéreos activos", fmt.fmt_int(len(act)), sub=f"<b>{fmt.fmt_int(len(df))}</b> aéreos con ETD en el período"),
             KPI("Volumen activo", fmt.fmt_num(act["m3"].sum(), 0), unit="m³",
                 sub=f"<b>{fmt.fmt_int(act['unidades'].sum())}</b> unidades"),
             KPI("FOB activo", fmt.fmt_usd(act["fob"].sum())),
@@ -112,16 +116,3 @@ def render() -> None:
             ColSpec("unidades", "Unidades", "int"), ColSpec("fob", "FOB (USD)", "usd"),
             ColSpec("total", "Packeo→Caldas mediana (d)", "days"),
         ], key="aer_tn", filename="aereos_tipo_negocio", search=False)
-
-    section("Detalle de aéreos activos")
-    with guard("Tabla de aéreos"):
-        data_table(act.sort_values("etd"), [
-            ColSpec("embarque", "Embarque"), ColSpec("estadio", "Estadio"), ColSpec("empresa", "Empresa"),
-            ColSpec("tipo_negocio", "Tipo de negocio"), ColSpec("forwarder", "Forwarder"),
-            ColSpec("puerto", "Origen"), ColSpec("tipo_carga", "Tipo"),
-            ColSpec("f_packeo_min", "Packeo mín.", "date"), ColSpec("f_ingreso_wh", "Ingreso WH", "date"),
-            ColSpec("etd", "ETD", "date"), ColSpec("eta", "ETA", "date"), ColSpec("eta_caldas", "ETA Caldas", "date"),
-            ColSpec("m3", "M3", "num"), ColSpec("chargeable", "Chargeable (kg)", "int"),
-            ColSpec("fob", "FOB (USD)", "usd"), ColSpec("guia", "Guía"),
-            ColSpec("observaciones", "Observaciones", width="large"),
-        ], key="aer_tabla", filename="aereos_activos")

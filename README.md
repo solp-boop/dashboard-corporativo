@@ -38,7 +38,9 @@ views/                        Una página por tema
   resumen.py                  ¿Cómo estamos? ¿Cumplimos SLA? ¿Qué requiere atención?
   pipeline.py                 Mercadería en origen (Planif cargas)
   embarques.py                Embarques en curso (Reservas)
-  aereos.py                   Aéreos y courier
+  aereos.py                   Aéreos y courier (pestaña de Embarques en curso)
+  analistas.py                Analistas: carga actual y desempeño
+  alertas.py                  Alertas (Control)
   lead_times.py               Lead times y SLA
   agentes.py                  Forwarders y analistas
   fletes_pagados.py           Fletes y gastos pagados (vs mercado, certificación, validación)

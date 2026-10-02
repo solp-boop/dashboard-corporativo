@@ -18,7 +18,7 @@ from components.layout import guard, load_css, page_header  # noqa: E402
 from services.data_loader import SourceError, clear_cache, get_data  # noqa: E402
 from utils.logger import get_logger  # noqa: E402
 from views import (  # noqa: E402
-    aereos, agentes, alertas, buscar, calidad, cotizaciones, embarques, fletes_pagados, historico, lead_times, pipeline,
+    agentes, alertas, analistas, buscar, calidad, cotizaciones, embarques, fletes_pagados, historico, lead_times, pipeline,
     resumen,
 )
 
@@ -27,29 +27,26 @@ load_css()
 
 PAGES = {
     "General": [
-        st.Page(resumen.render, title="Resumen ejecutivo", icon=":material/dashboard:",
-                url_path="resumen", default=True),
-    ],
-    "Alertas": [
-        st.Page(alertas.render, title="Alertas", icon=":material/notifications:", url_path="alertas"),
+        st.Page(resumen.render, title="Resumen", icon=":material/dashboard:", url_path="resumen", default=True),
     ],
     "Operación": [
         st.Page(pipeline.render, title="Pipeline de origen", icon=":material/inventory_2:", url_path="pipeline"),
         st.Page(embarques.render, title="Embarques en curso", icon=":material/directions_boat:", url_path="embarques"),
-        st.Page(aereos.render, title="Aéreos", icon=":material/flight:", url_path="aereos"),
     ],
     "Desempeño": [
         st.Page(lead_times.render, title="Lead times y SLA", icon=":material/timer:", url_path="sla"),
-        st.Page(agentes.render, title="Agentes y analistas", icon=":material/groups:", url_path="agentes"),
+        st.Page(agentes.render, title="Agentes", icon=":material/local_shipping:", url_path="agentes"),
+        st.Page(analistas.render, title="Analistas", icon=":material/groups:", url_path="analistas"),
         st.Page(historico.render, title="Histórico", icon=":material/insights:", url_path="historico"),
     ],
-    "Fletes": [
+    "Gastos": [
         st.Page(fletes_pagados.render, title="Fletes y gastos pagados", icon=":material/payments:",
                 url_path="fletes"),
         st.Page(cotizaciones.render, title="Cotizaciones", icon=":material/request_quote:",
                 url_path="cotizaciones"),
     ],
-    "Herramientas": [
+    "Control": [
+        st.Page(alertas.render, title="Alertas", icon=":material/notifications:", url_path="alertas"),
         st.Page(buscar.render, title="Buscar SO / embarque", icon=":material/search:", url_path="buscar"),
         st.Page(calidad.render, title="Calidad de datos", icon=":material/fact_check:", url_path="calidad"),
     ],

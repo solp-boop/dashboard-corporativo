@@ -1,4 +1,4 @@
-"""Resumen ejecutivo: nuestro año, ¿cumplimos SLA?, ¿cuánto pagamos y capturamos?"""
+"""Resumen: nuestro año, ¿cumplimos SLA?, ¿cuánto pagamos y capturamos?"""
 from __future__ import annotations
 
 import numpy as np
