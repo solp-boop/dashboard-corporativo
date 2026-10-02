@@ -8,7 +8,7 @@ import streamlit as st
 
 from components import charts
 from components.kpi_cards import KPI, kpi_row
-from components.layout import chart_title, coverage, empty, filter_notes, guard, require, section
+from components.layout import chart_title, empty, filter_notes, guard, require, section
 from components.tables import ColSpec, data_table
 from config import settings
 from utils import calculations as calc
@@ -95,7 +95,7 @@ def render() -> None:
         filter_notes(base, filters, "Planificación de cargas")
         if len(sincl):
             st.caption(f"«Sin clasificar»: {fmt.fmt_int(len(sincl))} SO con un valor en «Fecha de Instrucción» "
-                       "que no es fecha ni «SIN INSTRUCCION». Se listan en la tabla de abajo.")
+                       "que no es fecha ni «SIN INSTRUCCION». Se pueden consultar en Buscar SO / embarque.")
 
     if df.empty:
         empty()
@@ -234,32 +234,4 @@ def render() -> None:
     if len(fuera):
         st.caption(f"No entran en esta vista {fmt.fmt_int(fuera['so'].nunique())} SO con ETD anterior a "
                    f"{fmt.fmt_month(this_month, long=True).lower()} o sin ETD "
-                   f"({fmt.fmt_int(fuera['m3'].sum())} m³). Están en el detalle por SO.")
-
-    section("Tipo de negocio", "Clasificación por marca y tipo de envío (muestras y repuestos aparte).")
-    with guard("Tipo de negocio"):
-        so = per_so(df)
-        tn = so.pivot_table(index="tipo_negocio", columns="estado_instruccion", values="so",
-                            aggfunc="count", fill_value=0)
-        tn = tn.reindex(columns=[e for e in ESTADOS if e in tn.columns])
-        tn["Total SO"] = tn.sum(axis=1)
-        tn["M3"] = so.groupby("tipo_negocio")["m3"].sum()
-        tn = tn.sort_values("Total SO", ascending=False).reset_index().rename(columns={"tipo_negocio": "Tipo de negocio"})
-        cols = [ColSpec("Tipo de negocio", "Tipo de negocio")] + \
-               [ColSpec(c, f"SO {c.lower()}", "int") for c in ESTADOS if c in tn.columns] + \
-               [ColSpec("Total SO", "Total SO", "int"), ColSpec("M3", "M3", "int")]
-        data_table(tn, cols, key="pl_tn", filename="tipo_negocio", search=False)
-
-    section("Detalle por SO")
-    with guard("Detalle por SO"):
-        so = per_so(df).sort_values(["etd", "so"])
-        coverage(int(so["etd"].notna().sum()), len(so), "SO con ETD")
-        data_table(so, [
-            ColSpec("so", "SO"), ColSpec("estado_instruccion", "Estado"), ColSpec("embarque", "Embarque"),
-            ColSpec("proveedor", "Proveedor", width="medium"), ColSpec("puerto", "Puerto"),
-            ColSpec("destino", "Destino"), ColSpec("estructura", "Estructura"),
-            ColSpec("tipo_negocio", "Tipo de negocio"), ColSpec("f_instruccion", "Instrucción", "date"),
-            ColSpec("etd", "ETD", "date"), ColSpec("eta", "ETA", "date"),
-            ColSpec("m3", "M3", "num"), ColSpec("fob", "FOB (USD)", "usd"),
-            ColSpec("responsable", "Responsable"),
-        ], key="pl_so", filename="pipeline_so")
+                   f"({fmt.fmt_int(fuera['m3'].sum())} m³).")
