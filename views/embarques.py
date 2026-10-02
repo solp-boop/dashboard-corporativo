@@ -138,3 +138,24 @@ def render() -> None:
                 ], key="emb_riesgo", filename="maritimos_en_riesgo", search=False)
     with tab_aer:
         aereos.render_en_curso(bundle, filters)
+
+    with st.expander(f"Todos los embarques en curso ({fmt.fmt_int(len(df))}) · lista completa para consultar o exportar"):
+        with guard("Tabla de embarques"):
+            semaforo_legend()
+            data_table(df.sort_values("etd"), [
+                ColSpec("embarque", "Embarque"), ColSpec("grupo_modo", "Modo"), ColSpec("estadio", "Estadio (aéreo)"),
+                ColSpec("empresa", "Empresa"), ColSpec("puerto", "Puerto"),
+                ColSpec("forwarder", "Forwarder"), ColSpec("tipo_carga", "Tipo carga"),
+                ColSpec("estructura", "Estructura"), ColSpec("booking", "Booking"),
+                ColSpec("contenedores", "Cont.", "int"), ColSpec("m3", "M3", "num"), ColSpec("fob", "FOB (USD)", "usd"),
+                ColSpec("f_packeo_min", "Packeo mín.", "date"), ColSpec("f_instruccion", "Instrucción", "date"),
+                ColSpec("etd", "ETD", "date"), ColSpec("eta", "ETA", "date"), ColSpec("etd_ok", "ETD OK", "bool"),
+                ColSpec("tipo_negocio", "Tipo de negocio (aéreo)"), ColSpec("eta_caldas", "ETA Caldas", "date"),
+                ColSpec("chargeable", "Chargeable (kg)", "int"), ColSpec("guia", "Guía"),
+                ColSpec("draft_bl", "Draft BL"), ColSpec("pl_final", "PL final"),
+                ColSpec("dias_consolidacion", "Consolidación (d)", "days"),
+                ColSpec("sla_consolidacion", "SLA (d)", "days"),
+                ColSpec("estado_consolidacion", "Estado", "status"),
+                ColSpec("responsable", "Responsable"), ColSpec("tipo_demora", "Tipo de demora"),
+                ColSpec("observaciones", "Observaciones", width="large"),
+            ], key="emb_tabla", filename="embarques_en_curso")

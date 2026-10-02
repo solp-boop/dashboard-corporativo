@@ -218,3 +218,15 @@ def dg_aereo(a: pd.DataFrame) -> Especial:
     d["mes"] = d["etd"].dt.to_period("M").dt.to_timestamp()
     d["usd_kg"] = (d["flete_pagado"] / d["chargeable"]).where((d["flete_pagado"] > 0) & (d["chargeable"] > 0))
     return _especial(d, "usd_kg", ["mes", "puerto"], "dias_etd_eta")
+
+
+# ---------------------------------------------------------------------------
+# GADNIC
+# ---------------------------------------------------------------------------
+def gadnic_embarques(planif: pd.DataFrame | None) -> set:
+    """Embarques (clave normalizada) que llevan al menos una SO GADNIC según Planificación de cargas."""
+    from utils.data_cleaning import id_key
+    if planif is None or planif.empty or "tipo_negocio" not in planif:
+        return set()
+    g = planif[(planif["tipo_negocio"] == "GADNIC") & planif["embarque"].notna()]
+    return set(id_key(g["embarque"]))

@@ -17,7 +17,7 @@ from components.kpi_cards import KPI, kpi_row
 from components.tables import ColSpec, data_table
 from utils import anio
 from utils import resumen_kpis as rk
-from views._common import ctx, filtered, periodo_txt, split_html, today
+from views._common import ctx, en_curso, filtered, periodo_txt, split_html, today
 
 
 def _record_txt(tab: pd.DataFrame) -> str:
@@ -230,8 +230,8 @@ def render() -> None:
             "de los contenedores.")
     lim = settings.SLA_AEREO_POR_TIPO.get("GADNIC", 24)
     subsection(f"GADNIC · tope de {lim} días",
-               f"Crítico para la compañía. Aéreos GADNIC: tiempo total (packeo mínimo → ETA Caldas, columna «Total») "
-               f"contra el tope de {lim} días. Zarpados {periodo}, y los activos con su tiempo proyectado.")
+               f"Crítico para la compañía. Aéreo: tiempo total (packeo mínimo → ETA Caldas, columna «Total»), zarpados "
+               f"{periodo} y activos proyectados. Marítimo: consolidación proyectada de los embarques en curso.")
     with guard("GADNIC"):
         if aer is None or aer.empty:
             empty("Sin datos de Seguimiento Aéreos.")
@@ -247,6 +247,7 @@ def render() -> None:
             pct_g = ok_g / n_g if n_g else np.nan
             obj = settings.CUMPLIMIENTO_OBJETIVO
             n_riesgo = int((proy["dias_proyectados"] > lim).sum()) if len(proy) else 0
+            st.markdown('<div class="row-label">Aéreo · zarpados y activos</div>', unsafe_allow_html=True)
             kpi_row([
                 KPI(f"Dentro de {lim} días", fmt.fmt_pct(pct_g) if n_g >= settings.MIN_SAMPLE else "—",
                     status=("ok" if pct_g >= obj else "bad") if n_g >= settings.MIN_SAMPLE else "",
@@ -259,6 +260,33 @@ def render() -> None:
                 KPI("Activos en riesgo", fmt.fmt_int(n_riesgo), status="bad" if n_riesgo else "ok",
                     sub=f"de <b>{fmt.fmt_int(len(act))}</b> GADNIC activos con tiempo proyectado > {lim} d"),
             ])
+
+        # Marítimo: solo en curso (Embarques Históricos no trae la marca, así que no hay histórico GADNIC)
+        from utils.data_cleaning import id_key
+        gk = rk.gadnic_embarques(bundle.get("planif"))
+        res_c, _ = en_curso(bundle, filters)
+        mg = res_c[(res_c.get("grupo_modo") == "Marítimo") & id_key(res_c["embarque"]).isin(gk)] if len(res_c) and gk \
+            else pd.DataFrame()
+        st.markdown('<div class="row-label">Marítimo · en curso</div>', unsafe_allow_html=True)
+        if mg.empty:
+            empty("Sin embarques marítimos en curso con SO GADNIC.")
+        else:
+            cons = calc.describe(mg["dias_consolidacion"])
+            sobre = int((mg["dias_consolidacion"] > lim).sum())
+            sin_ok = int(((mg["dias_consolidacion"] > lim) & ~mg["etd_ok"]).sum())
+            kpi_row([
+                KPI("Embarques con GADNIC", fmt.fmt_int(len(mg)),
+                    sub=f"de {fmt.fmt_int((res_c['grupo_modo'] == 'Marítimo').sum())} marítimos en curso"),
+                KPI("Consolidación proyectada (mediana)", fmt.fmt_int(cons.median) if cons.enough else "—", unit="d",
+                    status=("ok" if cons.median <= lim else "bad") if cons.enough else "",
+                    sub=f"packeo mínimo → ETD · n={fmt.fmt_int(cons.n)}"),
+                KPI(f"Más de {lim} días", fmt.fmt_int(sobre), status="bad" if sobre else "ok",
+                    sub=f"<b>{fmt.fmt_pct(sobre / cons.n if cons.n else np.nan)}</b> de los que tienen dato"),
+                KPI("Con margen de acción", fmt.fmt_int(sin_ok), status="bad" if sin_ok else "ok",
+                    sub=f"más de {lim} d y todavía sin ETD OK FFWW"),
+            ])
+            st.caption("Embarque GADNIC = lleva al menos una SO GADNIC en Planificación de cargas. Para lo ya "
+                       "zarpado no hay marca en Embarques Históricos, por eso el marítimo se mide solo en curso.")
 
     if bundle.get("emb_hist") is not None:
         subsection("Objetivo −15 % · consolidación de SKU nuevos y top ranking",
