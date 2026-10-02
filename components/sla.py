@@ -147,31 +147,78 @@ def air_table(a: pd.DataFrame, today: pd.Timestamp) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 # SKU nuevos y top ranking
 # ---------------------------------------------------------------------------
-def productos_table(summary: pd.DataFrame) -> None:
-    head = ["Grupo", "Estructura", "Base", "Actual", "Variación", "Objetivo (−15 %)", "Estado", "SO en el año"]
-    rows = []
+def productos_table(summary: pd.DataFrame, today: pd.Timestamp) -> None:
+    """Grupo × estructura: mediana por trimestre del año, objetivo (Q1 −15 %) y estado."""
+    qs = ["Q1", "Q2", "Q3", "Q4"]
+    this_q = f"Q{(today.month - 1) // 3 + 1}"
+    head = (["Grupo", "Estructura"] + [q + ("*" if q == this_q else "") for q in qs]
+            + [f"Año {today.year}", "Objetivo", "Variación", "Estado"])
     colors = {"Cumple": "ok", "Reduce, sin llegar": "warn", "No reduce": "bad"}
-    for _, r in summary.iterrows():
-        def d(v, n, per):
+    rows = []
+    span = summary.groupby("grupo", sort=False)["grupo"].transform("size")
+    first = ~summary["grupo"].duplicated()
+    for idx, r in summary.iterrows():
+        cells = []
+        for q in qs:
+            v, n = r[q], r[q + "_n"]
             if v != v:
-                return '<td class="na">—</td>'
-            return f'<td>{fmt.fmt_int(v)} d<span class="n">{html.escape(per)} · n={fmt.fmt_int(n)}</span></td>'
+                cells.append('<td class="na">—</td>')
+                continue
+            tag = " · base" if q == r["base_q"] else (" · actual" if q == r["actual_q"] else "")
+            cls = ' class="hl"' if tag else ""
+            cells.append(f'<td{cls}>{fmt.fmt_int(v)} d<span class="n">n={fmt.fmt_int(n)}{tag}</span></td>')
+        anio = (f'<td>{fmt.fmt_int(r["anio"])} d<span class="n">n={fmt.fmt_int(r["anio_n"])}</span></td>'
+                if r["anio"] == r["anio"] else '<td class="na">—</td>')
         estado = r["estado"]
         dot = f'<i class="dot {colors[estado]}"></i>' if estado in colors else ""
-        var = fmt.fmt_pct(r["variacion"], signed=True) if r["variacion"] == r["variacion"] else "—"
+        var = (f'{fmt.fmt_pct(r["variacion"], signed=True)}<span class="n">{r["actual_q"]} vs {r["base_q"]}</span>'
+               if r["variacion"] == r["variacion"] else "—")
         rows.append(
-            f"<tr><th class='rowh'>{html.escape(r['grupo'])}</th><td style='text-align:left'>{r['estructura']}</td>"
-            f"{d(r['base'], r['base_n'], r['base_txt'])}{d(r['actual'], r['actual_n'], r['actual_txt'])}"
+            "<tr>" + (f"<th class='rowh' rowspan='{span[idx]}'>{html.escape(r['grupo'])}</th>" if first[idx] else "")
+            + f"<td style='text-align:left'>{r['estructura']}</td>"
+            + "".join(cells) + anio
+            + f"<td>{fmt.fmt_num(r['objetivo'], 1) + ' d' if r['objetivo'] == r['objetivo'] else '—'}</td>"
             f"<td class='var'>{var}</td>"
-            f"<td>{fmt.fmt_num(r['objetivo'], 1) + ' d' if r['objetivo'] == r['objetivo'] else '—'}</td>"
-            f"<td style='text-align:left'>{dot}{html.escape(estado or 'Muestra chica')}</td>"
-            f"<td>{fmt.fmt_int(r['so_anio'])}</td></tr>")
-    st.markdown('<div class="scorecard"><table><thead><tr>' + "".join(f"<th>{h}</th>" for h in head)
+            f"<td style='text-align:left'>{dot}{html.escape(estado or 'Muestra chica')}</td></tr>")
+    st.markdown('<div class="scorecard compact"><table><thead><tr>' + "".join(f"<th>{h}</th>" for h in head)
                 + f'</tr></thead><tbody>{"".join(rows)}</tbody></table></div>', unsafe_allow_html=True)
     notas = sorted({n for n in summary["nota"] if n})
-    st.caption("Mediana del «Tiempo de consolidacion» por SO (Embarques Historicos), según la estructura del "
-               "embarque en Reservas Históricas. Base y actual por mes de ETD; «actual» = últimos "
-               f"{settings.COMPARACION_MESES} meses cerrados." + (" " + " ".join(notas) if notas else ""))
+    st.caption(f"*{this_q} en curso. Mediana de días de consolidación por SO, por trimestre de ETD. Base = Q1; objetivo = base −15 %; "
+               "se compara el último trimestre cerrado («actual») contra la base. La columna del año es la "
+               "mediana de todas las SO del año." + (" " + " ".join(notas) if notas else ""))
+
+
+def productos_q_chart(summary: pd.DataFrame, grupo_label: str, today: pd.Timestamp, key: str) -> None:
+    """Barras por trimestre (consolidado / monoproveedor) con el objetivo como línea punteada."""
+    s = summary[summary["grupo"] == grupo_label]
+    if s.empty or s[["Q1", "Q2", "Q3", "Q4"]].isna().all().all():
+        st.markdown('<div class="empty">Sin datos.</div>', unsafe_allow_html=True)
+        return
+    qs = ["Q1", "Q2", "Q3", "Q4"]
+    this_q = f"Q{(today.month - 1) // 3 + 1}"
+    x = [q + (" (en curso)" if q == this_q else "") for q in qs]
+    fig = go.Figure()
+    for i, est in enumerate(["Consolidado", "Monoproveedor"]):
+        r = s[s["estructura"] == est]
+        if r.empty:
+            continue
+        r = r.iloc[0]
+        color = settings.SERIES[0] if est == "Consolidado" else settings.SERIES[2]
+        y = [r[q] for q in qs]
+        n = [r[q + "_n"] for q in qs]
+        fig.add_bar(x=x, y=y, name=est, marker=dict(
+                        color=color, cornerradius=4,
+                        pattern=dict(shape=["/" if q == this_q else "" for q in qs], fgcolor="white", size=6)),
+                    text=[f"{fmt.fmt_int(v)} d" if v == v else "" for v in y], textposition="outside",
+                    cliponaxis=False, customdata=n, offsetgroup=str(i),
+                    hovertemplate=f"{est} · %{{x}}: %{{y:.0f}} d (%{{customdata}} SO)<extra></extra>")
+        if r["objetivo"] == r["objetivo"]:
+            fig.add_scatter(x=x, y=[r["objetivo"]] * 4, name=f"Obj. {fmt.fmt_num(r['objetivo'], 1)} d",
+                            mode="lines", line=dict(color=color, width=1.5, dash="dash"),
+                            hovertemplate=f"Objetivo {est.lower()}: %{{y:.1f}} d<extra></extra>")
+    charts.theme(fig, height=320, y_title="días (mediana)")
+    fig.update_layout(barmode="group", bargap=0.3)
+    charts.show(fig, key=key)
 
 
 def productos_chart(monthly: pd.DataFrame, summary: pd.DataFrame, grupo_label: str, key: str) -> None:

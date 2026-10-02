@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from components import charts
-from components.kpi_cards import KPI, kpi_row, status_for
+from components.kpi_cards import KPI, cert_status, cert_sub, kpi_row
 from components.layout import chart_title, empty, filter_notes, guard, require, section
 from components.tables import ColSpec, data_table
 from config import settings
@@ -54,7 +54,7 @@ def render() -> None:
         cert = df.loc[df["flete_pagado"] > 0, "flete_certificado"].sum()
         n_cert = int((df["flete_pagado"] > 0).sum())
         pct_cert = cert / pagado if pagado else np.nan
-        stt, badge = (status_for(pct_cert, settings.KPI_CERTIFICACION_TARGET, higher_is_better=True)
+        stt, badge = (cert_status(pct_cert)
                       if n_cert >= settings.MIN_SAMPLE else ("", ""))
         kpi_row([
             KPI("Embarques", fmt.fmt_int(len(df)), sub=f"<b>{fmt.fmt_int(df['contenedores'].sum())}</b> contenedores"),
@@ -64,7 +64,7 @@ def render() -> None:
                 sub=stat_sub(des)),
             KPI("Flete certificado", fmt.fmt_pct(pct_cert) if n_cert >= settings.MIN_SAMPLE else "—",
                 status=stt, badge=badge,
-                sub=f"Objetivo ≥ {fmt.fmt_pct(settings.KPI_CERTIFICACION_TARGET)} · "
+                sub=cert_sub() + " · "
                     f"datos en <b>{fmt.fmt_int(n_cert)}</b> de {fmt.fmt_int(len(df))} embarques"),
         ])
 

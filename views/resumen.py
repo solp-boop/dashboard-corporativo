@@ -30,8 +30,7 @@ def render_anio(bundle, filters) -> None:
     t = today()
     hist = filtered(bundle, "historicas", filters, use_period=False)
     section(f"Nuestro {t.year}",
-            f"Embarques de Reservas Históricas con ETD en {t.year}, por mes de ETD. "
-            "Contenedores: solo marítimos. Estructura: sobre los embarques con monoproveedor / consolidado cargado.")
+            "Operaciones embarcadas.")
     if hist is None or hist.empty:
         empty()
         return
@@ -135,12 +134,20 @@ def render() -> None:
 
     # ------------------------------------------------------------------ objetivo −15 %
     if bundle.get("emb_hist") is not None:
+        t = today()
         section("Objetivo −15 % · consolidación de SKU nuevos y top ranking",
-                "Tiempo de consolidación por SO, separado en monoproveedor y consolidado. "
-                "La evolución mes a mes está en Lead times y SLA.")
+                f"Mediana de días de consolidación por SO, por trimestre de {t.year}. La base es Q1 y el objetivo "
+                "es bajarla un 15 %: se compara el último trimestre cerrado contra Q1. "
+                "La apertura mes a mes está en Lead times y SLA.")
         with guard("Objetivo −15 %"):
-            d = productos.base_lines(bundle.get("emb_hist"), today())
-            sla_view.productos_table(productos.summary(d, today()))
+            d = productos.base_lines(bundle.get("emb_hist"), t)
+            summ = productos.summary(d, t)
+            g1, g2 = st.columns(2, gap="medium")
+            for col, (grupo, label) in zip((g1, g2), productos.GRUPOS.items()):
+                with col:
+                    chart_title(label, "Mediana por trimestre · línea punteada = objetivo (Q1 −15 %)")
+                    sla_view.productos_q_chart(summ, label, t, key=f"res_prod_{grupo}")
+            sla_view.productos_table(summ, t)
 
     # ------------------------------------------------------------------ fletes
     if bundle.get("historicas") is not None:
@@ -152,7 +159,7 @@ def render_fletes(bundle, filters) -> None:
     import plotly.graph_objects as go
 
     from components import charts
-    from components.kpi_cards import KPI, kpi_row
+    from components.kpi_cards import KPI, cert_status, cert_sub, kpi_row
     from config.mappings import MODOS_MARITIMOS
     from utils import freight
 
@@ -186,7 +193,6 @@ def render_fletes(bundle, filters) -> None:
         ok_cert = h["flete_pagado"] > 0
         cert = (h.loc[ok_cert, "flete_certificado"].sum() / h.loc[ok_cert, "flete_pagado"].sum()
                 if ok_cert.any() else np.nan)
-        cert_ok = cert == cert and cert >= settings.KPI_CERTIFICACION_TARGET
         nor = freight.nor_savings(h)
         nor_ok = nor.dropna(subset=["ahorro"]) if len(nor) else nor
 
@@ -202,16 +208,15 @@ def render_fletes(bundle, filters) -> None:
                 sub=(f"<b>{fmt.fmt_int(nor_ok['contenedores'].sum())}</b> contenedores 40 NOR vs 40 ST/HQ del mismo mes"
                      + (f" · por m³: {fmt.fmt_usd(nor_ok['ahorro_m3'].sum())}" if nor_ok["ahorro_m3"].notna().any() else ""))
                 if len(nor_ok) else "Sin embarques en 40 NOR"),
-            KPI("Flete certificado", fmt.fmt_pct(cert),
-                status="ok" if cert_ok else ("bad" if cert == cert else ""),
-                sub=f"Objetivo ≥ {fmt.fmt_pct(settings.KPI_CERTIFICACION_TARGET)}"),
+            KPI("Flete certificado", fmt.fmt_pct(cert), status=cert_status(cert)[0], badge=cert_status(cert)[1],
+                sub=cert_sub() + " · certificado por fuera / flete pagado"),
         ])
         con_origen = int((h["gastos_origen"] > 0).sum())
         st.caption(f"Gastos en origen cargados en {fmt.fmt_int(con_origen)} de {fmt.fmt_int(len(h))} embarques "
-                   "marítimos. «Ahorro vs mercado» compara el flete por contenedor con la mediana de las "
-                   "cotizaciones del mismo mes, tipo de contenedor y destino. «Ahorro por usar 40 NOR» compara el flete pagado de cada "
-                   "contenedor 40 NOR con la mediana pagada por un 40 ST/HQ ese mismo mes; «por m³» corrige por la "
-                   "menor capacidad del 40 NOR.")
+                   "marítimos. «Ahorro vs mercado»: por embarque, (precio de mercado − flete pagado por contenedor) × "
+                   "contenedores; el precio de mercado es la mediana de la mejor tarifa de cada forwarder cotizada "
+                   "para el mes de ETD, el mismo tipo de contenedor y destino. «Ahorro por usar 40 NOR»: por embarque "
+                   "en 40 NOR, (mediana pagada por un 40 ST/HQ ese mes − flete pagado por el 40 NOR) × contenedores.")
 
         c1, c2 = st.columns(2, gap="medium")
         with c1:

@@ -86,7 +86,7 @@ def render() -> None:
         with guard("SKU nuevos y top ranking"):
             dp = productos.base_lines(bundle.get("emb_hist"), today())
             summ = productos.summary(dp, today())
-            sla_view.productos_table(summ)
+            sla_view.productos_table(summ, today())
             g1, g2 = st.columns(2, gap="medium")
             for col, (grupo, label) in zip((g1, g2), productos.GRUPOS.items()):
                 with col:

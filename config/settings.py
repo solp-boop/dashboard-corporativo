@@ -143,8 +143,9 @@ COLORS = {
 SERIES = ["#2456A6", "#6E9BDB", "#5E4AA0", "#B07A2A"]
 SERIES_OTHER = "#A9B1BC"
 
-# Certificación de fletes: flete certificado / flete pagado (objetivo mínimo).
-KPI_CERTIFICACION_TARGET = 0.75
+# Flete certificado = lo que certificamos por fuera: flete certificado / flete pagado.
+# Menos es mejor; por encima del máximo está mal.
+KPI_CERTIFICACION_MAX = 0.60
 
 # Recomendación de forwarder: un ETD se considera "en fecha" si el ETD real
 # difiere de la ETD estimada en hasta estos días.

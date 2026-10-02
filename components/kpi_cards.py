@@ -38,6 +38,30 @@ def kpi_row(kpis: list[KPI], columns: int | None = None) -> None:
     )
 
 
+def cert_status(pct: float) -> tuple[str, str]:
+    """Flete certificado (lo certificado por fuera): bien hasta el máximo, mal por encima."""
+    from config import settings
+
+    if pct is None or pct != pct:
+        return "", ""
+    mx = settings.KPI_CERTIFICACION_MAX
+    if pct <= mx:
+        return "ok", "En objetivo"
+    if pct <= mx * (1 + settings.SLA_WARNING_TOLERANCE):
+        return "warn", "Atención"
+    return "bad", "Sobre el máximo"
+
+
+def cert_sub() -> str:
+    from config import settings
+    return f"Máximo ≤ {fmt_pct_local(settings.KPI_CERTIFICACION_MAX)} · menos es mejor"
+
+
+def fmt_pct_local(v: float) -> str:
+    from utils import formatting as fmt
+    return fmt.fmt_pct(v)
+
+
 def status_for(value: float, sla: float, higher_is_better: bool = False) -> tuple[str, str]:
     """Estado del semáforo para un valor contra su SLA."""
     from config import settings

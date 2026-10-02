@@ -139,6 +139,9 @@ h1, h2, h3 { color: var(--ink); letter-spacing: -0.01em; }
 .scorecard td .n { display: block; font-size: .7rem; color: var(--ink-3); }
 .scorecard td.var { color: var(--ink-2); }
 .scorecard td.na { color: var(--ink-3); }
+.scorecard.compact th, .scorecard.compact td { padding: .5rem .6rem; }
+.scorecard th[rowspan] { vertical-align: middle; border-right: 1px solid var(--line); }
+.scorecard td.hl { background: rgba(36,86,166,0.07); font-weight: 600; }
 .scorecard td .dot { margin-right: .35rem; }
 .mode-head { display: flex; align-items: baseline; gap: .6rem; margin-bottom: .3rem; }
 .mode-head .big { font-size: 1.9rem; font-weight: 650; color: var(--ink); font-variant-numeric: tabular-nums; }

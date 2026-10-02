@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from components import charts
-from components.kpi_cards import KPI, kpi_row, status_for
+from components.kpi_cards import KPI, cert_status, cert_sub, kpi_row
 from components.layout import chart_title, coverage, empty, filter_notes, guard, require, section
 from components.tables import ColSpec, data_table
 from config import settings
@@ -63,7 +63,7 @@ def render() -> None:
     section("¿Cuánto pagamos?")
     with guard("KPIs de costos"):
         cert, n_cert = _cert(d)
-        s_cert, b_cert = (status_for(cert, settings.KPI_CERTIFICACION_TARGET, higher_is_better=True)
+        s_cert, b_cert = (cert_status(cert)
                           if n_cert >= settings.MIN_SAMPLE else ("", ""))
         fl = calc.describe(con_flete["flete_por_ctnr"])
         vm = calc.describe(d["vs_mercado"])
@@ -84,7 +84,7 @@ def render() -> None:
                 sub=f"Mediana · llenado de contenedor {fmt.fmt_pct(llen.median)}" if llen.enough else "Mediana"),
             KPI("Flete certificado", fmt.fmt_pct(cert) if n_cert >= settings.MIN_SAMPLE else "—",
                 status=s_cert, badge=b_cert,
-                sub=f"Objetivo ≥ {fmt.fmt_pct(settings.KPI_CERTIFICACION_TARGET)} · certificado / pagado"),
+                sub=cert_sub() + " · certificado / pagado"),
         ])
         coverage(len(con_flete), len(d), "embarques con flete pagado cargado")
 
