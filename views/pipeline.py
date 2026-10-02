@@ -153,46 +153,75 @@ def render() -> None:
         if sin_fecha:
             st.caption(f"{fmt.fmt_int(sin_fecha)} líneas sin {date_label} no se muestran en el gráfico.")
 
+    section("Por puerto y semana", "El mes elegido aplica a los dos: volumen por puerto y semana a semana (ETD). "
+            "«Total» suma todos los meses desde el actual.")
+    this_month = today().to_period("M").to_timestamp()
+    months_avail = sorted(calc.month_start(df["etd"].dropna()).unique())
+    future = [m for m in months_avail if m >= this_month] or months_avail
+    opciones = ["Total"] + future
+    sel = st.segmented_control("Mes ETD", opciones, default="Total", key="pl_week_month",
+                               format_func=lambda m: m if isinstance(m, str) else fmt.fmt_month(m, long=True))
+    sel = sel or "Total"
+    if future:
+        en_meses = calc.month_start(df["etd"]).isin(future)
+    else:
+        en_meses = pd.Series(False, index=df.index)
+    w_all = df[en_meses].copy()
+    w = w_all if sel == "Total" else w_all[calc.month_start(w_all["etd"]) == sel].copy()
+    fuera = df[~en_meses]
+    sel_txt = f"Total desde {fmt.fmt_month(future[0], long=True).lower()}" if (sel == "Total" and future) else (
+        "Total" if sel == "Total" else fmt.fmt_month(sel, long=True))
+
     c1, c2 = st.columns(2, gap="medium")
     with c1, guard("Volumen por puerto"):
-        chart_title("Volumen por puerto de salida", "m³ · 10 puertos principales")
-        g = df.groupby(["puerto", "estado_instruccion"], observed=True)["m3"].sum().reset_index()
-        order = g.groupby("puerto")["m3"].sum().sort_values(ascending=False)
-        top = list(order.index[:10])
-        fig = go.Figure()
-        for est in ESTADOS:
-            s = g[g["estado_instruccion"] == est].set_index("puerto")["m3"].reindex(top).fillna(0)
-            if s.sum() == 0:
-                continue
-            fig.add_bar(y=top, x=s.values, name=est, orientation="h",
-                        marker=dict(color=ESTADO_COLORS[est], cornerradius=3),
-                        hovertemplate=f"%{{y}} · {est}: %{{x:,.0f}} m³<extra></extra>")
-        fig.update_layout(barmode="stack")
-        charts.theme(fig, height=max(260, 30 * len(top) + 80), y_title="m³", horizontal=True)
-        fig.update_yaxes(autorange="reversed")
-        charts.show(fig, key="pl_puerto")
-        if len(order) > 10:
-            st.caption(f"Otros {len(order) - 10} puertos: {fmt.fmt_int(order.iloc[10:].sum())} m³.")
+        chart_title("Volumen por puerto de salida", f"m³ · {sel_txt} · % sobre el total del mes elegido")
+        if w.empty:
+            empty("Sin SO con ETD en ese mes.")
+        else:
+            wp = w.assign(puerto=w["puerto"].astype(object).where(w["puerto"].notna(), "Sin puerto"))
+            g = wp.groupby(["puerto", "estado_instruccion"], observed=True)["m3"].sum().reset_index()
+            order = g.groupby("puerto")["m3"].sum().sort_values(ascending=False)
+            total_m3 = float(order.sum())
+            top = list(order.index[:10])
+            fig = go.Figure()
+            for est in ESTADOS:
+                sub = g[g["estado_instruccion"] == est].set_index("puerto")["m3"].reindex(top).fillna(0)
+                if sub.sum() == 0:
+                    continue
+                fig.add_bar(y=top, x=sub.values, name=est, orientation="h",
+                            marker=dict(color=ESTADO_COLORS[est], cornerradius=3),
+                            hovertemplate=f"%{{y}} · {est}: %{{x:,.0f}} m³<extra></extra>")
+            tot = order.reindex(top)
+            fig.add_scatter(y=top, x=tot.values, mode="text", showlegend=False, hoverinfo="skip",
+                            text=[f"  {fmt.fmt_int(v)} m³ · {fmt.fmt_pct(v / total_m3 if total_m3 else np.nan)}"
+                                  for v in tot.values],
+                            textposition="middle right", cliponaxis=False,
+                            textfont=dict(size=11, color=settings.COLORS["slate"]))
+            fig.update_layout(barmode="stack")
+            charts.theme(fig, height=max(260, 30 * len(top) + 80), y_title="m³", horizontal=True)
+            fig.update_yaxes(autorange="reversed")
+            fig.update_xaxes(range=[0, float(tot.max()) * 1.55])
+            charts.show(fig, key="pl_puerto")
+            extra = f"Total: {fmt.fmt_int(total_m3)} m³ en {fmt.fmt_int(len(order))} puertos."
+            if len(order) > 10:
+                extra += f" Otros {len(order) - 10} puertos: {fmt.fmt_int(order.iloc[10:].sum())} m³."
+            st.caption(extra)
 
     with c2, guard("Semana a semana"):
-        chart_title("Semana a semana (ETD)", "Base para reservar espacio y negociar tarifas")
-        months_avail = sorted(calc.month_start(df["etd"].dropna()).unique())
-        future = [m for m in months_avail if m >= today().to_period("M").to_timestamp()] or months_avail
-        if not future:
-            empty()
+        chart_title("Semana a semana (ETD)", f"{sel_txt} · base para reservar espacio y negociar tarifas")
+        if w.empty:
+            empty("Sin SO con ETD en ese mes.")
         else:
-            sel = st.selectbox("Mes ETD", future, format_func=lambda m: fmt.fmt_month(m, long=True),
-                               key="pl_week_month", label_visibility="collapsed")
-            w = df[calc.month_start(df["etd"]) == sel].copy()
             w["semana"] = calc.week_start(w["etd"])
             t = w.groupby("semana").agg(so=("so", "nunique"), m3=("m3", "sum"), fob=("fob", "sum"),
                                          proveedores=("proveedor", "nunique")).reset_index()
-            mono = w[w["estructura"] == "Monoproveedor"].groupby(calc.week_start(w["etd"]))["m3"].sum()
+            mono = w[w["estructura"] == "Monoproveedor"].groupby("semana")["m3"].sum()
             t["mono"] = t["semana"].map(mono).fillna(0)
             t["cons"] = t["m3"] - t["mono"]
-            m3_mar = w[es_maritimo(w)].groupby(calc.week_start(w[es_maritimo(w)]["etd"]))["m3"].sum()
+            mar = w[es_maritimo(w)]
+            m3_mar = mar.groupby("semana")["m3"].sum()
             t["cnt_est"] = (t["semana"].map(m3_mar).fillna(0) / settings.M3_POR_CONTENEDOR).round(0)
-            t["semana_txt"] = t["semana"].map(lambda s: f"{s:%d/%m} – {(s + pd.Timedelta(days=6)):%d/%m}")
+            t["semana_txt"] = t["semana"].map(lambda x: f"{x:%d/%m} – {(x + pd.Timedelta(days=6)):%d/%m}")
             data_table(t, [
                 ColSpec("semana_txt", "Semana"), ColSpec("so", "SO", "int"),
                 ColSpec("m3", "M3 total", "int"), ColSpec("mono", "M3 mono", "int"),
@@ -200,7 +229,12 @@ def render() -> None:
                 ColSpec("cnt_est", f"Cont. estimados (m³/{settings.M3_POR_CONTENEDOR})", "int"),
                 ColSpec("proveedores", "Proveedores", "int"),
                 ColSpec("fob", "FOB (USD)", "usd"),
-            ], key="pl_weeks", filename="proyeccion_semanal", search=False)
+            ], key="pl_weeks", filename="proyeccion_semanal", search=False,
+                caption=f"Total: {fmt.fmt_int(t['m3'].sum())} m³")
+    if len(fuera):
+        st.caption(f"No entran en esta vista {fmt.fmt_int(fuera['so'].nunique())} SO con ETD anterior a "
+                   f"{fmt.fmt_month(this_month, long=True).lower()} o sin ETD "
+                   f"({fmt.fmt_int(fuera['m3'].sum())} m³). Están en el detalle por SO.")
 
     section("Tipo de negocio", "Clasificación por marca y tipo de envío (muestras y repuestos aparte).")
     with guard("Tipo de negocio"):
