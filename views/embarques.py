@@ -27,7 +27,7 @@ def render() -> None:
     week_start = t - pd.Timedelta(days=t.weekday())
     mar = df[df["grupo_modo"] == "Marítimo"]
 
-    section("Estado de los embarques en curso")
+    section("¿Cómo estamos hoy?")
     with guard("KPIs de embarques en curso"):
         kpis_en_curso(df, info)
         mono_n = int((mar["estructura"] == "Monoproveedor").sum())

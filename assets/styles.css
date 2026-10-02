@@ -106,7 +106,8 @@ h1, h2, h3 { color: var(--ink); letter-spacing: -0.01em; }
 
 /* ---- ¿Cómo estamos hoy? ---------------------------------------------------- */
 .today-grid { display: grid; grid-template-columns: 3fr 2fr; gap: .75rem; margin: .1rem 0 .4rem 0; }
-@media (max-width: 1000px) { .today-grid { grid-template-columns: 1fr; } }
+.today-grid.even { grid-template-columns: 1fr 1fr; }
+@media (max-width: 1000px) { .today-grid, .today-grid.even { grid-template-columns: 1fr; } }
 .panel { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: .9rem 1.1rem; }
 .panel-title { font-size: .74rem; font-weight: 600; color: var(--ink-3); text-transform: uppercase;
   letter-spacing: .04em; margin-bottom: .7rem; }

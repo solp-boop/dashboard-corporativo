@@ -1,4 +1,4 @@
-"""Resumen ejecutivo: ¿cómo estamos?, ¿cumplimos SLA?, ¿cuánto pagamos y capturamos?"""
+"""Resumen ejecutivo: nuestro año, ¿cumplimos SLA?, ¿cuánto pagamos y capturamos?"""
 from __future__ import annotations
 
 import numpy as np
@@ -11,21 +11,63 @@ from config import settings
 from utils import calculations as calc
 from utils import formatting as fmt
 from utils import productos, sla
-from views._common import ctx, en_curso, filtered, kpis_en_curso, periodo_txt, today
+from components.kpi_cards import KPI, kpi_row
+from components.tables import ColSpec, data_table
+from utils import anio
+from views._common import ctx, filtered, periodo_txt, split_html, today
+
+
+def render_anio(bundle, filters) -> None:
+    """Nuestro año: lo embarcado en el año calendario, total y mes a mes."""
+    t = today()
+    hist = filtered(bundle, "historicas", filters, use_period=False)
+    section(f"Nuestro {t.year}",
+            f"Embarques de Reservas Históricas con ETD en {t.year}, por mes de ETD. "
+            "Contenedores: solo marítimos. Estructura: sobre los embarques con monoproveedor / consolidado cargado.")
+    if hist is None or hist.empty:
+        empty()
+        return
+    d = anio.del_anio(hist, t.year)
+    if d.empty:
+        empty(f"Sin embarques con ETD en {t.year} para los filtros seleccionados.")
+        return
+    tab = anio.mensual(d)
+    tot = tab.iloc[-1]
+    kpi_row([
+        KPI("Embarques", fmt.fmt_int(tot["embarques"])),
+        KPI("Contenedores", fmt.fmt_int(tot["contenedores"]), sub="marítimos"),
+        KPI("FOB SIMI", fmt.fmt_usd(tot["fob_simi"])),
+        KPI("Volumen", fmt.fmt_int(tot["m3"]), unit="m³"),
+    ])
+    colors = dict(zip(anio.MEDIOS, settings.SERIES + ["#8A8F98"]))
+    medios = split_html([(m, int((d["medio"] == m).sum()), colors[m],
+                          f" · {fmt.fmt_int(d.loc[d['medio'] == m, 'cnt_mar'].sum())} cont." if m == "Marítimo" else "")
+                         for m in anio.medios_presentes(d)])
+    est = split_html([(e, int((d["estructura"] == e).sum()), c, "")
+                      for e, c in zip(anio.ESTRUCTURAS, (settings.SERIES[0], settings.SERIES[2]))])
+    st.markdown(f"""<div class="today-grid even">
+          <div class="panel"><div class="panel-title">Medio de envío</div>{medios}</div>
+          <div class="panel"><div class="panel-title">Estructura</div>{est}</div>
+        </div>""", unsafe_allow_html=True)
+
+    show = tab.copy()
+    this_month = t.to_period("M").to_timestamp()
+    show["mes_txt"] = [f"Total {t.year}" if pd.isna(m) else
+                       fmt.fmt_month(m, long=True) + (" · en curso" if m == this_month else "")
+                       for m in show["mes"]]
+    cols = [ColSpec("mes_txt", "Mes", width="medium"), ColSpec("embarques", "Embarques", "int"),
+            ColSpec("contenedores", "Contenedores", "int"), ColSpec("fob_simi", "FOB SIMI (USD)", "usd"),
+            ColSpec("m3", "M3", "num"), ColSpec("pct_mono", "% Mono", "pct"), ColSpec("pct_cons", "% Consolidado", "pct")]
+    cols += [ColSpec(f"pct_{m}", f"% {m}", "pct") for m in anio.medios_presentes(d)]
+    data_table(show, cols, key="anio", filename=f"embarques_{t.year}", search=False)
 
 
 def render() -> None:
     bundle, filters = ctx()
 
-    # ------------------------------------------------------------------ hoy
-    section("¿Cómo estamos hoy?")
-    res = None
-    with guard("Operación en curso"):
-        res, info = en_curso(bundle, filters)
-        if res.empty:
-            empty()
-        else:
-            kpis_en_curso(res, info)
+    # ------------------------------------------------------------------ año
+    with guard("Nuestro año"):
+        render_anio(bundle, filters)
 
     # ------------------------------------------------------------------ SLA
     periodo = periodo_txt(filters)

@@ -51,6 +51,23 @@ def stat_sub(stat, unit: str = "d") -> str:
 GRUPOS_MODO = ["Marítimo", "Aéreo", "Camión"]
 
 
+def split_html(items: list[tuple[str, int, str, str]], unit: str = "emb.") -> str:
+    """Barra 100 % + leyenda. items = (etiqueta, cantidad, color, texto extra)."""
+    import html as _h
+    n = sum(k for _, k, _, _ in items)
+    segs, legend = [], []
+    for g, k, color, extra in items:
+        if not k:
+            continue
+        pct = k / n
+        label = fmt.fmt_pct(pct) if pct >= 0.08 else ""
+        segs.append(f'<div class="seg" style="width:{pct * 100:.2f}%;background:{color}" '
+                    f'title="{_h.escape(g)}: {k} ({fmt.fmt_pct(pct)})">{label}</div>')
+        legend.append(f'<div class="item"><i style="background:{color}"></i><b>{_h.escape(g)}</b>'
+                      f'<span>{fmt.fmt_pct(pct)} · {fmt.fmt_int(k)} {unit}{extra}</span></div>')
+    return f'<div class="splitbar">{"".join(segs)}</div><div class="legend-row">{"".join(legend)}</div>'
+
+
 def en_curso(bundle: DataBundle, filters: FilterState) -> tuple[pd.DataFrame, dict]:
     """Embarques en curso = definición única para Resumen y Embarques en curso.
 
@@ -126,19 +143,10 @@ def kpis_en_curso(df: pd.DataFrame, info: dict | None = None) -> None:
 
     # ---- Medio de envío (barra 100 % por modo)
     colors = {"Marítimo": settings.SERIES[0], "Aéreo": settings.SERIES[1], "Camión": settings.SERIES[2]}
-    segs, legend = [], []
-    for g in GRUPOS_MODO:
-        k = int((df["grupo_modo"] == g).sum())
-        if not k:
-            continue
-        pct = k / n
-        label = f"{fmt.fmt_pct(pct)}" if pct >= 0.08 else ""
-        segs.append(f'<div class="seg" style="width:{pct * 100:.2f}%;background:{colors[g]}" '
-                    f'title="{g}: {k} embarques ({fmt.fmt_pct(pct)})">{label}</div>')
-        extra = (f" · {fmt.fmt_int(df.loc[df['grupo_modo'] == g, 'contenedores'].sum())} cont."
-                 if g == "Marítimo" else "")
-        legend.append(f'<div class="item"><i style="background:{colors[g]}"></i><b>{g}</b>'
-                      f'<span>{fmt.fmt_pct(pct)} · {fmt.fmt_int(k)} emb.{extra}</span></div>')
+    split = split_html([
+        (g, int((df["grupo_modo"] == g).sum()), colors[g],
+         f" · {fmt.fmt_int(df.loc[df['grupo_modo'] == g, 'contenedores'].sum())} cont." if g == "Marítimo" else "")
+        for g in GRUPOS_MODO])
 
     # ---- Próximos 7 días
     pct_ok = ok_n / n if n else np.nan
@@ -147,8 +155,7 @@ def kpis_en_curso(df: pd.DataFrame, info: dict | None = None) -> None:
         f"""<div class="today-grid">
           <div class="panel">
             <div class="panel-title">Medio de envío</div>
-            <div class="splitbar">{''.join(segs)}</div>
-            <div class="legend-row">{''.join(legend)}</div>
+            {split}
           </div>
           <div class="panel">
             <div class="panel-title">Próximos {settings.ALERT_HORIZON_DAYS} días</div>

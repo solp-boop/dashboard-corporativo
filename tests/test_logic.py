@@ -169,3 +169,20 @@ def test_en_curso_reglas():
     assert info == {"sin_responsable": 1, "air_en_reservas": 1, "aereos_entregados": 1}
     assert df.set_index("embarque")["grupo_modo"].to_dict() == {
         "FCL 1": "Marítimo", "TRUCK 1": "Camión", "AIR 2": "Aéreo", "AIR 3": "Aéreo"}
+
+
+def test_nuestro_anio_mensual():
+    from utils import anio
+    h = pd.DataFrame({
+        "embarque": ["FCL 1", "FCL 2", "AIR 1", "FCL 3", "AIR 2"],
+        "etd": pd.to_datetime(["2026-01-10", "2026-01-20", "2026-01-25", "2026-02-05", "2025-12-30"]),
+        "modo": ["Marítimo FCL", "Marítimo FCL", "Aéreo", "Marítimo FCL", "Aéreo"],
+        "contenedores": [2, 1, 1, 1, 1], "fob_simi": [100.0, 50, 30, 20, 99], "m3": [120.0, 60, 1, 60, 1],
+        "estructura": ["Monoproveedor", "Consolidado", None, "Consolidado", None],
+    })
+    t = anio.mensual(anio.del_anio(h, 2026))
+    assert len(t) == 3  # enero, febrero, total
+    ene, tot = t.iloc[0], t.iloc[-1]
+    assert ene["embarques"] == 3 and ene["contenedores"] == 3  # el aéreo no suma contenedores
+    assert ene["pct_mono"] == 0.5 and ene["pct_Aéreo"] == pytest.approx(1 / 3)
+    assert tot["embarques"] == 4 and tot["fob_simi"] == 200 and pd.isna(tot["mes"])
