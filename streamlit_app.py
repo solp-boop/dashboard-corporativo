@@ -13,6 +13,39 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+
+def _reload_si_cambio_el_codigo() -> None:
+    """Streamlit Cloud baja el código nuevo pero no siempre recarga los módulos ya importados.
+
+    Si cambió algún .py del proyecto desde la última ejecución, se recargan (config → utils →
+    services → components → views) para que el cambio se vea sin reiniciar la app.
+    """
+    import hashlib
+    import importlib
+    import pathlib
+    import sys
+
+    root = pathlib.Path(__file__).parent
+    pkgs = ("config", "utils", "services", "components", "views")
+    h = hashlib.md5()
+    for pkg in pkgs:
+        for f in sorted((root / pkg).glob("*.py")):
+            h.update(f.name.encode())
+            h.update(str(f.stat().st_mtime_ns).encode())
+    firma = h.hexdigest()
+    store = sys.modules.setdefault("_firma_codigo", type(sys)("_firma_codigo"))
+    if getattr(store, "valor", None) not in (None, firma):
+        for pkg in pkgs:
+            for name in sorted(n for n in list(sys.modules) if n == pkg or n.startswith(pkg + ".")):
+                try:
+                    importlib.reload(sys.modules[name])
+                except Exception:  # noqa: BLE001 — un módulo que no recarga no debe tirar la app
+                    pass
+    store.valor = firma
+
+
+_reload_si_cambio_el_codigo()
+
 from components.filters import render_filters  # noqa: E402
 from components.layout import guard, load_css, page_header  # noqa: E402
 from services.data_loader import SourceError, clear_cache, get_data  # noqa: E402
