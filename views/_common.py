@@ -51,7 +51,7 @@ def stat_sub(stat, unit: str = "d") -> str:
 GRUPOS_MODO = ["Marítimo", "Aéreo", "Camión"]
 
 
-def split_html(items: list[tuple[str, int, str, str]], unit: str = "emb.") -> str:
+def split_html(items: list[tuple[str, int, str, str]], unit: str = "emb.", show_count: bool = True) -> str:
     """Barra 100 % + leyenda. items = (etiqueta, cantidad, color, texto extra)."""
     import html as _h
     n = sum(k for _, k, _, _ in items)
@@ -64,7 +64,8 @@ def split_html(items: list[tuple[str, int, str, str]], unit: str = "emb.") -> st
         segs.append(f'<div class="seg" style="width:{pct * 100:.2f}%;background:{color}" '
                     f'title="{_h.escape(g)}: {k} ({fmt.fmt_pct(pct)})">{label}</div>')
         legend.append(f'<div class="item"><i style="background:{color}"></i><b>{_h.escape(g)}</b>'
-                      f'<span>{fmt.fmt_pct(pct)} · {fmt.fmt_int(k)} {unit}{extra}</span></div>')
+                      + (f'<span>{fmt.fmt_pct(pct)} · {fmt.fmt_int(k)} {unit}{extra}</span></div>' if show_count
+                      else f'<span>{fmt.fmt_pct(pct)}{extra}</span></div>'))
     return f'<div class="splitbar">{"".join(segs)}</div><div class="legend-row">{"".join(legend)}</div>'
 
 
