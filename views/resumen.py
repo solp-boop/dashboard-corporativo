@@ -150,8 +150,17 @@ def _especial_cards(e: rk.Especial, modo: str) -> None:
     ])
 
 
+UNIFORME_CSS = """<style>
+/* Resumen: todas las tarjetas con el mismo alto */
+.kpi-grid { align-items: stretch; }
+.kpi-grid .kpi { min-height: 8.6rem; box-sizing: border-box; }
+.kpi-grid .panel.span-3 { grid-column: span 3; min-height: 8.6rem; box-sizing: border-box; margin: 0; }
+</style>"""
+
+
 def render() -> None:
     bundle, filters = ctx()
+    st.markdown(UNIFORME_CSS, unsafe_allow_html=True)
     t = today()
     periodo = periodo_txt(filters)
     hist = filtered(bundle, "historicas", filters) if bundle.get("historicas") is not None else None
@@ -449,16 +458,13 @@ def render_fletes(bundle, filters) -> None:
 
         # ---- Total, abierto por medio
         st.markdown('<div class="row-label">Total · marítimo + aéreo</div>', unsafe_allow_html=True)
-        c_tot, c_split = st.columns([1, 2], gap="medium")
-        with c_tot:
-            kpi_row([KPI("Costo logístico pagado", fmt.fmt_usd(total),
-                         sub=f"Flete <b>{fmt.fmt_usd(fm + fa)}</b> · origen {fmt.fmt_usd(om + oa)} · "
-                             f"destino {fmt.fmt_usd(dm + da)}")], columns=1)
-        with c_split:
-            split = split_html([("Marítimo", round(tot_m), settings.SERIES[0], f" · {fmt.fmt_usd(tot_m)}"),
-                                ("Aéreo", round(tot_a), settings.SERIES[1], f" · {fmt.fmt_usd(tot_a)}")], show_count=False)
-            st.markdown(f'<div class="panel"><div class="panel-title">Costo pagado por medio</div>{split}</div>',
-                        unsafe_allow_html=True)
+        split = split_html([("Marítimo", round(tot_m), settings.SERIES[0], f" · {fmt.fmt_usd(tot_m)}"),
+                            ("Aéreo", round(tot_a), settings.SERIES[1], f" · {fmt.fmt_usd(tot_a)}")], show_count=False)
+        kpi_row([KPI("Costo logístico pagado", fmt.fmt_usd(total),
+                     sub=f"Flete <b>{fmt.fmt_usd(fm + fa)}</b> · origen {fmt.fmt_usd(om + oa)} · "
+                         f"destino {fmt.fmt_usd(dm + da)}")], columns=4,
+                extra_html=(f'<div class="panel span-3"><div class="panel-title">Costo pagado por medio</div>'
+                            f'{split}</div>'))
 
         # ---- Marítimo
         st.markdown('<div class="row-label">Marítimo</div>', unsafe_allow_html=True)

@@ -19,7 +19,8 @@ class KPI:
     help: str = ""           # tooltip nativo
 
 
-def kpi_row(kpis: list[KPI], columns: int | None = None) -> None:
+def kpi_row(kpis: list[KPI], columns: int | None = None, extra_html: str = "") -> None:
+    """Fila de tarjetas. extra_html se agrega dentro de la misma grilla (p. ej. un panel que ocupa varias columnas)."""
     n = columns or max(1, len(kpis))
     cards = []
     for k in kpis:
@@ -33,7 +34,7 @@ def kpi_row(kpis: list[KPI], columns: int | None = None) -> None:
         )
     st.markdown(
         f'<div class="kpi-grid" style="grid-template-columns: repeat({n}, minmax(0, 1fr));">'
-        + "".join(cards) + "</div>",
+        + "".join(cards) + extra_html + "</div>",
         unsafe_allow_html=True,
     )
 
