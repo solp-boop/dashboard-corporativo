@@ -206,7 +206,9 @@ def parse_sla_table(grid: list[list]) -> pd.DataFrame:
     return out.drop_duplicates("puerto_key")
 
 
-def add_sla(df: pd.DataFrame, sla: pd.DataFrame) -> pd.DataFrame:
+def add_sla(df: pd.DataFrame, sla: pd.DataFrame, cons_fijo: bool = False) -> pd.DataFrame:
+    """SLA por puerto (Validaciones). cons_fijo=True: consolidación con el tope fijo de la empresa
+    (25 d consolidado / 15 d monoproveedor), sin mirar el puerto. Se usa para lo que está en curso."""
     key = df["puerto"].map(lambda v: dc.fold(v) if v else "")
     lookup = sla.set_index("puerto_key") if not sla.empty else pd.DataFrame(
         columns=["sla_consolidacion", "sla_tt", "sla_total"])
@@ -216,6 +218,8 @@ def add_sla(df: pd.DataFrame, sla: pd.DataFrame) -> pd.DataFrame:
 
     df["sla_puerto_definido"] = key.isin(lookup.index) if not sla.empty else False
     cons = pd.Series(port_cons, index=df.index, dtype=float).fillna(settings.SLA_CONSOLIDACION_DEFAULT)
+    if cons_fijo:
+        cons = pd.Series(float(settings.SLA_CONSOLIDACION_DEFAULT), index=df.index)
     df["sla_consolidacion"] = np.where(df["estructura"] == "Monoproveedor",
                                        settings.SLA_CONSOLIDACION_MONO, cons)
     df["sla_tt"] = pd.Series(port_tt, index=df.index, dtype=float).fillna(settings.SLA_TT_DEFAULT)
@@ -400,7 +404,7 @@ def finish_dataset(key: str, df: pd.DataFrame, sla: pd.DataFrame, q: DatasetQual
         df = add_freight(df)
     if key in ("reservas", "historicas"):
         df = add_durations(df, MARITIME_DURATIONS, q)
-        df = add_sla(df, sla)
+        df = add_sla(df, sla, cons_fijo=(key == "reservas" and settings.SLA_EN_CURSO_FIJO))
         fob_real = df["fob_real"] if "fob_real" in df else pd.Series(np.nan, index=df.index)
         df["fob"] = fob_real.where(fob_real > 0, df["fob_simi"])
     if key == "reservas":

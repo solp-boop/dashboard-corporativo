@@ -206,9 +206,10 @@ def test_resumen_transit_time_y_ocupacion():
     assert r.loc["20 ST", "bajo"] == 1 and r.loc["40 HQ", "bajo"] == 1 and r.loc["Total", "contenedores"] == 10
     u = rk.uso_20st(occ)
     assert u.total == 2 and u.bajos == 1 and not u.tiene_campo and np.isnan(u.pct_justificados)
-    z["prioridad_carga"] = ["Alta", None] + [None] * 8
-    u = rk.uso_20st(rk.ocupacion(z))
+    z["embarque"] = [f"FCL {i}" for i in range(10)]
+    u = rk.uso_20st(rk.ocupacion(z), {"SKU nuevo": {"fcl 0"}, "Top ranking": set()})
     assert u.tiene_campo and u.justificados == 1 and u.pct_justificados == 1.0
+    assert u.por_motivo == {"SKU nuevo": 1.0, "Top ranking": 0.0}
 
 
 def test_resumen_imo_comparable():

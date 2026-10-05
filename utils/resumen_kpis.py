@@ -123,27 +123,55 @@ def ocupacion_resumen(occ: pd.DataFrame) -> pd.DataFrame:
 class Uso20:
     total: float = 0                 # contenedores 20 ST
     bajos: float = 0                 # con ocupación < umbral
-    con_dato: float = 0              # de los bajos, con prioridad / motivo cargado
-    justificados: float = 0
-    tiene_campo: bool = False
+    justificados: float = 0          # de los bajos, con alguna justificación
+    por_motivo: dict = field(default_factory=dict)   # motivo -> contenedores
+    tiene_campo: bool = False        # hay de dónde sacar la justificación
     detalle: pd.DataFrame = field(default_factory=pd.DataFrame)
 
     @property
     def pct_justificados(self) -> float:
-        return self.justificados / self.bajos if self.tiene_campo and self.bajos and self.con_dato else np.nan
+        return self.justificados / self.bajos if self.tiene_campo and self.bajos else np.nan
 
 
-def uso_20st(occ: pd.DataFrame) -> Uso20:
+def justificaciones_producto(eh: pd.DataFrame | None) -> dict[str, set]:
+    """Embarques (clave normalizada) que llevan al menos una SO de SKU nuevo / top ranking (Embarques Históricos)."""
+    from utils.data_cleaning import id_key
+    if eh is None or eh.empty:
+        return {}
+    out = {}
+    for col, label in (("es_nuevo", "SKU nuevo"), ("es_top", f"Top ranking (1–{settings.TOP_RANKING_MAX})")):
+        if col in eh:
+            out[label] = set(id_key(eh.loc[eh[col].fillna(False).astype(bool), "embarque"].dropna()))
+    return out
+
+
+def uso_20st(occ: pd.DataFrame, justif: dict[str, set] | None = None) -> Uso20:
+    """20 ST con baja ocupación y cuántos están justificados.
+
+    Justificación: el embarque lleva SKU nuevos o top ranking (Embarques Históricos) o, si existe la columna,
+    una prioridad marcada (Alta / Urgente / SI…).
+    """
+    from utils.data_cleaning import id_key
     v = occ[occ["tipo"] == "20 ST"]
     out = Uso20(total=float(v["contenedores"].sum()), bajos=float(v.loc[v["bajo"], "contenedores"].sum()))
-    bajos = v[v["bajo"]]
-    out.detalle = bajos
+    bajos = v[v["bajo"]].copy()
+    motivos = pd.Series([[] for _ in range(len(bajos))], index=bajos.index)
+    claves = id_key(bajos["embarque"]) if len(bajos) and "embarque" in bajos else pd.Series("", index=bajos.index)
+    for label, embs in (justif or {}).items():
+        out.tiene_campo = True
+        m = claves.isin(embs)
+        out.por_motivo[label] = float(bajos.loc[m, "contenedores"].sum())
+        for i in bajos.index[m]:
+            motivos[i] = motivos[i] + [label]
     if "prioridad_carga" in v and v["prioridad_carga"].notna().any():
         out.tiene_campo = True
-        pr = bajos["prioridad_carga"]
-        out.con_dato = float(bajos.loc[pr.notna(), "contenedores"].sum())
-        just = pr.map(lambda x: fold(x) in settings.PRIORIDAD_JUSTIFICA if isinstance(x, str) else False)
-        out.justificados = float(bajos.loc[just, "contenedores"].sum())
+        m = bajos["prioridad_carga"].map(lambda x: fold(x) in settings.PRIORIDAD_JUSTIFICA if isinstance(x, str) else False)
+        out.por_motivo["Prioridad"] = float(bajos.loc[m, "contenedores"].sum())
+        for i in bajos.index[m]:
+            motivos[i] = motivos[i] + ["Prioridad"]
+    bajos["justificacion"] = motivos.map(lambda x: " + ".join(x) if x else "Sin justificar")
+    out.justificados = float(bajos.loc[motivos.map(len) > 0, "contenedores"].sum())
+    out.detalle = bajos
     return out
 
 

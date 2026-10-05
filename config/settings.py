@@ -102,6 +102,8 @@ DURATION_RANGES: dict[str, tuple[int, int]] = {
 # usa el target por puerto de la solapa Validaciones.
 SLA_CONSOLIDACION_MONO = 15
 SLA_CONSOLIDACION_DEFAULT = 25   # si el puerto no tiene target
+# Embarques en curso (Reservas): tope fijo 25 d consolidado / 15 d monoproveedor, sin SLA por puerto.
+SLA_EN_CURSO_FIJO = True
 SLA_TT_DEFAULT = 50
 SLA_TOTAL_DEFAULT = 75
 # Tolerancia para "amarillo": hasta +20 % sobre el SLA.

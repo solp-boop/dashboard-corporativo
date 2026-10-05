@@ -294,7 +294,7 @@ def render() -> None:
                 KPI(f"Monoproveedor > {lim_mono} d", fmt.fmt_int(s_m), status="bad" if s_m else "ok",
                     sub=f"<b>{fmt.fmt_pct(s_m / n_m if n_m else np.nan)}</b> de {fmt.fmt_int(n_m)} con dato"),
                 KPI("Con margen de acción", fmt.fmt_int(margen), status="bad" if margen else "ok",
-                    sub="pasados del tope y todavía sin ETD OK FFWW"),
+                    sub="pasados del tope y todavía sin ETD OK FFWW · detalle en Control → Alertas"),
             ])
             sin = int((~con_dato).sum())
             if sin:
@@ -342,24 +342,34 @@ def render() -> None:
                 _ocupacion_table(r)
 
     subsection("Uso de 20 ST",
-               f"Un 20 ST con ocupación menor al {umbral} no es necesariamente una mala decisión: puede estar "
-               "justificado por la prioridad de la carga o la necesidad de salida.")
+               f"Un 20 ST con ocupación menor al {umbral} no es necesariamente una mala decisión: se considera "
+               "justificado si el embarque lleva SKU nuevos o top ranking (Embarques Históricos).")
     with guard("Uso de 20 ST"):
-        u = rk.uso_20st(occ) if len(occ) else rk.Uso20()
+        justif = rk.justificaciones_producto(bundle.get("emb_hist"))
+        u = rk.uso_20st(occ, justif) if len(occ) else rk.Uso20()
         if not u.total:
             empty("Sin 20 ST en el período.")
         else:
-            sin = "Sin datos suficientes"
+            motivos = " · ".join(f"{k}: <b>{fmt.fmt_int(v)}</b>" for k, v in u.por_motivo.items())
+            pct = u.pct_justificados
             kpi_row([
                 KPI("20 ST utilizados", fmt.fmt_int(u.total)),
                 KPI(f"Con ocupación < {umbral}", fmt.fmt_int(u.bajos),
                     sub=f"<b>{fmt.fmt_pct(u.bajos / u.total)}</b> de los 20 ST"),
-                KPI("Justificados por prioridad", fmt.fmt_int(u.justificados) if u.tiene_campo else "—",
-                    sub=(f"con dato: {fmt.fmt_int(u.con_dato)} de {fmt.fmt_int(u.bajos)}" if u.tiene_campo else sin)),
-                KPI("% de 20 ST bajos justificados", fmt.fmt_pct(u.pct_justificados) if u.tiene_campo else "—",
-                    sub=("KPI principal" if u.tiene_campo else
-                         "Sin datos suficientes: falta un campo de prioridad / motivo en Reservas Históricas")),
+                KPI("Justificados", fmt.fmt_int(u.justificados) if u.tiene_campo else "—",
+                    sub=(motivos + " (un embarque puede tener los dos)") if u.tiene_campo else "Sin datos suficientes"),
+                KPI("% de 20 ST bajos justificados", fmt.fmt_pct(pct) if pct == pct else "—",
+                    status=("ok" if pct >= 0.5 else "warn") if pct == pct else "",
+                    sub=f"KPI principal · sin justificar: <b>{fmt.fmt_int(u.bajos - u.justificados)}</b>"),
             ])
+            if len(u.detalle):
+                with st.expander(f"Ver los {fmt.fmt_int(len(u.detalle))} embarques en 20 ST con baja ocupación"):
+                    data_table(u.detalle.sort_values("etd"), [
+                        ColSpec("embarque", "Embarque"), ColSpec("etd", "ETD", "date"),
+                        ColSpec("forwarder", "Forwarder"), ColSpec("puerto", "Puerto"),
+                        ColSpec("contenedores", "Cont.", "int"), ColSpec("m3", "M3", "num"),
+                        ColSpec("ocupacion", "Ocupación", "pct"), ColSpec("justificacion", "Justificación"),
+                    ], key="res_20st", filename="20st_baja_ocupacion", search=False)
 
     # ================================================================== 4 · Costos y captura
     if bundle.get("historicas") is not None:
