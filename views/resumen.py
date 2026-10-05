@@ -417,7 +417,7 @@ def render_fletes(bundle, filters) -> None:
 
     periodo = periodo_txt(filters)
     block(4, "Costos y captura",
-            f"¿Cuánto nos costó y cuánto capturamos? Embarques que zarparon {periodo}. El detalle por forwarder y "
+            f"¿Cuánto nos costó, cuánto pesa sobre lo que compramos y cuánto capturamos? Embarques que zarparon {periodo}. El detalle por forwarder y "
             "por embarque está en Fletes y gastos pagados; las tarifas, en Cotizaciones.")
     with guard("Fletes y gastos"):
         t = today()
@@ -456,20 +456,52 @@ def render_fletes(bundle, filters) -> None:
         nor = freight.nor_savings(h)
         nor_ok = nor.dropna(subset=["ahorro"]) if len(nor) else nor
 
-        # ---- Total, abierto por medio
+        # ---- Total: lo comercial es cuánto pesa la logística sobre el FOB embarcado
+        def costo_fila(d):
+            return (d["flete_pagado"].clip(lower=0).fillna(0) + d["gastos_origen"].clip(lower=0).fillna(0)
+                    + d["gastos_locales"].clip(lower=0).fillna(0))
+
+        def incidencia(d):
+            """Costo logístico / FOB, solo embarques con FOB cargado. (incidencia, fob, n con fob)."""
+            if not len(d) or "fob" not in d:
+                return np.nan, 0.0, 0
+            ok = d["fob"] > 0
+            fob = float(d.loc[ok, "fob"].sum())
+            return (float(costo_fila(d[ok]).sum()) / fob if fob else np.nan), fob, int(ok.sum())
+
+        inc_m, fob_m, _ = incidencia(h)
+        inc_a, fob_a, _ = incidencia(a)
+        both = pd.concat([x for x in (h, a) if len(x)], ignore_index=True, sort=False) if (len(h) or len(a)) \
+            else pd.DataFrame()
+        inc_t, fob_t, n_fob = incidencia(both)
+        last = t.to_period("M").to_timestamp() - pd.offsets.MonthBegin(1)
+        prev = last - pd.offsets.MonthBegin(1)
+        mb = calc.month_start(both["etd"]) if len(both) else pd.Series(dtype="datetime64[ns]")
+        inc_last, _, n_last = incidencia(both[mb == last]) if len(both) else (np.nan, 0, 0)
+        inc_prev, _, _ = incidencia(both[mb == prev]) if len(both) else (np.nan, 0, 0)
+        if inc_last == inc_last and inc_prev == inc_prev:
+            d_pts = (inc_last - inc_prev) * 100
+            var_txt = (f"{'▲' if d_pts > 0 else '▼' if d_pts < 0 else '='} {fmt.fmt_num(abs(d_pts), 1)} pts vs "
+                       f"{fmt.fmt_month(prev, long=True).split()[0].lower()} ({fmt.fmt_pct(inc_prev, 1)})")
+        else:
+            var_txt = "Sin mes anterior para comparar"
         st.markdown('<div class="row-label">Total · marítimo + aéreo</div>', unsafe_allow_html=True)
-        split = split_html([("Marítimo", round(tot_m), settings.SERIES[0], f" · {fmt.fmt_usd(tot_m)}"),
-                            ("Aéreo", round(tot_a), settings.SERIES[1], f" · {fmt.fmt_usd(tot_a)}")], show_count=False)
-        kpi_row([KPI("Costo logístico pagado", fmt.fmt_usd(total),
-                     sub=f"<b>{fmt.fmt_int(len(h) + len(a))}</b> embarques")], columns=4,
-                extra_html=(f'<div class="panel span-3"><div class="panel-title">Costo pagado por medio</div>'
-                            f'{split}</div>'))
+        kpi_row([
+            KPI("Costo logístico pagado", fmt.fmt_usd(total), sub=f"<b>{fmt.fmt_int(len(h) + len(a))}</b> embarques"),
+            KPI("FOB embarcado", fmt.fmt_usd(fob_t),
+                sub=f"de los <b>{fmt.fmt_int(n_fob)}</b> embarques con FOB cargado"),
+            KPI("Incidencia logística", fmt.fmt_pct(inc_t, 1),
+                sub=f"costo / FOB · marítimo <b>{fmt.fmt_pct(inc_m, 1)}</b> · aéreo <b>{fmt.fmt_pct(inc_a, 1)}</b>"),
+            KPI(f"Incidencia {fmt.fmt_month(last, long=True).lower()}", fmt.fmt_pct(inc_last, 1),
+                status=("bad" if inc_last > inc_prev else "ok") if inc_last == inc_last and inc_prev == inc_prev else "",
+                sub=var_txt),
+        ])
 
         # ---- Marítimo
         st.markdown('<div class="row-label">Marítimo</div>', unsafe_allow_html=True)
         kpi_row([
             KPI("Costo pagado", fmt.fmt_usd(tot_m),
-                sub=f"<b>{fmt.fmt_int(len(h))}</b> embarques"),
+                sub=f"<b>{fmt.fmt_pct(inc_m, 1)}</b> del FOB · {fmt.fmt_int(len(h))} embarques"),
             KPI("Ahorro vs mercado", fmt.fmt_usd(ah_total) if n_ref else "—",
                 status=("ok" if ah_total >= 0 else "bad") if n_ref >= settings.MIN_SAMPLE else "",
                 sub=(f"Flete {fmt.fmt_pct(-ah_pct, signed=True)} vs mediana de mercado · "
@@ -498,7 +530,7 @@ def render_fletes(bundle, filters) -> None:
             usd_kg = calc.describe((a["flete_pagado"] / kg).where(kg > 0))
             kpi_row([
                 KPI("Costo pagado", fmt.fmt_usd(tot_a),
-                    sub=f"<b>{fmt.fmt_int(len(a))}</b> embarques"),
+                    sub=f"<b>{fmt.fmt_pct(inc_a, 1)}</b> del FOB · {fmt.fmt_int(len(a))} embarques"),
                 KPI("USD por kg chargeable", f"USD {fmt.fmt_num(usd_kg.median, 1)}" if usd_kg.enough else "—",
                     sub=(f"Mediana · P25–P75 USD {fmt.fmt_num(usd_kg.p25, 1)}–{fmt.fmt_num(usd_kg.p75, 1)} · "
                          f"n={fmt.fmt_int(usd_kg.n)}") if usd_kg.enough else "Sin chargeable cargado"),
@@ -508,15 +540,18 @@ def render_fletes(bundle, filters) -> None:
 
         c1, c2 = st.columns(2, gap="medium")
         with c1:
-            chart_title("Costo pagado por mes", "USD · total pagado (suma), por mes de ETD")
+            chart_title("Costo pagado e incidencia por mes",
+                        "USD por mes de ETD · arriba de cada barra, % del FOB embarcado ese mes")
             medio = st.segmented_control("Medio", ["Total", "Marítimo", "Aéreo"], default="Total",
                                          key="res_costo_medio", label_visibility="collapsed") or "Total"
             fuentes = {"Total": (h, a), "Marítimo": (h,), "Aéreo": (a,)}[medio]
             parts = []
             for df_ in fuentes:
                 if len(df_):
-                    parts.append(df_.assign(mes=calc.month_start(df_["etd"]))[
-                        ["mes", "flete_pagado", "gastos_origen", "gastos_locales"]])
+                    x_ = df_.assign(mes=calc.month_start(df_["etd"]))
+                    x_["costo_fob"] = costo_fila(x_).where(x_["fob"] > 0, 0) if "fob" in x_ else 0
+                    x_["fob_ok"] = x_["fob"].where(x_["fob"] > 0, 0) if "fob" in x_ else 0
+                    parts.append(x_[["mes", "flete_pagado", "gastos_origen", "gastos_locales", "costo_fob", "fob_ok"]])
             if not parts:
                 empty()
             else:
@@ -527,8 +562,16 @@ def render_fletes(bundle, filters) -> None:
                                                 ("gastos_locales", "Gastos en destino"))):
                     fig.add_bar(x=x, y=mm[col].fillna(0), name=lab, marker=dict(color=settings.SERIES[i], cornerradius=3),
                                 hovertemplate=f"%{{x}} · {lab}: USD %{{y:,.0f}}<extra></extra>")
+                tot_mes = mm[["flete_pagado", "gastos_origen", "gastos_locales"]].fillna(0).sum(axis=1)
+                inc_mes = (mm["costo_fob"] / mm["fob_ok"]).where(mm["fob_ok"] > 0)
+                fig.add_scatter(x=x, y=tot_mes.values, mode="text", showlegend=False, cliponaxis=False,
+                                text=[fmt.fmt_pct(v, 1) if v == v else "" for v in inc_mes.values],
+                                textposition="top center", textfont=dict(size=11, color=settings.COLORS["slate"]),
+                                customdata=inc_mes.values * 100,
+                                hovertemplate="%{x} · incidencia %{customdata:.1f} % del FOB<extra></extra>")
                 fig.update_layout(barmode="stack")
                 charts.theme(fig, height=300, y_title="USD")
+                fig.update_yaxes(range=[0, float(tot_mes.max()) * 1.15 if tot_mes.max() else 1])
                 charts.show(fig, key="res_costo_mes")
         with c2:
             chart_title("Ahorro vs mercado por mes · marítimo", "USD · flete marítimo. Positivo = pagamos menos que la mediana de mercado")
