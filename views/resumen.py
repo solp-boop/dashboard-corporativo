@@ -272,7 +272,8 @@ def render() -> None:
     lim_cons, lim_mono = settings.SLA_CONSOLIDACION_DEFAULT, settings.SLA_CONSOLIDACION_MONO
     subsection("Consolidación marítima en curso",
                f"Cómo vienen los tiempos de consolidación de los marítimos en curso (packeo mínimo → ETD proyectada). "
-               f"Tope: {lim_cons} días para consolidados y {lim_mono} para monoproveedor. La gran mayoría lleva GADNIC.")
+               f"Tope: {lim_cons} días para consolidados; monoproveedor según la ETD: {calc.sla_mono_txt()}. "
+               "La gran mayoría lleva GADNIC.")
     with guard("Consolidación marítima en curso"):
         from utils.data_cleaning import id_key
         res_c, _ = en_curso(bundle, filters)
@@ -282,7 +283,7 @@ def render() -> None:
         else:
             gk = rk.gadnic_embarques(bundle.get("planif"))
             n_gad = int(id_key(mar["embarque"]).isin(gk).sum()) if gk else 0
-            lim_row = np.where(mar["estructura"] == "Monoproveedor", lim_mono, lim_cons)
+            lim_row = np.where(mar["estructura"] == "Monoproveedor", calc.sla_mono(mar["etd"]).values, lim_cons)
             sobre = mar["dias_consolidacion"] > lim_row
             es_cons, es_mono = mar["estructura"] == "Consolidado", mar["estructura"] == "Monoproveedor"
             con_dato = mar["dias_consolidacion"].notna()
@@ -300,8 +301,9 @@ def render() -> None:
                                    f"mono <b>{fmt.fmt_int(med_m.median)} d</b> · n={fmt.fmt_int(cons_all.n)}")),
                 KPI(f"Consolidados > {lim_cons} d", fmt.fmt_int(s_c), status="bad" if s_c else "ok",
                     sub=f"<b>{fmt.fmt_pct(s_c / n_c if n_c else np.nan)}</b> de {fmt.fmt_int(n_c)} con dato"),
-                KPI(f"Monoproveedor > {lim_mono} d", fmt.fmt_int(s_m), status="bad" if s_m else "ok",
-                    sub=f"<b>{fmt.fmt_pct(s_m / n_m if n_m else np.nan)}</b> de {fmt.fmt_int(n_m)} con dato"),
+                KPI("Monoproveedor fuera de SLA", fmt.fmt_int(s_m), status="bad" if s_m else "ok",
+                    sub=f"<b>{fmt.fmt_pct(s_m / n_m if n_m else np.nan)}</b> de {fmt.fmt_int(n_m)} con dato · "
+                        f"SLA {lim_mono} d (ETD desde 01/10), 10 d antes"),
                 KPI("Con margen de acción", fmt.fmt_int(margen), status="bad" if margen else "ok",
                     sub="pasados del tope y todavía sin ETD OK FFWW · detalle en Control → Alertas"),
             ])

@@ -221,7 +221,7 @@ def add_sla(df: pd.DataFrame, sla: pd.DataFrame, cons_fijo: bool = False) -> pd.
     if cons_fijo:
         cons = pd.Series(float(settings.SLA_CONSOLIDACION_DEFAULT), index=df.index)
     df["sla_consolidacion"] = np.where(df["estructura"] == "Monoproveedor",
-                                       settings.SLA_CONSOLIDACION_MONO, cons)
+                                       calc.sla_mono(df["etd"]).values, cons)
     df["sla_tt"] = pd.Series(port_tt, index=df.index, dtype=float).fillna(settings.SLA_TT_DEFAULT)
     df["sla_total"] = pd.Series(port_total, index=df.index, dtype=float).fillna(settings.SLA_TOTAL_DEFAULT)
     df["estado_consolidacion"] = calc.semaforo(df["dias_consolidacion"], df["sla_consolidacion"])

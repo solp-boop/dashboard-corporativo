@@ -131,7 +131,7 @@ def test_bundle_recalcula_tiempos_y_sla():
     assert r0["sla_consolidacion"] == 25           # Ningbo en Validaciones
     assert r0["estado_consolidacion"] == "Atención"  # 26 d vs 25 d (+4 %)
     assert pd.isna(df.iloc[1]["dias_consolidacion"])  # ETD = #N/A
-    assert df.iloc[1]["sla_consolidacion"] == 15   # monoproveedor
+    assert df.iloc[1]["sla_consolidacion"] == 12   # monoproveedor sin ETD: SLA vigente hoy
     assert pd.isna(df.iloc[2]["dias_consolidacion"])  # packeo 1900 descartado
     assert b.quality["reservas"].out_of_range      # el 1900 quedó registrado
 

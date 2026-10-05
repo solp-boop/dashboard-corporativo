@@ -36,7 +36,7 @@ def render() -> None:
     df = df[df["modo"].isin(MODOS_MARITIMOS) & (df["etd"] <= today())]
     filter_notes(base, filters, "Reservas Históricas")
     st.caption("Solo embarques marítimos ya zarpados. SLA de consolidación: "
-               f"{settings.SLA_CONSOLIDACION_MONO} d monoproveedor; consolidado según el target por puerto "
+               f"monoproveedor según la ETD, {calc.sla_mono_txt()}; consolidado según el target por puerto "
                f"de Validaciones (por defecto {settings.SLA_CONSOLIDACION_DEFAULT} d).")
     if df.empty:
         empty()

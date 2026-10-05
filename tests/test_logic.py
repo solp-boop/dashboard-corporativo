@@ -224,3 +224,8 @@ def test_resumen_imo_comparable():
     e = rk.imo_maritimo(pd.DataFrame(rows))
     assert e.n == 6 and e.pct == 0.5 and e.extra == 1000 and e.extra_pct == pytest.approx(0.2)
     assert e.costo_comparable and e.tt - e.tt_ref == 5
+
+
+def test_sla_mono_por_vigencia():
+    s = calc.sla_mono(pd.to_datetime(pd.Series(["2026-02-15", "2026-03-01", "2026-09-30", "2026-10-01", None])))
+    assert list(s) == [15, 10, 10, 12, 12]

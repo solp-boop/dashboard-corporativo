@@ -103,7 +103,7 @@ def render() -> None:
                 "ETD (confirmado o previsto) − fecha de packeo mínima. Mediana contra SLA.")
         with guard("Consolidación en curso"):
             cards = []
-            for est, sla in (("Monoproveedor", settings.SLA_CONSOLIDACION_MONO), ("Consolidado", None)):
+            for est, sla in (("Monoproveedor", None), ("Consolidado", None)):
                 sub = mar[mar["estructura"] == est]
                 s = calc.describe(sub["dias_consolidacion"])
                 sla_v = sla if sla is not None else (float(sub["sla_consolidacion"].median()) if len(sub) else np.nan)

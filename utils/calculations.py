@@ -61,6 +61,27 @@ def days_between(end: pd.Series, start: pd.Series, metric: str) -> tuple[pd.Seri
     return d.mask(bad), int(bad.sum())
 
 
+def sla_mono(etd: pd.Series) -> pd.Series:
+    """SLA de consolidación monoproveedor según la fecha de ETD (vigencias en settings).
+
+    Sin ETD se usa el vigente hoy.
+    """
+    fechas = pd.to_datetime(pd.Series(etd))
+    out = pd.Series(float(settings.SLA_MONO_VIGENCIAS[-1][1]), index=fechas.index)
+    for desde, dias in settings.SLA_MONO_VIGENCIAS:
+        out = out.mask(fechas >= pd.Timestamp(desde), float(dias))
+    return out
+
+
+def sla_mono_txt() -> str:
+    """'12 d desde 01/10/2026 (antes 10 d desde 01/03/2026, 15 d)'."""
+    v = settings.SLA_MONO_VIGENCIAS
+    actual = f"{v[-1][1]} d desde {pd.Timestamp(v[-1][0]):%d/%m/%Y}"
+    previas = [f"{d} d desde {pd.Timestamp(f):%d/%m/%Y}" if i else f"{d} d"
+               for i, (f, d) in enumerate(v[:-1])][::-1]
+    return actual + (f" (antes {', '.join(previas)})" if previas else "")
+
+
 def semaforo(values: pd.Series, sla: pd.Series | float) -> pd.Series:
     v = pd.to_numeric(values, errors="coerce")
     s = sla if isinstance(sla, pd.Series) else pd.Series(sla, index=v.index)
