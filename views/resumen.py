@@ -461,8 +461,7 @@ def render_fletes(bundle, filters) -> None:
         split = split_html([("Marítimo", round(tot_m), settings.SERIES[0], f" · {fmt.fmt_usd(tot_m)}"),
                             ("Aéreo", round(tot_a), settings.SERIES[1], f" · {fmt.fmt_usd(tot_a)}")], show_count=False)
         kpi_row([KPI("Costo logístico pagado", fmt.fmt_usd(total),
-                     sub=f"Flete <b>{fmt.fmt_usd(fm + fa)}</b> · origen {fmt.fmt_usd(om + oa)} · "
-                         f"destino {fmt.fmt_usd(dm + da)}")], columns=4,
+                     sub=f"<b>{fmt.fmt_int(len(h) + len(a))}</b> embarques")], columns=4,
                 extra_html=(f'<div class="panel span-3"><div class="panel-title">Costo pagado por medio</div>'
                             f'{split}</div>'))
 
@@ -470,8 +469,7 @@ def render_fletes(bundle, filters) -> None:
         st.markdown('<div class="row-label">Marítimo</div>', unsafe_allow_html=True)
         kpi_row([
             KPI("Costo pagado", fmt.fmt_usd(tot_m),
-                sub=f"Flete <b>{fmt.fmt_usd(fm)}</b> · origen {fmt.fmt_usd(om)} · destino {fmt.fmt_usd(dm)} · "
-                    f"{fmt.fmt_int(len(h))} embarques"),
+                sub=f"<b>{fmt.fmt_int(len(h))}</b> embarques"),
             KPI("Ahorro vs mercado", fmt.fmt_usd(ah_total) if n_ref else "—",
                 status=("ok" if ah_total >= 0 else "bad") if n_ref >= settings.MIN_SAMPLE else "",
                 sub=(f"Flete {fmt.fmt_pct(-ah_pct, signed=True)} vs mediana de mercado · "
@@ -500,8 +498,7 @@ def render_fletes(bundle, filters) -> None:
             usd_kg = calc.describe((a["flete_pagado"] / kg).where(kg > 0))
             kpi_row([
                 KPI("Costo pagado", fmt.fmt_usd(tot_a),
-                    sub=f"Flete <b>{fmt.fmt_usd(fa)}</b> · origen {fmt.fmt_usd(oa)} · destino {fmt.fmt_usd(da)} · "
-                        f"{fmt.fmt_int(len(a))} embarques"),
+                    sub=f"<b>{fmt.fmt_int(len(a))}</b> embarques"),
                 KPI("USD por kg chargeable", f"USD {fmt.fmt_num(usd_kg.median, 1)}" if usd_kg.enough else "—",
                     sub=(f"Mediana · P25–P75 USD {fmt.fmt_num(usd_kg.p25, 1)}–{fmt.fmt_num(usd_kg.p75, 1)} · "
                          f"n={fmt.fmt_int(usd_kg.n)}") if usd_kg.enough else "Sin chargeable cargado"),
