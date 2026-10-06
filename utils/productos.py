@@ -37,23 +37,31 @@ def _solo_destino(d: pd.DataFrame) -> pd.DataFrame:
     return d
 
 
+EXCLUIDOS = ("muestra", "repuesto")   # tipos de negocio que no entran en el universo de time to market
+
+
 def muestras(aereos: pd.DataFrame | None, planif: pd.DataFrame | None) -> tuple[set, set]:
-    """(embarques, SO) que son muestras: aéreos con tipo MUESTRAS en Seguimiento Aéreos y SO «Muestras» en Planificación."""
+    """(embarques, SO) a excluir: muestras y repuestos.
+
+    Aéreos con tipo MUESTRAS / REPUESTOS en Seguimiento Aéreos y SO «Muestras» / «Repuestos» en Planificación.
+    """
     from utils.data_cleaning import fold, id_key
+
+    def es_excluido(v) -> bool:
+        return isinstance(v, str) and any(k in fold(v) for k in EXCLUIDOS)
+
     embs, sos = set(), set()
     if aereos is not None and len(aereos):
         col = aereos["tipo_sla"] if "tipo_sla" in aereos else aereos.get("tipo_negocio")
         if col is not None:
-            m = col.map(lambda v: "muestra" in fold(v) if isinstance(v, str) else False)
-            embs = set(id_key(aereos.loc[m, "embarque"].dropna()))
+            embs = set(id_key(aereos.loc[col.map(es_excluido), "embarque"].dropna()))
     if planif is not None and len(planif) and "tipo_negocio" in planif:
-        m = planif["tipo_negocio"].map(lambda v: "muestra" in fold(v) if isinstance(v, str) else False)
-        sos = set(planif.loc[m, "so"].dropna().astype(str))
+        sos = set(planif.loc[planif["tipo_negocio"].map(es_excluido), "so"].dropna().astype(str))
     return embs, sos
 
 
 def base_universo(eh: pd.DataFrame, today: pd.Timestamp, aereos=None, planif=None) -> pd.DataFrame:
-    """Universo completo de SO (marítimas y aéreas) ya zarpadas, sin muestras, con tiempo de consolidación válido."""
+    """Universo completo de SO (marítimas y aéreas) ya zarpadas, sin muestras ni repuestos, con tiempo válido."""
     from utils.data_cleaning import id_key
     d = eh[eh["etd"].notna() & (eh["etd"] <= today) & eh["tiempo_consolidacion"].notna()].copy()
     d = _solo_destino(d)

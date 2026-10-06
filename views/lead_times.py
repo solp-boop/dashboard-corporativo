@@ -93,7 +93,7 @@ def render() -> None:
                     chart_title(label, "Mediana mensual por estructura · línea punteada = objetivo")
                     sla_view.productos_chart(productos.monthly(dp, grupo), summ, label, key=f"lt_prod_{grupo}")
             chart_title(f"Mes a mes {today().year} · time to market (consolidación)*",
-                        "* Universo completo de SO, marítimas y aéreas, sin muestras · elegí el grupo: todas las SO, "
+                        "* Universo completo de SO, marítimas y aéreas, sin muestras ni repuestos · elegí el grupo: todas las SO, "
                         "SKU nuevos o top ranking")
             du = productos.base_universo(bundle.get("emb_hist"), today(), bundle.get("aereos"), bundle.get("planif"))
             sla_view.productos_mes_table(productos.mes_a_mes(du, today().year), today())
