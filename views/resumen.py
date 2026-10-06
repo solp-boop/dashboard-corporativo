@@ -100,6 +100,49 @@ def _tt_cards(tt: rk.TT, umbral_txt: str) -> None:
     ])
 
 
+def _punta_maritimo(z: pd.DataFrame) -> None:
+    d = z.dropna(subset=["dias_total"])
+    n = len(d)
+    if n < settings.MIN_SAMPLE:
+        empty("Pocos embarques con fin de producción y ETA.")
+        return
+    pct, n_sla = calc.cumplimiento(d["dias_total"], d["sla_total"])
+    ok = int((d["dias_total"] <= d["sla_total"]).sum())
+    sla_txt = fmt.fmt_int(d["sla_total"].median())
+    cons, tt = d["dias_consolidacion"].median(), d["dias_tt"].median()
+    kpi_row([
+        KPI("Punta a punta (mediana)", fmt.fmt_int(d["dias_total"].median()), unit="d",
+            sub=f"P90 <b>{fmt.fmt_int(d['dias_total'].quantile(.9))} d</b> · n={fmt.fmt_int(n)}"),
+        KPI("Dentro del SLA total", fmt.fmt_pct(pct),
+            status="ok" if pct >= settings.CUMPLIMIENTO_OBJETIVO else "bad",
+            sub=f"<b>{fmt.fmt_int(ok)}</b> de {fmt.fmt_int(n_sla)} · SLA {sla_txt} d (mediana de puertos)"),
+        KPI("¿Dónde se va el tiempo?", f"{fmt.fmt_int(cons)} + {fmt.fmt_int(tt)}", unit="d",
+            sub="consolidación (packeo → ETD) + tránsito (ETD → ETA), medianas"),
+    ])
+
+
+def _punta_aereo(a: pd.DataFrame) -> None:
+    from views.lead_times import _tramo_mas_largo
+    v = a["dias_aereo"].dropna()
+    if len(v) < settings.MIN_SAMPLE:
+        empty("Pocos aéreos con packeo y ETA Caldas.")
+        return
+    vig = a[a["sla_vigente"] & a["sla_aereo"].notna()]
+    pct, n = calc.cumplimiento(vig["dias_aereo"], vig["sla_aereo"])
+    ok = int((vig["dias_aereo"] <= vig["sla_aereo"]).sum())
+    enough = n >= settings.MIN_SAMPLE
+    tramo, _, dias = _tramo_mas_largo(a).partition(" · ")
+    dias = dias.removesuffix(" d") or "—"
+    kpi_row([
+        KPI("Punta a punta (mediana)", fmt.fmt_int(v.median()), unit="d",
+            sub=f"P90 <b>{fmt.fmt_int(v.quantile(.9))} d</b> · n={fmt.fmt_int(len(v))}"),
+        KPI("Dentro del SLA de su tipo", fmt.fmt_pct(pct) if enough else "—",
+            status=("ok" if pct >= settings.CUMPLIMIENTO_OBJETIVO else "bad") if enough else "",
+            sub=f"<b>{fmt.fmt_int(ok)}</b> de {fmt.fmt_int(n)} desde el {settings.SLA_AEREO_DESDE:%d/%m}"),
+        KPI("Tramo más largo", dias, unit="d" if dias != "—" else "", sub=f"<b>{tramo}</b> · mediana del período"),
+    ])
+
+
 def _ocupacion_table(r: pd.DataFrame) -> None:
     head = ["Tipo", "Capacidad", "Contenedores", "Ocupación (mediana)",
             f"≥ {fmt.fmt_pct(settings.OCUPACION_UMBRAL)}", f"< {fmt.fmt_pct(settings.OCUPACION_UMBRAL)}"]
@@ -231,6 +274,24 @@ def render() -> None:
         if len(aer_z):
             _tt_cards(rk.transit_time(aer_z[aer_z["modo"] == "Aéreo"], "dias_etd_eta", settings.TT_AEREO_UMBRAL, t),
                       f"{settings.TT_AEREO_UMBRAL} días")
+        else:
+            empty()
+
+    subsection("Punta a punta",
+               "Marítimo: fin de producción → ETA, contra el SLA total del puerto. Aéreo: packeo → ETA Caldas, "
+               f"contra el SLA de su tipo (vigente desde el {settings.SLA_AEREO_DESDE:%d/%m/%Y}). "
+               "El detalle por tramo está en Lead times y SLA.")
+    c_mar, c_aer = st.columns(2, gap="medium")
+    with c_mar, guard("Punta a punta marítimo"):
+        st.markdown('<div class="row-label">Marítimo</div>', unsafe_allow_html=True)
+        if len(z) and "dias_total" in z:
+            _punta_maritimo(z)
+        else:
+            empty()
+    with c_aer, guard("Punta a punta aéreo"):
+        st.markdown('<div class="row-label">Aéreo</div>', unsafe_allow_html=True)
+        if aer is not None and len(aer_z):
+            _punta_aereo(sla_view.air_zarpados(aer, t))
         else:
             empty()
 
