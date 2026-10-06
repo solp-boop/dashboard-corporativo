@@ -188,16 +188,17 @@ def productos_table(summary: pd.DataFrame, today: pd.Timestamp) -> None:
                "mediana de todas las SO del año." + (" " + " ".join(notas) if notas else ""))
 
 
-def productos_mes_table(t: pd.DataFrame, today: pd.Timestamp) -> None:
-    """Tabla mes a mes: SO, mínimo, mediana y máximo de consolidación por grupo."""
+def productos_mes_table(t: pd.DataFrame, today: pd.Timestamp, key: str = "prod_mes") -> None:
+    """Tabla mes a mes de un grupo elegido: SO, mínimo, mediana y máximo de consolidación."""
     if t.empty:
         st.markdown('<div class="empty">Sin datos.</div>', unsafe_allow_html=True)
         return
     grupos = t.attrs.get("grupos", {})
-    h1 = ['<th rowspan="2">Mes ETD</th>'] + [f'<th colspan="4" style="text-align:center">{html.escape(l)}</th>'
-                                             for l in grupos.values()]
-    h2 = ["<th>SO</th><th>Mín.</th><th>Mediana</th><th>Máx.</th>" for _ in grupos]
+    labels = {g: ("Todas las SO (100 %)" if g == "todas" else lbl) for g, lbl in grupos.items()}
+    elegido = st.segmented_control("Grupo", list(labels), default="todas", key=key,
+                                   format_func=lambda g: labels[g], label_visibility="collapsed") or "todas"
     this_month = today.to_period("M").to_timestamp()
+    tot_so = t.iloc[-1]["todas|so"] if "todas|so" in t else 0
 
     def d(v, bold=False):
         if v != v:
@@ -205,23 +206,24 @@ def productos_mes_table(t: pd.DataFrame, today: pd.Timestamp) -> None:
         txt = f"{fmt.fmt_int(v)} d"
         return f"<td><b>{txt}</b></td>" if bold else f"<td>{txt}</td>"
 
+    head = ["Mes ETD", "SO", "% de las SO", "Mín.", "Mediana", "Máx."]
     rows = []
     for _, r in t.iterrows():
         total = pd.isna(r["mes"])
         label = (f"Total {today.year}" if total else
                  fmt.fmt_month(r["mes"], long=True) + (" · en curso" if r["mes"] == this_month else ""))
-        cells = []
-        for g in grupos:
-            n = r[f"{g}|so"]
-            cells.append(f"<td>{fmt.fmt_int(n) if n else '—'}</td>" + d(r[f"{g}|min"])
-                         + d(r[f"{g}|med"], bold=True) + d(r[f"{g}|max"]))
+        n, base = r[f"{elegido}|so"], r["todas|so"]
+        pct = fmt.fmt_pct(n / base) if base else "—"
         style = " style='font-weight:600;background:rgba(120,130,150,0.10)'" if total else ""
-        rows.append(f"<tr{style}><th class='rowh'>{html.escape(label)}</th>{''.join(cells)}</tr>")
-    st.markdown('<div class="scorecard compact"><table><thead><tr>' + "".join(h1) + "</tr><tr>" + "".join(h2)
+        rows.append(f"<tr{style}><th class='rowh'>{html.escape(label)}</th>"
+                    f"<td>{fmt.fmt_int(n) if n else '—'}</td><td>{pct if n else '—'}</td>"
+                    + d(r[f"{elegido}|min"]) + d(r[f"{elegido}|med"], bold=True) + d(r[f"{elegido}|max"]) + "</tr>")
+    st.markdown('<div class="scorecard compact"><table><thead><tr>' + "".join(f"<th>{h}</th>" for h in head)
                 + f'</tr></thead><tbody>{"".join(rows)}</tbody></table></div>', unsafe_allow_html=True)
-    st.caption("Embarques Historicos: SO marítimas ya zarpadas, por mes de ETD. Días de consolidación por SO "
-               "(«Tiempo de consolidacion»): mínimo, mediana y máximo. La fila del total toma todas las SO del año "
-               "(no es la suma de los meses).")
+    st.caption(f"Embarques Historicos: SO marítimas ya zarpadas, por mes de ETD ({fmt.fmt_int(tot_so)} SO en el año). "
+               "Días de consolidación por SO («Tiempo de consolidacion»): mínimo, mediana y máximo. "
+               "«% de las SO» = cuántas del total del mes son del grupo elegido. La fila del total toma todas las SO "
+               "del año (no es la suma de los meses).")
 
 
 def productos_q_chart(summary: pd.DataFrame, grupo_label: str, today: pd.Timestamp, key: str) -> None:
