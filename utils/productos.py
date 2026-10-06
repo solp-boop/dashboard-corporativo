@@ -25,9 +25,40 @@ def base_lines(eh: pd.DataFrame, today: pd.Timestamp) -> pd.DataFrame:
     """Líneas marítimas ya zarpadas con tiempo de consolidación y estructura."""
     d = eh[eh["maritimo"] & eh["etd"].notna() & (eh["etd"] <= today)
            & eh["tiempo_consolidacion"].notna() & eh["estructura"].isin(ESTRUCTURAS)].copy()
+    d = _solo_destino(d)
+    d["mes"] = calc.month_start(d["etd"])
+    return d
+
+
+def _solo_destino(d: pd.DataFrame) -> pd.DataFrame:
     if settings.PRODUCTOS_DESTINO and "destino" in d:
         from utils.data_cleaning import fold
-        d = d[d["destino"].map(lambda v: fold(v) == fold(settings.PRODUCTOS_DESTINO) if isinstance(v, str) else False)]
+        return d[d["destino"].map(lambda v: fold(v) == fold(settings.PRODUCTOS_DESTINO) if isinstance(v, str) else False)]
+    return d
+
+
+def muestras(aereos: pd.DataFrame | None, planif: pd.DataFrame | None) -> tuple[set, set]:
+    """(embarques, SO) que son muestras: aéreos con tipo MUESTRAS en Seguimiento Aéreos y SO «Muestras» en Planificación."""
+    from utils.data_cleaning import fold, id_key
+    embs, sos = set(), set()
+    if aereos is not None and len(aereos):
+        col = aereos["tipo_sla"] if "tipo_sla" in aereos else aereos.get("tipo_negocio")
+        if col is not None:
+            m = col.map(lambda v: "muestra" in fold(v) if isinstance(v, str) else False)
+            embs = set(id_key(aereos.loc[m, "embarque"].dropna()))
+    if planif is not None and len(planif) and "tipo_negocio" in planif:
+        m = planif["tipo_negocio"].map(lambda v: "muestra" in fold(v) if isinstance(v, str) else False)
+        sos = set(planif.loc[m, "so"].dropna().astype(str))
+    return embs, sos
+
+
+def base_universo(eh: pd.DataFrame, today: pd.Timestamp, aereos=None, planif=None) -> pd.DataFrame:
+    """Universo completo de SO (marítimas y aéreas) ya zarpadas, sin muestras, con tiempo de consolidación válido."""
+    from utils.data_cleaning import id_key
+    d = eh[eh["etd"].notna() & (eh["etd"] <= today) & eh["tiempo_consolidacion"].notna()].copy()
+    d = _solo_destino(d)
+    embs, sos = muestras(aereos, planif)
+    d = d[~id_key(d["embarque"]).isin(embs) & ~d["so"].astype(str).isin(sos)]
     d["mes"] = calc.month_start(d["etd"])
     return d
 
@@ -116,7 +147,8 @@ def mes_a_mes(d: pd.DataFrame, year: int) -> pd.DataFrame:
         r = {"mes": mes}
         sub_m = x if pd.isna(mes) else x[x["mes"] == mes]
         for g in grupos:
-            so = per_so(sub_m[sub_m[g]])
+            sg = sub_m[sub_m[g].fillna(False).astype(bool)]
+            so = sg.groupby(["so", "mes"], as_index=False).agg(tiempo=("tiempo_consolidacion", "median"))
             t = so["tiempo"]
             r[f"{g}|so"] = int(so["so"].nunique())
             r[f"{g}|min"] = float(t.min()) if len(t) else np.nan

@@ -220,12 +220,12 @@ def productos_mes_table(t: pd.DataFrame, today: pd.Timestamp, key: str = "prod_m
                     + d(r[f"{elegido}|min"]) + d(r[f"{elegido}|med"], bold=True) + d(r[f"{elegido}|max"]) + "</tr>")
     st.markdown('<div class="scorecard compact"><table><thead><tr>' + "".join(f"<th>{h}</th>" for h in head)
                 + f'</tr></thead><tbody>{"".join(rows)}</tbody></table></div>', unsafe_allow_html=True)
-    st.caption(f"Embarques Historicos: SO marítimas ya zarpadas con destino {settings.PRODUCTOS_DESTINO or 'todos'}, "
-               f"por mes de ETD ({fmt.fmt_int(tot_so)} SO en el año). "
-               "Días de consolidación por SO («Tiempo de consolidacion»): mínimo, mediana y máximo; las SO con 0 "
-               "días o tiempo negativo se toman como sin dato. "
-               "«% de las SO» = cuántas del total del mes son del grupo elegido. La fila del total toma todas las SO "
-               "del año (no es la suma de los meses).")
+    st.caption(f"\\* Universo completo: SO de Embarques Historicos ya zarpadas, marítimas y aéreas, con destino "
+               f"{settings.PRODUCTOS_DESTINO or 'todos'}, sin muestras (aéreos MUESTRAS en Seguimiento Aéreos y SO "
+               f"«Muestras» en Planificación). {fmt.fmt_int(tot_so)} SO en el año, por mes de ETD. Días de "
+               "consolidación por SO («Tiempo de consolidacion»): mínimo, mediana y máximo; 0 días o tiempo negativo "
+               "se toman como sin dato. «% de las SO» = cuántas del total del mes son del grupo elegido. La fila del "
+               "total toma todas las SO del año (no es la suma de los meses).")
 
 
 def productos_q_chart(summary: pd.DataFrame, grupo_label: str, today: pd.Timestamp, key: str) -> None:
