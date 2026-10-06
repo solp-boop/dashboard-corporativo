@@ -189,17 +189,22 @@ def productos_table(summary: pd.DataFrame, today: pd.Timestamp) -> None:
 
 
 def productos_mes_table(t: pd.DataFrame, today: pd.Timestamp) -> None:
-    """Tabla mes a mes: SO y mediana de consolidación por grupo y estructura."""
+    """Tabla mes a mes: SO, mínimo, mediana y máximo de consolidación por grupo."""
     if t.empty:
         st.markdown('<div class="empty">Sin datos.</div>', unsafe_allow_html=True)
         return
     grupos = t.attrs.get("grupos", {})
-    ests = ["Consolidado", "Monoproveedor"]
-    h1 = ['<th rowspan="3">Mes ETD</th>'] + [f'<th colspan="4" style="text-align:center">{html.escape(l)}</th>'
+    h1 = ['<th rowspan="2">Mes ETD</th>'] + [f'<th colspan="4" style="text-align:center">{html.escape(l)}</th>'
                                              for l in grupos.values()]
-    h2 = [f'<th colspan="2" style="text-align:center">{e}</th>' for _ in grupos for e in ests]
-    h3 = ["<th>SO</th><th>Mediana</th>" for _ in grupos for _ in ests]
+    h2 = ["<th>SO</th><th>Mín.</th><th>Mediana</th><th>Máx.</th>" for _ in grupos]
     this_month = today.to_period("M").to_timestamp()
+
+    def d(v, bold=False):
+        if v != v:
+            return "<td class='na'>—</td>"
+        txt = f"{fmt.fmt_int(v)} d"
+        return f"<td><b>{txt}</b></td>" if bold else f"<td>{txt}</td>"
+
     rows = []
     for _, r in t.iterrows():
         total = pd.isna(r["mes"])
@@ -207,18 +212,16 @@ def productos_mes_table(t: pd.DataFrame, today: pd.Timestamp) -> None:
                  fmt.fmt_month(r["mes"], long=True) + (" · en curso" if r["mes"] == this_month else ""))
         cells = []
         for g in grupos:
-            for e in ests:
-                n, m = r[f"{g}|{e}|so"], r[f"{g}|{e}|med"]
-                cells.append(f"<td>{fmt.fmt_int(n) if n else '—'}</td>"
-                             f"<td>{fmt.fmt_int(m) + ' d' if m == m else '—'}</td>")
+            n = r[f"{g}|so"]
+            cells.append(f"<td>{fmt.fmt_int(n) if n else '—'}</td>" + d(r[f"{g}|min"])
+                         + d(r[f"{g}|med"], bold=True) + d(r[f"{g}|max"]))
         style = " style='font-weight:600;background:rgba(120,130,150,0.10)'" if total else ""
         rows.append(f"<tr{style}><th class='rowh'>{html.escape(label)}</th>{''.join(cells)}</tr>")
     st.markdown('<div class="scorecard compact"><table><thead><tr>' + "".join(h1) + "</tr><tr>" + "".join(h2)
-                + "</tr><tr>" + "".join(h3) + f'</tr></thead><tbody>{"".join(rows)}</tbody></table></div>',
-                unsafe_allow_html=True)
-    st.caption("Embarques Historicos: SO marítimas ya zarpadas, por mes de ETD. Mediana del «Tiempo de "
-               "consolidacion» por SO; la estructura es la del embarque en Reservas Históricas. "
-               "La fila del total es la mediana de todas las SO del año (no la suma de los meses).")
+                + f'</tr></thead><tbody>{"".join(rows)}</tbody></table></div>', unsafe_allow_html=True)
+    st.caption("Embarques Historicos: SO marítimas ya zarpadas, por mes de ETD. Días de consolidación por SO "
+               "(«Tiempo de consolidacion»): mínimo, mediana y máximo. La fila del total toma todas las SO del año "
+               "(no es la suma de los meses).")
 
 
 def productos_q_chart(summary: pd.DataFrame, grupo_label: str, today: pd.Timestamp, key: str) -> None:

@@ -93,7 +93,7 @@ def render() -> None:
                     chart_title(label, "Mediana mensual por estructura · línea punteada = objetivo")
                     sla_view.productos_chart(productos.monthly(dp, grupo), summ, label, key=f"lt_prod_{grupo}")
             chart_title(f"Mes a mes {today().year} · cantidad de SO y mediana de consolidación",
-                        "Todas las SO marítimas, SKU nuevos y top ranking, por estructura")
+                        "Todas las SO marítimas, SKU nuevos y top ranking · mínimo, mediana y máximo en días")
             sla_view.productos_mes_table(productos.mes_a_mes(dp, today().year), today())
 
     section("Apertura del período")

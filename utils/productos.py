@@ -100,10 +100,10 @@ def summary(d: pd.DataFrame, today: pd.Timestamp) -> pd.DataFrame:
 
 
 def mes_a_mes(d: pd.DataFrame, year: int) -> pd.DataFrame:
-    """Por mes de ETD del año: SO y mediana de consolidación, para todas / SKU nuevos / top ranking × estructura.
+    """Por mes de ETD del año: SO, mínimo, mediana y máximo de consolidación (días por SO), sin abrir por estructura.
 
-    Columnas: mes, y por cada (grupo, estructura) «{grupo}|{estructura}|so» y «…|med». La última fila (mes NaT)
-    es el total del año.
+    Grupos: todas las SO, SKU nuevos y top ranking. Columnas «{grupo}|so», «|min», «|med», «|max».
+    La última fila (mes NaT) es el total del año.
     """
     x = d[d["mes"].dt.year == year].assign(todas=True)
     grupos = {"todas": "Todas las SO", **GRUPOS}
@@ -114,10 +114,11 @@ def mes_a_mes(d: pd.DataFrame, year: int) -> pd.DataFrame:
         sub_m = x if pd.isna(mes) else x[x["mes"] == mes]
         for g in grupos:
             so = per_so(sub_m[sub_m[g]])
-            for est in ESTRUCTURAS:
-                s = so[so["estructura"] == est]
-                r[f"{g}|{est}|so"] = int(s["so"].nunique())
-                r[f"{g}|{est}|med"] = float(s["tiempo"].median()) if len(s) else np.nan
+            t = so["tiempo"]
+            r[f"{g}|so"] = int(so["so"].nunique())
+            r[f"{g}|min"] = float(t.min()) if len(t) else np.nan
+            r[f"{g}|med"] = float(t.median()) if len(t) else np.nan
+            r[f"{g}|max"] = float(t.max()) if len(t) else np.nan
         rows.append(r)
     out = pd.DataFrame(rows)
     out.attrs["grupos"] = grupos
