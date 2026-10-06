@@ -258,3 +258,39 @@ def gadnic_embarques(planif: pd.DataFrame | None) -> set:
         return set()
     g = planif[(planif["tipo_negocio"] == "GADNIC") & planif["embarque"].notna()]
     return set(id_key(g["embarque"]))
+
+
+# ---------------------------------------------------------------------------
+# Transit time contra el objetivo de tránsito del puerto (Validaciones · «Transito ARG»)
+# ---------------------------------------------------------------------------
+def tt_vs_objetivo(z: pd.DataFrame) -> tuple[float, int, int]:
+    """(% dentro, dentro, n): embarques con ETD→ETA ≤ «Transito ARG» de su puerto. Solo puertos con objetivo cargado."""
+    d = z.dropna(subset=["dias_tt", "sla_tt"])
+    if "sla_puerto_definido" in d:
+        d = d[d["sla_puerto_definido"].fillna(False).astype(bool)]
+    n = len(d)
+    ok = int((d["dias_tt"] <= d["sla_tt"]).sum())
+    return (ok / n if n else np.nan), ok, n
+
+
+def tt_por_puerto(z: pd.DataFrame, today: pd.Timestamp, meses: int = 3) -> tuple[pd.DataFrame, pd.Timestamp, pd.Timestamp]:
+    """Por puerto, últimos `meses` meses cerrados de ETD: TT real (mediana, ETD→ETA) contra «Transito ARG».
+
+    Devuelve (tabla, desde, hasta). Ordenada por cantidad de embarques.
+    """
+    hasta = today.to_period("M").to_timestamp()
+    desde = hasta - pd.DateOffset(months=meses)
+    d = z[(z["etd"] >= desde) & (z["etd"] < hasta)].dropna(subset=["dias_tt", "puerto"])
+    if d.empty:
+        return pd.DataFrame(), desde, hasta
+    definido = d["sla_puerto_definido"].fillna(False).astype(bool) if "sla_puerto_definido" in d else True
+    d = d.assign(obj=d["sla_tt"].where(definido))
+    g = d.groupby("puerto").agg(
+        embarques=("embarque", "nunique"), tt_mediana=("dias_tt", "median"), tt_p90=("dias_tt", lambda s: s.quantile(.9)),
+        objetivo=("obj", "median"))
+    dentro = d[d["obj"].notna()].assign(ok=lambda x: x["dias_tt"] <= x["obj"]).groupby("puerto")["ok"].mean()
+    g["pct_dentro"] = dentro
+    g["desvio"] = g["tt_mediana"] - g["objetivo"]
+    g["estado"] = np.select([g["objetivo"].isna(), g["desvio"] <= 0, g["desvio"] <= g["objetivo"] * settings.SLA_WARNING_TOLERANCE],
+                            ["Sin objetivo", "Dentro de SLA", "Atención"], "Fuera de SLA")
+    return g.sort_values("embarques", ascending=False).reset_index(), desde, hasta - pd.Timedelta(days=1)

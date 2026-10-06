@@ -63,6 +63,13 @@ def _maritimo(bundle, filters, df) -> None:
         sla_view.scorecard_table(sc)
         coverage(int(df["dias_consolidacion"].notna().sum()), len(df), "embarques del período con consolidación calculable")
 
+    section("Transit time por puerto · cierre",
+            "TT real de Reservas Históricas (ETD → ETA) de los últimos 3 meses cerrados, por puerto, contra el "
+            "objetivo de tránsito de Validaciones («Transito ARG»).")
+    with guard("Transit time por puerto"):
+        from views.resumen import tt_puerto_table
+        tt_puerto_table(filtered(bundle, "historicas", filters, use_period=False), today(), key="lt_tt_puerto")
+
     section("Apertura del período")
     c1, c2 = st.columns(2, gap="medium")
     with c1, guard("Cumplimiento mensual"):

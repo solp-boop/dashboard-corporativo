@@ -82,6 +82,9 @@ def render_anio(bundle, filters) -> None:
 
 
 def _shippers(bundle, filters, t: pd.Timestamp) -> None:
+    import plotly.graph_objects as go
+    from components import charts
+
     hist = filtered(bundle, "historicas", filters, use_period=False)
     res = filtered(bundle, "reservas", filters, use_period=False) if bundle.get("reservas") is not None else None
     subsection(f"Shippers · FOB colocado por mes de ETA {t.year}",
@@ -92,43 +95,89 @@ def _shippers(bundle, filters, t: pd.Timestamp) -> None:
         empty(f"Sin embarques con ETA en {t.year} y FOB cargado.")
         return
     tab, meses = anio.shippers_pivot(d)
+    total = float(tab.iloc[-1]["total"])
     en_curso_fob = float(d.loc[d["fuente"] == "Reservas", "fob"].sum())
     kpi_row([
-        KPI(f"FOB con ETA en {t.year}", fmt.fmt_usd(tab.iloc[-1]["total"]),
-            sub=f"{fmt.fmt_int(d['embarque'].nunique())} embarques"),
-        KPI("Embarcado (Históricas)", fmt.fmt_usd(tab.iloc[-1]["total"] - en_curso_fob), sub="FOB SIMI"),
+        KPI(f"FOB con ETA en {t.year}", fmt.fmt_usd(total), sub=f"{fmt.fmt_int(d['embarque'].nunique())} embarques"),
+        KPI("Embarcado (Históricas)", fmt.fmt_usd(total - en_curso_fob), sub="FOB SIMI"),
         KPI("En curso (Reservas)", fmt.fmt_usd(en_curso_fob), sub="FOB real · ETA futura o reciente"),
         KPI("Shippers", fmt.fmt_int(len(tab) - 1),
-            sub=f"el principal: <b>{html.escape(str(tab.iloc[0]['shipper']))}</b> "
-                f"{fmt.fmt_pct(tab.iloc[0]['pct'])}"),
+            sub=f"el principal: <b>{html.escape(str(tab.iloc[0]['shipper']))}</b> {fmt.fmt_pct(tab.iloc[0]['pct'])}"),
     ])
-    vista = st.segmented_control("Ver", ["Importe FOB (USD)", "% del mes"], default="Importe FOB (USD)",
-                                 key="ship_vista", label_visibility="collapsed") or "Importe FOB (USD)"
-    show = tab.copy()
-    this_month = t.to_period("M").to_timestamp()
-    nombres = {m: fmt.fmt_month(m).capitalize() + ("*" if m >= this_month else "") for m in meses}
-    if vista == "% del mes":
-        for m in meses:
-            col_tot = show[m].iloc[-1]
-            show[m] = show[m] / col_tot if col_tot else np.nan
-        kind = "pct"
-    else:
+
+    filas = tab.iloc[:-1]
+    top = list(filas["shipper"][:5])
+    cmap = dict(zip(top, settings.SERIES + ["#3E8E7E"]))
+    cmap["Otros"] = settings.SERIES_OTHER
+    c1, c2 = st.columns([2, 3], gap="medium")
+    with c1:
+        chart_title("Participación en el año", "% del FOB con ETA en el año · USD")
+        rows = []
+        for _, r in filas.iterrows():
+            color = cmap.get(r["shipper"], settings.SERIES_OTHER)
+            rows.append(
+                f'<div style="margin:0 0 .55rem 0"><div style="display:flex;justify-content:space-between;gap:.5rem;'
+                f'font-size:.85rem"><b>{html.escape(str(r["shipper"]))}</b>'
+                f'<span>{fmt.fmt_pct(r["pct"])} · {fmt.fmt_usd(r["total"])}</span></div>'
+                f'<div style="height:8px;border-radius:4px;background:rgba(120,130,150,.15)">'
+                f'<div style="height:8px;border-radius:4px;width:{max(r["pct"], 0.004) * 100:.1f}%;'
+                f'background:{color}"></div></div></div>')
+        st.markdown(f'<div class="panel">{"".join(rows)}</div>', unsafe_allow_html=True)
+    with c2:
+        vista = st.segmented_control("Ver", ["Importe FOB", "% del mes"], default="Importe FOB",
+                                     key="ship_vista", label_visibility="collapsed") or "Importe FOB"
+        pct = vista == "% del mes"
+        chart_title("FOB por mes de ETA y shipper",
+                    ("Participación de cada shipper en el FOB del mes" if pct else "USD") +
+                    " · los 5 principales; el resto en «Otros» · * mes en curso o futuro")
+        dd = d.assign(grupo=d["shipper"].where(d["shipper"].isin(top), "Otros"))
+        g = dd.pivot_table(index="mes", columns="grupo", values="fob", aggfunc="sum", fill_value=0.0).reindex(meses)
+        tot_mes = g.sum(axis=1)
+        this_month = t.to_period("M").to_timestamp()
+        x = [fmt.fmt_month(m) + ("*" if m >= this_month else "") for m in meses]
+        fig = go.Figure()
+        for name in top + (["Otros"] if "Otros" in g else []):
+            y = (g[name] / tot_mes.where(tot_mes > 0)) * 100 if pct else g[name] / 1e6
+            fig.add_bar(x=x, y=y, name=name, marker=dict(color=cmap[name]),
+                        hovertemplate=(f"{name}: %{{y:.0f}} %<extra></extra>" if pct
+                                       else f"{name}: USD %{{y:.2f}} M<extra></extra>"))
+        fig.update_layout(barmode="stack")
+        charts.theme(fig, height=360, y_title="% del mes" if pct else "USD millones",
+                     y_suffix=" %" if pct else "", y_tickformat=",.0f" if pct else ",.1f")
+        charts.show(fig, key="ship_chart")
+
+    with st.expander("Ver tabla por shipper y mes"):
+        show = tab.copy()
+        nombres = {m: fmt.fmt_month(m).capitalize() + ("*" if m >= this_month else "") for m in meses}
         kind = "usd"
-    show.columns = [nombres.get(c, c) if not isinstance(c, str) else c for c in show.columns]
-    cols = [ColSpec("shipper", "Shipper", width="medium"), ColSpec("embarques", "Emb.", "int"),
-            ColSpec("total", f"Total {t.year} (USD)", "usd"), ColSpec("pct", "% del año", "pct")]
-    cols += [ColSpec(nombres[m], nombres[m], kind) for m in meses]
-    styles = pd.Series("", index=show.index)
-    styles.iloc[-1] = "font-weight: 600; background-color: rgba(120,130,150,0.10)"
-    data_table(show, cols, key="shippers", filename=f"shippers_fob_eta_{t.year}", row_styles=styles, height=460,
-               caption="Mes de ETA · * mes en curso o futuro (incluye Reservas con ETA estimada)"
-                       + (" · «% del mes» = participación del shipper en el FOB de ese mes" if kind == "pct" else ""))
+        if pct:
+            for m in meses:
+                col_tot = show[m].iloc[-1]
+                show[m] = show[m] / col_tot if col_tot else np.nan
+            kind = "pct"
+        show.columns = [nombres.get(c, c) if not isinstance(c, str) else c for c in show.columns]
+        cols = [ColSpec("shipper", "Shipper", width="medium"), ColSpec("embarques", "Emb.", "int"),
+                ColSpec("total", f"Total {t.year} (USD)", "usd"), ColSpec("pct", "% del año", "pct")]
+        cols += [ColSpec(nombres[m], nombres[m], kind) for m in meses]
+        styles = pd.Series("", index=show.index)
+        styles.iloc[-1] = "font-weight: 600; background-color: rgba(120,130,150,0.10)"
+        data_table(show, cols, key="shippers", filename=f"shippers_fob_eta_{t.year}", row_styles=styles,
+                   search=False, caption="Mes de ETA · * mes en curso o futuro"
+                   + (" · «% del mes» = participación del shipper en el FOB de ese mes" if pct else ""))
+    notas = []
+    exc = d.attrs.get("excluidos")
+    if exc is not None and len(exc):
+        notas.append(f"Fuera del cuadro: {fmt.fmt_int(exc['embarque'].nunique())} embarques "
+                     f"({fmt.fmt_usd(exc['fob'].fillna(0).sum())}) sin trader o con shipper «No aplica», «No encontrado», "
+                     "vacío, «Directo Bidcom» (operación directa) o «WACOM».")
     sup = int(d["fob_simi_suplente"].fillna(False).sum())
     if sup:
-        st.caption(f"{fmt.fmt_int(sup)} embarques de Reservas sin «FOB Total Real» toman «Fob SIMI Total».")
+        notas.append(f"{fmt.fmt_int(sup)} embarques de Reservas sin «FOB Total Real» toman «Fob SIMI Total».")
+    if notas:
+        st.caption(" ".join(notas))
 
 
-def _tt_cards(tt: rk.TT, umbral_txt: str) -> None:
+def _tt_cards(tt: rk.TT, umbral_txt: str, tercera: KPI | None = None) -> None:
     if not tt.n:
         empty("Sin embarques con ETD y ETA válidas.")
         return
@@ -144,10 +193,34 @@ def _tt_cards(tt: rk.TT, umbral_txt: str) -> None:
             sub=f"n={fmt.fmt_int(tt.n)} · {comp}"),
         KPI("P90", fmt.fmt_int(tt.p90) if tt.enough else "—", unit="d",
             sub="el 10 % más lento tarda más que esto"),
-        KPI(f"Más de {umbral_txt}", fmt.fmt_pct(tt.pct_sobre) if tt.enough else "—",
-            status=("warn" if tt.pct_sobre > 0.10 else "ok") if tt.enough else "",
-            sub=f"<b>{fmt.fmt_int(tt.n_sobre)}</b> de {fmt.fmt_int(tt.n)} casos"),
+        tercera or KPI(f"Más de {umbral_txt}", fmt.fmt_pct(tt.pct_sobre) if tt.enough else "—",
+                       status=("warn" if tt.pct_sobre > 0.10 else "ok") if tt.enough else "",
+                       sub=f"<b>{fmt.fmt_int(tt.n_sobre)}</b> de {fmt.fmt_int(tt.n)} casos"),
     ])
+
+
+def tt_puerto_table(hist: pd.DataFrame | None, t: pd.Timestamp, key: str, top: int | None = None) -> None:
+    """Cierre: TT real por puerto de los últimos 3 meses cerrados contra «Transito ARG» de Validaciones."""
+    if hist is None or hist.empty:
+        return
+    z_all = sla.zarpados(hist, t)
+    tab, desde, hasta = rk.tt_por_puerto(z_all, t)
+    chart_title("Transit time marítimo por puerto · últimos 3 meses cerrados",
+                f"ETD entre {desde:%d/%m/%Y} y {hasta:%d/%m/%Y} · TT real (ETD → ETA, mediana) contra el objetivo de "
+                "tránsito del puerto (Validaciones · «Transito ARG») · no depende del filtro de período")
+    if tab.empty:
+        empty("Sin embarques marítimos zarpados en los últimos 3 meses cerrados.")
+        return
+    resto = len(tab) - top if top and len(tab) > top else 0
+    data_table(tab.head(top) if top else tab, [
+        ColSpec("puerto", "Puerto"), ColSpec("embarques", "Embarques", "int"),
+        ColSpec("objetivo", "Objetivo tránsito (d)", "days"), ColSpec("tt_mediana", "TT real · mediana (d)", "days"),
+        ColSpec("desvio", "Desvío (d)", "days"), ColSpec("tt_p90", "P90 (d)", "days"),
+        ColSpec("pct_dentro", "% dentro", "pct"), ColSpec("estado", "Estado", "status"),
+    ], key=key, filename="transit_time_por_puerto", search=False,
+        caption="Estado por la mediana: dentro si no supera el objetivo; atención hasta "
+                f"{fmt.fmt_pct(settings.SLA_WARNING_TOLERANCE)} por encima"
+                + (f" · {resto} puertos más en Lead times y SLA" if resto else ""))
 
 
 def _punta_maritimo(z: pd.DataFrame) -> None:
@@ -315,8 +388,14 @@ def render() -> None:
     with c_mar, guard("Transit time marítimo"):
         st.markdown('<div class="row-label">Marítimo</div>', unsafe_allow_html=True)
         if len(z):
+            pct_tt, ok_tt, n_tt = rk.tt_vs_objetivo(z)
+            enough = n_tt >= settings.MIN_SAMPLE
             _tt_cards(rk.transit_time(z, "dias_tt", settings.TT_MARITIMO_UMBRAL, t),
-                      f"{settings.TT_MARITIMO_UMBRAL} días")
+                      f"{settings.TT_MARITIMO_UMBRAL} días",
+                      KPI("Tránsito en objetivo", fmt.fmt_pct(pct_tt) if enough else "—",
+                          status=("ok" if pct_tt >= settings.CUMPLIMIENTO_OBJETIVO else "bad") if enough else "",
+                          sub=f"<b>{fmt.fmt_int(ok_tt)}</b> de {fmt.fmt_int(n_tt)} · contra «Transito ARG» de su "
+                              "puerto (Validaciones)"))
         else:
             empty()
     with c_aer, guard("Transit time aéreo"):
@@ -326,6 +405,9 @@ def render() -> None:
                       f"{settings.TT_AEREO_UMBRAL} días")
         else:
             empty()
+    with guard("Transit time por puerto"):
+        tt_puerto_table(filtered(bundle, "historicas", filters, use_period=False)
+                        if bundle.get("historicas") is not None else None, t, key="res_tt_puerto", top=8)
 
     subsection("Punta a punta",
                "Marítimo: fin de producción → ETA, contra el SLA total del puerto. Aéreo: packeo → ETA Caldas, "
@@ -516,6 +598,26 @@ def render() -> None:
             empty("Sin columna CARGA IMO en Seguimiento Aéreos.")
 
 
+def _cert_tendencia(a: pd.DataFrame, cert_de) -> KPI:
+    """Aéreo: % certificado del último mes cerrado contra el primer mes con certificación (no hay objetivo)."""
+    t = today()
+    d = a.dropna(subset=["etd"]).assign(mes=lambda x: calc.month_start(x["etd"]))
+    d = d[d["mes"] < t.to_period("M").to_timestamp()]
+    por_mes = {m: cert_de(g) for m, g in d.groupby("mes") if (g["flete_pagado"] > 0).sum() >= 3}
+    con_cert = [m for m, v in sorted(por_mes.items()) if v == v and v > 0]
+    if len(con_cert) < 2:
+        return KPI("Certificación · tendencia", "—", sub="Hacen falta al menos dos meses cerrados con certificación")
+    ini, ult = con_cert[0], max(por_mes)
+    v0, v1 = por_mes[ini], por_mes[ult]
+    diff = (v1 - v0) * 100
+    flecha = "▼" if diff < 0 else "▲" if diff > 0 else "="
+    return KPI("Certificación · tendencia", fmt.fmt_pct(v1),
+               status="ok" if diff < 0 else "warn" if diff > 0 else "",
+               sub=(f"{fmt.fmt_month(ult, long=True).split()[0].lower()} (último mes cerrado) · <b>{flecha} "
+                    f"{fmt.fmt_num(abs(diff), 0)} pp</b> vs {fmt.fmt_month(ini, long=True).split()[0].lower()} "
+                    f"{fmt.fmt_pct(v0)}, primer mes con certificación"))
+
+
 def render_fletes(bundle, filters) -> None:
     """¿Cuánto pagamos y cuánto capturamos? Resumen de la gestión de fletes."""
     import plotly.graph_objects as go
@@ -644,8 +746,9 @@ def render_fletes(bundle, filters) -> None:
                 KPI("USD por kg chargeable", f"USD {fmt.fmt_num(usd_kg.median, 1)}" if usd_kg.enough else "—",
                     sub=(f"Mediana · P25–P75 USD {fmt.fmt_num(usd_kg.p25, 1)}–{fmt.fmt_num(usd_kg.p75, 1)} · "
                          f"n={fmt.fmt_int(usd_kg.n)}") if usd_kg.enough else "Sin chargeable cargado"),
-                KPI("Flete certificado", fmt.fmt_pct(cert_a), status=cert_status(cert_a)[0],
-                    badge=cert_status(cert_a)[1], sub=cert_sub() + " · certificado por fuera / flete pagado"),
+                KPI("Flete certificado", fmt.fmt_pct(cert_a), badge="Sin objetivo",
+                    sub="Certificado por fuera / flete pagado · se espera que baje"),
+                _cert_tendencia(a, cert_de),
             ], columns=4)
 
         c1, c2 = st.columns(2, gap="medium")

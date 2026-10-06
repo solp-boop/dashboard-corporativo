@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from config.mappings import MODOS_MARITIMOS
+from config import settings
 from utils import calculations as calc
 
 MEDIOS = ["Marítimo", "Aéreo", "Courier", "Camión", "Otro"]
@@ -69,6 +70,15 @@ def medios_presentes(d: pd.DataFrame) -> list[str]:
 # ---------------------------------------------------------------------------
 # Shippers: FOB colocado por mes de ETA
 # ---------------------------------------------------------------------------
+def shipper_key(nombre: str) -> str:
+    """Clave para unificar shippers: sin acentos, mayúsculas, sin puntuación ni palabras societarias."""
+    import re
+    from utils.data_cleaning import fold
+    tokens = re.sub(r"[^A-Z0-9]+", " ", fold(nombre).upper()).split()
+    tokens = [t for t in tokens if t not in settings.SHIPPERS_SUFIJOS]
+    return " ".join(tokens) or fold(nombre).upper()
+
+
 def shippers_base(hist: pd.DataFrame | None, res: pd.DataFrame | None, year: int) -> pd.DataFrame:
     """Una fila por embarque con ETA en el año: shipper, mes de ETA, FOB y fuente.
 
@@ -93,14 +103,19 @@ def shippers_base(hist: pd.DataFrame | None, res: pd.DataFrame | None, year: int
     d["_k"] = id_key(d["embarque"])
     d["_o"] = (d["fuente"] == "Reservas").astype(int)
     d = d.sort_values("_o").drop_duplicates("_k", keep="first")
-    d["shipper"] = d["shipper"].map(lambda v: " ".join(str(v).split()) if isinstance(v, str) and v.strip() else "Sin shipper")
-    # mismo shipper escrito distinto (mayúsculas / acentos / espacios): se agrupa y se muestra la forma más usada
-    key = d["shipper"].map(lambda v: fold(v).upper())
+    d["shipper"] = d["shipper"].map(lambda v: " ".join(str(v).split()) if isinstance(v, str) and v.strip() else "")
+    excl = d["shipper"].map(lambda v: not v or fold(v) in settings.SHIPPERS_EXCLUIR)
+    excluidos = d[excl].assign(fob=lambda x: pd.to_numeric(x["fob"], errors="coerce").fillna(0.0))
+    d = d[~excl].copy()
+    # mismo shipper escrito distinto (mayúsculas, acentos, LIMITED / LTD / LLC…): se agrupa y se muestra la forma más usada
+    key = d["shipper"].map(shipper_key)
     nombre = d.groupby(key)["shipper"].agg(lambda s: s.value_counts().index[0])
     d["shipper"] = key.map(nombre)
     d["mes"] = calc.month_start(d["eta"])
     d["fob"] = pd.to_numeric(d["fob"], errors="coerce").fillna(0.0)
-    return d.drop(columns=["_k", "_o"])
+    out = d.drop(columns=["_k", "_o"])
+    out.attrs["excluidos"] = excluidos.drop(columns=["_k", "_o"])
+    return out
 
 
 def shippers_pivot(d: pd.DataFrame) -> tuple[pd.DataFrame, list]:

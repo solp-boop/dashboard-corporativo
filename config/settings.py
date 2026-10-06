@@ -210,3 +210,10 @@ PRIORIDAD_JUSTIFICA = {"si", "alta", "urgente", "prioritaria", "prioridad", "cri
 
 # Consolidación por SO (Embarques Históricos): solo embarques con este destino (None = todos).
 PRODUCTOS_DESTINO = "Argentina"
+
+
+# Shippers (Resumen · FOB por mes de ETA): valores que no son un trader y se sacan del cuadro.
+# Se comparan sin mayúsculas ni acentos. «Directo Bidcom» = operación directa sin trader.
+SHIPPERS_EXCLUIR = ("no aplica", "sin shipper", "no encontrado", "directo bidcom", "wacom")
+# Palabras societarias que no distinguen a un shipper («DROP TRADING LIMITED» = «Drop Trading»).
+SHIPPERS_SUFIJOS = ("LIMITED", "LTD", "LLC", "INC", "CO", "CORP", "COMPANY", "SA", "SRL")

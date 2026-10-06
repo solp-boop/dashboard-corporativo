@@ -247,3 +247,15 @@ def test_shippers_por_eta_dedup_y_fob_real():
     tab, meses = anio.shippers_pivot(d)
     assert tab.iloc[0]["shipper"] == "Acme" and tab.iloc[0]["total"] == 150.0
     assert abs(tab.iloc[-1]["pct"] - 1.0) < 1e-9 and len(meses) == 2
+
+
+def test_shippers_unifica_y_excluye():
+    import pandas as pd
+    from utils import anio
+    ts = pd.Timestamp("2026-05-01")
+    hist = pd.DataFrame({"embarque": list("ABCDEF"),
+                         "shipper": ["DROP TRADING LIMITED", "Drop Trading", "Directo Bidcom", "WACOM", "No aplica", None],
+                         "eta": [ts] * 6, "fob_simi": [10.0, 5.0, 1.0, 1.0, 1.0, 1.0]})
+    d = anio.shippers_base(hist, None, 2026)
+    assert d["shipper"].nunique() == 1 and d["fob"].sum() == 15.0
+    assert len(d.attrs["excluidos"]) == 4
