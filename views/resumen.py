@@ -77,6 +77,56 @@ def render_anio(bundle, filters) -> None:
         styles.loc[rec] = "font-weight: 600; background-color: rgba(36,86,166,0.14)"
     data_table(show, cols, key="anio", filename=f"embarques_{t.year}", search=False, row_styles=styles)
 
+    with guard("Shippers"):
+        _shippers(bundle, filters, t)
+
+
+def _shippers(bundle, filters, t: pd.Timestamp) -> None:
+    hist = filtered(bundle, "historicas", filters, use_period=False)
+    res = filtered(bundle, "reservas", filters, use_period=False) if bundle.get("reservas") is not None else None
+    subsection(f"Shippers · FOB colocado por mes de ETA {t.year}",
+               "Por mes de ETA (no de ETD). Reservas Históricas con «Fob SIMI Total» + Reservas en curso con "
+               "«FOB Total Real». Un embarque que figura en las dos se cuenta una vez, con Históricas.")
+    d = anio.shippers_base(hist, res, t.year)
+    if d.empty or not d["fob"].gt(0).any():
+        empty(f"Sin embarques con ETA en {t.year} y FOB cargado.")
+        return
+    tab, meses = anio.shippers_pivot(d)
+    en_curso_fob = float(d.loc[d["fuente"] == "Reservas", "fob"].sum())
+    kpi_row([
+        KPI(f"FOB con ETA en {t.year}", fmt.fmt_usd(tab.iloc[-1]["total"]),
+            sub=f"{fmt.fmt_int(d['embarque'].nunique())} embarques"),
+        KPI("Embarcado (Históricas)", fmt.fmt_usd(tab.iloc[-1]["total"] - en_curso_fob), sub="FOB SIMI"),
+        KPI("En curso (Reservas)", fmt.fmt_usd(en_curso_fob), sub="FOB real · ETA futura o reciente"),
+        KPI("Shippers", fmt.fmt_int(len(tab) - 1),
+            sub=f"el principal: <b>{html.escape(str(tab.iloc[0]['shipper']))}</b> "
+                f"{fmt.fmt_pct(tab.iloc[0]['pct'])}"),
+    ])
+    vista = st.segmented_control("Ver", ["Importe FOB (USD)", "% del mes"], default="Importe FOB (USD)",
+                                 key="ship_vista", label_visibility="collapsed") or "Importe FOB (USD)"
+    show = tab.copy()
+    this_month = t.to_period("M").to_timestamp()
+    nombres = {m: fmt.fmt_month(m).capitalize() + ("*" if m >= this_month else "") for m in meses}
+    if vista == "% del mes":
+        for m in meses:
+            col_tot = show[m].iloc[-1]
+            show[m] = show[m] / col_tot if col_tot else np.nan
+        kind = "pct"
+    else:
+        kind = "usd"
+    show.columns = [nombres.get(c, c) if not isinstance(c, str) else c for c in show.columns]
+    cols = [ColSpec("shipper", "Shipper", width="medium"), ColSpec("embarques", "Emb.", "int"),
+            ColSpec("total", f"Total {t.year} (USD)", "usd"), ColSpec("pct", "% del año", "pct")]
+    cols += [ColSpec(nombres[m], nombres[m], kind) for m in meses]
+    styles = pd.Series("", index=show.index)
+    styles.iloc[-1] = "font-weight: 600; background-color: rgba(120,130,150,0.10)"
+    data_table(show, cols, key="shippers", filename=f"shippers_fob_eta_{t.year}", row_styles=styles, height=460,
+               caption="Mes de ETA · * mes en curso o futuro (incluye Reservas con ETA estimada)"
+                       + (" · «% del mes» = participación del shipper en el FOB de ese mes" if kind == "pct" else ""))
+    sup = int(d["fob_simi_suplente"].fillna(False).sum())
+    if sup:
+        st.caption(f"{fmt.fmt_int(sup)} embarques de Reservas sin «FOB Total Real» toman «Fob SIMI Total».")
+
 
 def _tt_cards(tt: rk.TT, umbral_txt: str) -> None:
     if not tt.n:
@@ -373,18 +423,15 @@ def render() -> None:
                 st.caption(f"{fmt.fmt_int(sin)} cargas activas sin fecha de packeo o ETD para proyectar la consolidación.")
 
     if bundle.get("emb_hist") is not None:
-        subsection("Objetivo −15 % · consolidación de SKU nuevos y top ranking",
-                   f"Mediana de días de consolidación por SO, por trimestre de {t.year}. La base es Q1 y el objetivo "
-                   "es bajarla un 15 %: se compara el último trimestre cerrado contra Q1. "
-                   "La apertura mes a mes está en Lead times y SLA.")
+        subsection("Objetivo −15 % · time to market",
+                   f"Mediana de días de consolidación por SO, por trimestre de {t.year}, sobre el universo completo "
+                   "(marítimo y aéreo, sin muestras ni repuestos). La base es Q1 y el objetivo es bajarla un 15 %: se "
+                   "compara el último trimestre cerrado contra Q1. La apertura mes a mes está en Lead times y SLA.")
         with guard("Objetivo −15 %"):
-            d = productos.base_lines(bundle.get("emb_hist"), t)
-            summ = productos.summary(d, t)
-            g1, g2 = st.columns(2, gap="medium")
-            for col, (grupo, label) in zip((g1, g2), productos.GRUPOS.items()):
-                with col:
-                    chart_title(label, "Mediana por trimestre · línea punteada = objetivo (Q1 −15 %)")
-                    sla_view.productos_q_chart(summ, label, t, key=f"res_prod_{grupo}")
+            du = productos.base_universo(bundle.get("emb_hist"), t, bundle.get("aereos"), bundle.get("planif"))
+            summ = productos.objetivo_universo(du, t)
+            chart_title("Mediana por trimestre", "Todas las SO, SKU nuevos y top ranking · línea punteada = objetivo (Q1 −15 %)")
+            sla_view.objetivo_q_chart(summ, t, key="res_obj15")
             sla_view.productos_table(summ, t)
 
     umbral = fmt.fmt_pct(settings.OCUPACION_UMBRAL)

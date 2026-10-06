@@ -30,7 +30,7 @@ def compliance_chart(monthly: pd.DataFrame, today: pd.Timestamp, key: str, heigh
     fig = go.Figure(go.Bar(
         x=labels, y=m["pct"] * 100,
         marker=dict(color=colors, cornerradius=4,
-                    pattern=dict(shape=["/" if p else "" for p in partial], fgcolor="white", size=6)),
+                    pattern=dict(shape=["/" if p else "" for p in partial], fgcolor="white", size=6, fillmode="overlay")),
         text=[fmt.fmt_pct(v) for v in m["pct"]], textposition="outside", cliponaxis=False,
         customdata=m["n"],
         hovertemplate="%{x}<br>Dentro del SLA: %{y:.0f} %<br>Embarques: %{customdata}<extra></extra>",
@@ -101,7 +101,7 @@ def air_chart(a: pd.DataFrame, today: pd.Timestamp, key: str, height: int = 300)
     fig = go.Figure(go.Bar(
         x=labels, y=m["mediana"], marker=dict(color=colors, cornerradius=4,
                                               pattern=dict(shape=["/" if x == this_month else "" for x in m["mes"]],
-                                                           fgcolor="white", size=6)),
+                                                           fgcolor="white", size=6, fillmode="overlay")),
         text=[f"{fmt.fmt_int(v)} d" for v in m["mediana"]], textposition="outside", cliponaxis=False,
         customdata=list(zip(m["n"], hover)),
         hovertemplate="%{x}<br>Mediana: %{y:.0f} d<br>%{customdata[1]}<br>Embarques: %{customdata[0]}<extra></extra>",
@@ -151,7 +151,8 @@ def productos_table(summary: pd.DataFrame, today: pd.Timestamp) -> None:
     """Grupo × estructura: mediana por trimestre del año, objetivo (Q1 −15 %) y estado."""
     qs = ["Q1", "Q2", "Q3", "Q4"]
     this_q = f"Q{(today.month - 1) // 3 + 1}"
-    head = (["Grupo", "Estructura"] + [q + ("*" if q == this_q else "") for q in qs]
+    con_est = set(summary["estructura"]) != {"Total"}
+    head = (["Grupo"] + (["Estructura"] if con_est else []) + [q + ("*" if q == this_q else "") for q in qs]
             + [f"Año {today.year}", "Objetivo", "Variación", "Estado"])
     colors = {"Cumple": "ok", "Reduce, sin llegar": "warn", "No reduce": "bad"}
     rows = []
@@ -175,7 +176,7 @@ def productos_table(summary: pd.DataFrame, today: pd.Timestamp) -> None:
                if r["variacion"] == r["variacion"] else "—")
         rows.append(
             "<tr>" + (f"<th class='rowh' rowspan='{span[idx]}'>{html.escape(r['grupo'])}</th>" if first[idx] else "")
-            + f"<td style='text-align:left'>{r['estructura']}</td>"
+            + (f"<td style='text-align:left'>{r['estructura']}</td>" if con_est else "")
             + "".join(cells) + anio
             + f"<td>{fmt.fmt_num(r['objetivo'], 1) + ' d' if r['objetivo'] == r['objetivo'] else '—'}</td>"
             f"<td class='var'>{var}</td>"
@@ -183,7 +184,9 @@ def productos_table(summary: pd.DataFrame, today: pd.Timestamp) -> None:
     st.markdown('<div class="scorecard compact"><table><thead><tr>' + "".join(f"<th>{h}</th>" for h in head)
                 + f'</tr></thead><tbody>{"".join(rows)}</tbody></table></div>', unsafe_allow_html=True)
     notas = sorted({n for n in summary["nota"] if n})
-    st.caption(f"*{this_q} en curso. Mediana de días de consolidación por SO, por trimestre de ETD. Base = Q1; objetivo = base −15 %; "
+    universo = ("" if con_est else " Universo completo: SO marítimas y aéreas con destino "
+                f"{settings.PRODUCTOS_DESTINO or 'todos'}, sin muestras ni repuestos.")
+    st.caption(f"\\*{this_q} en curso.{universo} Mediana de días de consolidación por SO, por trimestre de ETD. Base = Q1; objetivo = base −15 %; "
                "se compara el último trimestre cerrado («actual») contra la base. La columna del año es la "
                "mediana de todas las SO del año." + (" " + " ".join(notas) if notas else ""))
 
@@ -248,7 +251,7 @@ def productos_q_chart(summary: pd.DataFrame, grupo_label: str, today: pd.Timesta
         n = [r[q + "_n"] for q in qs]
         fig.add_bar(x=x, y=y, name=est, marker=dict(
                         color=color, cornerradius=4,
-                        pattern=dict(shape=["/" if q == this_q else "" for q in qs], fgcolor="white", size=6)),
+                        pattern=dict(shape=["/" if q == this_q else "" for q in qs], fgcolor="white", size=6, fillmode="overlay")),
                     text=[f"{fmt.fmt_int(v)} d" if v == v else "" for v in y], textposition="outside",
                     cliponaxis=False, customdata=n, offsetgroup=str(i),
                     hovertemplate=f"{est} · %{{x}}: %{{y:.0f}} d (%{{customdata}} SO)<extra></extra>")
@@ -258,6 +261,55 @@ def productos_q_chart(summary: pd.DataFrame, grupo_label: str, today: pd.Timesta
                             hovertemplate=f"Objetivo {est.lower()}: %{{y:.1f}} d<extra></extra>")
     charts.theme(fig, height=320, y_title="días (mediana)")
     fig.update_layout(barmode="group", bargap=0.3)
+    charts.show(fig, key=key)
+
+
+def objetivo_q_chart(summary: pd.DataFrame, today: pd.Timestamp, key: str) -> None:
+    """Barras por trimestre, una serie por grupo, con el objetivo de cada grupo como línea punteada."""
+    if summary.empty or summary[["Q1", "Q2", "Q3", "Q4"]].isna().all().all():
+        st.markdown('<div class="empty">Sin datos.</div>', unsafe_allow_html=True)
+        return
+    qs = ["Q1", "Q2", "Q3", "Q4"]
+    this_q = f"Q{(today.month - 1) // 3 + 1}"
+    x = [q + (" (en curso)" if q == this_q else "") for q in qs]
+    fig = go.Figure()
+    for i, (_, r) in enumerate(summary.iterrows()):
+        color = settings.SERIES[i % len(settings.SERIES)]
+        y = [r[q] for q in qs]
+        fig.add_bar(x=x, y=y, name=r["grupo"], marker=dict(
+                        color=color, cornerradius=4,
+                        pattern=dict(shape=["/" if q == this_q else "" for q in qs], fgcolor="white", size=6, fillmode="overlay")),
+                    text=[f"{fmt.fmt_int(v)} d" if v == v else "" for v in y], textposition="outside",
+                    cliponaxis=False, customdata=[r[q + "_n"] for q in qs], offsetgroup=str(i),
+                    hovertemplate=f"{r['grupo']} · %{{x}}: %{{y:.0f}} d (%{{customdata}} SO)<extra></extra>")
+        if r["objetivo"] == r["objetivo"]:
+            fig.add_scatter(x=x, y=[r["objetivo"]] * 4, name=f"Obj. {fmt.fmt_num(r['objetivo'], 1)} d",
+                            mode="lines", line=dict(color=color, width=1.5, dash="dash"),
+                            hovertemplate=f"Objetivo {r['grupo']}: %{{y:.1f}} d<extra></extra>")
+    charts.theme(fig, height=340, y_title="días (mediana)")
+    fig.update_layout(barmode="group", bargap=0.25)
+    charts.show(fig, key=key)
+
+
+def objetivo_mes_chart(mensual: pd.DataFrame, summary: pd.DataFrame, key: str) -> None:
+    """Mediana mensual por grupo, con el objetivo de cada grupo como línea punteada."""
+    if mensual.empty:
+        st.markdown('<div class="empty">Sin datos.</div>', unsafe_allow_html=True)
+        return
+    months = sorted(mensual["mes"].unique())
+    x = [fmt.fmt_month(m) for m in months]
+    fig = go.Figure()
+    for i, (_, r) in enumerate(summary.iterrows()):
+        color = settings.SERIES[i % len(settings.SERIES)]
+        s = mensual[mensual["grupo"] == r["grupo"]].set_index("mes").reindex(months)
+        fig.add_scatter(x=x, y=s["mediana"], name=r["grupo"], mode="lines+markers",
+                        line=dict(color=color, width=2), marker=dict(size=8), customdata=s["so"].fillna(0),
+                        hovertemplate=f"{r['grupo']}: %{{y:.0f}} d (%{{customdata}} SO)<extra></extra>")
+        if r["objetivo"] == r["objetivo"]:
+            fig.add_scatter(x=x, y=[r["objetivo"]] * len(x), name=f"Objetivo {r['grupo']}", mode="lines",
+                            line=dict(color=color, width=1.2, dash="dash"), showlegend=False,
+                            hovertemplate=f"Objetivo {r['grupo']}: %{{y:.1f}} d<extra></extra>")
+    charts.theme(fig, height=320, y_title="días (mediana)")
     charts.show(fig, key=key)
 
 
@@ -305,7 +357,7 @@ def air_compliance_chart(a: pd.DataFrame, today: pd.Timestamp, key: str, height:
     fig = go.Figure(go.Bar(
         x=labels, y=m["pct"] * 100,
         marker=dict(color=[settings.SERIES[0] if v else settings.SERIES_OTHER for v in vig], cornerradius=4,
-                    pattern=dict(shape=["/" if x == this_month else "" for x in m["mes"]], fgcolor="white", size=6)),
+                    pattern=dict(shape=["/" if x == this_month else "" for x in m["mes"]], fgcolor="white", size=6, fillmode="overlay")),
         text=[fmt.fmt_pct(v) for v in m["pct"]], textposition="outside", cliponaxis=False,
         customdata=list(zip(m["n"], ["SLA vigente" if v else "Referencia (antes del SLA)" for v in vig])),
         hovertemplate="%{x}<br>Dentro del SLA: %{y:.0f} %<br>%{customdata[1]}<br>Embarques: %{customdata[0]}"

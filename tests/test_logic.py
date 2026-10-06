@@ -229,3 +229,21 @@ def test_resumen_imo_comparable():
 def test_sla_mono_por_vigencia():
     s = calc.sla_mono(pd.to_datetime(pd.Series(["2026-02-15", "2026-03-01", "2026-09-30", "2026-10-01", None])))
     assert list(s) == [15, 10, 10, 12, 12]
+
+
+def test_shippers_por_eta_dedup_y_fob_real():
+    import pandas as pd
+    from utils import anio
+    ts = pd.Timestamp
+    hist = pd.DataFrame({"embarque": ["E1", "E2"], "shipper": ["Acme", "acme "], "eta": [ts("2026-03-10"), ts("2026-04-02")],
+                         "fob_simi": [100.0, 50.0]})
+    res = pd.DataFrame({"embarque": ["E2", "E3", "E4"], "shipper": ["Acme", "Beta", "Beta"],
+                        "eta": [ts("2026-04-02"), ts("2026-04-20"), ts("2025-12-01")],
+                        "fob_simi": [999.0, 10.0, 5.0], "fob_real": [999.0, 30.0, 5.0]})
+    d = anio.shippers_base(hist, res, 2026)
+    assert sorted(d["embarque"]) == ["E1", "E2", "E3"]          # E2 cuenta una vez (Históricas); E4 es de 2025
+    assert d.set_index("embarque").loc["E2", "fob"] == 50.0
+    assert d.set_index("embarque").loc["E3", "fob"] == 30.0      # Reservas usa FOB real
+    tab, meses = anio.shippers_pivot(d)
+    assert tab.iloc[0]["shipper"] == "Acme" and tab.iloc[0]["total"] == 150.0
+    assert abs(tab.iloc[-1]["pct"] - 1.0) < 1e-9 and len(meses) == 2

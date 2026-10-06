@@ -92,7 +92,8 @@ def q_label(q: pd.Timestamp) -> str:
     return f"Q{(q.month - 1) // 3 + 1}"
 
 
-def summary(d: pd.DataFrame, today: pd.Timestamp) -> pd.DataFrame:
+def summary(d: pd.DataFrame, today: pd.Timestamp, grupos: dict | None = None,
+            estructuras: list | None = None) -> pd.DataFrame:
     """Por grupo × estructura: mediana por trimestre del año, base, actual y objetivo.
 
     Base: Q1 del año (si no tiene al menos MIN_SAMPLE SO, el primer trimestre que sí, y se avisa).
@@ -103,10 +104,10 @@ def summary(d: pd.DataFrame, today: pd.Timestamp) -> pd.DataFrame:
     qs = quarters(year)
     this_q = today.to_period("Q").to_timestamp()
     rows = []
-    for grupo, label in GRUPOS.items():
-        so = per_so(d[d[grupo]])
+    for grupo, label in (grupos or GRUPOS).items():
+        so = per_so(d[d[grupo].fillna(False).astype(bool)])
         so = so[so["mes"].dt.year == year].assign(q=lambda x: x["mes"].dt.to_period("Q").dt.to_timestamp())
-        for est in ESTRUCTURAS:
+        for est in (estructuras or ESTRUCTURAS):
             s = so[so["estructura"] == est]
             row = {"grupo": label, "estructura": est, "so_anio": int(s["so"].nunique()), "nota": ""}
             stats = {}
@@ -115,7 +116,7 @@ def summary(d: pd.DataFrame, today: pd.Timestamp) -> pd.DataFrame:
                 stats[q] = (float(t.median()) if len(t) else np.nan, int(len(t)))
                 row[q_label(q)], row[q_label(q) + "_n"] = stats[q]
             row["anio"] = float(s["tiempo"].median()) if len(s) else np.nan
-            row["anio_n"] = int(len(s))
+            row["anio_n"] = int(s["so"].nunique())
             con_datos = [q for q in qs if stats[q][1] >= settings.MIN_SAMPLE and q < this_q]
             base_q = qs[0] if stats[qs[0]][1] >= settings.MIN_SAMPLE else (con_datos[0] if con_datos else None)
             if base_q is not None and base_q != qs[0]:
@@ -166,3 +167,27 @@ def mes_a_mes(d: pd.DataFrame, year: int) -> pd.DataFrame:
     out = pd.DataFrame(rows)
     out.attrs["grupos"] = grupos
     return out
+
+
+GRUPOS_TODO = {"todas": "Todas las SO", **GRUPOS}
+
+
+def objetivo_universo(du: pd.DataFrame, today: pd.Timestamp) -> pd.DataFrame:
+    """Objetivo −15 % sobre el universo completo (base_universo), sin abrir por estructura.
+
+    Una fila por grupo: todas las SO, SKU nuevos y top ranking.
+    """
+    d = du.assign(estructura="Total", todas=True)
+    return summary(d, today, GRUPOS_TODO, ["Total"])
+
+
+def mensual_universo(du: pd.DataFrame, year: int) -> pd.DataFrame:
+    """Mediana mensual de días por SO de cada grupo (universo completo): columnas mes, grupo, so, mediana."""
+    d = du[du["mes"].dt.year == year].assign(todas=True)
+    rows = []
+    for g, label in GRUPOS_TODO.items():
+        so = (d[d[g].fillna(False).astype(bool)].groupby(["so", "mes"], as_index=False)
+              .agg(tiempo=("tiempo_consolidacion", "median")))
+        for mes, x in so.groupby("mes"):
+            rows.append({"mes": mes, "grupo": label, "so": int(x["so"].nunique()), "mediana": float(x["tiempo"].median())})
+    return pd.DataFrame(rows, columns=["mes", "grupo", "so", "mediana"])

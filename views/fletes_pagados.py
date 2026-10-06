@@ -148,12 +148,11 @@ def render() -> None:
         if nor.empty:
             empty("No hay embarques en 40 NOR con flete pagado en el período.")
         else:
-            cap_hq, cap_nor = nor.attrs.get("cap_hq"), nor.attrs.get("cap_nor")
             kpi_row([
                 KPI("Ahorro por contenedor", fmt.fmt_usd(nor["ahorro"].sum()),
                     sub=f"<b>{fmt.fmt_int(nor['contenedores'].sum())}</b> contenedores · {fmt.fmt_int(len(nor))} embarques"),
                 KPI("Ahorro por m³", fmt.fmt_usd(nor["ahorro_m3"].sum()) if nor["ahorro_m3"].notna().any() else "—",
-                    sub=f"Capacidad 40 NOR {fmt.fmt_int(cap_nor)} m³ vs 40 ST/HQ {fmt.fmt_int(cap_hq)} m³"),
+                    sub="Capacidad: 40 NOR 60 m³ · 40 ST 60 m³ · 40 HQ 68 m³ (cada contenedor con la suya)"),
                 KPI("Diferencia por contenedor", fmt.fmt_usd((nor["ref_hq"] - nor["flete_por_ctnr"]).median(), compact=False),
                     sub="Mediana: 40 ST/HQ − 40 NOR"),
             ], columns=3)

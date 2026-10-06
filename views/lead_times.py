@@ -337,15 +337,12 @@ def _time_to_market(bundle) -> None:
         du = productos.base_universo(bundle.get("emb_hist"), t, bundle.get("aereos"), bundle.get("planif"))
         sla_view.productos_mes_table(productos.mes_a_mes(du, t.year), t)
 
-    section("SKU nuevos y top ranking · objetivo −15 %",
-            "Marítimo, por estructura: evolución de la mediana del tiempo de consolidación por SO, contra el "
-            f"objetivo de reducirla un {fmt.fmt_pct(settings.REDUCCION_OBJETIVO)} respecto de la base.")
-    with guard("SKU nuevos y top ranking"):
-        dp = productos.base_lines(bundle.get("emb_hist"), t)
-        summ = productos.summary(dp, t)
+    section("Objetivo −15 %",
+            "Universo completo (marítimo y aéreo, sin muestras ni repuestos): evolución de la mediana del tiempo de "
+            f"consolidación por SO, contra el objetivo de reducirla un {fmt.fmt_pct(settings.REDUCCION_OBJETIVO)} "
+            "respecto de la base (Q1).")
+    with guard("Objetivo −15 %"):
+        summ = productos.objetivo_universo(du, t)
         sla_view.productos_table(summ, t)
-        g1, g2 = st.columns(2, gap="medium")
-        for col, (grupo, label) in zip((g1, g2), productos.GRUPOS.items()):
-            with col:
-                chart_title(label, "Mediana mensual por estructura · línea punteada = objetivo")
-                sla_view.productos_chart(productos.monthly(dp, grupo), summ, label, key=f"lt_prod_{grupo}")
+        chart_title("Mediana mensual por grupo", "Mes de ETD · línea punteada = objetivo de cada grupo")
+        sla_view.objetivo_mes_chart(productos.mensual_universo(du, t.year), summ, key="lt_obj15_mes")

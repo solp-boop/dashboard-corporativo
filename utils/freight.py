@@ -202,6 +202,14 @@ def vs_mercado_ponderado(hist: pd.DataFrame) -> tuple[float, int]:
     return ((pagado - mercado) / mercado if mercado else np.nan), int(ok.sum())
 
 
+def _capacidad(d: pd.DataFrame) -> pd.Series:
+    """Capacidad por contenedor (m³): tabla de referencia por tipo; si no se reconoce el tipo, la columna de la planilla."""
+    from utils.resumen_kpis import tipo_ctnr
+    ref = d["tipo_carga"].map(tipo_ctnr).map(settings.CAPACIDAD_CTNR) if "tipo_carga" in d else pd.Series(np.nan, index=d.index)
+    col = d["capacidad"] if "capacidad" in d else pd.Series(np.nan, index=d.index)
+    return pd.to_numeric(ref, errors="coerce").fillna(col.where(col > 0))
+
+
 def nor_savings(hist: pd.DataFrame) -> pd.DataFrame:
     """Ahorro por usar 40 NOR en lugar de 40 ST/40 HQ.
 
@@ -217,13 +225,15 @@ def nor_savings(hist: pd.DataFrame) -> pd.DataFrame:
     if nor.empty:
         return nor.assign(ref_hq=np.nan, ahorro=np.nan, ahorro_m3=np.nan)
     ref = hq.groupby("mes")["flete_por_ctnr"].median()
-    cap_hq = hq["capacidad"].median() if "capacidad" in hq and hq["capacidad"].notna().any() else np.nan
-    cap_nor = nor["capacidad"].median() if "capacidad" in nor and nor["capacidad"].notna().any() else np.nan
+    hq = hq.assign(cap=_capacidad(hq))
+    nor["cap"] = _capacidad(nor)
+    hq = hq[hq["cap"] > 0]
+    # Por m³: cada contenedor con su capacidad (40 ST 60 m³, 40 HQ 68 m³, 40 NOR 60 m³).
+    ref_m3 = (hq["flete_por_ctnr"] / hq["cap"]).groupby(hq["mes"]).median()
+    cap_hq = float(hq["cap"].median()) if len(hq) else np.nan
+    cap_nor = float(nor["cap"].median()) if nor["cap"].notna().any() else np.nan
     nor["ref_hq"] = nor["mes"].map(ref)
     nor["ahorro"] = (nor["ref_hq"] - nor["flete_por_ctnr"]) * nor["contenedores"]
-    if cap_hq == cap_hq and cap_nor == cap_nor and cap_hq and cap_nor:
-        nor["ahorro_m3"] = (nor["ref_hq"] / cap_hq - nor["flete_por_ctnr"] / cap_nor) * nor["m3"]
-    else:
-        nor["ahorro_m3"] = np.nan
+    nor["ahorro_m3"] = (nor["mes"].map(ref_m3) - nor["flete_por_ctnr"] / nor["cap"]) * nor["m3"]
     nor.attrs.update(cap_hq=cap_hq, cap_nor=cap_nor)
     return nor
