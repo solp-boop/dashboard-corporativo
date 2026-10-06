@@ -92,7 +92,7 @@ DURATION_RANGES: dict[str, tuple[int, int]] = {
     "dias_etd_eta": (0, 45),
     "dias_eta_caldas": (0, 45),
     "dias_total_aereo": (0, 240),
-    "tiempo_consolidacion_so": (1, 240),   # 0 = la planilla no lo calculó (sin dato)
+    "tiempo_consolidacion_so": (1, 240),   # negativos y 0 = sin dato   # 0 = la planilla no lo calculó (sin dato)
 }
 
 # --------------------------------------------------------------------------
@@ -207,3 +207,6 @@ CAPACIDAD_CTNR = {"20 ST": 30, "40 ST": 60, "40 HQ": 68, "40 NOR": 60}
 OCUPACION_UMBRAL = 0.70
 # Valores de la columna de prioridad que justifican un 20 ST con baja ocupación.
 PRIORIDAD_JUSTIFICA = {"si", "alta", "urgente", "prioritaria", "prioridad", "critica", "crítica"}
+
+# Consolidación por SO (Embarques Históricos): solo embarques con este destino (None = todos).
+PRODUCTOS_DESTINO = "Argentina"

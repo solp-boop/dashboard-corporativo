@@ -220,9 +220,10 @@ def productos_mes_table(t: pd.DataFrame, today: pd.Timestamp, key: str = "prod_m
                     + d(r[f"{elegido}|min"]) + d(r[f"{elegido}|med"], bold=True) + d(r[f"{elegido}|max"]) + "</tr>")
     st.markdown('<div class="scorecard compact"><table><thead><tr>' + "".join(f"<th>{h}</th>" for h in head)
                 + f'</tr></thead><tbody>{"".join(rows)}</tbody></table></div>', unsafe_allow_html=True)
-    st.caption(f"Embarques Historicos: SO marítimas ya zarpadas, por mes de ETD ({fmt.fmt_int(tot_so)} SO en el año). "
+    st.caption(f"Embarques Historicos: SO marítimas ya zarpadas con destino {settings.PRODUCTOS_DESTINO or 'todos'}, "
+               f"por mes de ETD ({fmt.fmt_int(tot_so)} SO en el año). "
                "Días de consolidación por SO («Tiempo de consolidacion»): mínimo, mediana y máximo; las SO con 0 "
-               "días se toman como sin dato (la planilla no lo calculó). "
+               "días o tiempo negativo se toman como sin dato. "
                "«% de las SO» = cuántas del total del mes son del grupo elegido. La fila del total toma todas las SO "
                "del año (no es la suma de los meses).")
 

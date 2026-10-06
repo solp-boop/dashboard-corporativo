@@ -25,6 +25,9 @@ def base_lines(eh: pd.DataFrame, today: pd.Timestamp) -> pd.DataFrame:
     """Líneas marítimas ya zarpadas con tiempo de consolidación y estructura."""
     d = eh[eh["maritimo"] & eh["etd"].notna() & (eh["etd"] <= today)
            & eh["tiempo_consolidacion"].notna() & eh["estructura"].isin(ESTRUCTURAS)].copy()
+    if settings.PRODUCTOS_DESTINO and "destino" in d:
+        from utils.data_cleaning import fold
+        d = d[d["destino"].map(lambda v: fold(v) == fold(settings.PRODUCTOS_DESTINO) if isinstance(v, str) else False)]
     d["mes"] = calc.month_start(d["etd"])
     return d
 

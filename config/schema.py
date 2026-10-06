@@ -260,6 +260,7 @@ EMB_HIST = DatasetSchema(
         C("sku_nuevo", "¿SKU nuevo?", "SKU nuevo", kind="text"),
         C("tiempo_consolidacion", "Tiempo de consolidacion", "Tiempo de consolidación", kind="number"),
         C("estructura_eh", "¿ES MONOPROVEEDOR?", kind="category"),
+        C("destino", "Destino", kind="category"),
     ),
 )
 
