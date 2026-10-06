@@ -180,3 +180,17 @@ def test_encabezados_con_typos_corregidos_siguen_funcionando():
     renamed[0][renamed[0].index("Fecha de Instrucción")] = "FECHA DE INSTRUCCION "
     b = build_bundle(FakeSource(tablero(Reservas=renamed)), ONLY_RES)
     assert b.get("reservas")["f_instruccion"].notna().sum() == 2
+
+
+def test_detecta_celdas_con_error_de_formula():
+    import pandas as pd
+    from config.schema import SCHEMAS
+    from services.data_loader import DatasetQuality, scan_error_cells
+    schema = SCHEMAS["historicas"]
+    raw = pd.DataFrame({"embarque": ["E1", "E2", None], "shipper": ["#N/A", "Acme", "#REF!"],
+                        "fob_simi": ["#¡VALOR!", "10", None]})
+    q = DatasetQuality("historicas", "x")
+    scan_error_cells(raw, schema, q)
+    disp = {c.name: c.display for c in schema.columns}
+    assert q.error_cells[disp["shipper"]][0] == 1          # la fila sin embarque no cuenta
+    assert q.error_cells[disp["fob_simi"]][1] == "#¡VALOR!"

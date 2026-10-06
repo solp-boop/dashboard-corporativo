@@ -8,6 +8,7 @@ Flujo:  fuente -> resolver encabezados -> tipar -> normalizar -> derivar -> cali
 from __future__ import annotations
 
 import datetime as dt
+import re
 from dataclasses import dataclass, field
 from zoneinfo import ZoneInfo
 
@@ -65,6 +66,8 @@ class DatasetQuality:
     out_of_range: dict[str, int] = field(default_factory=dict)        # col -> n
     missing_key_fields: dict[str, int] = field(default_factory=dict)  # etiqueta -> n
     complete_rows: int = 0
+    # celdas con error de fórmula (#N/A, #REF!, #VALUE!…): columna -> (celdas, valores, ejemplos de registro)
+    error_cells: dict[str, tuple[int, str, str]] = field(default_factory=dict)
 
     @property
     def complete_pct(self) -> float:
@@ -458,9 +461,36 @@ def _is_filler(key: str, df: pd.DataFrame) -> pd.Series:
     return non_op
 
 
+# Errores de fórmula de Sheets / Excel, en inglés y en español (#N/A, #N/D, #REF!, #¡REF!, #VALUE!, #¡VALOR!…).
+_ERROR_CELDA = re.compile(r"^#(N/?A|N/D|[¡]?(REF|VALUE|VALOR|DIV/0|NUM|NULL|NULO|ERROR|SPILL|CALC)!?|[¿]?(NAME|NOMBRE)\??)$",
+                          re.IGNORECASE)
+
+
+def scan_error_cells(raw: pd.DataFrame, schema, q: DatasetQuality) -> None:
+    """Cuenta celdas con error de fórmula por columna (solo filas con registro)."""
+    rows = raw[raw[schema.id_column].notna()] if schema.id_column and schema.id_column in raw else raw
+    if rows.empty:
+        return
+    display = {c.name: c.display for c in schema.columns}
+    for col in rows.columns:
+        s = rows[col]
+        txt = s[s.map(lambda v: isinstance(v, str))].str.strip()
+        bad = txt[txt.str.match(_ERROR_CELDA)]
+        if bad.empty:
+            continue
+        valores = ", ".join(sorted(bad.str.upper().unique()))
+        ids = (rows.loc[bad.index, schema.id_column].astype(str).head(5).tolist()
+               if schema.id_column and schema.id_column in rows and col != schema.id_column else [])
+        q.error_cells[display.get(col, col)] = (int(len(bad)), valores, ", ".join(ids))
+
+
 def process_dataset(key: str, raw: pd.DataFrame, q: DatasetQuality) -> pd.DataFrame:
     schema = SCHEMAS[key]
     q.rows_raw = len(raw)
+    try:
+        scan_error_cells(raw, schema, q)
+    except Exception:
+        log.exception("Error buscando celdas con error en %s", key)
     df = type_columns(raw, schema, q)
 
     # Filas totalmente vacías (la planilla trae grillas de 1.000 filas).

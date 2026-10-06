@@ -109,6 +109,9 @@ def _shippers(bundle, filters, t: pd.Timestamp) -> None:
     top = list(filas["shipper"][:5])
     cmap = dict(zip(top, settings.SERIES + ["#3E8E7E"]))
     cmap["Otros"] = settings.SERIES_OTHER
+    vista = st.segmented_control("Ver", ["Importe FOB", "% del mes"], default="Importe FOB",
+                                 key="ship_vista", label_visibility="collapsed") or "Importe FOB"
+    pct = vista == "% del mes"
     c1, c2 = st.columns([2, 3], gap="medium")
     with c1:
         chart_title("Participación en el año", "% del FOB con ETA en el año · USD")
@@ -124,9 +127,6 @@ def _shippers(bundle, filters, t: pd.Timestamp) -> None:
                 f'background:{color}"></div></div></div>')
         st.markdown(f'<div class="panel">{"".join(rows)}</div>', unsafe_allow_html=True)
     with c2:
-        vista = st.segmented_control("Ver", ["Importe FOB", "% del mes"], default="Importe FOB",
-                                     key="ship_vista", label_visibility="collapsed") or "Importe FOB"
-        pct = vista == "% del mes"
         chart_title("FOB por mes de ETA y shipper",
                     ("Participación de cada shipper en el FOB del mes" if pct else "USD") +
                     " · los 5 principales; el resto en «Otros» · * mes en curso o futuro")

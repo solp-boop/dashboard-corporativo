@@ -151,3 +151,24 @@ h1, h2, h3 { color: var(--ink); letter-spacing: -0.01em; }
 .mode-head { display: flex; align-items: baseline; gap: .6rem; margin-bottom: .3rem; }
 .mode-head .big { font-size: 1.9rem; font-weight: 650; color: var(--ink); font-variant-numeric: tabular-nums; }
 .mode-head .lbl { font-size: .8rem; color: var(--ink-3); }
+
+/* ---------------------------------------------------------------------------
+   Columnas lado a lado: mismo alto. El último bloque de cada columna (panel,
+   tarjetas o gráfico) se estira hasta el alto de la columna vecina.
+   --------------------------------------------------------------------------- */
+[data-testid="stHorizontalBlock"] { align-items: stretch; }
+[data-testid="stColumn"] > [data-testid="stVerticalBlock"] { height: 100%; }
+[data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:last-child { flex-grow: 1; }
+[data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:last-child > [data-testid="stPlotlyChart"],
+[data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:last-child > [data-testid="stMarkdown"],
+[data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:last-child > [data-testid="stMarkdown"] > div,
+[data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:last-child [data-testid="stMarkdownContainer"],
+[data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:last-child [data-testid="stMarkdownContainer"] > .panel,
+[data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:last-child [data-testid="stMarkdownContainer"] > .kpi-grid,
+[data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:last-child [data-testid="stMarkdownContainer"] > .scorecard,
+[data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:last-child [data-testid="stMarkdownContainer"] > .empty {
+  height: 100%; box-sizing: border-box;
+}
+/* Paneles de cumplimiento (Marítimo / Aéreo): mismo alto aunque el texto ocupe otra línea */
+.panel:has(> .mode-head) { min-height: 7.6rem; box-sizing: border-box; }
+.mode-head .big { white-space: nowrap; }

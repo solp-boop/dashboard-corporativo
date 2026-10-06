@@ -33,6 +33,29 @@ def problem_rows(key: str, df: pd.DataFrame) -> pd.DataFrame:
     return out.sort_values("n", ascending=False)
 
 
+def _celdas_con_error(bundle) -> None:
+    """Primero lo roto: celdas con #N/A, #REF!, #VALUE!… en las columnas que usa el tablero."""
+    rows = [{"solapa": q.tab or q.title, "columna": col, "celdas": n, "valores": v, "ejemplos": ej}
+            for q in bundle.quality.values() for col, (n, v, ej) in q.error_cells.items()]
+    section("¿Hay algo roto?", "Celdas con error de fórmula (#N/A, #REF!, #VALUE!, #DIV/0!, #NAME?…) en las columnas "
+            "que usa el tablero, en todas las solapas. Esos valores se toman como vacíos: conviene corregirlos en "
+            "la planilla.")
+    if not rows:
+        st.markdown('<div class="panel">🟢 <b>Sin errores.</b> No hay celdas con error de fórmula '
+                    'en las columnas que usa el tablero.</div>', unsafe_allow_html=True)
+        return
+    t = pd.DataFrame(rows).sort_values("celdas", ascending=False)
+    kpi_row([
+        KPI("Celdas con error", fmt.fmt_int(t["celdas"].sum()), status="bad"),
+        KPI("Columnas afectadas", fmt.fmt_int(len(t)), status="bad"),
+        KPI("Solapas afectadas", fmt.fmt_int(t["solapa"].nunique()), sub=", ".join(sorted(t["solapa"].unique()))),
+    ])
+    data_table(t, [
+        ColSpec("solapa", "Solapa"), ColSpec("columna", "Columna"), ColSpec("celdas", "Celdas", "int"),
+        ColSpec("valores", "Error"), ColSpec("ejemplos", "Ejemplos de registro", width="large"),
+    ], key="dq_errores", filename="celdas_con_error", search=False)
+
+
 def render() -> None:
     bundle, filters = ctx()
     st.caption("Las cifras de «base completa» no dependen de los filtros. "
@@ -42,6 +65,8 @@ def render() -> None:
             st.markdown("**Avisos de la carga**")
             for e in bundle.errors:
                 st.caption(f"• {e}")
+
+    _celdas_con_error(bundle)
 
     for key in ORDER:
         q = bundle.quality.get(key)
@@ -83,6 +108,8 @@ def render() -> None:
                 issues = [{"tipo": "Valor no convertible", "campo": k, "n": v} for k, v in q.invalid_values.items()]
                 issues += [{"tipo": "Fuera de rango", "campo": k, "n": v} for k, v in q.out_of_range.items()]
                 issues += [{"tipo": "Columna opcional faltante", "campo": c, "n": None} for c in q.missing_optional]
+                issues = [{"tipo": f"Error de fórmula ({v})", "campo": c, "n": n}
+                          for c, (n, v, _) in q.error_cells.items()] + issues
                 if issues:
                     data_table(pd.DataFrame(issues), [
                         ColSpec("tipo", "Problema"), ColSpec("campo", "Columna / cálculo"),
