@@ -13,6 +13,8 @@ import streamlit as st
 
 from utils.data_cleaning import fold
 
+pd.set_option("styler.render.max_elements", 5_000_000)
+
 ICONS = {"Dentro de SLA": "🟢", "Atención": "🟡", "Fuera de SLA": "🔴"}
 
 
@@ -43,16 +45,16 @@ def _display_frame(df: pd.DataFrame, cols: list[ColSpec]) -> tuple[pd.DataFrame,
             config[c.label] = st.column_config.DateColumn(c.label, format="DD/MM/YYYY", width=c.width)
         elif c.kind in ("int", "days"):
             out[c.label] = pd.to_numeric(s, errors="coerce").round(0).astype("Int64")
-            config[c.label] = st.column_config.NumberColumn(c.label, format="localized", width=c.width)
+            config[c.label] = st.column_config.NumberColumn(c.label, width=c.width)
         elif c.kind == "num":
             out[c.label] = pd.to_numeric(s, errors="coerce").round(1)
-            config[c.label] = st.column_config.NumberColumn(c.label, format="localized", width=c.width)
+            config[c.label] = st.column_config.NumberColumn(c.label, width=c.width)
         elif c.kind == "usd":
             out[c.label] = pd.to_numeric(s, errors="coerce").round(0)
-            config[c.label] = st.column_config.NumberColumn(c.label, format="localized", width=c.width)
+            config[c.label] = st.column_config.NumberColumn(c.label, width=c.width)
         elif c.kind == "pct":
             out[c.label] = pd.to_numeric(s, errors="coerce") * 100
-            config[c.label] = st.column_config.NumberColumn(c.label, format="%.0f %%", width=c.width)
+            config[c.label] = st.column_config.NumberColumn(c.label, width=c.width)
         elif c.kind == "bool":
             out[c.label] = s.map(lambda v: "Sí" if v is True else ("No" if v is False else ""))
             config[c.label] = st.column_config.TextColumn(c.label, width=c.width)
@@ -60,6 +62,23 @@ def _display_frame(df: pd.DataFrame, cols: list[ColSpec]) -> tuple[pd.DataFrame,
             out[c.label] = s.astype(object).where(s.notna(), "")
             config[c.label] = st.column_config.TextColumn(c.label, width=c.width)
     return out.reset_index(drop=True), config
+
+
+def _formatters(cols: list[ColSpec], present) -> dict:
+    """Formato es-AR (punto de miles, coma decimal) para mostrar; los valores siguen siendo números (ordenan bien)."""
+    from utils import formatting as fmt
+
+    def n0(v):
+        return "" if pd.isna(v) else fmt.fmt_int(v)
+
+    def n1(v):
+        return "" if pd.isna(v) else fmt.fmt_num(v, 1)
+
+    def pct(v):
+        return "" if pd.isna(v) else fmt._es(f"{float(v):,.0f}") + " %"
+
+    by_kind = {"int": n0, "days": n0, "usd": n0, "num": n1, "pct": pct}
+    return {c.label: by_kind[c.kind] for c in cols if c.kind in by_kind and c.label in present}
 
 
 def _search(df: pd.DataFrame, query: str) -> pd.DataFrame:
@@ -94,6 +113,7 @@ def data_table(df: pd.DataFrame, cols: list[ColSpec], key: str, filename: str,
                row_styles: pd.Series | None = None) -> None:
     """row_styles: CSS por fila (alineado con el índice de df), p. ej. para resaltar un récord."""
     display, config = _display_frame(df, cols)
+    formatters = _formatters(cols, set(display.columns))
     styles = (row_styles.reindex(df.index).fillna("").reset_index(drop=True)
               if row_styles is not None else None)
     top = st.columns([4, 1, 1]) if search else st.columns([2, 1, 1])
@@ -112,9 +132,9 @@ def data_table(df: pd.DataFrame, cols: list[ColSpec], key: str, filename: str,
         return
     rows = len(shown)
     h = height or min(560, 38 + 35 * rows)
-    data = shown
+    data = shown.style.format(formatters, na_rep="—")
     if styles is not None and styles.loc[shown.index].ne("").any():
         css = styles.loc[shown.index]
-        data = shown.style.apply(lambda row: [css[row.name]] * len(row), axis=1)
+        data = data.apply(lambda row: [css[row.name]] * len(row), axis=1)
     st.dataframe(data, column_config=config, hide_index=True, height=h, width="stretch", placeholder="—")
     st.caption((caption + " · " if caption else "") + f"{rows:,} filas".replace(",", "."))

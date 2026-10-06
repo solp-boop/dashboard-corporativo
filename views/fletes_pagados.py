@@ -37,7 +37,7 @@ def by_forwarder(d: pd.DataFrame) -> pd.DataFrame:
             "forwarder": ffww, "embarques": len(g), "contenedores": g["contenedores"].sum(),
             "flete_total": g["flete_pagado"].sum(min_count=1), "costo_total": g["costo_total"].sum(min_count=1),
             "flete_ctnr": g["flete_por_ctnr"].median(), "locales_ctnr": g["locales_por_ctnr"].median(),
-            "costo_m3": g["costo_por_m3"].median(), "vs_mercado": g["vs_mercado"].median(),
+            "costo_m3": g["costo_por_m3"].median(), "vs_mercado": freight.vs_mercado_ponderado(g)[0],
             "certificado": cert, "observados": int((val == "Observado").sum()),
         })
     return pd.DataFrame(rows).sort_values("costo_total", ascending=False) if rows else pd.DataFrame()
@@ -66,7 +66,7 @@ def render() -> None:
         s_cert, b_cert = (cert_status(cert)
                           if n_cert >= settings.MIN_SAMPLE else ("", ""))
         fl = calc.describe(con_flete["flete_por_ctnr"])
-        vm = calc.describe(d["vs_mercado"])
+        vm_pct, vm_n = freight.vs_mercado_ponderado(d)
         cm3 = calc.describe(con_flete["costo_por_m3"])
         llen = calc.describe(d["indice_carga"])
         kpi_row([
@@ -77,9 +77,9 @@ def render() -> None:
             KPI("Flete por contenedor", fmt.fmt_usd(fl.median, compact=False) if fl.enough else "—",
                 sub=f"Mediana · P25–P75 {fmt.fmt_usd(fl.p25, compact=False)}–{fmt.fmt_usd(fl.p75, compact=False)}"
                 if fl.enough else "Sin datos suficientes"),
-            KPI("Pagado vs mercado", fmt.fmt_pct(vm.median, signed=True) if vm.enough else "—",
-                status=("ok" if vm.median <= 0 else "warn") if vm.enough else "",
-                sub=f"Mediana · n={fmt.fmt_int(vm.n)} embarques con cotización del mes"),
+            KPI("Pagado vs mercado", fmt.fmt_pct(vm_pct, signed=True) if vm_n >= settings.MIN_SAMPLE else "—",
+                status=("ok" if vm_pct <= 0 else "warn") if vm_n >= settings.MIN_SAMPLE else "",
+                sub=f"Total pagado vs mercado, por contenedor · {fmt.fmt_int(vm_n)} embarques con cotización del mes"),
             KPI("Costo por m³", fmt.fmt_usd(cm3.median, compact=False) if cm3.enough else "—",
                 sub=f"Mediana · llenado de contenedor {fmt.fmt_pct(llen.median)}" if llen.enough else "Mediana"),
             KPI("Flete certificado", fmt.fmt_pct(cert) if n_cert >= settings.MIN_SAMPLE else "—",

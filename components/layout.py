@@ -9,7 +9,7 @@ import streamlit as st
 
 from services.data_loader import DataBundle
 from utils import formatting as fmt
-from utils.filters import FilterState, not_applicable, undated_count
+from utils.filters import FilterState, not_applicable
 from utils.logger import get_logger
 
 log = get_logger("ui")
@@ -107,14 +107,12 @@ def semaforo_legend() -> None:
 
 
 def filter_notes(df, filters: FilterState, dataset_label: str) -> None:
-    """Aclara qué filtros no aplican a este dataset y cuántos registros quedan sin fecha."""
+    """Aclara qué filtros no aplican a este dataset."""
     na = not_applicable(df, filters)
     notes = []
     if na:
         notes.append(f"{dataset_label} no tiene {', '.join(na)}: ese filtro no se aplica acá.")
-    und = undated_count(df, filters)
-    if und:
-        notes.append(f"{fmt.fmt_int(und)} registros sin fecha quedan fuera del período.")
+    # Los registros sin fecha se informan en Calidad de datos, no arriba de cada página.
     if notes:
         st.caption(" ".join(notes))
 

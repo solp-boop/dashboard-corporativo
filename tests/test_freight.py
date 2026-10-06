@@ -151,3 +151,14 @@ def test_ahorro_40nor():
     nor = freight.nor_savings(h)
     assert list(nor["ref_hq"]) == [8200.0, 8200.0]
     assert list(nor["ahorro"]) == [4400.0, 1200.0]
+
+
+def test_vs_mercado_ponderado_pondera_por_contenedores():
+    import numpy as np
+    import pandas as pd
+    from utils import freight
+    h = pd.DataFrame({"mercado_mes": [1000.0, 2000.0, np.nan], "flete_por_ctnr": [1100.0, 2000.0, 5000.0],
+                      "contenedores": [1, 3, 2]})
+    pct, n = freight.vs_mercado_ponderado(h)
+    assert n == 2
+    assert abs(pct - (7100 - 7000) / 7000) < 1e-9

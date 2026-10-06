@@ -190,6 +190,18 @@ def savings_vs_market(hist: pd.DataFrame) -> pd.Series:
     return (hist["mercado_mes"] - hist["flete_por_ctnr"]) * hist["contenedores"]
 
 
+def vs_mercado_ponderado(hist: pd.DataFrame) -> tuple[float, int]:
+    """Pagado vs mercado en %, ponderado por contenedores: (Σ pagado − Σ mercado) / Σ mercado.
+
+    Es la misma cuenta que el «Ahorro vs mercado» en USD (con el signo al revés). Devuelve (pct, n embarques).
+    """
+    ok = hist["mercado_mes"].notna() & hist["flete_por_ctnr"].notna()
+    d = hist[ok]
+    mercado = float((d["mercado_mes"] * d["contenedores"]).sum())
+    pagado = float((d["flete_por_ctnr"] * d["contenedores"]).sum())
+    return ((pagado - mercado) / mercado if mercado else np.nan), int(ok.sum())
+
+
 def nor_savings(hist: pd.DataFrame) -> pd.DataFrame:
     """Ahorro por usar 40 NOR en lugar de 40 ST/40 HQ.
 
