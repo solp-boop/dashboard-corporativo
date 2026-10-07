@@ -1,10 +1,13 @@
-"""Proyección: lo que todavía no zarpó, por mes de ETD.
+"""Proyección: lo que está en Reservas / Planificación y todavía no pasó a Históricas, por mes de ETD.
 
 Fuentes, sin contar dos veces:
-- Reservado: Reservas con ETD desde hoy (marítimo, courier, camión; los AIR se toman de Seguimiento Aéreos).
-- Aéreo: Seguimiento Aéreos activos con ETD desde hoy.
-- Por reservar: SO de Planificación con ETD desde hoy cuyo embarque todavía no está en Reservas ni en Históricas.
+- Reservado: Reservas que no están en Históricas (marítimo, courier, camión; los AIR se toman de Seguimiento Aéreos).
+- Aéreo: Seguimiento Aéreos activos.
+- Por reservar: SO de Planificación cuyo embarque todavía no está en Reservas ni en Históricas.
   Sus contenedores se estiman con settings.M3_POR_CONTENEDOR (no hay contenedor asignado todavía).
+
+Los meses anteriores al actual se agrupan en ANTERIOR (como en Pipeline) y los posteriores a la ventana en
+MAS_ADELANTE, para que el total coincida con lo cargado.
 
 Mono / consolidado y medio de envío se expresan en % del volumen (m³), porque lo reservado se cuenta en embarques
 y lo planificado en SO. Sin Streamlit, para poder testearlo.
@@ -19,6 +22,28 @@ from utils import calculations as calc
 from utils.anio import MEDIOS, medio
 from utils.data_cleaning import id_key
 
+ANTERIOR = pd.Timestamp("1900-01-01")
+MAS_ADELANTE = pd.Timestamp("2100-01-01")
+
+
+def etiqueta(m: pd.Timestamp, today: pd.Timestamp, larga: bool = False) -> str:
+    """Texto del mes: «Anterior», «Más adelante» o el mes (con * si es el actual)."""
+    from utils import formatting as fmt
+    if m == ANTERIOR:
+        return "Anterior"
+    if m == MAS_ADELANTE:
+        return "Más adelante"
+    actual = m == today.to_period("M").to_timestamp()
+    if larga:
+        return fmt.fmt_month(m, long=True) + (" · en curso" if actual else "")
+    return fmt.fmt_month(m) + ("*" if actual else "")
+
+
+def _agrupar(mes: pd.Series, today: pd.Timestamp, meses: int) -> pd.Series:
+    desde = today.to_period("M").to_timestamp()
+    hasta = desde + pd.DateOffset(months=meses)
+    return mes.mask(mes < desde, ANTERIOR).mask(mes >= hasta, MAS_ADELANTE)
+
 
 def _fob(df: pd.DataFrame, *cols: str) -> pd.Series:
     out = pd.Series(np.nan, index=df.index, dtype=float)
@@ -30,11 +55,13 @@ def _fob(df: pd.DataFrame, *cols: str) -> pd.Series:
 
 def base(res: pd.DataFrame | None, planif: pd.DataFrame | None, aer: pd.DataFrame | None,
          hist: pd.DataFrame | None, today: pd.Timestamp) -> pd.DataFrame:
-    """Una fila por embarque reservado / aéreo activo / SO por reservar, con mes, m³, FOB, estructura y medio."""
+    """Una fila por embarque reservado / aéreo activo / SO por reservar, con mes, m³, FOB, estructura y medio.
+    `today` se mantiene por compatibilidad: el corte por mes se hace en mensual / por_estructura."""
     partes = []
     ya = set()
+    en_hist = set(id_key(hist["embarque"])) if hist is not None and len(hist) else set()
     if res is not None and len(res):
-        r = res[res["etd"] >= today]
+        r = res[res["etd"].notna() & ~id_key(res["embarque"]).isin(en_hist)]
         r = r[~r["embarque"].astype(str).str.strip().str.upper().str.startswith("AIR")]
         ya |= set(id_key(res["embarque"]))
         partes.append(pd.DataFrame({
@@ -43,16 +70,15 @@ def base(res: pd.DataFrame | None, planif: pd.DataFrame | None, aer: pd.DataFram
             "estructura": r["estructura"], "medio": r["modo"].map(medio) if "modo" in r else "Marítimo",
         }))
     if aer is not None and len(aer):
-        a = aer[(aer["activo"] if "activo" in aer else True) & (aer["etd"] >= today)]
+        a = aer[(aer["activo"] if "activo" in aer else True) & aer["etd"].notna()]
         partes.append(pd.DataFrame({
             "fuente": "Reservado", "id": a["embarque"].astype(str), "etd": a["etd"], "contenedores": 0.0,
             "m3": a["m3"].fillna(0) if "m3" in a else 0.0, "fob": _fob(a, "fob_simi"), "estructura": None,
             "medio": "Aéreo",
         }))
-    if hist is not None and len(hist):
-        ya |= set(id_key(hist["embarque"]))
+    ya |= en_hist
     if planif is not None and len(planif):
-        p = planif[planif["etd"] >= today]
+        p = planif[planif["etd"].notna()]
         sin_emb = p["embarque"].isna() | ~id_key(p["embarque"].fillna("")).isin(ya)
         p = p[sin_emb]
         m = p["modo"].map(lambda v: medio(v) if isinstance(v, str) and v.strip() else "Marítimo") \
@@ -92,20 +118,13 @@ def _fila(g: pd.DataFrame) -> dict:
 
 
 def mensual(d: pd.DataFrame, today: pd.Timestamp, meses: int = 6) -> pd.DataFrame:
-    """Una fila por mes, del actual a `meses` − 1 meses adelante, + fila de total (mes NaT).
-    Lo que tiene ETD más allá queda afuera (attrs["mas_adelante"] = cantidad de registros)."""
+    """Una fila por mes, del actual a `meses` − 1 meses adelante, + ANTERIOR / MAS_ADELANTE si hay, + total (NaT)."""
     if d.empty:
         return pd.DataFrame()
-    desde = today.to_period("M").to_timestamp()
-    hasta = desde + pd.DateOffset(months=meses)
-    x = d[(d["mes"] >= desde) & (d["mes"] < hasta)]
-    if x.empty:
-        return pd.DataFrame()
+    x = d.assign(mes=_agrupar(d["mes"], today, meses))
     rows = [{"mes": m, **_fila(g)} for m, g in x.groupby("mes")]
     rows.append({"mes": pd.NaT, **_fila(x)})
-    out = pd.DataFrame(rows)
-    out.attrs["mas_adelante"] = int((d["mes"] >= hasta).sum())
-    return out
+    return pd.DataFrame(rows)
 
 
 def por_estructura(d: pd.DataFrame, today: pd.Timestamp, meses: int = 6) -> pd.DataFrame:
@@ -114,8 +133,7 @@ def por_estructura(d: pd.DataFrame, today: pd.Timestamp, meses: int = 6) -> pd.D
     Contenedores: los reales de lo reservado; lo que no tiene reserva (marítimo) se estima con M3_POR_CONTENEDOR."""
     if d.empty:
         return pd.DataFrame(columns=["mes", "estructura", "contenedores", "m3", "fob"])
-    desde = today.to_period("M").to_timestamp()
-    x = d[(d["mes"] >= desde) & (d["mes"] < desde + pd.DateOffset(months=meses))].copy()
+    x = d.assign(mes=_agrupar(d["mes"], today, meses))
     est = np.where((x["fuente"] == "Por reservar") & (x["medio"] == "Marítimo"),
                    x["m3"] / settings.M3_POR_CONTENEDOR, x["contenedores"].fillna(0))
     x["cont"] = est

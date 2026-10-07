@@ -854,7 +854,7 @@ def render_especiales(bundle, filters, numerado: bool = False) -> None:
 
 
 def render_proyeccion(bundle, filters) -> None:
-    """Lo que viene: reservas con ETD desde hoy, aéreos activos y SO por reservar, por mes de ETD."""
+    """Lo que viene: reservas que no pasaron a Históricas, aéreos activos y SO por reservar, por mes de ETD."""
     import plotly.graph_objects as go
 
     from components import charts
@@ -864,11 +864,12 @@ def render_proyeccion(bundle, filters) -> None:
     d = pr.base(get("reservas"), get("planif"), get("aereos"), get("historicas"), t)
     tab = pr.mensual(d, t)
     subsection("Proyección · próximos meses",
-               "Lo que todavía no zarpó, por mes de ETD: reservas (ETD desde hoy), aéreos activos y SO de "
-               "Planificación sin embarque asignado. Contenedores de lo no reservado estimados a "
+               "Todo lo que está en Reservas o Planificación y todavía no pasó a Históricas, por mes de ETD: "
+               "reservas, aéreos activos y SO sin embarque asignado. Lo de meses anteriores se agrupa en "
+               "«Anterior». Contenedores de lo no reservado estimados a "
                f"{settings.M3_POR_CONTENEDOR} m³ por contenedor.")
     if tab.empty:
-        empty("Sin reservas ni SO planificadas con ETD desde hoy.")
+        empty("Sin reservas ni SO planificadas pendientes.")
         return
     tot = tab.iloc[-1]
     kpi_row([
@@ -883,9 +884,8 @@ def render_proyeccion(bundle, filters) -> None:
                                    label_visibility="collapsed") or "Contenedores"
     col, unidad = metricas[elegido]
     g = pr.por_estructura(d, t)
-    this_month = t.to_period("M").to_timestamp()
     months = sorted(g["mes"].unique())
-    labels = [fmt.fmt_month(m) + ("*" if m == this_month else "") for m in months]
+    labels = [pr.etiqueta(m, t) for m in months]
     colores = {"Monoproveedor": settings.SERIES[0], "Consolidado": settings.SERIES[2],
                "Sin dato": settings.SERIES_OTHER}
     fig = go.Figure()
@@ -902,22 +902,18 @@ def render_proyeccion(bundle, filters) -> None:
     fig.update_layout(barmode="stack")
     charts.theme(fig, height=360, y_title=unidad)
     chart_title(f"{elegido} por mes de ETD, monoproveedor y consolidado",
-                "* mes en curso: solo lo que todavía no zarpó")
+                "Anterior: ETD de meses pasados, todavía en Reservas / Planificación · * mes en curso")
     charts.show(fig, key="proy_mes")
 
     with st.expander("Ver en tabla"):
         show = tab.copy()
-        show["mes_txt"] = ["Total proyectado" if pd.isna(m) else
-                           fmt.fmt_month(m, long=True) + (" · resto del mes" if m == this_month else "")
-                           for m in show["mes"]]
+        show["mes_txt"] = ["Total" if pd.isna(m) else pr.etiqueta(m, t, larga=True) for m in show["mes"]]
         styles = pd.Series("", index=show.index)
         styles.iloc[-1] = "font-weight: 600; background-color: rgba(120,130,150,0.10)"
-        mas = tab.attrs.get("mas_adelante", 0)
         data_table(show, [
             ColSpec("mes_txt", "Mes ETD", width="medium"), ColSpec("so_por_reservar", "SO por reservar", "int"),
             ColSpec("contenedores_total", "Contenedores", "int"), ColSpec("m3", "M3", "num"),
             ColSpec("fob", "FOB (USD)", "usd"), ColSpec("pct_mono", "% Mono", "pct"),
             ColSpec("pct_cons", "% Consolidado", "pct"),
         ], key="proyeccion", filename=f"proyeccion_{t:%Y%m%d}", search=False, row_styles=styles,
-            caption="% mono / consolidado sobre m³"
-                    + (f" · {fmt.fmt_int(mas)} registros con ETD más adelante no se muestran" if mas else ""))
+            caption="% mono / consolidado sobre m³")

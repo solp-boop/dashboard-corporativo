@@ -222,4 +222,9 @@ def test_proyeccion_sin_doble_conteo():
     t = pr.mensual(d, hoy).set_index("mes")
     assert t.loc[ts("2026-10-01"), "embarques"] == 1 and t.loc[ts("2026-10-01"), "so_por_reservar"] == 0
     assert t.loc[ts("2026-11-01"), "contenedores_est"] == 2 and t.loc[ts("2026-11-01"), "fob"] == 1000.0
-    assert t.iloc[-1]["m3"] == 238.0
+    # FCL 2 (ETD pasada, sigue en Reservas) va a «Anterior», no se pierde.
+    assert t.loc[pr.ANTERIOR, "m3"] == 60.0
+    assert t.iloc[-1]["m3"] == 298.0
+    # Ya en Históricas: no se cuenta.
+    d2 = pr.base(res, planif, None, pd.DataFrame({"embarque": ["FCL 2"]}), hoy)
+    assert pr.mensual(d2, hoy).iloc[-1]["m3"] == 238.0
