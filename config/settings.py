@@ -226,3 +226,7 @@ SALUD_DIAS_HABILES_SIN_EDICION = 2      # planilla sin ediciones por más de est
 
 # Panorama: pagado vs mercado. Verde ≤ 0 % (pagamos menos que la mediana de mercado), ámbar hasta esta tolerancia.
 PAGADO_VS_MERCADO_TOLERANCIA = 0.05
+
+# Proyección: m³ por contenedor para estimar los contenedores de lo que todavía no tiene reserva
+# (40 HQ de 68 m³ con la ocupación mediana del año, ~87 %).
+M3_POR_CONTENEDOR = 59

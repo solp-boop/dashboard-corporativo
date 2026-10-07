@@ -206,3 +206,20 @@ def test_captura_no_cuenta_si_pago_la_tarifa_original():
                         "validez_desde": [ts("2026-05-01")], "validez_hasta": [ts("2026-05-15")],
                         "flete_original": [5170.0], "flete_negociado": [4700.0], "rebaja": [470.0]})
     assert cap.por_negociacion(hist, neg).empty
+
+
+def test_proyeccion_sin_doble_conteo():
+    from utils import proyeccion as pr
+    hoy = ts("2026-10-07")
+    res = pd.DataFrame({"embarque": ["FCL 1", "FCL 2"], "etd": [ts("2026-10-20"), ts("2026-09-01")],
+                        "contenedores": [2.0, 1.0], "m3": [120.0, 60.0], "fob_real": [1000.0, 1.0],
+                        "fob_simi": [900.0, 1.0], "estructura": ["Consolidado", "Mono"], "modo": ["Marítimo FCL"] * 2})
+    planif = pd.DataFrame({"so": ["SO-1", "SO-2", "SO-3"], "embarque": ["FCL 1", None, None],
+                           "etd": [ts("2026-10-20"), ts("2026-11-10"), ts("2026-11-15")], "m3": [120.0, 59.0, 59.0],
+                           "fob_origen": [1000.0, 500.0, 500.0], "estructura": ["Consolidado", "Monoproveedor",
+                                                                                 "Monoproveedor"], "modo": [None] * 3})
+    d = pr.base(res, planif, None, None, hoy)
+    t = pr.mensual(d, hoy).set_index("mes")
+    assert t.loc[ts("2026-10-01"), "embarques"] == 1 and t.loc[ts("2026-10-01"), "so_por_reservar"] == 0
+    assert t.loc[ts("2026-11-01"), "contenedores_est"] == 2 and t.loc[ts("2026-11-01"), "fob"] == 1000.0
+    assert t.iloc[-1]["m3"] == 238.0

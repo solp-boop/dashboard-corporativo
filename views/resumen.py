@@ -29,7 +29,7 @@ def _record_txt(tab: pd.DataFrame) -> str:
 
 
 def render_anio(bundle, filters, numerado: bool = True, compacto: bool = False, shippers: bool = True,
-                sub: str | None = None) -> None:
+                sub: str | None = None, proyeccion: bool = False) -> None:
     """Nuestro año: lo embarcado en el año calendario, total y mes a mes.
 
     compacto=True (Panorama): solo los totales del año y la apertura por medio y estructura."""
@@ -97,6 +97,9 @@ def render_anio(bundle, filters, numerado: bool = True, compacto: bool = False, 
         styles.loc[rec] = "font-weight: 600; background-color: rgba(36,86,166,0.14)"
     data_table(show, cols, key="anio", filename=f"embarques_{t.year}", search=False, row_styles=styles)
 
+    if proyeccion:
+        with guard("Proyección"):
+            render_proyeccion(bundle, filters)
     if shippers:
         with guard("Shippers"):
             _shippers(bundle, filters, t)
@@ -848,4 +851,48 @@ def render_especiales(bundle, filters, numerado: bool = False) -> None:
                        "Comparable: mismo mes de ETD y origen.")
         else:
             empty("Sin columna CARGA IMO en Seguimiento Aéreos.")
+
+
+def render_proyeccion(bundle, filters) -> None:
+    """Lo que viene: reservas con ETD desde hoy, aéreos activos y SO por reservar, por mes de ETD."""
+    from utils import proyeccion as pr
+    t = today()
+    get = lambda k: filtered(bundle, k, filters, use_period=False) if bundle.get(k) is not None else None  # noqa: E731
+    d = pr.base(get("reservas"), get("planif"), get("aereos"), get("historicas"), t)
+    tab = pr.mensual(d, t)
+    subsection("Proyección · próximos meses",
+               "Lo que todavía no zarpó, por mes de ETD: reservas (ETD desde hoy), aéreos activos y SO de "
+               "Planificación sin embarque asignado. Contenedores de lo no reservado estimados a "
+               f"{settings.M3_POR_CONTENEDOR} m³ por contenedor. % mono / consolidado sobre m³.")
+    if tab.empty:
+        empty("Sin reservas ni SO planificadas con ETD desde hoy.")
+        return
+    tot = tab.iloc[-1]
+    kpi_row([
+        KPI("Por zarpar", fmt.fmt_int(tot["embarques"] + tot["aereos"]), unit="emb.",
+            sub=f"reservados · <b>{fmt.fmt_int(tot['so_por_reservar'])}</b> SO por reservar"),
+        KPI("Contenedores", fmt.fmt_int(tot["contenedores_total"]),
+            sub=f"<b>{fmt.fmt_int(tot['contenedores'])}</b> reservados + ~{fmt.fmt_int(tot['contenedores_est'])} "
+                "estimados"),
+        KPI("FOB", fmt.fmt_usd(tot["fob"]), sub="reservas: FOB real · SO: FOB origen"),
+        KPI("Volumen", fmt.fmt_int(tot["m3"]), unit="m³",
+            sub=f"mono {fmt.fmt_pct(tot['pct_mono'])} · consolidado {fmt.fmt_pct(tot['pct_cons'])}"),
+    ])
+    show = tab.copy()
+    this_month = t.to_period("M").to_timestamp()
+    show["mes_txt"] = ["Total proyectado" if pd.isna(m) else
+                       fmt.fmt_month(m, long=True) + (" · resto del mes" if m == this_month else "")
+                       for m in show["mes"]]
+    styles = pd.Series("", index=show.index)
+    styles.iloc[-1] = "font-weight: 600; background-color: rgba(120,130,150,0.10)"
+    mas = tab.attrs.get("mas_adelante", 0)
+    data_table(show, [
+        ColSpec("mes_txt", "Mes ETD", width="medium"), ColSpec("embarques", "Embarques reservados", "int"),
+        ColSpec("aereos", "Aéreos activos", "int"), ColSpec("so_por_reservar", "SO por reservar", "int"),
+        ColSpec("contenedores", "Cont. reservados", "int"), ColSpec("contenedores_est", "Cont. estimados", "int"),
+        ColSpec("m3", "M3", "num"), ColSpec("fob", "FOB (USD)", "usd"),
+        ColSpec("pct_mono", "% Mono", "pct"), ColSpec("pct_cons", "% Consolidado", "pct"),
+    ], key="proyeccion", filename=f"proyeccion_{t:%Y%m%d}", search=False, row_styles=styles,
+        caption="Reservado = Reservas y Seguimiento Aéreos · por reservar = Planificación"
+                + (f" · {fmt.fmt_int(mas)} registros con ETD más adelante no se muestran" if mas else ""))
 
