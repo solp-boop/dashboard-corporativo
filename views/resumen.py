@@ -855,6 +855,9 @@ def render_especiales(bundle, filters, numerado: bool = False) -> None:
 
 def render_proyeccion(bundle, filters) -> None:
     """Lo que viene: reservas con ETD desde hoy, aéreos activos y SO por reservar, por mes de ETD."""
+    import plotly.graph_objects as go
+
+    from components import charts
     from utils import proyeccion as pr
     t = today()
     get = lambda k: filtered(bundle, k, filters, use_period=False) if bundle.get(k) is not None else None  # noqa: E731
@@ -863,36 +866,58 @@ def render_proyeccion(bundle, filters) -> None:
     subsection("Proyección · próximos meses",
                "Lo que todavía no zarpó, por mes de ETD: reservas (ETD desde hoy), aéreos activos y SO de "
                "Planificación sin embarque asignado. Contenedores de lo no reservado estimados a "
-               f"{settings.M3_POR_CONTENEDOR} m³ por contenedor. % mono / consolidado sobre m³.")
+               f"{settings.M3_POR_CONTENEDOR} m³ por contenedor.")
     if tab.empty:
         empty("Sin reservas ni SO planificadas con ETD desde hoy.")
         return
     tot = tab.iloc[-1]
     kpi_row([
-        KPI("Por zarpar", fmt.fmt_int(tot["embarques"] + tot["aereos"]), unit="emb.",
-            sub=f"reservados · <b>{fmt.fmt_int(tot['so_por_reservar'])}</b> SO por reservar"),
-        KPI("Contenedores", fmt.fmt_int(tot["contenedores_total"]),
-            sub=f"<b>{fmt.fmt_int(tot['contenedores'])}</b> reservados + ~{fmt.fmt_int(tot['contenedores_est'])} "
-                "estimados"),
+        KPI("Contenedores", fmt.fmt_int(tot["contenedores_total"]), sub="reservados y estimados"),
+        KPI("Volumen", fmt.fmt_int(tot["m3"]), unit="m³"),
         KPI("FOB", fmt.fmt_usd(tot["fob"]), sub="reservas: FOB real · SO: FOB origen"),
-        KPI("Volumen", fmt.fmt_int(tot["m3"]), unit="m³",
-            sub=f"mono {fmt.fmt_pct(tot['pct_mono'])} · consolidado {fmt.fmt_pct(tot['pct_cons'])}"),
+        KPI("Monoproveedor / consolidado", f"{fmt.fmt_pct(tot['pct_mono'])} / {fmt.fmt_pct(tot['pct_cons'])}",
+            sub="sobre m³"),
     ])
-    show = tab.copy()
+    metricas = {"Contenedores": ("contenedores", "contenedores"), "M3": ("m3", "m³"), "FOB": ("fob", "USD")}
+    elegido = st.segmented_control("Medida", list(metricas), default="Contenedores", key="proy_metric",
+                                   label_visibility="collapsed") or "Contenedores"
+    col, unidad = metricas[elegido]
+    g = pr.por_estructura(d, t)
     this_month = t.to_period("M").to_timestamp()
-    show["mes_txt"] = ["Total proyectado" if pd.isna(m) else
-                       fmt.fmt_month(m, long=True) + (" · resto del mes" if m == this_month else "")
-                       for m in show["mes"]]
-    styles = pd.Series("", index=show.index)
-    styles.iloc[-1] = "font-weight: 600; background-color: rgba(120,130,150,0.10)"
-    mas = tab.attrs.get("mas_adelante", 0)
-    data_table(show, [
-        ColSpec("mes_txt", "Mes ETD", width="medium"), ColSpec("embarques", "Embarques reservados", "int"),
-        ColSpec("aereos", "Aéreos activos", "int"), ColSpec("so_por_reservar", "SO por reservar", "int"),
-        ColSpec("contenedores", "Cont. reservados", "int"), ColSpec("contenedores_est", "Cont. estimados", "int"),
-        ColSpec("m3", "M3", "num"), ColSpec("fob", "FOB (USD)", "usd"),
-        ColSpec("pct_mono", "% Mono", "pct"), ColSpec("pct_cons", "% Consolidado", "pct"),
-    ], key="proyeccion", filename=f"proyeccion_{t:%Y%m%d}", search=False, row_styles=styles,
-        caption="Reservado = Reservas y Seguimiento Aéreos · por reservar = Planificación"
-                + (f" · {fmt.fmt_int(mas)} registros con ETD más adelante no se muestran" if mas else ""))
+    months = sorted(g["mes"].unique())
+    labels = [fmt.fmt_month(m) + ("*" if m == this_month else "") for m in months]
+    colores = {"Monoproveedor": settings.SERIES[0], "Consolidado": settings.SERIES[2],
+               "Sin dato": settings.SERIES_OTHER}
+    fig = go.Figure()
+    for est, color in colores.items():
+        s = g[g["estructura"] == est].set_index("mes")[col].reindex(months).fillna(0)
+        if s.sum() == 0:
+            continue
+        fig.add_bar(x=labels, y=s.values, name=est, marker=dict(color=color, cornerradius=3),
+                    hovertemplate=f"%{{x}} · {est}: %{{y:,.0f}} {unidad}<extra></extra>")
+    totales = g.groupby("mes")[col].sum().reindex(months)
+    fig.add_scatter(x=labels, y=totales.values, mode="text", showlegend=False, hoverinfo="skip",
+                    text=[fmt.fmt_usd(v) if col == "fob" else fmt.fmt_int(v) for v in totales.values],
+                    textposition="top center", textfont=dict(size=11, color=settings.COLORS["slate"]))
+    fig.update_layout(barmode="stack")
+    charts.theme(fig, height=360, y_title=unidad)
+    chart_title(f"{elegido} por mes de ETD, monoproveedor y consolidado",
+                "* mes en curso: solo lo que todavía no zarpó")
+    charts.show(fig, key="proy_mes")
 
+    with st.expander("Ver en tabla"):
+        show = tab.copy()
+        show["mes_txt"] = ["Total proyectado" if pd.isna(m) else
+                           fmt.fmt_month(m, long=True) + (" · resto del mes" if m == this_month else "")
+                           for m in show["mes"]]
+        styles = pd.Series("", index=show.index)
+        styles.iloc[-1] = "font-weight: 600; background-color: rgba(120,130,150,0.10)"
+        mas = tab.attrs.get("mas_adelante", 0)
+        data_table(show, [
+            ColSpec("mes_txt", "Mes ETD", width="medium"), ColSpec("so_por_reservar", "SO por reservar", "int"),
+            ColSpec("contenedores_total", "Contenedores", "int"), ColSpec("m3", "M3", "num"),
+            ColSpec("fob", "FOB (USD)", "usd"), ColSpec("pct_mono", "% Mono", "pct"),
+            ColSpec("pct_cons", "% Consolidado", "pct"),
+        ], key="proyeccion", filename=f"proyeccion_{t:%Y%m%d}", search=False, row_styles=styles,
+            caption="% mono / consolidado sobre m³"
+                    + (f" · {fmt.fmt_int(mas)} registros con ETD más adelante no se muestran" if mas else ""))

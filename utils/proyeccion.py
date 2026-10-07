@@ -80,7 +80,7 @@ def _fila(g: pd.DataFrame) -> dict:
         "embarques": int(res.loc[res["medio"] != "Aéreo", "id"].nunique()),
         "aereos": int(res.loc[res["medio"] == "Aéreo", "id"].nunique()),
         "so_por_reservar": int(pla["id"].nunique()),
-        "contenedores": float(res["contenedores"].sum()), "contenedores_est": float(np.ceil(cont_est)),
+        "contenedores": float(res["contenedores"].sum()), "contenedores_est": float(np.round(cont_est)),
         "m3": m3, "fob": float(g["fob"].sum()),
         "pct_mono": float(est.loc[est["estructura"] == "Monoproveedor", "m3"].sum() / m3_est) if m3_est else np.nan,
         "pct_cons": float(est.loc[est["estructura"] == "Consolidado", "m3"].sum() / m3_est) if m3_est else np.nan,
@@ -106,3 +106,19 @@ def mensual(d: pd.DataFrame, today: pd.Timestamp, meses: int = 6) -> pd.DataFram
     out = pd.DataFrame(rows)
     out.attrs["mas_adelante"] = int((d["mes"] >= hasta).sum())
     return out
+
+
+def por_estructura(d: pd.DataFrame, today: pd.Timestamp, meses: int = 6) -> pd.DataFrame:
+    """Por mes de ETD y estructura (Monoproveedor / Consolidado / Sin dato): contenedores, m³ y FOB.
+
+    Contenedores: los reales de lo reservado; lo que no tiene reserva (marítimo) se estima con M3_POR_CONTENEDOR."""
+    if d.empty:
+        return pd.DataFrame(columns=["mes", "estructura", "contenedores", "m3", "fob"])
+    desde = today.to_period("M").to_timestamp()
+    x = d[(d["mes"] >= desde) & (d["mes"] < desde + pd.DateOffset(months=meses))].copy()
+    est = np.where((x["fuente"] == "Por reservar") & (x["medio"] == "Marítimo"),
+                   x["m3"] / settings.M3_POR_CONTENEDOR, x["contenedores"].fillna(0))
+    x["cont"] = est
+    x["estructura"] = x["estructura"].where(x["estructura"].isin(["Monoproveedor", "Consolidado"]), "Sin dato")
+    g = x.groupby(["mes", "estructura"]).agg(contenedores=("cont", "sum"), m3=("m3", "sum"), fob=("fob", "sum"))
+    return g.reset_index()
