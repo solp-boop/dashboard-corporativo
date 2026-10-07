@@ -84,9 +84,7 @@ def _volumen_costos(bundle, filters, t) -> list[pan.Indicador]:
     start, end = _ventana(filters, t)
     p0, p1 = pan.ventana_anterior(start, end)
     yoy = filters.start is not None          # sin inicio de período no hay «mismo período del año anterior»
-    r_f = filtered(bundle, "reservas", filters)
-    h_prev = h_all[h_all["etd"].between(p0, p1)] if yoy else None
-    out.append(pan.volumen(_zarpado_todos(h_f, r_f, t), h_prev))
+    # El volumen del año está arriba, en «Nuestro año» (con su comparación contra el año anterior).
 
     m_f, m_all = _con_flete(pan.maritimos(h_f), t), _con_flete(pan.maritimos(h_all), t)
     pagos = _concat(m_f, _con_flete(a_f, t))
@@ -150,11 +148,14 @@ def _atencion(bundle, filters) -> None:
 def render() -> None:
     bundle, filters = ctx()
     t = today()
+    with guard("Nuestro año"):
+        from views.resumen import render_anio
+        render_anio(bundle, filters, numerado=False, compacto=True)
     section("¿Cómo estamos?",
             f"Embarques que zarparon {periodo_txt(filters)}. Cada recuadro abre su detalle; el ⓘ explica el cálculo.")
     with guard("Tiempos"):
         _row("Tiempos", _tiempos(bundle, filters, t))
     with guard("Volumen y costos"):
-        _row("Volumen y costos", _volumen_costos(bundle, filters, t))
+        _row("Costos", _volumen_costos(bundle, filters, t))
     with guard("Necesita atención"):
         _atencion(bundle, filters)

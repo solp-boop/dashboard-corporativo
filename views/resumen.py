@@ -28,12 +28,16 @@ def _record_txt(tab: pd.DataFrame) -> str:
     return f"Récord: <b>{fmt.fmt_month(r['mes'], long=True).lower()}</b> · {fmt.fmt_int(r['m3'])} m³"
 
 
-def render_anio(bundle, filters, numerado: bool = True) -> None:
-    """Nuestro año: lo embarcado en el año calendario, total y mes a mes."""
+def render_anio(bundle, filters, numerado: bool = True, compacto: bool = False) -> None:
+    """Nuestro año: lo embarcado en el año calendario, total y mes a mes.
+
+    compacto=True (Panorama): solo los totales del año y la apertura por medio y estructura."""
     t = today()
     hist = filtered(bundle, "historicas", filters, use_period=False)
-    (block if numerado else (lambda _n, a, b: section(a, b)))(1, f"Nuestro {t.year}",
-                                                              "¿Cuánto movimos? Operaciones embarcadas.")
+    sub = ("¿Cuánto movimos en el año? Operaciones embarcadas, año calendario completo. El detalle mes a mes y "
+           "por shipper está en Operación en curso → Embarcado." if compacto
+           else "¿Cuánto movimos? Operaciones embarcadas.")
+    (block if numerado else (lambda _n, a, b: section(a, b)))(1, f"Nuestro {t.year}", sub)
     if hist is None or hist.empty:
         empty()
         return
@@ -43,11 +47,23 @@ def render_anio(bundle, filters, numerado: bool = True) -> None:
         return
     tab = anio.mensual(d)
     tot = tab.iloc[-1]
+    # Comparación con el mismo período del año anterior (1/1 al mismo día).
+    prev = anio.del_anio(hist[hist["etd"] <= t - pd.DateOffset(years=1)], t.year - 1)
+    p = anio.mensual(prev).iloc[-1] if len(prev) else None
+
+    def vs(col):
+        if p is None or not p[col]:
+            return "", ""
+        d_ = (tot[col] - p[col]) / p[col]
+        return (f"{'▲' if d_ > 0 else '▼' if d_ < 0 else '='} {fmt.fmt_pct(abs(d_))} vs mismo período "
+                f"{t.year - 1}", "neutral")
+
     kpi_row([
-        KPI("Embarques", fmt.fmt_int(tot["embarques"])),
-        KPI("Contenedores", fmt.fmt_int(tot["contenedores"]), sub="marítimos"),
-        KPI("FOB SIMI", fmt.fmt_usd(tot["fob_simi"])),
-        KPI("Volumen", fmt.fmt_int(tot["m3"]), unit="m³", sub=_record_txt(tab)),
+        KPI("Embarques", fmt.fmt_int(tot["embarques"]), delta=vs("embarques")[0], tono="neutral"),
+        KPI("Contenedores", fmt.fmt_int(tot["contenedores"]), sub="marítimos", delta=vs("contenedores")[0],
+            tono="neutral"),
+        KPI("FOB SIMI", fmt.fmt_usd(tot["fob_simi"]), delta=vs("fob_simi")[0], tono="neutral"),
+        KPI("Volumen", fmt.fmt_int(tot["m3"]), unit="m³", sub=_record_txt(tab), delta=vs("m3")[0], tono="neutral"),
     ])
     colors = dict(zip(anio.MEDIOS, settings.SERIES + ["#8A8F98"]))
     medios = split_html([(m, int((d["medio"] == m).sum()), colors[m],
@@ -59,6 +75,8 @@ def render_anio(bundle, filters, numerado: bool = True) -> None:
           <div class="panel"><div class="panel-title">Medio de envío</div>{medios}</div>
           <div class="panel"><div class="panel-title">Estructura</div>{est}</div>
         </div>""", unsafe_allow_html=True)
+    if compacto:
+        return
 
     show = tab.copy()
     this_month = t.to_period("M").to_timestamp()
