@@ -174,12 +174,16 @@ def negotiation(cot: pd.DataFrame | None, sin: pd.DataFrame | None) -> pd.DataFr
 
     Devuelve una fila por tarifa con: flete_original, flete_negociado, rebaja (USD) y rebaja_pct.
     """
-    cols = NEG_KEYS + ["flete"]
     if cot is None or sin is None or cot.empty or sin.empty:
         return pd.DataFrame(columns=NEG_KEYS + ["flete_original", "flete_negociado", "rebaja", "rebaja_pct"])
-    a = sin[cols].rename(columns={"flete": "flete_original"})
-    b = cot[cols + (["destino"] if "destino" in cot else [])].rename(columns={"flete": "flete_negociado"})
-    m = a.merge(b, on=NEG_KEYS, how="inner").drop_duplicates(NEG_KEYS)
+    # Mismo destino también: una tarifa a Brasil no se compara con una a Argentina.
+    keys = NEG_KEYS + (["destino"] if "destino" in cot and "destino" in sin else [])
+    a = sin[keys + ["flete"]].rename(columns={"flete": "flete_original"})
+    b = cot[keys + ["flete"]].rename(columns={"flete": "flete_negociado"})
+    # Si una misma clave tiene varias filas, se compara la mediana de cada lado (no una fila al azar).
+    a = a.groupby(keys, dropna=False, as_index=False)["flete_original"].median()
+    b = b.groupby(keys, dropna=False, as_index=False)["flete_negociado"].median()
+    m = a.merge(b, on=keys, how="inner")
     m["rebaja"] = m["flete_original"] - m["flete_negociado"]
     m["rebaja_pct"] = m["rebaja"] / m["flete_original"]
     return m

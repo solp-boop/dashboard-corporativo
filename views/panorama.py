@@ -93,10 +93,18 @@ def _volumen_costos(bundle, filters, t) -> list[pan.Indicador]:
     pagos_all = _concat(m_all, _con_flete(a_all, t))
     out.append(pan.costo(pagos, pagos_all, t))
 
+    from utils import captura as cap
+    neg = freight.negotiation(bundle.get("cotizaciones"), bundle.get("cot_sin_negociar"))
+    hay_neg = bundle.get("cot_sin_negociar") is not None and len(bundle.get("cot_sin_negociar")) > 0
     nor = freight.nor_savings(m_f)
-    nor_prev = freight.nor_savings(m_all[m_all["etd"].between(p0, p1)]) if yoy else None
-    out.append(pan.captura(nor.dropna(subset=["ahorro"]) if len(nor) else nor,
-                           (nor_prev.dropna(subset=["ahorro"]) if len(nor_prev) else nor_prev) if yoy else None))
+    nor = nor.dropna(subset=["ahorro"]) if len(nor) else nor
+    nor_prev = neg_prev = None
+    if yoy:
+        m_prev = m_all[m_all["etd"].between(p0, p1)]
+        nor_prev = freight.nor_savings(m_prev)
+        nor_prev = nor_prev.dropna(subset=["ahorro"]) if len(nor_prev) else nor_prev
+        neg_prev = cap.por_negociacion(m_prev, neg)
+    out.append(pan.captura(nor, nor_prev, cap.por_negociacion(m_f, neg), neg_prev, hay_neg))
 
     cot = bundle.get("cotizaciones")
     hm = freight.add_market_reference(m_f, cot)

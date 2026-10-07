@@ -8,7 +8,7 @@ import pandas as pd
 import streamlit as st
 
 from components import sla as sla_view
-from components.layout import block, chart_title, empty, guard, require, subsection
+from components.layout import block, chart_title, empty, guard, require, section, subsection
 from config import settings
 from utils import calculations as calc
 from utils import formatting as fmt
@@ -28,11 +28,12 @@ def _record_txt(tab: pd.DataFrame) -> str:
     return f"Récord: <b>{fmt.fmt_month(r['mes'], long=True).lower()}</b> · {fmt.fmt_int(r['m3'])} m³"
 
 
-def render_anio(bundle, filters) -> None:
+def render_anio(bundle, filters, numerado: bool = True) -> None:
     """Nuestro año: lo embarcado en el año calendario, total y mes a mes."""
     t = today()
     hist = filtered(bundle, "historicas", filters, use_period=False)
-    block(1, f"Nuestro {t.year}", "¿Cuánto movimos? Operaciones embarcadas.")
+    (block if numerado else (lambda _n, a, b: section(a, b)))(1, f"Nuestro {t.year}",
+                                                              "¿Cuánto movimos? Operaciones embarcadas.")
     if hist is None or hist.empty:
         empty()
         return
@@ -516,86 +517,15 @@ def render() -> None:
             sla_view.objetivo_q_chart(summ, t, key="res_obj15")
             sla_view.productos_table(summ, t)
 
-    umbral = fmt.fmt_pct(settings.OCUPACION_UMBRAL)
-    subsection("Utilización de contenedores",
-               f"Ocupación = m³ cargados / (contenedores × capacidad del tipo). Embarques FCL que zarparon {periodo}; "
-               "cada contenedor cuenta con la ocupación de su embarque.")
-    occ = pd.DataFrame()
-    with guard("Utilización de contenedores"):
-        occ = rk.ocupacion(z) if len(z) else pd.DataFrame()
-        r = rk.ocupacion_resumen(occ) if len(occ) else pd.DataFrame()
-        if r.empty:
-            empty("Sin embarques FCL con m³ y tipo de contenedor.")
-        else:
-            tot = r[r["tipo"] == "Total"].iloc[0]
-            c1, c2 = st.columns([2, 3], gap="medium")
-            with c1:
-                kpi_row([
-                    KPI("Ocupación (mediana)", fmt.fmt_pct(tot["mediana"]),
-                        sub=f"{fmt.fmt_int(tot['contenedores'])} contenedores"),
-                    KPI(f"Contenedores ≥ {umbral}", fmt.fmt_int(tot["ok"]), status="ok",
-                        sub=f"<b>{fmt.fmt_pct(tot['pct_ok'])}</b> del total"),
-                    KPI(f"Contenedores < {umbral}", fmt.fmt_int(tot["bajo"]),
-                        status="warn" if tot["bajo"] else "ok",
-                        sub=f"<b>{fmt.fmt_pct(1 - tot['pct_ok'])}</b> del total"),
-                ], columns=1)
-            with c2:
-                _ocupacion_table(r)
-
-    subsection("Uso de 20 ST",
-               f"Un 20 ST con ocupación menor al {umbral} no es necesariamente una mala decisión: se considera "
-               "justificado si el embarque lleva SKU nuevos o top ranking (Embarques Históricos).")
-    with guard("Uso de 20 ST"):
-        justif = rk.justificaciones_producto(bundle.get("emb_hist"))
-        u = rk.uso_20st(occ, justif) if len(occ) else rk.Uso20()
-        if not u.total:
-            empty("Sin 20 ST en el período.")
-        else:
-            motivos = " · ".join(f"{k}: <b>{fmt.fmt_int(v)}</b>" for k, v in u.por_motivo.items())
-            pct = u.pct_justificados
-            kpi_row([
-                KPI("20 ST utilizados", fmt.fmt_int(u.total)),
-                KPI(f"Con ocupación < {umbral}", fmt.fmt_int(u.bajos),
-                    sub=f"<b>{fmt.fmt_pct(u.bajos / u.total)}</b> de los 20 ST"),
-                KPI("Justificados", fmt.fmt_int(u.justificados) if u.tiene_campo else "—",
-                    sub=(motivos + " (un embarque puede tener los dos)") if u.tiene_campo else "Sin datos suficientes"),
-                KPI("% de 20 ST bajos justificados", fmt.fmt_pct(pct) if pct == pct else "—",
-                    status=("ok" if pct >= 0.5 else "warn") if pct == pct else "",
-                    sub=f"KPI principal · sin justificar: <b>{fmt.fmt_int(u.bajos - u.justificados)}</b>"),
-            ])
-            if len(u.detalle):
-                with st.expander(f"Ver los {fmt.fmt_int(len(u.detalle))} embarques en 20 ST con baja ocupación"):
-                    data_table(u.detalle.sort_values("etd"), [
-                        ColSpec("embarque", "Embarque"), ColSpec("etd", "ETD", "date"),
-                        ColSpec("forwarder", "Forwarder"), ColSpec("puerto", "Puerto"),
-                        ColSpec("contenedores", "Cont.", "int"), ColSpec("m3", "M3", "num"),
-                        ColSpec("ocupacion", "Ocupación", "pct"), ColSpec("justificacion", "Justificación"),
-                    ], key="res_20st", filename="20st_baja_ocupacion", search=False)
+    with guard("Contenedores"):
+        render_contenedores(bundle, filters)
 
     # ================================================================== 4 · Costos y captura
     if bundle.get("historicas") is not None:
         render_fletes(bundle, filters)
 
     # ================================================================== 5 · Cargas especiales
-    block(5, "Cargas especiales", f"¿Qué impacto tienen las cargas IMO / DG? Embarques que zarparon {periodo}. "
-            "Costos y tiempos por mediana, comparados solo contra carga comparable (mismo mes y tipo de "
-            "contenedor / origen).")
-    c_mar, c_aer = st.columns(2, gap="medium")
-    with c_mar, guard("IMO marítimo"):
-        st.markdown('<div class="row-label">Marítimo · IMO</div>', unsafe_allow_html=True)
-        if len(z) and "dg" in z:
-            _especial_cards(rk.imo_maritimo(z), "Marítimo")
-            st.caption("Columna «DG» de Reservas Históricas. Comparable: mismo tipo de contenedor, mes de ETD y destino.")
-        else:
-            empty("Sin columna DG en Reservas Históricas.")
-    with c_aer, guard("DG aéreo"):
-        st.markdown('<div class="row-label">Aéreo · DG</div>', unsafe_allow_html=True)
-        if len(aer_z) and "dg" in aer_z:
-            _especial_cards(rk.dg_aereo(aer_z), "Aéreo")
-            st.caption("Columna «CARGA IMO» de Seguimiento Aéreos, sin courier. USD/kg = flete total / chargeable. "
-                       "Comparable: mismo mes de ETD y origen.")
-        else:
-            empty("Sin columna CARGA IMO en Seguimiento Aéreos.")
+    render_especiales(bundle, filters, numerado=True)
 
 
 def _cert_tendencia(a: pd.DataFrame, cert_de) -> KPI:
@@ -803,3 +733,99 @@ def render_fletes(bundle, filters) -> None:
                 charts.theme(fig, height=300, y_title="USD", legend=False)
                 fig.update_yaxes(rangemode="normal", zeroline=True, zerolinecolor=settings.COLORS["grey"])
                 charts.show(fig, key="res_ahorro_mes")
+
+
+def _zarpados_periodo(bundle, filters):
+    t = today()
+    hist = filtered(bundle, "historicas", filters) if bundle.get("historicas") is not None else None
+    z = sla.zarpados(hist, t) if hist is not None else pd.DataFrame()
+    aer = filtered(bundle, "aereos", filters) if bundle.get("aereos") is not None else None
+    aer_z = aer[aer["etd"] <= t] if aer is not None else pd.DataFrame()
+    return z, aer_z, periodo_txt(filters)
+
+
+def render_contenedores(bundle, filters) -> None:
+    """Utilización de contenedores y uso de 20 ST (con justificación por SKU nuevo / top ranking)."""
+    z, _, periodo = _zarpados_periodo(bundle, filters)
+    umbral = fmt.fmt_pct(settings.OCUPACION_UMBRAL)
+    subsection("Utilización de contenedores",
+               f"Ocupación = m³ cargados / (contenedores × capacidad del tipo). Embarques FCL que zarparon {periodo}; "
+               "cada contenedor cuenta con la ocupación de su embarque.")
+    occ = pd.DataFrame()
+    with guard("Utilización de contenedores"):
+        occ = rk.ocupacion(z) if len(z) else pd.DataFrame()
+        r = rk.ocupacion_resumen(occ) if len(occ) else pd.DataFrame()
+        if r.empty:
+            empty("Sin embarques FCL con m³ y tipo de contenedor.")
+        else:
+            tot = r[r["tipo"] == "Total"].iloc[0]
+            c1, c2 = st.columns([2, 3], gap="medium")
+            with c1:
+                kpi_row([
+                    KPI("Ocupación (mediana)", fmt.fmt_pct(tot["mediana"]),
+                        sub=f"{fmt.fmt_int(tot['contenedores'])} contenedores"),
+                    KPI(f"Contenedores ≥ {umbral}", fmt.fmt_int(tot["ok"]), status="ok",
+                        sub=f"<b>{fmt.fmt_pct(tot['pct_ok'])}</b> del total"),
+                    KPI(f"Contenedores < {umbral}", fmt.fmt_int(tot["bajo"]),
+                        status="warn" if tot["bajo"] else "ok",
+                        sub=f"<b>{fmt.fmt_pct(1 - tot['pct_ok'])}</b> del total"),
+                ], columns=1)
+            with c2:
+                _ocupacion_table(r)
+
+    subsection("Uso de 20 ST",
+               f"Un 20 ST con ocupación menor al {umbral} no es necesariamente una mala decisión: se considera "
+               "justificado si el embarque lleva SKU nuevos o top ranking (Embarques Históricos).")
+    with guard("Uso de 20 ST"):
+        justif = rk.justificaciones_producto(bundle.get("emb_hist"))
+        u = rk.uso_20st(occ, justif) if len(occ) else rk.Uso20()
+        if not u.total:
+            empty("Sin 20 ST en el período.")
+        else:
+            motivos = " · ".join(f"{k}: <b>{fmt.fmt_int(v)}</b>" for k, v in u.por_motivo.items())
+            pct = u.pct_justificados
+            kpi_row([
+                KPI("20 ST utilizados", fmt.fmt_int(u.total)),
+                KPI(f"Con ocupación < {umbral}", fmt.fmt_int(u.bajos),
+                    sub=f"<b>{fmt.fmt_pct(u.bajos / u.total)}</b> de los 20 ST"),
+                KPI("Justificados", fmt.fmt_int(u.justificados) if u.tiene_campo else "—",
+                    sub=(motivos + " (un embarque puede tener los dos)") if u.tiene_campo else "Sin datos suficientes"),
+                KPI("% de 20 ST bajos justificados", fmt.fmt_pct(pct) if pct == pct else "—",
+                    status=("ok" if pct >= 0.5 else "warn") if pct == pct else "",
+                    sub=f"KPI principal · sin justificar: <b>{fmt.fmt_int(u.bajos - u.justificados)}</b>"),
+            ])
+            if len(u.detalle):
+                with st.expander(f"Ver los {fmt.fmt_int(len(u.detalle))} embarques en 20 ST con baja ocupación"):
+                    data_table(u.detalle.sort_values("etd"), [
+                        ColSpec("embarque", "Embarque"), ColSpec("etd", "ETD", "date"),
+                        ColSpec("forwarder", "Forwarder"), ColSpec("puerto", "Puerto"),
+                        ColSpec("contenedores", "Cont.", "int"), ColSpec("m3", "M3", "num"),
+                        ColSpec("ocupacion", "Ocupación", "pct"), ColSpec("justificacion", "Justificación"),
+                    ], key="res_20st", filename="20st_baja_ocupacion", search=False)
+
+
+
+def render_especiales(bundle, filters, numerado: bool = False) -> None:
+    """Cargas IMO / DG: costo y tiempo contra carga comparable."""
+    z, aer_z, periodo = _zarpados_periodo(bundle, filters)
+    titulo = (lambda tt, sub: block(5, tt, sub)) if numerado else section
+    titulo("Cargas especiales", f"¿Qué impacto tienen las cargas IMO / DG? Embarques que zarparon {periodo}. "
+            "Costos y tiempos por mediana, comparados solo contra carga comparable (mismo mes y tipo de "
+            "contenedor / origen).")
+    c_mar, c_aer = st.columns(2, gap="medium")
+    with c_mar, guard("IMO marítimo"):
+        st.markdown('<div class="row-label">Marítimo · IMO</div>', unsafe_allow_html=True)
+        if len(z) and "dg" in z:
+            _especial_cards(rk.imo_maritimo(z), "Marítimo")
+            st.caption("Columna «DG» de Reservas Históricas. Comparable: mismo tipo de contenedor, mes de ETD y destino.")
+        else:
+            empty("Sin columna DG en Reservas Históricas.")
+    with c_aer, guard("DG aéreo"):
+        st.markdown('<div class="row-label">Aéreo · DG</div>', unsafe_allow_html=True)
+        if len(aer_z) and "dg" in aer_z:
+            _especial_cards(rk.dg_aereo(aer_z), "Aéreo")
+            st.caption("Columna «CARGA IMO» de Seguimiento Aéreos, sin courier. USD/kg = flete total / chargeable. "
+                       "Comparable: mismo mes de ETD y origen.")
+        else:
+            empty("Sin columna CARGA IMO en Seguimiento Aéreos.")
+

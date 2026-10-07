@@ -27,24 +27,24 @@ def diagnostico(df: pd.DataFrame, dims: list[dg.Dimension], valor: str, limite: 
     con_lim = limite is not None and t["fuera"].sum() > 0
     show = pd.DataFrame({
         nombres[elegido]: t["grupo"],
-        "Ops": t["ops"].astype(int),
+        "Ops": t["ops"].map(lambda v: fmt.fmt_int(v)),
         "Mediana (d)": t["mediana"].round(0),
         "P90 (d)": t["p90"].round(0),
     })
     config = {
         nombres[elegido]: st.column_config.TextColumn(nombres[elegido], width="medium"),
-        "Ops": st.column_config.NumberColumn("Ops", help=f"Cantidad de {unidad}"),
+        "Ops": st.column_config.TextColumn("Ops", help=f"Cantidad de {unidad}"),
         "Mediana (d)": st.column_config.NumberColumn("Mediana (d)", format="%d"),
         "P90 (d)": st.column_config.NumberColumn("P90 (d)", format="%d",
                                                  help="El 10 % más lento tarda más que esto"),
     }
     if con_lim:
-        show["Fuera"] = t["fuera"].astype(int)
+        show["Fuera"] = t["fuera"].map(lambda v: fmt.fmt_int(v))
         show["% fuera"] = (t["pct_fuera"] * 100).round(0)
         show["Explica del desvío"] = (t["contrib"] * 100).round(0)
         show["Exceso (d)"] = t["exceso"].round(0)
         config.update({
-            "Fuera": st.column_config.NumberColumn("Fuera", help="Operaciones que superan su objetivo"),
+            "Fuera": st.column_config.TextColumn("Fuera", help="Operaciones que superan su objetivo"),
             "% fuera": st.column_config.NumberColumn("% fuera", format="%d %%",
                                                      help="Fuera / operaciones con objetivo"),
             "Explica del desvío": st.column_config.ProgressColumn(

@@ -208,20 +208,27 @@ def costo(pagos: pd.DataFrame, pagos_all: pd.DataFrame, t: pd.Timestamp) -> Indi
         destino="fletes")
 
 
-def captura(nor: pd.DataFrame, nor_prev: pd.DataFrame | None) -> Indicador:
-    """Ahorro capturado por la gestión. Hoy: ahorro por usar 40 NOR (la rebaja negociada se suma en la fase 3)."""
-    v = float(nor["ahorro"].sum()) if len(nor) else 0.0
-    v0 = float(nor_prev["ahorro"].sum()) if nor_prev is not None and len(nor_prev) else 0.0
-    d = v - v0 if nor_prev is not None else np.nan
+def captura(nor: pd.DataFrame, nor_prev: pd.DataFrame | None, neg: pd.DataFrame | None = None,
+            neg_prev: pd.DataFrame | None = None, hay_negociacion: bool = False) -> Indicador:
+    """Ahorro capturado por la gestión: negociación de tarifas + uso de 40 NOR (utils.captura)."""
+    from utils import captura as cap
+    r = cap.resumen(neg, nor)
+    v = r["total"]
+    d = np.nan
+    if nor_prev is not None:
+        r0 = cap.resumen(neg_prev, nor_prev)
+        d = v - r0["total"]
+    neg_txt = (f"negociación <b>{fmt.fmt_usd(r['negociacion'])}</b>" if hay_negociacion
+               else "negociación: falta la solapa sin negociar")
     return Indicador(
         "Captura acumulada", fmt.fmt_usd(v),
-        sub=(f"40 NOR <b>{fmt.fmt_usd(v)}</b> ({fmt.fmt_int(nor['contenedores'].sum()) if len(nor) else 0} cont.) · "
-             f"negociación de tarifas: se suma en la fase 3"),
-        delta=f"{_flecha(d)} {fmt.fmt_usd(abs(d))} vs mismo período del año anterior ({fmt.fmt_usd(v0)})"
-              if d == d else "",
+        sub=f"{neg_txt} · 40 NOR <b>{fmt.fmt_usd(r['nor'])}</b>",
+        delta=(f"{_flecha(d)} {fmt.fmt_usd(abs(d))} vs mismo período del año anterior ({fmt.fmt_usd(r0['total'])})"
+               if d == d else ""),
         tono=_tono(d, mejor_si_baja=False),
-        ayuda="Lo que la gestión ahorró y se puede sumar. Hoy incluye el ahorro por usar 40 NOR en lugar de "
-              "40 ST/HQ (mediana pagada ese mes). La rebaja obtenida al negociar las tarifas se agrega en la fase 3.",
+        ayuda="Lo que la gestión ahorró y se puede sumar: rebaja al negociar las tarifas (tarifa sin negociar − "
+              "negociada, en los embarques que salieron con esa tarifa) + uso de 40 NOR en lugar de 40 ST/HQ "
+              "(mediana pagada ese mes). No incluye la posición contra el mercado.",
         destino="fletes")
 
 
@@ -229,7 +236,7 @@ def vs_mercado(pct: float, n: int, pct_last: float, pct_prev: float, t: pd.Times
     """pct_last / pct_prev = NaN cuando ese mes tiene pocos embarques comparados."""
     tol = settings.PAGADO_VS_MERCADO_TOLERANCIA
     if n < settings.MIN_SAMPLE or pct != pct:
-        return Indicador("Pagado vs mercado", "—", sub="Sin cotizaciones para comparar", destino="cotizaciones",
+        return Indicador("Pagado vs mercado", "—", sub="Sin cotizaciones para comparar", destino="fletes",
                          ayuda="Flete pagado por contenedor contra la mediana de mercado del mes (cotizaciones).")
     estado = "ok" if pct <= 0 else ("warn" if pct <= tol else "bad")
     last, prev = _meses(t)
@@ -243,7 +250,7 @@ def vs_mercado(pct: float, n: int, pct_last: float, pct_prev: float, t: pd.Times
         ayuda=("Flete pagado contra la mediana de mercado del mes (mejor tarifa de cada forwarder cotizada para ese "
                "tipo de contenedor y destino), ponderado por contenedores. Negativo = pagamos menos que el mercado. "
                f"Verde ≤ 0 %, ámbar hasta +{fmt.fmt_pct(tol)}, rojo por encima."),
-        destino="cotizaciones")
+        destino="fletes")
 
 
 def ventana_anterior(start: pd.Timestamp, end: pd.Timestamp) -> tuple[pd.Timestamp, pd.Timestamp]:

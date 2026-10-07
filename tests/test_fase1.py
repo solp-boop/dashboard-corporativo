@@ -157,3 +157,52 @@ def test_diagnostico_delta_vs_anterior():
     prev = pd.DataFrame({"embarque": ["C"], "dias": [15.0], "sla": [25.0], "puerto": ["X"]})
     t = dg.explicar(act, "puerto", "dias", "sla", prev=prev)
     assert t.iloc[0]["delta"] == 10
+
+
+# ---------------------------------------------------------------- fase 3: captura y costos
+def test_captura_por_negociacion_asigna_tarifa_vigente_y_parecida():
+    from utils import captura as cap
+    hist = pd.DataFrame({
+        "embarque": ["A", "B", "C"], "forwarder": ["Delfin"] * 3, "puerto": ["Ningbo"] * 3,
+        "tipo_ctnr": ["40ST/40HQ"] * 3, "contenedores": [2.0, 1.0, 1.0], "flete_por_ctnr": [1000.0, 2000.0, 1000.0],
+        "f_instruccion": [ts("2026-05-05"), ts("2026-05-05"), ts("2026-07-01")], "etd": [ts("2026-05-20")] * 3,
+    })
+    neg = pd.DataFrame({"forwarder": ["DELFIN"], "puerto": ["ningbo"], "tipo_ctnr": ["40ST/40HQ"],
+                        "validez_desde": [ts("2026-05-01")], "validez_hasta": [ts("2026-05-15")],
+                        "flete_original": [1200.0], "flete_negociado": [1000.0], "rebaja": [200.0]})
+    c = cap.por_negociacion(hist, neg)
+    assert list(c["embarque"]) == ["A"]                # B pagó muy distinto; C fuera de vigencia
+    assert c.iloc[0]["captura"] == 400.0               # 200 × 2 contenedores
+
+
+def test_captura_oportunidades_y_mensual():
+    from utils import captura as cap
+    h = pd.DataFrame({"embarque": ["A", "B"], "forwarder": ["X", "X"], "puerto": ["P", "P"], "tipo_ctnr": ["20ST"] * 2,
+                      "contenedores": [1.0, 2.0], "flete_por_ctnr": [1200.0, 900.0], "mercado_mes": [1000.0, 1000.0]})
+    op = cap.oportunidades(h)
+    assert op.iloc[0]["en_juego"] == 200.0             # solo A pagó por encima
+    nor = pd.DataFrame({"mes": [ts("2026-05-01")], "ahorro": [50.0], "contenedores": [1.0]})
+    neg = pd.DataFrame({"mes": [ts("2026-05-01"), ts("2026-06-01")], "captura": [10.0, 20.0], "contenedores": [1, 1]})
+    g = cap.mensual(neg, nor)
+    assert list(g["total"]) == [60.0, 20.0] and g["acumulado"].iloc[-1] == 80.0
+
+
+def test_costos_por_dimension():
+    from utils import costos as cs
+    d = pd.DataFrame({"embarque": ["A", "B", "C"], "forwarder": ["X", "X", "Y"], "costo": [100.0, 300.0, 100.0],
+                      "flete_por_ctnr": [50.0, 70.0, 40.0], "mercado_mes": [60.0, 60.0, np.nan],
+                      "contenedores": [1.0, 1.0, 1.0], "fob": [1000.0, 1000.0, 0.0]})
+    t = cs.por_dimension(d, "forwarder")
+    assert t.iloc[0]["grupo"] == "X" and abs(t.iloc[0]["pct_gasto"] - 0.8) < 1e-9
+    assert abs(t.iloc[0]["incidencia"] - 0.2) < 1e-9 and abs(t.iloc[0]["vs_mercado"] - 0.0) < 1e-9
+
+
+def test_captura_no_cuenta_si_pago_la_tarifa_original():
+    from utils import captura as cap
+    hist = pd.DataFrame({"embarque": ["A"], "forwarder": ["Delfin"], "puerto": ["Ningbo"], "tipo_ctnr": ["20ST"],
+                         "contenedores": [1.0], "flete_por_ctnr": [5400.0], "f_instruccion": [ts("2026-05-05")],
+                         "etd": [ts("2026-05-20")]})
+    neg = pd.DataFrame({"forwarder": ["Delfin"], "puerto": ["Ningbo"], "tipo_ctnr": ["20ST"],
+                        "validez_desde": [ts("2026-05-01")], "validez_hasta": [ts("2026-05-15")],
+                        "flete_original": [5170.0], "flete_negociado": [4700.0], "rebaja": [470.0]})
+    assert cap.por_negociacion(hist, neg).empty

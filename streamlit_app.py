@@ -51,39 +51,26 @@ from components.layout import guard, load_css, page_header  # noqa: E402
 from services.data_loader import SourceError, clear_cache, get_data  # noqa: E402
 from utils.logger import get_logger  # noqa: E402
 from views import (  # noqa: E402
-    accion, agentes, analistas, buscar, calidad, cotizaciones, embarques, fletes_pagados, historico, lead_times, panorama,
-    pipeline, resumen,
+    accion, buscar, calidad, costos, lead_times, operacion, panorama,
 )
 
 log = get_logger("app")
 load_css()
 
+PAGE_BUSCAR = st.Page(buscar.render, title="Buscar SO / embarque", icon=":material/search:", url_path="buscar")
 PAGES = {
     "General": [
         st.Page(panorama.render, title="Panorama", icon=":material/dashboard:", url_path="panorama", default=True),
-        # Temporal: su contenido se reparte en Tiempos, Costos y Operación en las fases 2 a 4.
-        st.Page(resumen.render, title="Resumen completo", icon=":material/view_agenda:", url_path="resumen"),
+    ],
+    "Análisis": [
+        st.Page(lead_times.render, title="Tiempos", icon=":material/timer:", url_path="sla"),
+        st.Page(costos.render, title="Costos y captura", icon=":material/payments:", url_path="fletes"),
+        st.Page(operacion.render, title="Operación en curso", icon=":material/directions_boat:", url_path="embarques"),
     ],
     "Acción": [
         st.Page(accion.render, title="Bandeja de acción", icon=":material/task_alt:", url_path="accion"),
-        st.Page(buscar.render, title="Buscar SO / embarque", icon=":material/search:", url_path="buscar"),
+        PAGE_BUSCAR,
         st.Page(calidad.render, title="Salud de datos", icon=":material/health_and_safety:", url_path="calidad"),
-    ],
-    "Operación": [
-        st.Page(pipeline.render, title="Pipeline de origen", icon=":material/inventory_2:", url_path="pipeline"),
-        st.Page(embarques.render, title="Embarques en curso", icon=":material/directions_boat:", url_path="embarques"),
-    ],
-    "Desempeño": [
-        st.Page(lead_times.render, title="Tiempos", icon=":material/timer:", url_path="sla"),
-        st.Page(agentes.render, title="Agentes", icon=":material/local_shipping:", url_path="agentes"),
-        st.Page(analistas.render, title="Analistas", icon=":material/groups:", url_path="analistas"),
-        st.Page(historico.render, title="Histórico", icon=":material/insights:", url_path="historico"),
-    ],
-    "Gastos": [
-        st.Page(fletes_pagados.render, title="Fletes y gastos pagados", icon=":material/payments:",
-                url_path="fletes"),
-        st.Page(cotizaciones.render, title="Cotizaciones", icon=":material/request_quote:",
-                url_path="cotizaciones"),
     ],
 }
 
@@ -92,6 +79,17 @@ pg = st.navigation(PAGES, position="sidebar")
 with st.sidebar:
     st.markdown('<div class="side-brand">BIDCOM · Comex</div>'
                 '<div class="side-sub">Logística internacional</div>', unsafe_allow_html=True)
+    # Buscador fijo: lleva a la ficha de la operación desde cualquier página.
+    def _buscar_global():
+        q = (st.session_state.get("global_q") or "").strip()
+        if q:
+            st.session_state["search_q"] = q
+            st.session_state["_ir_a_buscar"] = True
+
+    st.text_input("Buscar SO / embarque", key="global_q", placeholder="SO-12345 o FCL 2544",
+                  label_visibility="collapsed", on_change=_buscar_global)
+    if st.session_state.pop("_ir_a_buscar", False) and pg.url_path != "buscar":
+        st.switch_page(PAGE_BUSCAR)
     if st.button("↻  Actualizar datos", width="stretch", type="primary",
                  help="Vuelve a consultar la planilla (los datos se refrescan solos cada 10 minutos)."):
         clear_cache()
