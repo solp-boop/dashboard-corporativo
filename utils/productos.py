@@ -31,6 +31,8 @@ def base_lines(eh: pd.DataFrame, today: pd.Timestamp) -> pd.DataFrame:
 
 
 def _solo_destino(d: pd.DataFrame) -> pd.DataFrame:
+    if d.empty:
+        return d
     if settings.PRODUCTOS_DESTINO and "destino" in d:
         from utils.data_cleaning import fold
         return d[d["destino"].map(lambda v: fold(v) == fold(settings.PRODUCTOS_DESTINO) if isinstance(v, str) else False)]

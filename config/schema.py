@@ -136,6 +136,9 @@ HISTORICAS = DatasetSchema(
         # contenedor, el análisis de 20 ST la toma sola.
         C("prioridad_carga", "Prioridad", "Prioridad de carga", "Prioridad carga", "Motivo uso 20 ST",
           "Justificacion 20 ST", "Justificación 20 ST", kind="category"),
+        # Para el health check: la planilla calcula «Dif pagado vs mercado» = pagado − «Flete int + economico».
+        C("dif_mercado_planilla", "Dif pagado vs mercado", kind="number"),
+        C("flete_economico", "Flete int + economico", "Flete int + económico", kind="number"),
     ),
 )
 
@@ -261,6 +264,10 @@ EMB_HIST = DatasetSchema(
         C("tiempo_consolidacion", "Tiempo de consolidacion", "Tiempo de consolidación", kind="number"),
         C("estructura_eh", "¿ES MONOPROVEEDOR?", kind="category"),
         C("destino", "Destino", kind="category"),
+        # Drill-down por proveedor y category manager; «Motivo» se lee para el health check.
+        C("proveedor", "Proveedor", kind="category"),
+        C("category", "Category", "Category Manager", kind="category"),
+        C("motivo_eh", "Motivo", kind="category"),
     ),
 )
 

@@ -51,8 +51,8 @@ from components.layout import guard, load_css, page_header  # noqa: E402
 from services.data_loader import SourceError, clear_cache, get_data  # noqa: E402
 from utils.logger import get_logger  # noqa: E402
 from views import (  # noqa: E402
-    agentes, alertas, analistas, buscar, calidad, cotizaciones, embarques, fletes_pagados, historico, lead_times, pipeline,
-    resumen,
+    accion, agentes, analistas, buscar, calidad, cotizaciones, embarques, fletes_pagados, historico, lead_times, panorama,
+    pipeline, resumen,
 )
 
 log = get_logger("app")
@@ -60,7 +60,14 @@ load_css()
 
 PAGES = {
     "General": [
-        st.Page(resumen.render, title="Resumen", icon=":material/dashboard:", url_path="resumen", default=True),
+        st.Page(panorama.render, title="Panorama", icon=":material/dashboard:", url_path="panorama", default=True),
+        # Temporal: su contenido se reparte en Tiempos, Costos y Operación en las fases 2 a 4.
+        st.Page(resumen.render, title="Resumen completo", icon=":material/view_agenda:", url_path="resumen"),
+    ],
+    "Acción": [
+        st.Page(accion.render, title="Bandeja de acción", icon=":material/task_alt:", url_path="accion"),
+        st.Page(buscar.render, title="Buscar SO / embarque", icon=":material/search:", url_path="buscar"),
+        st.Page(calidad.render, title="Salud de datos", icon=":material/health_and_safety:", url_path="calidad"),
     ],
     "Operación": [
         st.Page(pipeline.render, title="Pipeline de origen", icon=":material/inventory_2:", url_path="pipeline"),
@@ -77,11 +84,6 @@ PAGES = {
                 url_path="fletes"),
         st.Page(cotizaciones.render, title="Cotizaciones", icon=":material/request_quote:",
                 url_path="cotizaciones"),
-    ],
-    "Control": [
-        st.Page(alertas.render, title="Alertas", icon=":material/notifications:", url_path="alertas"),
-        st.Page(buscar.render, title="Buscar SO / embarque", icon=":material/search:", url_path="buscar"),
-        st.Page(calidad.render, title="Calidad de datos", icon=":material/fact_check:", url_path="calidad"),
     ],
 }
 

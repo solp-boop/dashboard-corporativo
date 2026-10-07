@@ -16,10 +16,13 @@ class KPI:
     sub: str = ""            # texto secundario (puede traer <b>…</b> ya escapado)
     status: str = ""         # "", "ok", "warn", "bad"
     badge: str = ""          # texto corto del estado (ej. "Fuera de SLA")
-    help: str = ""           # tooltip nativo
+    help: str = ""           # explicación: se muestra en el ⓘ junto al nombre
+    delta: str = ""          # tendencia, p. ej. "▼ 7 pp sep vs ago"
+    tono: str = ""           # good | bad | neutral: color de la tendencia
+    link: str = ""           # url_path de la página de detalle: la tarjeta entera es un enlace
 
 
-def kpi_row(kpis: list[KPI], columns: int | None = None, extra_html: str = "") -> None:
+def kpi_row(kpis: list[KPI], columns: int | None = None, extra_html: str = "", cls: str = "") -> None:
     """Fila de tarjetas. extra_html se agrega dentro de la misma grilla (p. ej. un panel que ocupa varias columnas)."""
     n = columns or max(1, len(kpis))
     cards = []
@@ -27,16 +30,17 @@ def kpi_row(kpis: list[KPI], columns: int | None = None, extra_html: str = "") -
         badge = f'<span class="badge {k.status or "info"}">{esc(k.badge)}</span>' if k.badge else ""
         unit = f'<span class="unit">{esc(k.unit)}</span>' if k.unit else ""
         sub = f'<div class="sub">{k.sub}</div>' if k.sub else ""
-        title = f' title="{esc(k.help)}"' if k.help else ""
-        cards.append(
-            f'<div class="kpi {k.status}"{title}><div class="label">{esc(k.label)}</div>'
-            f'<div class="value">{esc(k.value)}{unit}{badge}</div>{sub}</div>'
-        )
-    st.markdown(
-        f'<div class="kpi-grid" style="grid-template-columns: repeat({n}, minmax(0, 1fr));">'
-        + "".join(cards) + extra_html + "</div>",
-        unsafe_allow_html=True,
-    )
+        info = f'<span class="info" title="{esc(k.help)}">ⓘ</span>' if k.help else ""
+        delta = f'<div class="delta {k.tono or "neutral"}">{esc(k.delta)}</div>' if k.delta else ""
+        body = (f'<div class="label">{esc(k.label)}{info}</div>'
+                f'<div class="value">{esc(k.value)}{unit}{badge}</div>{delta}{sub}')
+        if k.link:
+            cards.append(f'<a class="kpi kpi-link {k.status}" href="{esc(k.link)}" target="_self">{body}</a>')
+        else:
+            cards.append(f'<div class="kpi {k.status}">{body}</div>')
+    grid = (f'<div class="kpi-grid" style="grid-template-columns: repeat({n}, minmax(0, 1fr));">'
+            + "".join(cards) + extra_html + "</div>")
+    st.markdown(f'<div class="{esc(cls)}">{grid}</div>' if cls else grid, unsafe_allow_html=True)
 
 
 def cert_status(pct: float) -> tuple[str, str]:

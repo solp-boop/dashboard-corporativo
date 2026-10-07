@@ -25,6 +25,19 @@ def esc(v) -> str:
     return html.escape(str(v))
 
 
+def _salud_html(bundle) -> str:
+    """Semáforo de salud de datos para el encabezado (enlaza a Salud de datos). Nunca rompe la página."""
+    try:
+        import pandas as pd
+        from utils import salud
+        estado, n_mal, casos = salud.resumen(salud.controles_cache(bundle, pd.Timestamp.today().normalize()))
+    except Exception:
+        return ""
+    txt = ("Datos: sin problemas" if estado == "ok" else
+           f"Datos: {n_mal} {'control' if n_mal == 1 else 'controles'} con problemas · {fmt.fmt_int(casos)} casos")
+    return f'<br><a class="health {estado}" href="calidad" target="_self"><i></i>{esc(txt)}</a>'
+
+
 def page_header(page_title: str, bundle: DataBundle | None, filters: FilterState | None) -> None:
     meta = ""
     if bundle is not None:
@@ -37,7 +50,7 @@ def page_header(page_title: str, bundle: DataBundle | None, filters: FilterState
             mod_txt = (f"<br>Última edición de la planilla: <b>"
                        f"{fmt.fmt_datetime(modified.astimezone(ZoneInfo(settings.TIMEZONE)))}</b>")
         meta = (f"Última actualización de datos: <b>{fmt.fmt_datetime(bundle.loaded_at)}</b>"
-                f"{mod_txt}")
+                f"{mod_txt}{_salud_html(bundle)}")
     ftxt = f'<div class="filters">{esc(filters.describe())}</div>' if filters else ""
     st.markdown(
         f"""<div class="dash-header">

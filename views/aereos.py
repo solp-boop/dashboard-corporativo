@@ -78,7 +78,7 @@ def render_en_curso(bundle=None, filters=None) -> None:
             KPI("FOB activo", fmt.fmt_usd(act["fob"].sum())),
             KPI("Chargeable weight", fmt.fmt_int(act["chargeable"].sum()), unit="kg"),
             KPI("En riesgo", fmt.fmt_int(len(en_riesgo)), status="bad" if len(en_riesgo) else "ok",
-                sub="fuera del SLA de su tipo, sin ETD OK · detalle en Control → Alertas"),
+                sub="fuera del SLA de su tipo, sin ETD OK · detalle en la Bandeja de acción"),
         ])
 
     section("Operaciones por tipo de negocio",

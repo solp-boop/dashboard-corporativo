@@ -96,7 +96,7 @@ def render() -> None:
                 KPI("Volumen activo", fmt.fmt_int(mar["m3"].sum()), unit="m³"),
                 KPI("FOB activo", fmt.fmt_usd(mar["fob"].sum())),
                 KPI("En riesgo", fmt.fmt_int(len(riesgo_mar)), status="bad" if len(riesgo_mar) else "ok",
-                    sub="consolidación fuera de SLA, sin ETD OK · detalle en Control → Alertas"),
+                    sub="consolidación fuera de SLA, sin ETD OK · detalle en la Bandeja de acción"),
             ])
 
         section("Consolidación de los embarques en curso",

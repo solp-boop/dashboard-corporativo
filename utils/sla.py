@@ -38,6 +38,22 @@ def monthly_compliance(d: pd.DataFrame) -> pd.DataFrame:
     return x.groupby("mes").agg(pct=("ok", "mean"), n=("ok", "size")).reset_index()
 
 
+def zarpados_con_reservas(hist: pd.DataFrame, reservas: pd.DataFrame | None, today: pd.Timestamp) -> pd.DataFrame:
+    """Marítimos ya zarpados: Reservas Históricas + los que zarparon y siguen en Reservas (ETD ≤ hoy).
+
+    Un embarque queda en Reservas después de zarpar hasta que se pasa a Históricas; si figura en las
+    dos solapas, se usa el de Históricas.
+    """
+    real = zarpados(hist, today)
+    if reservas is None or reservas.empty:
+        return real
+    r = reservas[reservas["modo"].isin(MODOS_MARITIMOS) & (reservas["etd"] <= today)]
+    if "responsable" in r:
+        r = r[r["responsable"].notna()]
+    r = r[~dc.id_key(r["embarque"]).isin(set(dc.id_key(real["embarque"])))]
+    return pd.concat([real, r], ignore_index=True, sort=False) if len(r) else real
+
+
 def projected_month(hist: pd.DataFrame, reservas: pd.DataFrame | None, month: pd.Timestamp,
                     today: pd.Timestamp) -> pd.DataFrame:
     """Mes en curso proyectado: zarpados del mes + Reservas marítimas con ETD en el mes.

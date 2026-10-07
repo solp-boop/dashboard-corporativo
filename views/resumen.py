@@ -498,7 +498,7 @@ def render() -> None:
                     sub=f"<b>{fmt.fmt_pct(s_m / n_m if n_m else np.nan)}</b> de {fmt.fmt_int(n_m)} con dato · "
                         f"SLA {lim_mono} d (ETD desde 01/10), 10 d antes"),
                 KPI("Con margen de acción", fmt.fmt_int(margen), status="bad" if margen else "ok",
-                    sub="pasados del tope y todavía sin ETD OK FFWW · detalle en Control → Alertas"),
+                    sub="pasados del tope y todavía sin ETD OK FFWW · detalle en la Bandeja de acción"),
             ])
             sin = int((~con_dato).sum())
             if sin:

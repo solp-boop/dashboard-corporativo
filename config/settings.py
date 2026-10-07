@@ -217,3 +217,10 @@ PRODUCTOS_DESTINO = "Argentina"
 SHIPPERS_EXCLUIR = ("no aplica", "sin shipper", "no encontrado", "directo bidcom", "wacom")
 # Palabras societarias que no distinguen a un shipper («DROP TRADING LIMITED» = «Drop Trading»).
 SHIPPERS_SUFIJOS = ("LIMITED", "LTD", "LLC", "INC", "CO", "CORP", "COMPANY", "SA", "SRL")
+
+# Salud de datos (health check)
+SALUD_DIAS_SIN_SO = 15                  # un embarque zarpado hace más de esto debería tener sus SO en Embarques Históricos
+SALUD_DIAS_HABILES_SIN_EDICION = 2      # planilla sin ediciones por más de esto = desactualizada
+
+# Panorama: pagado vs mercado. Verde ≤ 0 % (pagamos menos que la mediana de mercado), ámbar hasta esta tolerancia.
+PAGADO_VS_MERCADO_TOLERANCIA = 0.05
