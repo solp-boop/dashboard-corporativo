@@ -180,6 +180,11 @@ AEREOS = DatasetSchema(
         C("gastos_origen", "Gastos en Origen", kind="number"),
         C("gastos_locales", "Gastos Locales", kind="number"),
         C("dg", "CARGA IMO", "Carga IMO", "DG", kind="flag"),
+        # Hitos de liberación en Argentina: traen textos («No aplica», «Pendiente»), se leen como texto
+        # y se convierten a fecha en la vista para no marcarlos como error en Salud de datos.
+        C("ok_avance_raw", "OK DE AVANCE", "OK de avance", kind="text"),
+        C("f_fondos_raw", "Fecha ACREDITACION FONDOS", "Fecha acreditacion fondos", kind="text"),
+        C("f_oficializacion_raw", "Fecha oficializacion", "Fecha oficialización", kind="text"),
     ),
 )
 

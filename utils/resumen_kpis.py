@@ -280,7 +280,7 @@ def tt_por_puerto(z: pd.DataFrame, today: pd.Timestamp, meses: int = 3) -> tuple
     """
     hasta = today.to_period("M").to_timestamp()
     desde = hasta - pd.DateOffset(months=meses)
-    d = z[(z["etd"] >= desde) & (z["etd"] < hasta)].dropna(subset=["dias_tt", "puerto"])
+    d = z[(z["etd"] >= desde) & (z["etd"] < hasta) & (z["eta"] <= today)].dropna(subset=["dias_tt", "puerto"])
     if d.empty:
         return pd.DataFrame(), desde, hasta
     definido = d["sla_puerto_definido"].fillna(False).astype(bool) if "sla_puerto_definido" in d else True

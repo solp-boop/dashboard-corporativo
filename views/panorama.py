@@ -68,7 +68,7 @@ def _tiempos(bundle, filters, t) -> list[pan.Indicador]:
     if a_f is not None:
         out.append(pan.punta_aereo(sla_view.air_zarpados(a_f, t), sla_view.air_zarpados(a_all, t), t))
     if h_f is not None:
-        out.append(pan.punta_maritimo(z, z_all, t))
+        out.append(pan.punta_maritimo(z[z["eta"] <= t], z_all[z_all["eta"] <= t], t))   # ETA futura = estimada
     if bundle.get("emb_hist") is not None and len(bundle.get("emb_hist")):
         du = productos.base_universo(bundle.get("emb_hist"), t, bundle.get("aereos"), bundle.get("planif"))
         out.append(pan.time_to_market(productos.objetivo_universo(du, t)))

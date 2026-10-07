@@ -204,8 +204,13 @@ def parse_sla_table(grid: list[list]) -> pd.DataFrame:
         vals = [dc.parse_number_value(r[idx + k])[0] for k in range(3)]
         rows.append([port, *vals])
     out = pd.DataFrame(rows, columns=cols)
-    out["puerto"] = dc.apply_aliases(out["puerto"], mappings.VALUE_ALIASES.get("puerto"))
-    out["puerto_key"] = out["puerto"].map(dc.fold)
+    # «Ningbo-Monoproducto»: targets propios para monoproveedor (tránsito y total). La clave es
+    # «<puerto> monoproducto», con el puerto unificado igual que el resto («Nangtong» → «Nantong»).
+    mono = out["puerto"].astype(str).str.contains(r"(?i)-\s*monoproducto\s*$", regex=True)
+    base = out["puerto"].astype(str).str.replace(r"(?i)\s*-\s*monoproducto\s*$", "", regex=True)
+    base = dc.apply_aliases(base, mappings.VALUE_ALIASES.get("puerto"))
+    out["puerto"] = np.where(mono, base + "-Monoproducto", base)
+    out["puerto_key"] = base.map(dc.fold) + np.where(mono, " monoproducto", "")
     return out.drop_duplicates("puerto_key")
 
 
@@ -219,12 +224,21 @@ def add_sla(df: pd.DataFrame, sla: pd.DataFrame, cons_fijo: bool = False) -> pd.
     port_tt = key.map(lookup["sla_tt"]) if not sla.empty else np.nan
     port_total = key.map(lookup["sla_total"]) if not sla.empty else np.nan
 
+    es_mono = df["estructura"] == "Monoproveedor"
+    if not sla.empty:
+        # Monoproveedor: tránsito y total del renglón «<puerto>-Monoproducto» de Validaciones, si existe.
+        key_mono = key.map(lambda k: f"{k} monoproducto" if k else "")
+        tiene_mono = es_mono & key_mono.isin(lookup.index)
+        port_tt = pd.Series(port_tt, index=df.index).where(~tiene_mono, key_mono.map(lookup["sla_tt"]))
+        port_total = pd.Series(port_total, index=df.index).where(~tiene_mono, key_mono.map(lookup["sla_total"]))
     df["sla_puerto_definido"] = key.isin(lookup.index) if not sla.empty else False
     cons = pd.Series(port_cons, index=df.index, dtype=float).fillna(settings.SLA_CONSOLIDACION_DEFAULT)
+    mono_sla = calc.sla_mono(df["etd"]).values
+    # SLA de consolidación por puerto (lo que corresponde una vez zarpado), aunque en curso se use el tope fijo.
+    df["sla_cons_puerto"] = np.where(es_mono, mono_sla, cons)
     if cons_fijo:
         cons = pd.Series(float(settings.SLA_CONSOLIDACION_DEFAULT), index=df.index)
-    df["sla_consolidacion"] = np.where(df["estructura"] == "Monoproveedor",
-                                       calc.sla_mono(df["etd"]).values, cons)
+    df["sla_consolidacion"] = np.where(es_mono, mono_sla, cons)
     df["sla_tt"] = pd.Series(port_tt, index=df.index, dtype=float).fillna(settings.SLA_TT_DEFAULT)
     df["sla_total"] = pd.Series(port_total, index=df.index, dtype=float).fillna(settings.SLA_TOTAL_DEFAULT)
     df["estado_consolidacion"] = calc.semaforo(df["dias_consolidacion"], df["sla_consolidacion"])
@@ -250,7 +264,8 @@ METRIC_LABELS = {
     "dias_consolidacion": "consolidación (packeo → ETD)", "dias_tt": "tránsito (ETD → ETA)",
     "dias_total": "total (fin de producción → ETA)", "desvio_etd": "desvío ETD vs estimada",
     "dias_espera": "espera (packeo mín. → máx.)", "dias_packeo_wh": "packeo → WH",
-    "dias_wh_etd": "WH → ETD", "dias_etd_eta": "ETD → ETA", "dias_eta_caldas": "ETA → Caldas",
+    "dias_wh_etd": "WH → ETD", "dias_wh_instr": "WH → instrucción", "dias_instr_etd": "instrucción → ETD",
+    "dias_etd_eta": "ETD → ETA", "dias_eta_caldas": "ETA → Caldas",
     "dias_total_aereo": "total aéreo (packeo → Caldas)",
 }
 
@@ -266,6 +281,8 @@ MARITIME_DURATIONS = {
 AIR_DURATIONS = {
     "dias_packeo_wh": ("f_ingreso_wh", "f_packeo_min"),
     "dias_wh_etd": ("etd", "f_ingreso_wh"),
+    "dias_wh_instr": ("f_instruccion", "f_ingreso_wh"),
+    "dias_instr_etd": ("etd", "f_instruccion"),
     "dias_etd_eta": ("eta", "etd"),
     "dias_eta_caldas": ("eta_caldas", "eta"),
     "dias_total_aereo": ("eta_caldas", "f_packeo_min"),

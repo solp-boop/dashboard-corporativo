@@ -131,3 +131,29 @@ def test_sla_zarpados_con_reservas():
                         "etd": [ts("2026-09-01"), ts("2026-09-20"), ts("2026-10-20")], "responsable": ["a"] * 3})
     z = sla.zarpados_con_reservas(hist, res, HOY)
     assert sorted(z["embarque"]) == ["FCL 1", "FCL 2"]      # FCL 1 una sola vez; FCL 3 todavía no zarpó
+
+
+# ---------------------------------------------------------------- fase 2: diagnóstico
+def test_diagnostico_contribucion_y_multiple():
+    from utils import diagnostico as dg
+    df = pd.DataFrame({
+        "embarque": ["A", "B", "C", "D"], "dias": [30.0, 40.0, 10.0, 50.0], "sla": [25.0] * 4,
+        "puerto": ["Ningbo", "Ningbo", "Shekou", None],
+        "proveedores": [["P1"], ["P1", "P2"], ["P2"], []],
+    })
+    t = dg.explicar(df, "puerto", "dias", "sla")
+    assert t.iloc[0]["grupo"] == "Ningbo" and t.iloc[0]["fuera"] == 2
+    assert abs(t.iloc[0]["contrib"] - 2 / 3) < 1e-9
+    assert t.iloc[-1]["grupo"] == dg.SIN_DATO                       # «Sin dato» siempre al final
+    tp = dg.explicar(df, "proveedores", "dias", "sla").set_index("grupo")
+    assert tp.loc["P1", "ops"] == 2 and tp.loc["P2", "ops"] == 2     # B cuenta en los dos proveedores
+    assert list(dg.casos(df, "proveedores", "P2")["embarque"]) == ["B", "C"]
+    assert list(dg.casos(df, "puerto", dg.SIN_DATO)["embarque"]) == ["D"]
+
+
+def test_diagnostico_delta_vs_anterior():
+    from utils import diagnostico as dg
+    act = pd.DataFrame({"embarque": ["A", "B"], "dias": [20.0, 30.0], "sla": [25.0, 25.0], "puerto": ["X", "X"]})
+    prev = pd.DataFrame({"embarque": ["C"], "dias": [15.0], "sla": [25.0], "puerto": ["X"]})
+    t = dg.explicar(act, "puerto", "dias", "sla", prev=prev)
+    assert t.iloc[0]["delta"] == 10

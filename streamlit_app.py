@@ -74,7 +74,7 @@ PAGES = {
         st.Page(embarques.render, title="Embarques en curso", icon=":material/directions_boat:", url_path="embarques"),
     ],
     "Desempeño": [
-        st.Page(lead_times.render, title="Lead times y SLA", icon=":material/timer:", url_path="sla"),
+        st.Page(lead_times.render, title="Tiempos", icon=":material/timer:", url_path="sla"),
         st.Page(agentes.render, title="Agentes", icon=":material/local_shipping:", url_path="agentes"),
         st.Page(analistas.render, title="Analistas", icon=":material/groups:", url_path="analistas"),
         st.Page(historico.render, title="Histórico", icon=":material/insights:", url_path="historico"),

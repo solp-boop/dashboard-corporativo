@@ -388,9 +388,9 @@ def render() -> None:
     with c_mar, guard("Transit time marítimo"):
         st.markdown('<div class="row-label">Marítimo</div>', unsafe_allow_html=True)
         if len(z):
-            pct_tt, ok_tt, n_tt = rk.tt_vs_objetivo(z)
+            pct_tt, ok_tt, n_tt = rk.tt_vs_objetivo(z[z["eta"] <= t])
             enough = n_tt >= settings.MIN_SAMPLE
-            _tt_cards(rk.transit_time(z, "dias_tt", settings.TT_MARITIMO_UMBRAL, t),
+            _tt_cards(rk.transit_time(z[z["eta"] <= t], "dias_tt", settings.TT_MARITIMO_UMBRAL, t),
                       f"{settings.TT_MARITIMO_UMBRAL} días",
                       KPI("Tránsito en objetivo", fmt.fmt_pct(pct_tt) if enough else "—",
                           status=("ok" if pct_tt >= settings.CUMPLIMIENTO_OBJETIVO else "bad") if enough else "",
@@ -417,7 +417,7 @@ def render() -> None:
     with c_mar, guard("Punta a punta marítimo"):
         st.markdown('<div class="row-label">Marítimo</div>', unsafe_allow_html=True)
         if len(z) and "dias_total" in z:
-            _punta_maritimo(z)
+            _punta_maritimo(z[z["eta"] <= t])   # solo lo que ya llegó: una ETA futura es estimada
         else:
             empty()
     with c_aer, guard("Punta a punta aéreo"):

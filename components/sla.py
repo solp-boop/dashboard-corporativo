@@ -115,7 +115,8 @@ def air_chart(a: pd.DataFrame, today: pd.Timestamp, key: str, height: int = 300)
     charts.show(fig, key=key)
 
 
-TIPO_LABEL = {"REPUESTOS": "Repuestos", "MUESTRAS": "Muestras", "DJI AGRAS": "DJI Agras", "MARCAS": "Marcas"}
+TIPO_LABEL = {"REPUESTOS": "Repuestos", "MUESTRAS": "Muestras", "DJI AGRAS": "DJI Agras", "MARCAS": "Marcas",
+              "DJI": "DJI", "GADNIC": "GADNIC"}
 
 
 def air_table(a: pd.DataFrame, today: pd.Timestamp) -> pd.DataFrame:

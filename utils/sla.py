@@ -51,6 +51,10 @@ def zarpados_con_reservas(hist: pd.DataFrame, reservas: pd.DataFrame | None, tod
     if "responsable" in r:
         r = r[r["responsable"].notna()]
     r = r[~dc.id_key(r["embarque"]).isin(set(dc.id_key(real["embarque"])))]
+    if len(r) and "sla_cons_puerto" in r:
+        # Ya zarpó: se mide contra el SLA del puerto (en curso se usa el tope fijo de 25 d).
+        r = r.assign(sla_consolidacion=r["sla_cons_puerto"])
+        r = r.assign(estado_consolidacion=calc.semaforo(r["dias_consolidacion"], r["sla_consolidacion"]))
     return pd.concat([real, r], ignore_index=True, sort=False) if len(r) else real
 
 
@@ -63,7 +67,7 @@ def projected_month(hist: pd.DataFrame, reservas: pd.DataFrame | None, month: pd
     dos solapas, se usa el de Históricas (dato real).
     """
     m_end = month + pd.offsets.MonthBegin(1)
-    real = zarpados(hist, today)
+    real = zarpados_con_reservas(hist, reservas, today)
     real = real[(real["etd"] >= month) & (real["etd"] < m_end)].assign(origen="Zarpado")
     if reservas is None or reservas.empty:
         return real
@@ -121,8 +125,16 @@ class Cierre:
 
 def scorecard(hist: pd.DataFrame, reservas: pd.DataFrame | None, period: pd.DataFrame,
               today: pd.Timestamp, mes_label) -> Cierre:
-    """Tabla: período | mes anterior | mes cerrado | variación | mes en curso (zarpado / proyectado)."""
-    z = zarpados(hist, today)
+    """Tabla: período | mes anterior | mes cerrado | variación | mes en curso (zarpado / proyectado).
+
+    Zarpado = Históricas + lo que ya salió y sigue en Reservas. El total (fin de producción → ETA) solo
+    cuenta embarques que ya llegaron (una ETA futura es estimada)."""
+    z = zarpados_con_reservas(hist, reservas, today)
+
+    def celda_(d, key):
+        if key == "total" and "eta" in d:
+            d = d[d["eta"] <= today]
+        return celda(d, key)
     this_month = today.to_period("M").to_timestamp()
     last = this_month - pd.offsets.MonthBegin(1)
     prev = last - pd.offsets.MonthBegin(1)
@@ -135,7 +147,7 @@ def scorecard(hist: pd.DataFrame, reservas: pd.DataFrame | None, period: pd.Data
             f"{mes_label(this_month)} · zarpados", f"{mes_label(this_month)} · proyectado"]
     filas = []
     for key, label, *_ in INDICADORES:
-        c_last, c_prev = celda(d_last, key), celda(d_prev, key)
+        c_last, c_prev = celda_(d_last, key), celda_(d_prev, key)
         if c_last.valor == c_last.valor and c_prev.valor == c_prev.valor:
             diff = c_last.valor - c_prev.valor
             if key == "cumplimiento":
@@ -144,6 +156,6 @@ def scorecard(hist: pd.DataFrame, reservas: pd.DataFrame | None, period: pd.Data
                 var = f"{'▲' if diff > 0 else '▼' if diff < 0 else '='} {abs(round(diff))} d"
         else:
             var = "—"
-        filas.append((label, [celda(period, key), c_prev, c_last, var,
-                              celda(d_cur, key), celda(d_proj, key)]))
+        filas.append((label, [celda_(period, key), c_prev, c_last, var,
+                              celda_(d_cur, key), celda(d_proj, key)]))
     return Cierre(cols, filas)

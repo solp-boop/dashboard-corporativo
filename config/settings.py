@@ -89,6 +89,8 @@ DURATION_RANGES: dict[str, tuple[int, int]] = {
     # Aéreos
     "dias_packeo_wh": (0, 120),
     "dias_wh_etd": (0, 90),
+    "dias_wh_instr": (-30, 90),         # se puede instruir antes del ingreso al WH
+    "dias_instr_etd": (0, 90),
     "dias_etd_eta": (0, 45),
     "dias_eta_caldas": (0, 45),
     "dias_total_aereo": (0, 240),

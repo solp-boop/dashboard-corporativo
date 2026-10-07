@@ -134,7 +134,7 @@ def punta_maritimo(z: pd.DataFrame, z_all: pd.DataFrame, t: pd.Timestamp) -> Ind
         sub=f"{fmt.fmt_pct(pct)} dentro del SLA total del puerto" if n else "",
         delta=f"{_flecha(d)} {fmt.fmt_int(abs(d))} d {_mes(last)} vs {_mes(prev)}" if d == d else "",
         tono=_tono(d, mejor_si_baja=True),
-        ayuda=("Mediana de fin de producción → ETA. El estado compara el % dentro del SLA total de cada puerto "
+        ayuda=("Mediana de fin de producción → ETA, solo embarques que ya llegaron. El estado compara el % dentro del SLA total de cada puerto "
                f"(Validaciones) con el objetivo de {fmt.fmt_pct(obj)}."),
         destino="sla")
 
@@ -215,7 +215,8 @@ def captura(nor: pd.DataFrame, nor_prev: pd.DataFrame | None) -> Indicador:
     d = v - v0 if nor_prev is not None else np.nan
     return Indicador(
         "Captura acumulada", fmt.fmt_usd(v),
-        sub=f"ahorro por usar 40 NOR · {fmt.fmt_int(nor['contenedores'].sum()) if len(nor) else 0} contenedores",
+        sub=(f"40 NOR <b>{fmt.fmt_usd(v)}</b> ({fmt.fmt_int(nor['contenedores'].sum()) if len(nor) else 0} cont.) · "
+             f"negociación de tarifas: se suma en la fase 3"),
         delta=f"{_flecha(d)} {fmt.fmt_usd(abs(d))} vs mismo período del año anterior ({fmt.fmt_usd(v0)})"
               if d == d else "",
         tono=_tono(d, mejor_si_baja=False),
