@@ -854,36 +854,39 @@ def render_especiales(bundle, filters, numerado: bool = False) -> None:
 
 
 def render_proyeccion(bundle, filters) -> None:
-    """Lo que viene: reservas que no pasaron a Históricas, aéreos activos y SO por reservar, por mes de ETD."""
+    """Lo que viene: Planif cargas por mes de ETD o ETA, reservado y por reservar."""
     import plotly.graph_objects as go
 
     from components import charts
     from utils import proyeccion as pr
     t = today()
     get = lambda k: filtered(bundle, k, filters, use_period=False) if bundle.get(k) is not None else None  # noqa: E731
-    d = pr.base(get("reservas"), get("planif"), get("aereos"), get("historicas"), t)
-    tab = pr.mensual(d, t)
+    d = pr.base(get("reservas"), get("planif"), get("historicas"))
     subsection("Proyección · próximos meses",
-               "Todo lo que está en Reservas o Planificación y todavía no pasó a Históricas, por mes de ETD: "
-               "reservas, aéreos activos y SO sin embarque asignado. Lo de meses anteriores se agrupa en "
-               "«Anterior». Contenedores de lo no reservado estimados a "
-               f"{settings.M3_POR_CONTENEDOR} m³ por contenedor.")
-    if tab.empty:
-        empty("Sin reservas ni SO planificadas pendientes.")
+               "Todo lo que está en Planif cargas (mismo m³ y FOB origen que la planilla). Contenedores: los "
+               "reales del embarque si ya está en Reservas; si no, estimados a "
+               f"{settings.M3_POR_CONTENEDOR} m³ por contenedor. Lo de meses anteriores se agrupa en «Anterior».")
+    if d.empty:
+        empty("Sin SO en Planif cargas.")
         return
+    c1, c2 = st.columns([1, 1])
+    fecha_lbl = c2.segmented_control("Fecha", ["ETD", "ETA"], default="ETD", key="proy_fecha",
+                                     label_visibility="collapsed") or "ETD"
+    fecha = fecha_lbl.lower()
+    tab = pr.mensual(d, t, fecha=fecha)
     tot = tab.iloc[-1]
     kpi_row([
         KPI("Contenedores", fmt.fmt_int(tot["contenedores_total"]), sub="reservados y estimados"),
         KPI("Volumen", fmt.fmt_int(tot["m3"]), unit="m³"),
-        KPI("FOB", fmt.fmt_usd(tot["fob"]), sub="reservas: FOB real · SO: FOB origen"),
+        KPI("FOB", fmt.fmt_usd(tot["fob"]), sub="FOB total origen (Planif cargas)"),
         KPI("Monoproveedor / consolidado", f"{fmt.fmt_pct(tot['pct_mono'])} / {fmt.fmt_pct(tot['pct_cons'])}",
             sub="sobre m³"),
     ])
     metricas = {"Contenedores": ("contenedores", "contenedores"), "M3": ("m3", "m³"), "FOB": ("fob", "USD")}
-    elegido = st.segmented_control("Medida", list(metricas), default="Contenedores", key="proy_metric",
+    elegido = c1.segmented_control("Medida", list(metricas), default="Contenedores", key="proy_metric",
                                    label_visibility="collapsed") or "Contenedores"
     col, unidad = metricas[elegido]
-    g = pr.por_estructura(d, t)
+    g = pr.por_estructura(d, t, fecha=fecha)
     months = sorted(g["mes"].unique())
     labels = [pr.etiqueta(m, t) for m in months]
     colores = {"Monoproveedor": settings.SERIES[0], "Consolidado": settings.SERIES[2],
@@ -901,8 +904,8 @@ def render_proyeccion(bundle, filters) -> None:
                     textposition="top center", textfont=dict(size=11, color=settings.COLORS["slate"]))
     fig.update_layout(barmode="stack")
     charts.theme(fig, height=360, y_title=unidad)
-    chart_title(f"{elegido} por mes de ETD, monoproveedor y consolidado",
-                "Anterior: ETD de meses pasados, todavía en Reservas / Planificación · * mes en curso")
+    chart_title(f"{elegido} por mes de {fecha_lbl}, monoproveedor y consolidado",
+                f"Anterior: {fecha_lbl} de meses pasados, todavía en Planif cargas · * mes en curso")
     charts.show(fig, key="proy_mes")
 
     with st.expander("Ver en tabla"):
@@ -911,7 +914,8 @@ def render_proyeccion(bundle, filters) -> None:
         styles = pd.Series("", index=show.index)
         styles.iloc[-1] = "font-weight: 600; background-color: rgba(120,130,150,0.10)"
         data_table(show, [
-            ColSpec("mes_txt", "Mes ETD", width="medium"), ColSpec("so_por_reservar", "SO por reservar", "int"),
+            ColSpec("mes_txt", f"Mes {fecha_lbl}", width="medium"), ColSpec("so", "SO", "int"),
+            ColSpec("so_por_reservar", "SO por reservar", "int"),
             ColSpec("contenedores_total", "Contenedores", "int"), ColSpec("m3", "M3", "num"),
             ColSpec("fob", "FOB (USD)", "usd"), ColSpec("pct_mono", "% Mono", "pct"),
             ColSpec("pct_cons", "% Consolidado", "pct"),

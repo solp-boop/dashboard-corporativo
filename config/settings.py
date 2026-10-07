@@ -222,6 +222,7 @@ SHIPPERS_SUFIJOS = ("LIMITED", "LTD", "LLC", "INC", "CO", "CORP", "COMPANY", "SA
 
 # Salud de datos (health check)
 SALUD_DIAS_SIN_SO = 15                  # un embarque zarpado hace más de esto debería tener sus SO en Embarques Históricos
+SALUD_DESDE = "2026-01-01"              # completitud y controles de formato: registros con fecha desde acá
 SALUD_DIAS_HABILES_SIN_EDICION = 2      # planilla sin ediciones por más de esto = desactualizada
 
 # Panorama: pagado vs mercado. Verde ≤ 0 % (pagamos menos que la mediana de mercado), ámbar hasta esta tolerancia.

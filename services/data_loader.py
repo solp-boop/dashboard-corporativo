@@ -68,6 +68,11 @@ class DatasetQuality:
     complete_rows: int = 0
     # celdas con error de fórmula (#N/A, #REF!, #VALUE!…): columna -> (celdas, valores, ejemplos de registro)
     error_cells: dict[str, tuple[int, str, str]] = field(default_factory=dict)
+    # filas de la planilla (columna «_fila» de cada dataset) con cada problema: (tipo, columna) -> [filas]
+    # tipo: "error" | "invalido" | "rango". Sirve para acotar los controles (desde 2026, ETD OK, etc.).
+    issue_rows: dict[tuple[str, str], list[int]] = field(default_factory=dict)
+    # filas con datos cuya referencia (Embarque / SO) es un error de fórmula (#N/A…): se descartan, pero se avisan
+    ref_errores: list[dict] = field(default_factory=list)
 
     @property
     def complete_pct(self) -> float:
@@ -130,6 +135,16 @@ def grid_to_frame(schema: DatasetSchema, grid: list[list], colmap: dict[str, int
 # ---------------------------------------------------------------------------
 # Tipado
 # ---------------------------------------------------------------------------
+def _filas(mask) -> list[int]:
+    """Número de fila de la planilla (encabezado = fila 1) de las filas marcadas."""
+    if mask is None:
+        return []
+    return [int(i) + FILA_OFFSET for i in mask[mask.fillna(False).astype(bool)].index]
+
+
+FILA_OFFSET = 2   # grid_to_frame: índice 0 = fila 2 de la solapa
+
+
 def type_columns(df: pd.DataFrame, schema: DatasetSchema, q: DatasetQuality) -> pd.DataFrame:
     out = pd.DataFrame(index=df.index)
     for col in schema.columns:
@@ -139,12 +154,15 @@ def type_columns(df: pd.DataFrame, schema: DatasetSchema, q: DatasetQuality) -> 
                 out[col.name], st_ = dc.parse_dates(s)
                 if st_.invalid:
                     q.invalid_values[col.display] = st_.invalid
+                    q.issue_rows[("invalido", col.display)] = _filas(st_.invalid_mask)
                 if st_.out_of_range:
                     q.out_of_range[col.display] = st_.out_of_range
+                    q.issue_rows[("rango", col.display)] = _filas(st_.range_mask)
             elif col.kind == "number":
                 out[col.name], st_ = dc.parse_numbers(s)
                 if st_.invalid:
                     q.invalid_values[col.display] = st_.invalid
+                    q.issue_rows[("invalido", col.display)] = _filas(st_.invalid_mask)
             elif col.kind == "flag":
                 out[col.name] = dc.parse_flags(s)
             elif col.kind == "category":
@@ -255,7 +273,11 @@ def add_durations(df: pd.DataFrame, specs: dict[str, tuple[str, str]], q: Datase
             continue
         df[metric], bad = calc.days_between(df[end], df[start], metric)
         if bad:
-            q.out_of_range[f"Tiempo: {METRIC_LABELS.get(metric, metric)}"] = bad
+            label = f"Tiempo: {METRIC_LABELS.get(metric, metric)}"
+            q.out_of_range[label] = bad
+            if "_fila" in df:
+                crudo = (pd.to_datetime(df[end]) - pd.to_datetime(df[start])).dt.days
+                q.issue_rows[("rango", label)] = df.loc[crudo.notna() & df[metric].isna(), "_fila"].astype(int).tolist()
     return df
 
 
@@ -317,6 +339,8 @@ def add_air_sla(df: pd.DataFrame, q: DatasetQuality) -> pd.DataFrame:
     bad = tot.notna() & ((tot < lo) | (tot > hi))
     if bad.any():
         q.out_of_range["Total aéreo (días)"] = int(bad.sum())
+        if "_fila" in df:
+            q.issue_rows[("rango", "Total aéreo (días)")] = df.loc[bad, "_fila"].astype(int).tolist()
     df["dias_aereo"] = tot.mask(bad)
     targets = {k.upper(): v for k, v in settings.SLA_AEREO_POR_TIPO.items()}
     alias = {k.upper(): v.upper() for k, v in settings.SLA_AEREO_ALIAS.items()}
@@ -454,6 +478,7 @@ def finish_dataset(key: str, df: pd.DataFrame, sla: pd.DataFrame, q: DatasetQual
         bad = df["flete"].notna() & (df["flete"] < 100)   # p. ej. "2,7" cargado en miles
         if bad.any():
             q.out_of_range["Valor Flete < USD 100"] = int(bad.sum())
+            q.issue_rows[("rango", "Valor Flete < USD 100")] = df.loc[bad, "_fila"].astype(int).tolist()
         df = df[df["flete"] >= 100].copy()
 
     schema = SCHEMAS[key]
@@ -496,6 +521,7 @@ def scan_error_cells(raw: pd.DataFrame, schema, q: DatasetQuality) -> None:
         if bad.empty:
             continue
         valores = ", ".join(sorted(bad.str.upper().unique()))
+        q.issue_rows[("error", display.get(col, col))] = [int(i) + FILA_OFFSET for i in bad.index]
         ids = (rows.loc[bad.index, schema.id_column].astype(str).head(5).tolist()
                if schema.id_column and schema.id_column in rows and col != schema.id_column else [])
         q.error_cells[display.get(col, col)] = (int(len(bad)), valores, ", ".join(ids))
@@ -514,6 +540,15 @@ def process_dataset(key: str, raw: pd.DataFrame, q: DatasetQuality) -> pd.DataFr
     empty = df.isna().all(axis=1)
     if schema.id_column:
         empty = empty | df[schema.id_column].isna()
+        try:
+            ref = raw[schema.id_column].map(lambda v: isinstance(v, str) and bool(_ERROR_CELDA.match(v.strip())))
+            con_datos = df.drop(columns=[schema.id_column]).notna().any(axis=1)
+            for i in df.index[ref & con_datos]:
+                q.ref_errores.append({"fila": int(i) + FILA_OFFSET, "valor": str(raw.at[i, schema.id_column]).strip(),
+                                      **{c: df.at[i, c] for c in ("f_packeo_min", "etd", "eta", "responsable")
+                                         if c in df}})
+        except Exception:
+            log.exception("Error buscando referencias con error en %s", key)
     q.rows_empty = int(empty.sum())
     df = df[~empty]
 
@@ -527,6 +562,7 @@ def process_dataset(key: str, raw: pd.DataFrame, q: DatasetQuality) -> pd.DataFr
     else:
         df = df.drop_duplicates()
     q.duplicates = before - len(df)
+    df["_fila"] = df.index + FILA_OFFSET   # fila de la planilla, para decir dónde corregir
     return df.reset_index(drop=True)
 
 

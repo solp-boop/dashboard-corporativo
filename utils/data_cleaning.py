@@ -90,6 +90,8 @@ def clean_text(series: pd.Series) -> pd.Series:
 class ParseStats:
     invalid: int = 0        # texto no vacío que no es fecha/número
     out_of_range: int = 0   # fecha/número detectado pero fuera de rango
+    invalid_mask: pd.Series | None = None   # qué filas (para acotar los controles de calidad)
+    range_mask: pd.Series | None = None
 
     def __add__(self, other: "ParseStats") -> "ParseStats":
         return ParseStats(self.invalid + other.invalid, self.out_of_range + other.out_of_range)
@@ -164,7 +166,8 @@ def parse_dates(series: pd.Series) -> tuple[pd.Series, ParseStats]:
     out = pd.to_datetime(keys.map(mapping), errors="coerce")
     states = keys.map(state)
     stats = ParseStats(invalid=int((states == "invalid").sum()),
-                       out_of_range=int((states == "range").sum()))
+                       out_of_range=int((states == "range").sum()),
+                       invalid_mask=states == "invalid", range_mask=states == "range")
     return out, stats
 
 
@@ -222,7 +225,8 @@ def parse_numbers(series: pd.Series) -> tuple[pd.Series, ParseStats]:
         mapping[key], state[key] = v, st_
     keys = obj.map(lambda v: None if _is_blank(v) else v)
     out = pd.to_numeric(keys.map(mapping), errors="coerce").astype(float)
-    stats = ParseStats(invalid=int((keys.map(state) == "invalid").sum()))
+    states = keys.map(state)
+    stats = ParseStats(invalid=int((states == "invalid").sum()), invalid_mask=states == "invalid")
     return out, stats
 
 

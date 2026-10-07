@@ -18,9 +18,9 @@ from zoneinfo import ZoneInfo
 ORDER = ["reservas", "historicas", "aereos", "planif", "emb_hist", "cotizaciones"]
 
 
-def problem_rows(key: str, df: pd.DataFrame) -> pd.DataFrame:
+def problem_rows(key: str, df: pd.DataFrame, fields: dict | None = None) -> pd.DataFrame:
     """Registros con campos clave vacíos, con la lista de lo que falta."""
-    fields = {c: lbl for c, lbl in KEY_FIELDS.get(key, {}).items() if c in df}
+    fields = {c: lbl for c, lbl in (fields if fields is not None else KEY_FIELDS.get(key, {})).items() if c in df}
     if not fields:
         return pd.DataFrame()
     id_col = "embarque" if "embarque" in df else ("so" if "so" in df else None)
@@ -33,6 +33,7 @@ def problem_rows(key: str, df: pd.DataFrame) -> pd.DataFrame:
     })
     if "etd" in df:
         out["etd"] = df.loc[has, "etd"]
+    out["fila"] = df.loc[has, "_fila"].map(lambda v: str(int(v)) if pd.notna(v) else "") if "_fila" in df else ""
     return out.sort_values("n", ascending=False)
 
 
@@ -58,13 +59,14 @@ def _health_check(bundle) -> None:
             fmt.fmt_datetime(mod.astimezone(ZoneInfo(settings.TIMEZONE))).split()[0] if mod else "—"),
     ])
     tabla = pd.DataFrame([{"control": c.nombre, "detecta": c.detecta, "casos": c.n if c.disponible else None,
-                           "estado": ESTADO_ICONO[c.estado], "donde": c.donde, "accion": c.accion,
+                           "estado": ESTADO_ICONO[c.estado], "solapa": c.solapas, "columna": c.columna,
+                           "accion": c.accion,
                            "_orden": {"Roto": 0, "A revisar": 1, "OK": 2, "Sin datos": 3}[c.estado]} for c in ctrls])
     tabla = tabla.sort_values(["_orden", "casos"], ascending=[True, False])
     data_table(tabla, [
         ColSpec("estado", "Estado"), ColSpec("control", "Control"), ColSpec("casos", "Casos", "int"),
-        ColSpec("detecta", "Qué detecta", width="large"), ColSpec("donde", "Dónde se corrige"),
-        ColSpec("accion", "Acción"),
+        ColSpec("solapa", "Solapa a corregir", width="medium"), ColSpec("columna", "Columna", width="medium"),
+        ColSpec("accion", "Acción"), ColSpec("detecta", "Qué detecta", width="large"),
     ], key="salud_controles", filename="salud_de_datos_controles", search=False)
     con_casos = sorted([c for c in ctrls if c.disponible and c.n], key=lambda c: (c.severidad != "bad", -c.n))
     if not con_casos:
@@ -72,11 +74,14 @@ def _health_check(bundle) -> None:
     nombres = {c.clave: f"{ESTADO_ICONO[c.estado]} · {c.nombre} · {fmt.plural(c.n, 'caso')}" for c in con_casos}
     elegido = st.selectbox("Ver casos de", list(nombres), format_func=nombres.get, key="salud_ver")
     c = next(x for x in con_casos if x.clave == elegido)
-    data_table(c.casos, [
-        ColSpec("solapa", "Solapa"), ColSpec("registro", "Registro / columna"), ColSpec("fecha", "Fecha", "date"),
-        ColSpec("responsable", "Responsable"), ColSpec("detalle", "Detalle", width="large"),
+    casos = c.casos.assign(fila=c.casos["fila"].map(lambda v: str(int(v)) if pd.notna(v) else ""))
+    data_table(casos, [
+        ColSpec("solapa", "Solapa"), ColSpec("registro", "Registro / columna"), ColSpec("fila", "Fila"),
+        ColSpec("fecha", "Fecha", "date"), ColSpec("responsable", "Responsable"),
+        ColSpec("detalle", "Detalle", width="large"),
     ], key=f"salud_{c.clave}", filename=f"salud_{c.clave}", search=c.n > 15,
-        caption=f"Acción: {c.accion} · se corrige en {c.donde}")
+        caption=f"Acción: {c.accion} · solapa {c.solapas}" + (f" · columna {c.columna}" if c.columna not in ("", "—") else "")
+                + " · Fila = número de fila en la solapa")
 
 
 def render() -> None:
@@ -90,8 +95,10 @@ def render() -> None:
     with guard("Salud de datos"):
         _health_check(bundle)
 
-    section("Completitud por solapa", "Registros leídos, excluidos y % con todos los campos clave. Las cifras de «base "
-            "completa» no dependen de los filtros.")
+    section("Completitud por solapa",
+            f"Registros con fecha desde {pd.Timestamp(settings.SALUD_DESDE):%Y} (o sin fecha). En Reservas, los campos "
+            "clave se controlan solo con la instrucción enviada y los problemas de formato solo con «ETD OK FFWW». "
+            "Fila = número de fila en la solapa.")
     _completitud(bundle, filters)
 
 
@@ -111,52 +118,67 @@ def _completitud(bundle, filters) -> None:
                         st.caption("Columnas obligatorias faltantes: " + ", ".join(q.missing_required))
                     continue
                 df = bundle.get(key)
-                f = apply_filters(df, filters)
-                fields = [c for c in KEY_FIELDS.get(key, {}) if c in f]
+                en_campos, en_prob = salud.alcance(key, df)
+                base = df[en_campos]
+                labels = {c: l for c, l in KEY_FIELDS.get(key, {}).items() if c in df}
+                if key == "reservas":
+                    labels.pop("f_instruccion", None)   # el alcance ya exige la instrucción
+                fields = list(labels)
+                completo = base[fields].notna().all(axis=1).mean() if len(base) and fields else float("nan")
+                f = apply_filters(base, filters)
                 complete_f = f[fields].notna().all(axis=1).mean() if len(f) and fields else float("nan")
                 total_leido = q.rows_raw - q.rows_empty
+                desde = pd.Timestamp(settings.SALUD_DESDE)
+                alc = f"desde {desde:%Y}" + (" con instrucción enviada" if key == "reservas" else "")
                 kpi_row([
                     KPI("Registros leídos", fmt.fmt_int(total_leido),
                         sub=f"{fmt.fmt_int(q.rows_empty)} filas vacías ignoradas"),
                     KPI("Excluidos", fmt.fmt_int(q.rows_filler + q.duplicates),
                         sub=f"<b>{fmt.fmt_int(q.rows_filler)}</b> sin datos / proyección · "
                             f"<b>{fmt.fmt_int(q.duplicates)}</b> duplicados"),
-                    KPI("Registros válidos", fmt.fmt_int(q.rows_final)),
-                    KPI("% completos (base)", fmt.fmt_pct(q.complete_pct),
-                        status="ok" if q.complete_pct >= .9 else ("warn" if q.complete_pct >= .7 else "bad"),
-                        sub="Con todos los campos clave"),
+                    KPI("Controlados", fmt.fmt_int(len(base)), sub=f"de {fmt.fmt_int(q.rows_final)} válidos"),
+                    KPI("% completos", fmt.fmt_pct(completo),
+                        status="ok" if completo >= .9 else ("warn" if completo >= .7 else "bad"),
+                        sub="con todos los campos clave"),
                     KPI("% completos (filtros)", fmt.fmt_pct(complete_f), sub=f"{fmt.fmt_int(len(f))} registros filtrados"),
                 ])
-                c1, c2 = st.columns(2, gap="medium")
+                c1, c2 = st.columns([2, 3], gap="medium")
                 with c1:
-                    rows = [{"campo": k, "faltan": v, "pct": v / q.rows_final if q.rows_final else 0}
-                            for k, v in q.missing_key_fields.items()]
-                    data_table(pd.DataFrame(rows).sort_values("faltan", ascending=False), [
-                        ColSpec("campo", "Campo clave"), ColSpec("faltan", "Registros sin dato", "int"),
-                        ColSpec("pct", "% sin dato", "pct"),
-                    ], key=f"dq_fields_{key}", filename=f"calidad_campos_{key}", search=False)
+                    n = len(base)
+                    rows = [{"campo": lbl, "faltan": int(base[c].isna().sum()),
+                             "pct": base[c].isna().mean() if n else 0} for c, lbl in labels.items()]
+                    if rows:
+                        data_table(pd.DataFrame(rows).sort_values("faltan", ascending=False), [
+                            ColSpec("campo", "Campo clave"), ColSpec("faltan", "Registros sin dato", "int"),
+                            ColSpec("pct", "% sin dato", "pct"),
+                        ], key=f"dq_fields_{key}", filename=f"calidad_campos_{key}", search=False,
+                            caption=f"Registros {alc}")
                 with c2:
-                    issues = [{"tipo": "Valor no convertible", "campo": k, "n": v} for k, v in q.invalid_values.items()]
-                    issues += [{"tipo": "Fuera de rango", "campo": k, "n": v} for k, v in q.out_of_range.items()]
-                    issues += [{"tipo": "Columna opcional faltante", "campo": c, "n": None} for c in q.missing_optional]
-                    issues = [{"tipo": f"Error de fórmula ({v})", "campo": c, "n": n}
-                              for c, (n, v, _) in q.error_cells.items()] + issues
+                    fm = salud.formato(bundle)
+                    fm = fm[fm["key"] == key]
+                    issues = [{"tipo": r["tipo_txt"], "campo": r["campo"], "n": r["n"],
+                               "filas": ", ".join(str(x) for x in r["filas"][:6])
+                                        + (f" (+{len(r['filas']) - 6})" if len(r["filas"]) > 6 else "")}
+                              for _, r in fm.iterrows()]
+                    issues += [{"tipo": "Columna opcional faltante", "campo": c, "n": None, "filas": ""}
+                               for c in q.missing_optional]
+                    alc_p = f"desde {desde:%Y}" + (" con «ETD OK FFWW»" if key == "reservas" else "")
                     if issues:
                         data_table(pd.DataFrame(issues), [
                             ColSpec("tipo", "Problema"), ColSpec("campo", "Columna / cálculo"),
-                            ColSpec("n", "Registros", "int"),
+                            ColSpec("n", "Registros", "int"), ColSpec("filas", "Filas en la solapa", width="medium"),
                         ], key=f"dq_issues_{key}", filename=f"calidad_problemas_{key}", search=False,
-                            caption="Los valores no convertibles y fuera de rango se tratan como vacíos")
+                            caption=f"Registros {alc_p} · los valores no convertibles y fuera de rango se tratan "
+                                    "como vacíos")
                     else:
-                        st.caption("Sin problemas de formato detectados.")
-                prob = problem_rows(key, df)
+                        st.caption(f"Sin problemas de formato en los registros {alc_p}.")
+                prob = problem_rows(key, base, labels)
                 if len(prob):
                     with st.expander(f"Ver {fmt.fmt_int(len(prob))} registros con campos clave vacíos"):
                         data_table(prob, [
-                            ColSpec("id", "Registro"), ColSpec("etd", "ETD", "date"),
+                            ColSpec("id", "Registro"), ColSpec("fila", "Fila"), ColSpec("etd", "ETD", "date"),
                             ColSpec("faltan", "Campos vacíos", width="large"), ColSpec("n", "Cantidad", "int"),
                         ], key=f"dq_rows_{key}", filename=f"registros_incompletos_{key}")
-
 
 
 def _targets(bundle) -> None:

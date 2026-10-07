@@ -211,20 +211,51 @@ def test_captura_no_cuenta_si_pago_la_tarifa_original():
 def test_proyeccion_sin_doble_conteo():
     from utils import proyeccion as pr
     hoy = ts("2026-10-07")
-    res = pd.DataFrame({"embarque": ["FCL 1", "FCL 2"], "etd": [ts("2026-10-20"), ts("2026-09-01")],
-                        "contenedores": [2.0, 1.0], "m3": [120.0, 60.0], "fob_real": [1000.0, 1.0],
-                        "fob_simi": [900.0, 1.0], "estructura": ["Consolidado", "Mono"], "modo": ["Marítimo FCL"] * 2})
-    planif = pd.DataFrame({"so": ["SO-1", "SO-2", "SO-3"], "embarque": ["FCL 1", None, None],
-                           "etd": [ts("2026-10-20"), ts("2026-11-10"), ts("2026-11-15")], "m3": [120.0, 59.0, 59.0],
-                           "fob_origen": [1000.0, 500.0, 500.0], "estructura": ["Consolidado", "Monoproveedor",
-                                                                                 "Monoproveedor"], "modo": [None] * 3})
-    d = pr.base(res, planif, None, None, hoy)
+    res = pd.DataFrame({"embarque": ["FCL 1"], "contenedores": [2.0], "estructura": ["Consolidado"]})
+    hist = pd.DataFrame({"embarque": ["FCL 9"]})
+    planif = pd.DataFrame({
+        "so": ["SO-1", "SO-1b", "SO-2", "SO-3", "SO-4", "SO-5"],
+        "embarque": ["FCL 1", "FCL 1", None, None, "FCL 9", None],
+        "etd": [ts("2026-10-20"), ts("2026-10-20"), ts("2026-11-10"), ts("2026-11-15"), ts("2026-08-01"), pd.NaT],
+        "eta": [ts("2026-12-01"), ts("2026-12-01"), pd.NaT, ts("2027-01-05"), ts("2026-09-10"), pd.NaT],
+        "m3": [90.0, 30.0, 59.0, 59.0, 10.0, 5.0], "fob": [1000.0, 0.0, 500.0, 500.0, 50.0, 7.0],
+        "estructura": [None, None, "Monoproveedor", "Monoproveedor", "Consolidado", None],
+        "modalidad": ["Barco Puerto 40 HQ"] * 4 + ["Barco", "Aereo"]})
+    d = pr.base(res, planif, hist)
     t = pr.mensual(d, hoy).set_index("mes")
-    assert t.loc[ts("2026-10-01"), "embarques"] == 1 and t.loc[ts("2026-10-01"), "so_por_reservar"] == 0
-    assert t.loc[ts("2026-11-01"), "contenedores_est"] == 2 and t.loc[ts("2026-11-01"), "fob"] == 1000.0
-    # FCL 2 (ETD pasada, sigue en Reservas) va a «Anterior», no se pierde.
-    assert t.loc[pr.ANTERIOR, "m3"] == 60.0
-    assert t.iloc[-1]["m3"] == 298.0
-    # Ya en Históricas: no se cuenta.
-    d2 = pr.base(res, planif, None, pd.DataFrame({"embarque": ["FCL 2"]}), hoy)
-    assert pr.mensual(d2, hoy).iloc[-1]["m3"] == 238.0
+    # Totales = planilla completa (incluye lo anterior y lo sin fecha).
+    assert t.iloc[-1]["m3"] == 253.0 and t.iloc[-1]["fob"] == 2057.0
+    oct_ = t.loc[ts("2026-10-01")]
+    assert oct_["embarques"] == 1 and oct_["contenedores"] == 2.0 and oct_["so_por_reservar"] == 0
+    assert t.loc[ts("2026-11-01"), "contenedores_est"] == 2
+    assert t.loc[pr.ANTERIOR, "m3"] == 10.0 and t.loc[pr.SIN_FECHA, "contenedores_total"] == 0
+    # Por ETA: SO-2 sin ETA pasa a «Sin fecha».
+    e = pr.mensual(d, hoy, fecha="eta").set_index("mes")
+    assert e.loc[ts("2026-12-01"), "m3"] == 120.0 and e.loc[pr.SIN_FECHA, "m3"] == 64.0
+    g = pr.por_estructura(d, hoy)
+    assert g.loc[g["mes"] == ts("2026-10-01"), "estructura"].tolist() == ["Consolidado"]
+
+
+def test_salud_alcance_formato_y_packeo_sin_fechas():
+    from services.data_loader import DatasetQuality
+    res = pd.DataFrame({
+        "embarque": ["FCL 1", "FCL 2", "FCL 3", "AIR 9"], "_fila": [2, 3, 4, 5],
+        "fecha_ref": [ts("2026-10-10"), ts("2025-06-01"), ts("2026-11-01"), ts("2026-11-01")],
+        "etd": [ts("2026-10-10"), ts("2025-06-01"), ts("2026-11-01"), pd.NaT],
+        "eta": [ts("2026-11-20"), ts("2025-07-01"), pd.NaT, pd.NaT],
+        "f_instruccion": [ts("2026-09-01"), ts("2025-05-01"), pd.NaT, pd.NaT],
+        "etd_ok": [True, True, False, False],
+        "f_packeo_min": [ts("2026-10-01"), ts("2025-05-20"), ts("2026-10-20"), ts("2026-10-20")],
+        "responsable": ["A"] * 4, "forwarder": ["X"] * 4, "estructura": ["Consolidado"] * 4,
+    })
+    campos, prob = salud.alcance("reservas", res)
+    assert campos.tolist() == [True, False, False, False]      # instruida y desde 2026
+    assert prob.tolist() == [True, False, False, False]        # ETD OK y desde 2026
+    q = DatasetQuality("reservas", "Reservas", tab="Reservas", invalid_values={"ETA": 2},
+                       issue_rows={("invalido", "ETA"): [3, 4]})
+    b = SimpleNamespace(get={"reservas": res}.get, quality={"reservas": q}, source_modified={})
+    assert salud.formato(b).empty                               # filas 3 y 4: fuera de alcance
+    c = {x.clave: x for x in salud.controles(b, HOY)}["packeo_sin_fechas"]
+    assert c.casos["registro"].tolist() == ["FCL 3"] and c.casos["fila"].tolist() == [4]
+    assert "ETA con un valor que no es fecha" in c.casos["detalle"].iloc[0]
+    assert c.solapas == "Reservas"
