@@ -28,13 +28,14 @@ def _record_txt(tab: pd.DataFrame) -> str:
     return f"Récord: <b>{fmt.fmt_month(r['mes'], long=True).lower()}</b> · {fmt.fmt_int(r['m3'])} m³"
 
 
-def render_anio(bundle, filters, numerado: bool = True, compacto: bool = False) -> None:
+def render_anio(bundle, filters, numerado: bool = True, compacto: bool = False, shippers: bool = True,
+                sub: str | None = None) -> None:
     """Nuestro año: lo embarcado en el año calendario, total y mes a mes.
 
     compacto=True (Panorama): solo los totales del año y la apertura por medio y estructura."""
     t = today()
     hist = filtered(bundle, "historicas", filters, use_period=False)
-    sub = ("¿Cuánto movimos en el año? Operaciones embarcadas, año calendario completo. El detalle mes a mes y "
+    sub = sub or ("¿Cuánto movimos en el año? Operaciones embarcadas, año calendario completo. El detalle mes a mes y "
            "por shipper está en Operación en curso → Embarcado." if compacto
            else "¿Cuánto movimos? Operaciones embarcadas.")
     (block if numerado else (lambda _n, a, b: section(a, b)))(1, f"Nuestro {t.year}", sub)
@@ -96,8 +97,9 @@ def render_anio(bundle, filters, numerado: bool = True, compacto: bool = False) 
         styles.loc[rec] = "font-weight: 600; background-color: rgba(36,86,166,0.14)"
     data_table(show, cols, key="anio", filename=f"embarques_{t.year}", search=False, row_styles=styles)
 
-    with guard("Shippers"):
-        _shippers(bundle, filters, t)
+    if shippers:
+        with guard("Shippers"):
+            _shippers(bundle, filters, t)
 
 
 def _shippers(bundle, filters, t: pd.Timestamp) -> None:
