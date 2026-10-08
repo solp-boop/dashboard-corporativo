@@ -231,3 +231,6 @@ PAGADO_VS_MERCADO_TOLERANCIA = 0.05
 # Proyección: m³ por contenedor para estimar los contenedores de lo que todavía no tiene reserva
 # (40 HQ de 68 m³ con la ocupación mediana del año, ~87 %).
 M3_POR_CONTENEDOR = 59
+
+# Panorama · «Importadores»: empresas que se muestran (nombre unificado de config/mappings.py).
+IMPORTADORES_PANORAMA = ["Bemotec SRL", "Calitec SRL", "Compra Rapido", "CABA Innovaciones SRL", "Foretec SRL"]

@@ -259,3 +259,23 @@ def test_salud_alcance_formato_y_packeo_sin_fechas():
     assert c.casos["registro"].tolist() == ["FCL 3"] and c.casos["fila"].tolist() == [4]
     assert "ETA con un valor que no es fecha" in c.casos["detalle"].iloc[0]
     assert c.solapas == "Reservas"
+
+
+def test_importadores_sin_doble_conteo_y_filtros():
+    from utils import importadores as imp
+    emp = ["Foretec SRL", "Calitec SRL"]
+    res = pd.DataFrame({"embarque": ["FCL 1"], "empresa": ["Foretec SRL"], "eta": [ts("2026-11-10")],
+                        "modo": ["Marítimo FCL"], "destino": ["Argentina"], "contenedores": [2.0], "fob": [100.0]})
+    hist = pd.DataFrame({"embarque": ["FCL 1", "FCL 2", "AIR 3", "FCL 4", "FCL 5"],
+                         "empresa": ["Foretec SRL", "Foretec SRL", "Foretec SRL", "Foretec SRL", "Bidcom SRL"],
+                         "eta": [ts("2026-11-10"), ts("2026-03-01"), ts("2026-03-01"), ts("2025-12-01"),
+                                 ts("2026-03-01")],
+                         "modo": ["Marítimo FCL", "Marítimo FCL", "Aéreo", "Marítimo FCL", "Marítimo FCL"],
+                         "destino": ["Argentina"] * 5, "contenedores": [9.0, 1.0, 0, 1.0, 1.0],
+                         "fob": [999.0, 50.0, 5.0, 1.0, 1.0]})
+    d = imp.base(res, hist, 2026, emp)
+    r = imp.resumen(d, emp).set_index("empresa", drop=False)
+    assert r.loc["Foretec SRL", "cargas"] == 2 and r.loc["Foretec SRL", "fcl"] == 3 and r.loc["Foretec SRL", "fob"] == 150
+    assert r.loc["Calitec SRL", "cargas"] == 0
+    m = imp.por_mes(d, emp, "cargas")
+    assert m.loc["Total", "Total"] == 2 and m.loc["Foretec SRL", ts("2026-11-01")] == 1

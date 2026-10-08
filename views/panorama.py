@@ -145,6 +145,41 @@ def _atencion(bundle, filters) -> None:
     st.markdown(f'<div class="atencion">{"".join(tiles)}</div>', unsafe_allow_html=True)
 
 
+def _importadores(bundle, filters, t: pd.Timestamp) -> None:
+    from components.tables import ColSpec, data_table
+    from utils import importadores as imp
+    empresas = settings.IMPORTADORES_PANORAMA
+    get = lambda k: filtered(bundle, k, filters, use_period=False) if bundle.get(k) is not None else None  # noqa: E731
+    d = imp.base(get("reservas"), get("historicas"), t.year, empresas)
+    section(f"Importadores · {t.year}",
+            f"Cargas marítimas con destino Argentina y ETA en {t.year} (incluye las que están en tránsito), de "
+            "Reservas y Reservas Históricas. FCL = contenedores. FOB: real si está en Reservas, SIMI en Históricas.")
+    r = imp.resumen(d, empresas)
+    r["nombre"] = r["empresa"].fillna("Total")
+    styles = pd.Series("", index=r.index)
+    styles.iloc[-1] = "font-weight: 600; background-color: rgba(120,130,150,0.10)"
+    data_table(r, [ColSpec("nombre", "Empresa", width="medium"), ColSpec("cargas", "Cargas", "int"),
+                   ColSpec("fcl", "FCL", "int"), ColSpec("fob", "FOB (USD)", "usd")],
+               key="pan_importadores", filename=f"importadores_{t.year}", search=False, row_styles=styles)
+    if d.empty:
+        return
+    medidas = {"Cargas": "cargas", "FCL": "fcl", "FOB": "fob"}
+    elegido = st.segmented_control("Por mes de ETA", list(medidas), default="Cargas", key="pan_imp_medida") or "Cargas"
+    m = imp.por_mes(d, empresas, medidas[elegido])
+    meses = [c for c in m.columns if c != "Total"]
+    show = m.copy()
+    show.columns = [fmt.fmt_month(c).capitalize() if c != "Total" else c for c in m.columns]
+    show = show.reset_index().rename(columns={"empresa": "Empresa"})
+    show.loc[show.index[-1], "Empresa"] = "Total"
+    kind = "usd" if elegido == "FOB" else "int"
+    st_rows = pd.Series("", index=show.index)
+    st_rows.iloc[-1] = "font-weight: 600; background-color: rgba(120,130,150,0.10)"
+    data_table(show, [ColSpec("Empresa", "Empresa", width="medium")]
+               + [ColSpec(c, c, kind) for c in show.columns[1:]],
+               key="pan_importadores_mes", filename=f"importadores_{t.year}_por_mes_eta", search=False,
+               row_styles=st_rows, caption=f"{elegido} por mes de ETA · {len(meses)} meses")
+
+
 def render() -> None:
     bundle, filters = ctx()
     t = today()
@@ -153,6 +188,8 @@ def render() -> None:
         render_anio(bundle, filters, numerado=False, shippers=False, proyeccion=True,
                     sub="¿Cuánto movimos en el año? Operaciones embarcadas, año calendario completo. El detalle por "
                         "shipper está en Operación en curso → Embarcado.")
+    with guard("Importadores"):
+        _importadores(bundle, filters, t)
     section("¿Cómo estamos?",
             f"Embarques que zarparon {periodo_txt(filters)}. Cada recuadro abre su detalle; el ⓘ explica el cálculo.")
     with guard("Tiempos"):
