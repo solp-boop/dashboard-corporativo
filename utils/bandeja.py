@@ -21,7 +21,7 @@ COLUMNAS = ["prioridad", "tipo", "situacion", "accion", "embarque", "so", "prove
             "modo", "f_packeo", "etd", "dias", "sla", "excedido", "causa", "solapa"]
 PRIORIDADES = ["Alta", "Media", "Baja"]
 TIPOS = {"forwarder": "Confirmar o reclamar al forwarder", "sla": "Riesgo de SLA",
-         "cerrado": "Cerrado sin causa", "dato": "Dato a corregir"}
+         "impo2": "Pasar a Impo2", "cerrado": "Cerrado sin causa", "dato": "Dato a corregir"}
 
 # Controles de Salud de datos que se resuelven por registro (los de columna van solo a Salud de datos).
 CONTROLES_POR_REGISTRO = ("llego_en_reservas", "packeo_post_etd", "eta_antes_etd", "sin_so", "duplicado", "criticos")
@@ -65,15 +65,19 @@ def casos_en_curso(res: pd.DataFrame, today: pd.Timestamp) -> list[pd.DataFrame]
 
     # 2 · Zarpó sin documentación (marítimo)
     if "draft_bl" in res and "pl_final" in res:
-        falta = ((res["draft_bl"].fillna("NO").astype(str).str.upper() != "SI")
-                 | (res["pl_final"].fillna("NO").astype(str).str.upper() != "SI"))
+        fdb = res["draft_bl"].fillna("NO").astype(str).str.strip().str.upper() != "SI"
+        fpl = res["pl_final"].fillna("NO").astype(str).str.strip().str.upper() != "SI"
+        falta = fdb | fpl
         m = mar & falta & (res["etd"] < today - pd.Timedelta(days=3))
         d = res[m]
         if len(d):
             out.append(_base(d, tipo=TIPOS["forwarder"],
-                             situacion=d["etd"].map(lambda v: f"Zarpó el {v:%d/%m} sin Draft BL / packing list final"),
-                             accion=d["forwarder"].map(lambda f: f"Reclamar Draft BL y packing list a {f}"
-                                                       if isinstance(f, str) else "Reclamar Draft BL y packing list"),
+                             situacion=[f"Zarpó el {e:%d/%m} y falta: " + " y ".join(
+                                 x for x, f in (("Draft BL", db), ("Packing list final", pl)) if f)
+                                 for e, db, pl in zip(d["etd"], fdb[m], fpl[m])],
+                             accion=[f"Reclamar {' y '.join(x for x, f in (('Draft BL', db), ('packing list', pl)) if f)}"
+                                     + (f" a {fw}" if isinstance(fw, str) else "")
+                                     for fw, db, pl in zip(d["forwarder"], fdb[m], fpl[m])],
                              prioridad="Alta", dias=(today - d["etd"]).dt.days))
 
     # 3 · Instruido sin ETD
@@ -103,6 +107,49 @@ def casos_en_curso(res: pd.DataFrame, today: pd.Timestamp) -> list[pd.DataFrame]
                              prioridad=np.where(ya_pasado.fillna(False) | pronto.fillna(False), "Alta", "Media"),
                              dias=d["dias_consolidacion"], sla=d["sla_consolidacion"], excedido=exc.clip(lower=0)))
     return out
+
+
+def pasado_a_impo2(df: pd.DataFrame) -> pd.Series:
+    """True si el embarque ya está en Importaciones2 (o no aplica).
+
+    Reservas / Históricas: columna «Cargado en Importaciones2» («Cargado…» o «No aplica»).
+    Aéreos (sin esa columna): «Pasado a impo2» con fecha o «No aplica»."""
+    from utils.data_cleaning import fold, parse_date_value
+    estado = df["impo2"] if "impo2" in df else pd.Series(None, index=df.index, dtype=object)
+    fecha = df["f_impo2"] if "f_impo2" in df else pd.Series(None, index=df.index, dtype=object)
+
+    def uno(e, f) -> bool:
+        if isinstance(e, str) and e.strip():
+            fe = fold(e)
+            return fe.startswith("cargado") or "no aplica" in fe
+        if isinstance(f, str) and "no aplica" in fold(f):
+            return True
+        return f is not None and not (isinstance(f, float) and np.isnan(f)) and parse_date_value(f)[0] is not None
+    return pd.Series([uno(e, f) for e, f in zip(estado, fecha)], index=df.index, dtype=bool)
+
+
+def casos_impo2(df: pd.DataFrame | None, today: pd.Timestamp, solapa: str, requiere_ok: bool = True) -> list[pd.DataFrame]:
+    """Zarpó hace IMPO2_DIAS o más, con el OK del agente (ETD OK FFWW), y todavía no está en Importaciones2.
+
+    Históricas no tiene «ETD OK FFWW»: estar ahí ya implica que salió (requiere_ok=False)."""
+    if df is None or df.empty or "etd" not in df:
+        return []
+    ok = df["etd_ok"].fillna(False).astype(bool) if "etd_ok" in df else pd.Series(not requiere_ok, index=df.index)
+    if not requiere_ok:
+        ok = pd.Series(True, index=df.index)
+    limite = today - pd.Timedelta(days=settings.IMPO2_DIAS)
+    m = (df["etd"].notna() & (df["etd"] <= limite) & (df["etd"] >= pd.Timestamp(settings.SALUD_DESDE)) & ok
+         & ~pasado_a_impo2(df))
+    # Los AIR se controlan en Seguimiento Aéreos, no en Reservas / Históricas.
+    m &= ~df["embarque"].astype(str).str.strip().str.upper().str.startswith("AIR")
+    d = df[m]
+    if d.empty:
+        return []
+    dias = (today - d["etd"]).dt.days
+    ok_txt = " con ETD OK" if requiere_ok else ""
+    return [_base(d, tipo=TIPOS["impo2"],
+                  situacion=[f"Salió hace {n} d{ok_txt}: falta pasar a Impo2" for n in dias],
+                  accion="Pasar el embarque a Importaciones2", prioridad="Alta", dias=dias, solapa=solapa)]
 
 
 def casos_aereos(riesgo_aereo: pd.DataFrame, today: pd.Timestamp) -> list[pd.DataFrame]:

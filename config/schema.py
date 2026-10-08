@@ -86,6 +86,8 @@ RESERVAS = DatasetSchema(
         C("f_bl_final", "FECHA ENVIO DEL BL FINAL", kind="date"),
         C("f_confirmacion", "Fecha de confirmación de Salida agente", kind="date"),
         C("tipo_demora", "Tipo de demora", kind="category"),
+        C("impo2", "Cargado en Importaciones2", kind="text"),
+        C("f_impo2", "Pasar a impo2", kind="text"),
     ),
 )
 
@@ -138,6 +140,8 @@ HISTORICAS = DatasetSchema(
           "Justificacion 20 ST", "Justificación 20 ST", kind="category"),
         # Para el health check: la planilla calcula «Dif pagado vs mercado» = pagado − «Flete int + economico».
         C("dif_mercado_planilla", "Dif pagado vs mercado", kind="number"),
+        C("impo2", "Cargado en Importaciones2", kind="text"),
+        C("f_impo2", "Pasar a impo2", kind="text"),
         C("flete_economico", "Flete int + economico", "Flete int + económico", kind="number"),
     ),
 )
@@ -182,6 +186,7 @@ AEREOS = DatasetSchema(
         C("dg", "CARGA IMO", "Carga IMO", "DG", kind="flag"),
         # Hitos de liberación en Argentina: traen textos («No aplica», «Pendiente»), se leen como texto
         # y se convierten a fecha en la vista para no marcarlos como error en Salud de datos.
+        C("f_impo2", "Pasado a impo2", "Pasar a impo2", kind="text"),
         C("ok_avance_raw", "OK DE AVANCE", "OK de avance", kind="text"),
         C("f_fondos_raw", "Fecha ACREDITACION FONDOS", "Fecha acreditacion fondos", kind="text"),
         C("f_oficializacion_raw", "Fecha oficializacion", "Fecha oficialización", kind="text"),

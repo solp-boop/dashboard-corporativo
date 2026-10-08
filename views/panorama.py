@@ -126,12 +126,13 @@ def _atencion(bundle, filters) -> None:
     from views.accion import casos
     df = casos(bundle, filters)
     res = bandeja.resumen_situaciones(df)
-    orden = [bandeja.TIPOS["forwarder"], bandeja.TIPOS["sla"], "datos"]
+    orden = [bandeja.TIPOS["forwarder"], bandeja.TIPOS["impo2"], bandeja.TIPOS["sla"], "datos"]
     datos = res[res["tipo"].isin([bandeja.TIPOS["dato"], bandeja.TIPOS["cerrado"]])]
     filas = {r["tipo"]: (int(r["casos"]), int(r["alta"])) for _, r in res.iterrows()}
     filas["datos"] = (int(datos["casos"].sum()), int(datos["alta"].sum()))
     nombres = {bandeja.TIPOS["forwarder"]: "Confirmar o reclamar al forwarder",
-               bandeja.TIPOS["sla"]: "Operaciones en riesgo de SLA", "datos": "Datos a corregir en la planilla"}
+               bandeja.TIPOS["sla"]: "Operaciones en riesgo de SLA",
+               bandeja.TIPOS["impo2"]: f"Salieron hace {settings.IMPO2_DIAS}+ días y no están en Impo2", "datos": "Datos a corregir en la planilla"}
     alta = int((df["prioridad"] == "Alta").sum()) if len(df) else 0
     section("Necesita atención",
             f"{fmt.fmt_int(len(df))} casos abiertos, {fmt.fmt_int(alta)} de prioridad alta. Cada uno abre la "

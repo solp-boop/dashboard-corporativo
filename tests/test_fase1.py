@@ -279,3 +279,22 @@ def test_importadores_sin_doble_conteo_y_filtros():
     assert r.loc["Calitec SRL", "cargas"] == 0
     m = imp.por_mes(d, emp, "cargas")
     assert m.loc["Total", "Total"] == 2 and m.loc["Foretec SRL", ts("2026-11-01")] == 1
+
+
+def test_bandeja_impo2():
+    res = pd.DataFrame({
+        "embarque": ["FCL 1", "FCL 2", "FCL 3", "FCL 4", "AIR 5", "FCL 6"],
+        "etd": [ts("2026-09-30"), ts("2026-10-05"), ts("2026-09-30"), ts("2026-09-30"), ts("2026-09-01"),
+                ts("2026-09-20")],
+        "etd_ok": [True, True, False, True, True, True],
+        "impo2": ["Falta cargar", "Falta cargar", "Falta cargar", "Cargado en Impo2", "Falta cargar", None],
+        "f_impo2": [None, None, None, None, None, "No aplica"],
+        "forwarder": ["X"] * 6, "responsable": ["A"] * 6,
+    })
+    hoy = ts("2026-10-08")
+    d = bandeja.casos_impo2(res, hoy, "Reservas")[0]
+    # FCL 2: salió hace 3 d · FCL 3: sin OK · FCL 4: cargado · AIR: se ve en aéreos · FCL 6: no aplica
+    assert d["embarque"].tolist() == ["FCL 1"] and d["dias"].iloc[0] == 8 and d["prioridad"].iloc[0] == "Alta"
+    hist = res.drop(columns="etd_ok")
+    assert bandeja.casos_impo2(hist, hoy, "Reservas Historicas", requiere_ok=False)[0]["embarque"].tolist() == \
+        ["FCL 1", "FCL 3"]

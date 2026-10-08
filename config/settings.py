@@ -222,6 +222,7 @@ SHIPPERS_SUFIJOS = ("LIMITED", "LTD", "LLC", "INC", "CO", "CORP", "COMPANY", "SA
 
 # Salud de datos (health check)
 SALUD_DIAS_SIN_SO = 15                  # un embarque zarpado hace más de esto debería tener sus SO en Embarques Históricos
+IMPO2_DIAS = 7                          # días desde la ETD para que un embarque con OK del agente esté en Impo2
 SALUD_DESDE = "2026-01-01"              # completitud y controles de formato: registros con fecha desde acá
 SALUD_DIAS_HABILES_SIN_EDICION = 2      # planilla sin ediciones por más de esto = desactualizada
 

@@ -21,12 +21,17 @@ def casos(bundle, filters) -> pd.DataFrame:
     partes = []
     res, _ = en_curso(bundle, filters)
     partes += bandeja.casos_en_curso(res, t)
+    if res is not None and len(res):
+        partes += bandeja.casos_impo2(res[res["fuente"] == "Reservas"] if "fuente" in res else res, t,
+                                      salud.solapa(bundle, "reservas"))
     if bundle.get("aereos") is not None:
         todos = filtered(bundle, "aereos", filters, use_period=False)
         act = todos[todos["activo"]]
         partes += bandeja.casos_aereos(aereos.riesgo_aereo(act, t) if len(act) else None, t)
     if bundle.get("historicas") is not None:
-        partes += bandeja.casos_cerrados(filtered(bundle, "historicas", filters, use_period=False), t)
+        h = filtered(bundle, "historicas", filters, use_period=False)
+        partes += bandeja.casos_cerrados(h, t)
+        partes += bandeja.casos_impo2(h, t, salud.solapa(bundle, "historicas"), requiere_ok=False)
     partes += bandeja.casos_datos(salud.controles_cache(bundle, t))
     df = bandeja.armar(partes)
     return bandeja.enriquecer(df, bundle.get("planif"), bundle.get("emb_hist"))
@@ -57,11 +62,17 @@ def render() -> None:
         kpi_row([
             KPI("Casos abiertos", fmt.fmt_int(len(df)), status="bad" if alta else "warn",
                 sub=f"<b>{fmt.fmt_int(alta)}</b> de prioridad alta · {fmt.fmt_int(df['embarque'].nunique())} registros",
-                help="Prioridad alta: sale en 3 días o menos, zarpó sin documentación o ya se pasa del SLA."),
+                help="Prioridad alta: sale en 3 días o menos, zarpó sin documentación, salió hace "
+                     f"{settings.IMPO2_DIAS}+ días sin pasar a Impo2 o ya se pasa del SLA."),
             KPI("Confirmar o reclamar al forwarder", fmt.fmt_int(n_tipo.get(bandeja.TIPOS["forwarder"], 0)),
                 status="warn" if n_tipo.get(bandeja.TIPOS["forwarder"], 0) else "ok",
                 help=f"ETD en los próximos {settings.ALERT_HORIZON_DAYS} días sin «ETD OK FFWW», zarpados hace más de "
                      "3 días sin Draft BL o packing list, e instruidos sin ETD."),
+            KPI("Pasar a Impo2", fmt.fmt_int(n_tipo.get(bandeja.TIPOS["impo2"], 0)),
+                status="bad" if n_tipo.get(bandeja.TIPOS["impo2"], 0) else "ok",
+                help=f"Embarques que salieron hace {settings.IMPO2_DIAS} días o más, con «ETD OK FFWW», y que en "
+                     "«Cargado en Importaciones2» todavía no figuran como cargados (Reservas y Reservas Históricas, "
+                     "marítimo y camión)."),
             KPI("Riesgo de SLA", fmt.fmt_int(n_tipo.get(bandeja.TIPOS["sla"], 0)),
                 status="bad" if n_tipo.get(bandeja.TIPOS["sla"], 0) else "ok",
                 help="Marítimos con consolidación proyectada fuera de SLA y aéreos con punta a punta proyectado fuera "
@@ -96,10 +107,11 @@ def render() -> None:
                  .agg(casos=("tipo", "size"), alta=("prioridad", lambda s: int((s == "Alta").sum())),
                       forwarder=("tipo", lambda s: int((s == bandeja.TIPOS["forwarder"]).sum())),
                       sla=("tipo", lambda s: int((s == bandeja.TIPOS["sla"]).sum())),
+                      impo2=("tipo", lambda s: int((s == bandeja.TIPOS["impo2"]).sum())),
                       datos=("tipo", lambda s: int(s.isin([bandeja.TIPOS["dato"], bandeja.TIPOS["cerrado"]]).sum())))
                  .sort_values(["alta", "casos"], ascending=False).reset_index())
             data_table(g, [
                 ColSpec("responsable", "Responsable"), ColSpec("casos", "Casos", "int"), ColSpec("alta", "Alta", "int"),
                 ColSpec("forwarder", "Forwarder", "int"), ColSpec("sla", "Riesgo SLA", "int"),
-                ColSpec("datos", "Datos", "int"),
+                ColSpec("impo2", "Impo2", "int"), ColSpec("datos", "Datos", "int"),
             ], key="acc_resp_tabla", filename="bandeja_por_responsable", search=False)
