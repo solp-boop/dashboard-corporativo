@@ -193,16 +193,21 @@ def productos_table(summary: pd.DataFrame, today: pd.Timestamp) -> None:
 
 
 def productos_mes_table(t: pd.DataFrame, today: pd.Timestamp, key: str = "prod_mes") -> None:
-    """Tabla mes a mes de un grupo elegido: SO, mínimo, mediana y máximo de consolidación."""
+    """Tabla mes a mes de un grupo y un medio elegidos: SO, % del universo, mínimo, mediana y máximo."""
     if t.empty:
         st.markdown('<div class="empty">Sin datos.</div>', unsafe_allow_html=True)
         return
     grupos = t.attrs.get("grupos", {})
+    medios = t.attrs.get("medios", {"todos": "Todos"})
     labels = {g: ("Todas las SO (100 %)" if g == "todas" else lbl) for g, lbl in grupos.items()}
-    elegido = st.segmented_control("Grupo", list(labels), default="todas", key=key,
-                                   format_func=lambda g: labels[g], label_visibility="collapsed") or "todas"
+    c1, c2 = st.columns([3, 2], gap="small")
+    elegido = c1.segmented_control("Grupo", list(labels), default="todas", key=key,
+                                   format_func=lambda g: labels[g]) or "todas"
+    medio = c2.segmented_control("Medio", list(medios), default="todos", key=f"{key}_medio",
+                                 format_func=lambda m: medios[m]) or "todos"
     this_month = today.to_period("M").to_timestamp()
-    tot_so = t.iloc[-1]["todas|so"] if "todas|so" in t else 0
+    tot_so = t.iloc[-1]["todas|todos|so"] if "todas|todos|so" in t else 0
+    pre = f"{elegido}|{medio}"
 
     def d(v, bold=False):
         if v != v:
@@ -210,26 +215,34 @@ def productos_mes_table(t: pd.DataFrame, today: pd.Timestamp, key: str = "prod_m
         txt = f"{fmt.fmt_int(v)} d"
         return f"<td><b>{txt}</b></td>" if bold else f"<td>{txt}</td>"
 
-    head = ["Mes ETD", "SO", "% de las SO", "Mín.", "Mediana", "Máx."]
+    head = ["Mes ETD", "SO", "% del universo", "Mín.", "Mediana", "Máx."]
     rows = []
     for _, r in t.iterrows():
         total = pd.isna(r["mes"])
         label = (f"Total {today.year}" if total else
                  fmt.fmt_month(r["mes"], long=True) + (" · en curso" if r["mes"] == this_month else ""))
-        n, base = r[f"{elegido}|so"], r["todas|so"]
+        n, base = r[f"{pre}|so"], r["todas|todos|so"]
         pct = fmt.fmt_pct(n / base) if base else "—"
         style = " style='font-weight:600;background:rgba(120,130,150,0.10)'" if total else ""
         rows.append(f"<tr{style}><th class='rowh'>{html.escape(label)}</th>"
                     f"<td>{fmt.fmt_int(n) if n else '—'}</td><td>{pct if n else '—'}</td>"
-                    + d(r[f"{elegido}|min"]) + d(r[f"{elegido}|med"], bold=True) + d(r[f"{elegido}|max"]) + "</tr>")
+                    + d(r[f"{pre}|min"]) + d(r[f"{pre}|med"], bold=True) + d(r[f"{pre}|max"]) + "</tr>")
     st.markdown('<div class="scorecard compact"><table><thead><tr>' + "".join(f"<th>{h}</th>" for h in head)
                 + f'</tr></thead><tbody>{"".join(rows)}</tbody></table></div>', unsafe_allow_html=True)
-    st.caption(f"\\* Universo completo: SO de Embarques Historicos ya zarpadas, marítimas y aéreas, con destino "
-               f"{settings.PRODUCTOS_DESTINO or 'todos'}, sin muestras ni repuestos (aéreos MUESTRAS / REPUESTOS en "
-               f"Seguimiento Aéreos y SO «Muestras» / «Repuestos» en Planificación). {fmt.fmt_int(tot_so)} SO en el año, por mes de ETD. Días de "
-               "consolidación por SO («Tiempo de consolidacion»): mínimo, mediana y máximo; 0 días o tiempo negativo "
-               "se toman como sin dato. «% de las SO» = cuántas del total del mes son del grupo elegido. La fila del "
-               "total toma todas las SO del año (no es la suma de los meses).")
+    tot = t.iloc[-1]
+    mar, aer, otro = (int(tot.get(f"{elegido}|{m}|so", 0)) for m in ("Marítimo", "Aéreo", "otro"))
+    tod = int(tot.get(f"{elegido}|todos|so", 0))
+    cierra = "cierra" if mar + aer + otro == tod else "no cierra"
+    st.caption(f"Control {today.year} · {labels[elegido]}: {fmt.fmt_int(tod)} SO = {fmt.fmt_int(mar)} marítimas + "
+               f"{fmt.fmt_int(aer)} aéreas + {fmt.fmt_int(otro)} fuera de ambos (AIR DJI Baynal / RC Online / Aeropix "
+               f"u otro código) → {cierra}.")
+    st.caption(f"\\* Universo completo: SO de Embarques Historicos ya zarpadas, con destino "
+               f"{settings.PRODUCTOS_DESTINO or 'todos'}, sin muestras ni repuestos (tipo de negocio aéreo MUESTRAS / "
+               f"REPUESTOS y SO «Muestras» / «Repuestos» en Planificación). {fmt.fmt_int(tot_so)} SO en el año, por mes "
+               "de ETD. SO = SO por envío (una SO que viajó en 2 embarques cuenta 2). Marítimo = embarques FCL; "
+               "aéreo = embarques AIR sin DJI Baynal / RC Online / Aeropix. Días de consolidación por SO («Tiempo de "
+               "consolidacion»): mínimo, mediana y máximo; 0 días o negativos son sin dato. «% del universo» = SO del "
+               "cuadro / todas las SO del mes. El total toma todas las SO del año (no es la suma de los meses).")
 
 
 def productos_q_chart(summary: pd.DataFrame, grupo_label: str, today: pd.Timestamp, key: str) -> None:

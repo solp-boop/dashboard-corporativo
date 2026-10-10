@@ -114,6 +114,7 @@ HISTORICAS = DatasetSchema(
         C("f_bl_final", "FECHA ENVIO DEL BL FINAL", kind="date"),
         C("f_confirmacion", "Fecha de confirmacion de reserva", "Fecha de confirmación de reserva", kind="date"),
         C("tipo_demora", "Tipo de demora", kind="category"),
+        C("tipo_envio_aereo", "Tipo de envio aereo", "Tipo de envío aéreo", kind="category"),
         C("observaciones", "OBSERVACIONES", kind="text"),
         C("estructura", "¿ES MONOPROVEEDOR?", kind="category"),
         C("f_packeo_min", "F.Packeo Min", kind="date"),

@@ -10,7 +10,7 @@ st.set_page_config(
     page_title="Dashboard Ejecutivo · Comex",
     page_icon="🚢",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",   # abierta en compu, cerrada en el celular
 )
 
 

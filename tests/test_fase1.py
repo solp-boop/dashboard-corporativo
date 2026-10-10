@@ -298,3 +298,20 @@ def test_bandeja_impo2():
     hist = res.drop(columns="etd_ok")
     assert bandeja.casos_impo2(hist, hoy, "Reservas Historicas", requiere_ok=False)[0]["embarque"].tolist() == \
         ["FCL 1", "FCL 3"]
+
+
+def test_ttm_por_medio_cierra():
+    from utils import productos
+    eh = pd.DataFrame({
+        "embarque": ["FCL 1", "FCL 1", "AIR 2", "AIR 3", "LCL 4", "FCL 5"],
+        "so": ["S1", "S1", "S2", "S3", "S4", "S1"],
+        "etd": [ts("2026-05-10")] * 6, "tiempo_consolidacion": [10.0, 10.0, 5.0, 7.0, 9.0, 20.0],
+        "destino": ["Argentina"] * 6, "es_nuevo": [True, True, False, False, False, False],
+        "es_top": [False] * 6, "estructura": ["Consolidado"] * 6, "maritimo": [True] * 6,
+    })
+    aer = pd.DataFrame({"embarque": ["AIR 3"], "tipo_negocio": ["DJI BAYNAL"]})
+    du = productos.base_universo(eh, ts("2026-10-10"), aer, None)
+    m = productos.mes_a_mes(du, 2026).iloc[-1]
+    # S1 viajó en 2 embarques: cuenta 2 (SO por envío). AIR 3 (Baynal) y LCL 4 quedan en «otro».
+    assert m["todas|todos|so"] == 5 and m["todas|Marítimo|so"] == 2 and m["todas|Aéreo|so"] == 1
+    assert m["todas|otro|so"] == 2 and m["es_nuevo|Marítimo|so"] == 1

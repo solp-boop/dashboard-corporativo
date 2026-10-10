@@ -42,10 +42,24 @@ def _solo_destino(d: pd.DataFrame) -> pd.DataFrame:
 EXCLUIDOS = ("muestra", "repuesto")   # tipos de negocio que no entran en el universo de time to market
 
 
-def muestras(aereos: pd.DataFrame | None, planif: pd.DataFrame | None) -> tuple[set, set]:
+def tipos_aereos(aereos: pd.DataFrame | None, hist: pd.DataFrame | None = None) -> dict:
+    """Embarque (id_key) → tipo de negocio aéreo: Seguimiento Aéreos y, si no está, «Tipo de envio aereo» de Históricas."""
+    from utils.data_cleaning import id_key
+    out = {}
+    if hist is not None and len(hist) and "tipo_envio_aereo" in hist:
+        h = hist.dropna(subset=["tipo_envio_aereo"])
+        out.update(dict(zip(id_key(h["embarque"]), h["tipo_envio_aereo"])))
+    if aereos is not None and len(aereos) and "tipo_negocio" in aereos:
+        a = aereos.dropna(subset=["tipo_negocio"])
+        out.update(dict(zip(id_key(a["embarque"]), a["tipo_negocio"])))   # Seguimiento Aéreos manda
+    return out
+
+
+def muestras(aereos: pd.DataFrame | None, planif: pd.DataFrame | None, hist: pd.DataFrame | None = None) -> tuple[set, set]:
     """(embarques, SO) a excluir: muestras y repuestos.
 
-    Aéreos con tipo MUESTRAS / REPUESTOS en Seguimiento Aéreos y SO «Muestras» / «Repuestos» en Planificación.
+    Aéreos con tipo MUESTRAS / REPUESTOS (Seguimiento Aéreos o «Tipo de envio aereo» de Históricas) y SO
+    «Muestras» / «Repuestos» en Planificación.
     """
     from utils.data_cleaning import fold, id_key
 
@@ -53,23 +67,38 @@ def muestras(aereos: pd.DataFrame | None, planif: pd.DataFrame | None) -> tuple[
         return isinstance(v, str) and any(k in fold(v) for k in EXCLUIDOS)
 
     embs, sos = set(), set()
+    embs = {k for k, v in tipos_aereos(aereos, hist).items() if es_excluido(v)}
     if aereos is not None and len(aereos):
-        col = aereos["tipo_sla"] if "tipo_sla" in aereos else aereos.get("tipo_negocio")
+        col = aereos["tipo_sla"] if "tipo_sla" in aereos else None
         if col is not None:
-            embs = set(id_key(aereos.loc[col.map(es_excluido), "embarque"].dropna()))
+            embs |= set(id_key(aereos.loc[col.map(es_excluido), "embarque"].dropna()))
     if planif is not None and len(planif) and "tipo_negocio" in planif:
         sos = set(planif.loc[planif["tipo_negocio"].map(es_excluido), "so"].dropna().astype(str))
     return embs, sos
 
 
-def base_universo(eh: pd.DataFrame, today: pd.Timestamp, aereos=None, planif=None) -> pd.DataFrame:
-    """Universo completo de SO (marítimas y aéreas) ya zarpadas, sin muestras ni repuestos, con tiempo válido."""
-    from utils.data_cleaning import id_key
+MEDIOS = {"todos": "Todos", "Marítimo": "Marítimo (FCL)", "Aéreo": "Aéreo (AIR)"}
+
+
+def base_universo(eh: pd.DataFrame, today: pd.Timestamp, aereos=None, planif=None, hist=None) -> pd.DataFrame:
+    """Universo completo de SO (marítimas y aéreas) ya zarpadas, sin muestras ni repuestos, con tiempo válido.
+
+    Columna «medio»: Marítimo (embarque FCL), Aéreo (AIR, sin DJI Baynal / RC Online / Aeropix) u Otro
+    (el resto: AIR de esos tipos de negocio o embarques con otro código). Todas = Marítimo + Aéreo + Otro."""
+    from utils.data_cleaning import fold, id_key
     d = eh[eh["etd"].notna() & (eh["etd"] <= today) & eh["tiempo_consolidacion"].notna()].copy()
     d = _solo_destino(d)
-    embs, sos = muestras(aereos, planif)
+    embs, sos = muestras(aereos, planif, hist)
     d = d[~id_key(d["embarque"]).isin(embs) & ~d["so"].astype(str).isin(sos)]
     d["mes"] = calc.month_start(d["etd"])
+    k = id_key(d["embarque"].astype(str))
+    pref = d["embarque"].astype(str).str.strip().str.upper()
+    tipos = tipos_aereos(aereos, hist)
+    excl = [fold(x).replace(" ", "") for x in settings.TTM_TIPOS_AEREOS_EXCLUIR]
+    tipo_excl = k.map(lambda e: isinstance(tipos.get(e), str)
+                      and any(fold(tipos[e]).replace(" ", "").startswith(x) for x in excl))
+    d["medio"] = np.select([pref.str.startswith("FCL"), pref.str.startswith("AIR") & ~tipo_excl],
+                           ["Marítimo", "Aéreo"], "Otro")
     return d
 
 
@@ -145,12 +174,15 @@ def summary(d: pd.DataFrame, today: pd.Timestamp, grupos: dict | None = None,
 
 
 def mes_a_mes(d: pd.DataFrame, year: int) -> pd.DataFrame:
-    """Por mes de ETD del año: SO, mínimo, mediana y máximo de consolidación (días por SO), sin abrir por estructura.
+    """Por mes de ETD del año: SO, mínimo, mediana y máximo de consolidación (días por SO).
 
-    Grupos: todas las SO, SKU nuevos y top ranking. Columnas «{grupo}|so», «|min», «|med», «|max».
-    La última fila (mes NaT) es el total del año.
+    Grupos (todas las SO, SKU nuevos, top ranking) × medio (todos, marítimo, aéreo).
+    Columnas «{grupo}|{medio}|so», «|min», «|med», «|max» y, para conciliar, «otro|so» (SO que no son FCL ni AIR
+    computables). Unidad = SO por envío (SO + embarque). La última fila (mes NaT) es el total del año.
     """
     x = d[d["mes"].dt.year == year].assign(todas=True)
+    if "medio" not in x:
+        x = x.assign(medio="Otro")
     grupos = {"todas": "Todas las SO", **GRUPOS}
     meses = sorted(x["mes"].unique())
     rows = []
@@ -159,15 +191,19 @@ def mes_a_mes(d: pd.DataFrame, year: int) -> pd.DataFrame:
         sub_m = x if pd.isna(mes) else x[x["mes"] == mes]
         for g in grupos:
             sg = sub_m[sub_m[g].fillna(False).astype(bool)]
-            so = sg.groupby(["so", "mes"], as_index=False).agg(tiempo=("tiempo_consolidacion", "median"))
-            t = so["tiempo"]
-            r[f"{g}|so"] = int(so["so"].nunique())
-            r[f"{g}|min"] = float(t.min()) if len(t) else np.nan
-            r[f"{g}|med"] = float(t.median()) if len(t) else np.nan
-            r[f"{g}|max"] = float(t.max()) if len(t) else np.nan
+            so_all = sg.groupby(["so", "embarque", "medio"], as_index=False).agg(tiempo=("tiempo_consolidacion", "median"))
+            for m in MEDIOS:
+                so = so_all if m == "todos" else so_all[so_all["medio"] == m]
+                t = so["tiempo"]
+                r[f"{g}|{m}|so"] = int(len(so))
+                r[f"{g}|{m}|min"] = float(t.min()) if len(t) else np.nan
+                r[f"{g}|{m}|med"] = float(t.median()) if len(t) else np.nan
+                r[f"{g}|{m}|max"] = float(t.max()) if len(t) else np.nan
+            r[f"{g}|otro|so"] = int((so_all["medio"] == "Otro").sum())
         rows.append(r)
     out = pd.DataFrame(rows)
     out.attrs["grupos"] = grupos
+    out.attrs["medios"] = MEDIOS
     return out
 
 

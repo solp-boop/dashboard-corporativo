@@ -534,7 +534,8 @@ def render() -> None:
                    "(marítimo y aéreo, sin muestras ni repuestos). La base es Q1 y el objetivo es bajarla un 15 %: se "
                    "compara el último trimestre cerrado contra Q1. La apertura mes a mes está en Lead times y SLA.")
         with guard("Objetivo −15 %"):
-            du = productos.base_universo(bundle.get("emb_hist"), t, bundle.get("aereos"), bundle.get("planif"))
+            du = productos.base_universo(bundle.get("emb_hist"), t, bundle.get("aereos"), bundle.get("planif"),
+                                      bundle.get("historicas"))
             summ = productos.objetivo_universo(du, t)
             chart_title("Mediana por trimestre", "Todas las SO, SKU nuevos y top ranking · línea punteada = objetivo (Q1 −15 %)")
             sla_view.objetivo_q_chart(summ, t, key="res_obj15")

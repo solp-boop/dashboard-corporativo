@@ -201,3 +201,41 @@ a.kpi-link:hover { border-color: var(--blue); box-shadow: 0 1px 6px rgba(20, 30,
 .atencion .n { font-size: 1.5rem; font-weight: 650; color: var(--ink); }
 .atencion .t { font-size: .85rem; font-weight: 600; color: var(--ink-2); }
 .atencion .s { font-size: .78rem; color: var(--ink-3); }
+
+/* ---------------------------------------------------------------------------
+   Celular y tablet. Streamlit ya apila las columnas por debajo de 640 px; acá
+   se acomodan las grillas propias (tarjetas, mosaicos) y los márgenes.
+   --------------------------------------------------------------------------- */
+@media (max-width: 900px) {
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .atencion { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .block-container { padding: 3.2rem .75rem 2.5rem .75rem !important; }   /* deja lugar al botón del menú */
+  .dash-header { flex-direction: column; align-items: flex-start; gap: .4rem; }
+  .dash-header h1 { font-size: 1.2rem; }
+  .dash-header .page { display: block; }
+  .dash-header .meta { text-align: left; font-size: .72rem; }
+  .section-title { margin-top: 1.2rem; }
+  .kpi { padding: .65rem .75rem; }
+  .kpi .label { font-size: .68rem; }
+  .kpi .value { font-size: 1.25rem; white-space: normal; }
+  .kpi .value .badge { display: inline-block; margin: .2rem 0 0 0; }
+  .kpi .sub, .kpi .delta { font-size: .72rem; }
+  .panorama .kpi { min-height: 0; }
+  .panorama .kpi .value { font-size: 1.45rem; }
+  .atencion { grid-template-columns: 1fr; }
+  .atencion a { min-height: 0; }
+  .panel { padding: .75rem .8rem; }
+  .panel .big, .mode-head .big { font-size: 1.35rem; }
+  .panel:has(> .mode-head) { min-height: 0; }
+  .scorecard table { font-size: .8rem; }
+  .scorecard th, .scorecard td { padding: .45rem .5rem; }
+  .scorecard th.rowh { position: sticky; left: 0; background: var(--card); z-index: 1; }
+  [data-testid="stPlotlyChart"] { padding: .2rem .1rem 0 .1rem; }
+  /* columnas apiladas: no estirar al alto de la vecina */
+  [data-testid="stColumn"] > [data-testid="stVerticalBlock"] { height: auto; }
+}
+@media (max-width: 380px) {
+  .kpi-grid { grid-template-columns: 1fr !important; }
+}

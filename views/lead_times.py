@@ -552,11 +552,12 @@ def _time_to_market(bundle, filters, ventana) -> None:
         empty("Sin datos de Embarques Historicos.")
         return
     t = today()
-    du = productos.base_universo(bundle.get("emb_hist"), t, bundle.get("aereos"), bundle.get("planif"))
+    du = productos.base_universo(bundle.get("emb_hist"), t, bundle.get("aereos"), bundle.get("planif"),
+                                      bundle.get("historicas"))
     summ = productos.objetivo_universo(du, t)
     section(f"Time to market · mes a mes {t.year}*",
-            "* Universo completo de SO, marítimas y aéreas, sin muestras ni repuestos. Elegí el grupo: todas las SO "
-            "(100 %), SKU nuevos o top ranking.")
+            "* Universo completo de SO, marítimas y aéreas, sin muestras ni repuestos. Elegí el grupo (todas las SO "
+            "= 100 %, SKU nuevos o top ranking) y el medio (todos, solo marítimo o solo aéreo).")
     with guard("Time to market mes a mes"):
         sla_view.productos_mes_table(productos.mes_a_mes(du, t.year), t)
 

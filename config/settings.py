@@ -212,6 +212,9 @@ PRIORIDAD_JUSTIFICA = {"si", "alta", "urgente", "prioritaria", "prioridad", "cri
 
 # Consolidación por SO (Embarques Históricos): solo embarques con este destino (None = todos).
 PRODUCTOS_DESTINO = "Argentina"
+# Time to market · aéreos: tipos de negocio que no cuentan como aéreo (además de muestras y repuestos).
+# Se buscan en Seguimiento Aéreos y, si el embarque no está ahí, en «Tipo de envio aereo» de Reservas Historicas.
+TTM_TIPOS_AEREOS_EXCLUIR = ["dji baynal", "dji rconline", "dji rc online", "aeropix"]
 
 
 # Shippers (Resumen · FOB por mes de ETA): valores que no son un trader y se sacan del cuadro.
