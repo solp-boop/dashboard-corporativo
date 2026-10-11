@@ -230,6 +230,44 @@ def _maritimo(bundle, filters, z, z_all, z_prev) -> None:
                 sub=f"<b>{fmt.fmt_pct(top.iloc[0] / len(causas))}</b> de los fuera de SLA con causa" if len(top) else
                 "Sin causas cargadas", help="«Tipo de demora» más frecuente entre los embarques fuera de SLA."),
         ])
+    with guard("Etapas por mes"):
+        section("Tiempo de consolidación · mes a mes",
+                "Consolidación (packeo mínimo → ETD) por mes de ETD: mínimo, mediana y máximo, solo destino Argentina. "
+                "100 % = todos los embarques. SLA = el definido: monoproveedor según la ETD ("
+                f"{calc.sla_mono_txt()}), consolidado según el puerto (mediana del mes). «% en SLA» = embarques dentro del "
+                "SLA (verde si llega al "
+                f"{fmt.fmt_pct(settings.CUMPLIMIENTO_OBJETIVO)}). * mes en curso.")
+        base = z[z["destino"].isna() | (z["destino"] == "Argentina")] if "destino" in z else z
+        estructura = st.segmented_control("Estructura", ["100 %", "Monoproveedor", "Consolidado"], default="100 %",
+                                          key="tm_mar_estructura", label_visibility="collapsed") or "100 %"
+        if estructura != "100 %":
+            base = base[base["estructura"] == estructura]
+        x = base.dropna(subset=["etd", "dias_consolidacion"]).assign(mes=lambda d: calc.month_start(d["etd"]))
+        if x.empty:
+            empty()
+        else:
+            g = x.groupby("mes")
+
+            def sla_txt(d):
+                mono = d.loc[d["estructura"] == "Monoproveedor", "sla_consolidacion"].median()
+                cons = d.loc[d["estructura"] == "Consolidado", "sla_consolidacion"].median()
+                partes = ([f"Mono {fmt.fmt_int(mono)} d"] if mono == mono and estructura != "Consolidado" else []) + \
+                         ([f"Conso {fmt.fmt_int(cons)} d"] if cons == cons and estructura != "Monoproveedor" else [])
+                return " · ".join(partes)
+            tab = pd.DataFrame({
+                "sla_txt": g.apply(sla_txt, include_groups=False),
+                "n": g.size(), "cons_min": g["dias_consolidacion"].min(), "cons_med": g["dias_consolidacion"].median(),
+                "cons_max": g["dias_consolidacion"].max(),
+                "pct_sla": g.apply(lambda d: (d["dias_consolidacion"] <= d["sla_consolidacion"])[
+                    d["sla_consolidacion"].notna()].mean(), include_groups=False),
+            }).reset_index()
+            tot = {"mes": pd.NaT, "n": len(x), "sla_txt": "", "cons_min": x["dias_consolidacion"].min(),
+                   "cons_med": x["dias_consolidacion"].median(), "cons_max": x["dias_consolidacion"].max(),
+                   "pct_sla": (x["dias_consolidacion"] <= x["sla_consolidacion"])[x["sla_consolidacion"].notna()].mean()}
+            sla_view.mes_matrix(pd.concat([tab, pd.DataFrame([tot])], ignore_index=True),
+                                [("cons_min", "Mín."), ("cons_med", "Mediana"), ("cons_max", "Máx.")], t,
+                                resaltar=["cons_med"], pct=("pct_sla", "% en SLA"), textos=[("sla_txt", "SLA")])
+
     section("Análisis para descargar",
             "Elegí la dimensión y bajá el Excel: resumen por esa dimensión y detalle de cada embarque.")
     with guard("Diagnóstico marítimo"):
