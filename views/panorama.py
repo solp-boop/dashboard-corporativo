@@ -74,7 +74,8 @@ def _tiempos(bundle, filters, t) -> list[pan.Indicador]:
     if bundle.get("emb_hist") is not None and len(bundle.get("emb_hist")):
         du = memo(bundle, ("ttm_universo", t), lambda: productos.base_universo(
             bundle.get("emb_hist"), t, bundle.get("aereos"), bundle.get("planif"), bundle.get("historicas")))
-        out.append(pan.time_to_market(productos.objetivo_universo(du, t)))
+        from utils import objetivo
+        out.append(pan.time_to_market(objetivo.vs_anio_anterior(productos.por_envio(du), t, "etd", "tiempo")))
     return out
 
 

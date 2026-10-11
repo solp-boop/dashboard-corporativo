@@ -621,3 +621,83 @@ def cotizaciones_matrix(t: pd.DataFrame, agentes: list[str]) -> None:
         body.append("<tr>" + "".join(cells) + "</tr>")
     st.markdown('<div class="scorecard compact matriz"><table><thead><tr>' + "".join(f"<th>{h}</th>" for h in head)
                 + f'</tr></thead><tbody>{"".join(body)}</tbody></table></div>', unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------------------------
+# Objetivo −15 % contra el año anterior (utils.objetivo)
+# ---------------------------------------------------------------------------
+_EST_CLS = {"Cumple": "ok", "Reduce, sin llegar": "warn", "No reduce": "bad"}
+_MESES_C = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+
+
+def objetivo_kpis(res: dict, unidad: str) -> None:
+    """Tres tarjetas: reducción mono, conso y total ponderada (acumulado del año contra el año anterior)."""
+    from components.kpi_cards import KPI, kpi_row
+    y, ult = res["anio"], res["ult_mes"]
+    tramo = f"{_MESES_C[0].lower()}–{_MESES_C[ult - 1].lower()}" if ult >= 1 else ""
+    obj = settings.REDUCCION_OBJETIVO
+    st_map = {"Cumple": "ok", "Reduce, sin llegar": "warn", "No reduce": "bad"}
+    cards = []
+    ac = res["acumulado"].set_index("estructura") if len(res["acumulado"]) else pd.DataFrame()
+    for e, lbl in (("Monoproveedor", "Monoproveedor"), ("Consolidado", "Consolidado")):
+        if e not in ac.index or ac.loc[e, "var"] != ac.loc[e, "var"]:
+            cards.append(KPI(f"{lbl} · vs {y - 1}", "—", sub=f"Sin datos de {y - 1} para comparar"))
+            continue
+        r = ac.loc[e]
+        cards.append(KPI(f"{lbl} · vs {y - 1}", fmt.fmt_pct(r["var"], signed=True), status=st_map.get(r["estado"], ""),
+                         badge=r["estado"] if r["estado"] in st_map else "",
+                         sub=f"mediana {fmt.fmt_num(r['ant'], 1)} → <b>{fmt.fmt_num(r['act'], 1)} d</b> · objetivo "
+                             f"{fmt.fmt_num(r['objetivo'], 1)} d · {tramo} · n={fmt.fmt_int(r['n_ant'])} / "
+                             f"{fmt.fmt_int(r['n_act'])} {unidad}"))
+    t = res["total"]
+    pesos = " · ".join(f"{'mono' if k == 'Monoproveedor' else 'conso'} {v:.0%}" for k, v in t["pesos"].items())
+    cards.append(KPI(f"Total ponderado · objetivo −{fmt.fmt_pct(obj)}",
+                     fmt.fmt_pct(t["var"], signed=True) if t["var"] == t["var"] else "—",
+                     status=st_map.get(t["estado"], ""), badge=t["estado"] if t["estado"] in st_map else "",
+                     sub=((f"faltan <b>{fmt.fmt_num((t['var'] + obj) * 100, 1)} pp</b> · " if t["var"] > -obj else "")
+                          + f"pesos {y}: {pesos}") if t["var"] == t["var"] and pesos else
+                         f"Sin datos de {y - 1} para comparar",
+                     help="Promedio de la variación de mono y de conso, ponderado por el volumen de este año. No "
+                          "depende de cuánto mono o conso mandamos: si cambia la mezcla, el total no se mueve solo."))
+    kpi_row(cards, columns=3)
+
+
+def objetivo_matrix(res: dict, today: pd.Timestamp) -> None:
+    """Mes × (mono, conso): mediana del año anterior, objetivo (−15 %), mediana de este año y variación."""
+    m = res["mensual"]
+    if m.empty:
+        st.markdown('<div class="empty">Sin datos para comparar con el año anterior.</div>', unsafe_allow_html=True)
+        return
+    y = res["anio"]
+    ests = [("Monoproveedor", "Monoproveedor"), ("Consolidado", "Consolidado")]
+    head1 = "<tr><th rowspan='2'>Mes ETD</th>" + "".join(f"<th colspan='4'>{l}</th>" for _, l in ests) + "</tr>"
+    head2 = "<tr>" + "".join(f"<th>{y - 1}</th><th>Objetivo</th><th>{y}</th><th>Variación</th>" for _ in ests) + "</tr>"
+
+    def celdas(r) -> str:
+        if r is None:
+            return "<td class='na'>—</td>" * 4
+        d = lambda v, n: (f"{fmt.fmt_num(v, 1)} d<span class='n'>n={fmt.fmt_int(n)}</span>"  # noqa: E731
+                          if v == v else "—")
+        cls = _EST_CLS.get(r["estado"], "pre" if r["estado"] == "En curso" else "")
+        var = fmt.fmt_pct(r["var"], signed=True) if r["var"] == r["var"] else "—"
+        if r["estado"] == "Muestra chica":
+            var += "<span class='n'>muestra chica</span>"
+        return (f"<td>{d(r['ant'], r['n_ant'])}</td><td>{fmt.fmt_num(r['objetivo'], 1) + ' d' if r['objetivo'] == r['objetivo'] else '—'}</td>"
+                f"<td class='hl'>{d(r['act'], r['n_act'])}</td><td class='{cls}'>{var}</td>")
+    body = []
+    for mes in sorted(m["mes"].unique()):
+        fila = f"<tr><th class='rowh'>{_MESES_C[mes - 1]}{'*' if mes == today.month else ''}</th>"
+        for e, _ in ests:
+            x = m[(m["mes"] == mes) & (m["estructura"] == e)]
+            fila += celdas(x.iloc[0] if len(x) else None)
+        body.append(fila + "</tr>")
+    ac = res["acumulado"].set_index("estructura") if len(res["acumulado"]) else pd.DataFrame()
+    if len(ac):
+        lbl = f"Acumulado ene–{_MESES_C[res['ult_mes'] - 1].lower()}"
+        body.append(f"<tr class='tot'><th class='rowh'>{lbl}</th>"
+                    + "".join(celdas(ac.loc[e] if e in ac.index else None) for e, _ in ests) + "</tr>")
+    st.markdown("<div class='scorecard compact matriz'><table><thead>" + head1 + head2 + "</thead><tbody>"
+                + "".join(body) + "</tbody></table></div>", unsafe_allow_html=True)
+    st.caption(f"Objetivo = mediana del mismo mes de {y - 1} × {1 - settings.REDUCCION_OBJETIVO:.2f}. Verde = bajó "
+               f"{fmt.fmt_pct(settings.REDUCCION_OBJETIVO)} o más; amarillo = bajó menos; rojo = subió. Sin color si "
+               f"algún año tiene menos de {settings.OBJ_MIN_N} casos. * mes en curso (no se califica).")

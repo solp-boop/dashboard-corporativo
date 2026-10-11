@@ -139,22 +139,24 @@ def punta_maritimo(z: pd.DataFrame, z_all: pd.DataFrame, t: pd.Timestamp) -> Ind
         destino="sla?vista=transito")
 
 
-def time_to_market(summ: pd.DataFrame) -> Indicador:
-    """summ = productos.objetivo_universo(...): fila «Todas las SO»."""
-    ayuda = ("Mediana de días de consolidación por SO (todas las SO, marítimas y aéreas, sin muestras ni repuestos). "
-             f"Objetivo: bajar un {fmt.fmt_pct(settings.REDUCCION_OBJETIVO)} contra Q1.")
-    r = summ[summ["grupo"] == "Todas las SO"] if len(summ) else summ
-    if r.empty or r.iloc[0]["actual"] != r.iloc[0]["actual"]:
+def time_to_market(res: dict) -> Indicador:
+    """res = utils.objetivo.vs_anio_anterior(...) de todas las SO: reducción ponderada mono + conso."""
+    obj = settings.REDUCCION_OBJETIVO
+    y = res["anio"]
+    ayuda = ("Mediana de días de consolidación por SO por envío (todas las SO, marítimas y aéreas, sin muestras ni "
+             f"repuestos), monoproveedor y consolidado contra el mismo mes de {y - 1}. El total pondera las dos por el "
+             f"volumen de {y}. Objetivo: bajar un {fmt.fmt_pct(obj)}.")
+    t = res["total"]
+    if t["var"] != t["var"]:
         return Indicador("Time to market", "—", ayuda=ayuda, destino="sla?vista=ttm")
-    r = r.iloc[0]
-    var = r["variacion"]
-    estado = {"Cumple": "ok", "Reduce, sin llegar": "warn", "No reduce": "bad"}.get(r["estado"], "")
+    ac = res["acumulado"].set_index("estructura")
+    partes = " · ".join(f"{'mono' if e == 'Monoproveedor' else 'conso'} {fmt.fmt_pct(ac.loc[e, 'var'], signed=True)}"
+                        for e in ("Monoproveedor", "Consolidado") if e in ac.index and ac.loc[e, "var"] == ac.loc[e, "var"])
+    estado = {"Cumple": "ok", "Reduce, sin llegar": "warn", "No reduce": "bad"}.get(t["estado"], "")
     return Indicador(
-        "Time to market", fmt.fmt_int(r["actual"]), "d", estado=estado, badge=r["estado"],
-        sub=f"{r['actual_q']} vs {r['base_q']} ({fmt.fmt_int(r['base'])} d) · objetivo "
-            f"−{fmt.fmt_pct(settings.REDUCCION_OBJETIVO)}",
-        delta=f"{_flecha(var)} {fmt.fmt_pct(abs(var))} {r['actual_q']} vs {r['base_q']}" if var == var else "",
-        tono=_tono(var, mejor_si_baja=True), ayuda=ayuda, destino="sla?vista=ttm")
+        "Time to market", fmt.fmt_pct(t["var"], signed=True), f"vs {y - 1}", estado=estado,
+        badge=t["estado"] if estado else "", sub=f"{partes} · objetivo −{fmt.fmt_pct(obj)}",
+        tono=_tono(t["var"], mejor_si_baja=True), ayuda=ayuda, destino="sla?vista=ttm")
 
 
 # ---------------------------------------------------------------------------

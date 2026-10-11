@@ -190,7 +190,8 @@ SLA_AEREO_DESDE = dt.date(2026, 8, 1)
 # Productos nuevos y top ranking: objetivo de reducir la consolidación
 # --------------------------------------------------------------------------
 TOP_RANKING_MAX = 100                    # posición en "Demanda Efectiva -Ranking Utilidad Total"
-REDUCCION_OBJETIVO = 0.15                # −15 % contra la base
+REDUCCION_OBJETIVO = 0.15                # −15 % contra el mismo mes del año anterior (utils.objetivo)
+OBJ_MIN_N = 5                            # casos mínimos en cada año para calificar un mes
 BASE_DESDE = dt.date(2026, 1, 1)         # período base (mes de ETD)
 BASE_HASTA = dt.date(2026, 3, 31)
 COMPARACION_MESES = 3                    # últimos N meses cerrados contra la base

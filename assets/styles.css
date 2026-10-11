@@ -266,3 +266,4 @@ a.kpi-link:hover { border-color: var(--blue); box-shadow: 0 1px 6px rgba(20, 30,
 .chips .chip.investigar { border-color: #F5D98B; background: #FEF8E7; }
 .chips .chip.seguimiento { border-color: #B9D3F0; background: #EFF5FC; }
 @media (max-width: 640px) { .acciones { grid-template-columns: 1fr; } .acciones .acc .n { font-size: 1.1rem; } }
+.scorecard.matriz td.warn { background: #FEF6E0; color: #8A5A00; font-weight: 600; }

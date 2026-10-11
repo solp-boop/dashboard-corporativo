@@ -97,9 +97,26 @@ def base_universo(eh: pd.DataFrame, today: pd.Timestamp, aereos=None, planif=Non
     excl = [fold(x).replace(" ", "") for x in settings.TTM_TIPOS_AEREOS_EXCLUIR]
     tipo_excl = k.map(lambda e: isinstance(tipos.get(e), str)
                       and any(fold(tipos[e]).replace(" ", "").startswith(x) for x in excl))
-    d["medio"] = np.select([pref.str.startswith("FCL"), pref.str.startswith("AIR") & ~tipo_excl],
-                           ["Marítimo", "Aéreo"], "Otro")
+    es_fcl, es_air = pref.str.startswith("FCL"), pref.str.startswith("AIR")
+    if hist is not None and len(hist) and "modo" in hist:
+        # El «Tipo Carga» de Reservas Históricas manda sobre el código: en 2025 hay aéreos y courier cargados con
+        # código FCL, que contados como marítimos bajarían la base del objetivo.
+        from config.mappings import MODOS_MARITIMOS
+        modo = k.map(dict(zip(id_key(hist["embarque"].astype(str)), hist["modo"])))
+        aereo = modo.isin(["Aéreo", "Courier"])
+        es_fcl = (es_fcl & ~modo.notna()) | modo.isin(MODOS_MARITIMOS)
+        es_air = (es_air & ~modo.notna()) | aereo
+    d["medio"] = np.select([es_fcl, es_air & ~tipo_excl], ["Marítimo", "Aéreo"], "Otro")
     return d
+
+
+def por_envio(d: pd.DataFrame) -> pd.DataFrame:
+    """Una fila por SO por envío (SO + embarque) con su ETD, estructura y la mediana del tiempo de sus líneas: la
+    unidad del objetivo −15 % contra el año anterior (utils.objetivo)."""
+    if d is None or d.empty:
+        return pd.DataFrame(columns=["so", "embarque", "etd", "estructura", "tiempo"])
+    return (d.groupby(["so", "embarque"], as_index=False, dropna=False)
+              .agg(etd=("etd", "max"), estructura=("estructura", "first"), tiempo=("tiempo_consolidacion", "median")))
 
 
 def per_so(d: pd.DataFrame) -> pd.DataFrame:

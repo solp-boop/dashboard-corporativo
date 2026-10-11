@@ -20,7 +20,7 @@ from utils import data_cleaning as dc
 from utils import diagnostico as dg
 from utils import formatting as fmt
 from utils import panorama as pan
-from utils import productos, sla
+from utils import objetivo, productos, sla
 from views._common import ctx, filtered, memo, today
 
 ETAPAS = [
@@ -267,6 +267,15 @@ def _maritimo(bundle, filters, z, z_all, z_prev) -> None:
             sla_view.mes_matrix(pd.concat([tab, pd.DataFrame([tot])], ignore_index=True),
                                 [("cons_min", "Mín."), ("cons_med", "Mediana"), ("cons_max", "Máx.")], t,
                                 resaltar=["cons_med"], pct=("pct_sla", "% en SLA"), textos=[("sla_txt", "SLA")])
+
+    with guard("Objetivo −15 % consolidación"):
+        section(f"Objetivo −{fmt.fmt_pct(settings.REDUCCION_OBJETIVO)} vs {t.year - 1} · consolidación",
+                "Packeo mínimo → ETD por embarque, destino Argentina, marítimo según «Tipo Carga». Cada estructura contra "
+                f"el mismo mes de {t.year - 1}; el total pondera mono y conso por el volumen de {t.year}.")
+        base = z_all[z_all["destino"].isna() | (z_all["destino"] == "Argentina")] if "destino" in z_all else z_all
+        res = objetivo.vs_anio_anterior(base.drop_duplicates("embarque"), t, "etd", "dias_consolidacion")
+        sla_view.objetivo_kpis(res, "embarques")
+        sla_view.objetivo_matrix(res, t)
 
     section("Análisis para descargar",
             "Elegí la dimensión y bajá el Excel: resumen por esa dimensión y detalle de cada embarque.")
@@ -541,7 +550,7 @@ def _tramo_mas_largo(a: pd.DataFrame) -> str:
 CASOS_TTM = [
     ColSpec("so", "SO"), ColSpec("embarque", "Embarque"), ColSpec("proveedor", "Proveedor"),
     ColSpec("category", "Category manager"), ColSpec("grupo", "Grupo"), ColSpec("modo", "Modo"),
-    ColSpec("etd", "ETD", "date"), ColSpec("tiempo", "Consolidación (d)", "days"),
+    ColSpec("estructura", "Estructura"), ColSpec("etd", "ETD", "date"), ColSpec("tiempo", "Consolidación (d)", "days"),
     ColSpec("objetivo", "Objetivo (d)", "days"), ColSpec("_exc", "Excedidos (d)", "days"),
 ]
 
@@ -550,6 +559,8 @@ def _por_so(du: pd.DataFrame, objetivo: float) -> pd.DataFrame:
     if du.empty:
         return pd.DataFrame(columns=["so", "tiempo"])
     agg = {"tiempo": ("tiempo_consolidacion", "median"), "embarque": ("embarque", "first"), "etd": ("etd", "max")}
+    if "estructura" in du:
+        agg["estructura"] = ("estructura", "first")
     for c in ("proveedor", "category"):
         if c in du:
             agg[c] = (c, "first")
@@ -575,33 +586,32 @@ def _time_to_market(bundle, filters, ventana) -> None:
             bundle.get("emb_hist"), t, bundle.get("aereos"), bundle.get("planif"), bundle.get("historicas")))
     section(f"Time to market · mes a mes {t.year}*",
             "* Universo completo de SO con destino Argentina, marítimas y aéreas, sin muestras ni repuestos. Los "
-            "botones de grupo y medio mandan sobre toda la sección: tabla, objetivo −15 %, gráfico y descarga.")
+            "botones de grupo y medio mandan sobre toda la sección: tabla, objetivo −15 % y descarga.")
     grupo, medio = sla_view.ttm_botones()
     with guard("Time to market mes a mes"):
         sla_view.productos_mes_table(productos.mes_a_mes(du, t.year), t, grupo, medio)
 
     sel, nombre = productos.seleccion(du, grupo, medio)
-    summ = productos.objetivo_seleccion(du, t, grupo, medio)
-    section(f"Objetivo −15 % · {nombre}",
-            "Mediana del tiempo de consolidación por SO contra el objetivo de reducirla un "
-            f"{fmt.fmt_pct(settings.REDUCCION_OBJETIVO)} respecto de Q1.")
+    sub_g = sel[sel[grupo].fillna(False).astype(bool)] if grupo in sel else sel
+    res = objetivo.vs_anio_anterior(productos.por_envio(sub_g), t, "etd", "tiempo")
+    section(f"Objetivo −{fmt.fmt_pct(settings.REDUCCION_OBJETIVO)} vs {t.year - 1} · {nombre}",
+            "Mediana del tiempo de consolidación por SO por envío, monoproveedor y consolidado por separado, contra el "
+            f"mismo mes de {t.year - 1}. El total pondera las dos por el volumen de {t.year}.")
     with guard("Objetivo −15 %"):
-        sla_view.productos_table(summ, t)
-        chart_title(f"Mediana mensual · {nombre}", "Mes de ETD · línea punteada = objetivo")
-        sla_view.objetivo_mes_chart(productos.mensual_universo(sel, t.year, {grupo: nombre}), summ,
-                                    key="lt_obj15_mes")
+        sla_view.objetivo_kpis(res, "SO")
+        sla_view.objetivo_matrix(res, t)
 
-    objetivo = float(summ.iloc[0]["objetivo"]) if len(summ) and summ.iloc[0]["objetivo"] == summ.iloc[0]["objetivo"] \
-        else np.nan
     with guard("Descarga time to market"):
         ini = pd.Timestamp(filters.start) if filters.start else pd.Timestamp(t.year, 1, 1)
         fin = min(pd.Timestamp(filters.end), t) if filters.end else t
-        sub = sel[sel[grupo].fillna(False).astype(bool)] if grupo in sel else sel
-        so = _por_so(sub[sub["etd"].between(ini, fin)], objetivo)
-        if objetivo == objetivo and len(so):
+        so = _por_so(sub_g[sub_g["etd"].between(ini, fin)], np.nan)
+        if len(so):
+            so["objetivo"] = objetivo.objetivo_por_fila(so, res, "etd")
+        if len(so) and so["objetivo"].notna().any():
             fuera = so[so["tiempo"] > so["objetivo"]].assign(_exc=lambda x: x["tiempo"] - x["objetivo"])
             solo_descarga(fuera.sort_values("_exc", ascending=False), CASOS_TTM, key="tm_ttm_fuera",
                           filename=f"time_to_market_sobre_objetivo_{t:%Y%m%d}",
                           label=f"Descargar SO por encima del objetivo · {nombre}")
-            st.caption(f"SO del período ({nombre}) cuya consolidación supera el objetivo "
-                       f"({fmt.fmt_num(objetivo, 1)} d). Se descarga en Excel; no se muestra en pantalla.")
+            st.caption(f"SO del período ({nombre}) cuya consolidación supera el objetivo de su estructura y su mes "
+                       f"(mismo mes de {t.year - 1} −{fmt.fmt_pct(settings.REDUCCION_OBJETIVO)}). Se descarga en Excel; "
+                       "no se muestra en pantalla.")
