@@ -134,25 +134,26 @@ def render() -> None:
 
 # ---------------------------------------------------------------------------
 def _estado_pago(h) -> None:
-    """Flete marítimo facturado por estado de validación: no todo lo facturado está pagado."""
+    """Flete marítimo que todavía no está validado para pagar: observado (en análisis) y pendiente de validar."""
     if h is None or h.empty or "resultado_validacion" not in h:
         return
     est = h["resultado_validacion"].fillna("Pendiente")
     tot = float(h["flete_pagado"].clip(lower=0).sum())
-
-    def k(nombre, clave, status, ayuda):
-        d = h[est == clave]
-        v = float(d["flete_pagado"].clip(lower=0).sum())
-        return KPI(nombre, fmt.fmt_usd(v), status=status if len(d) else "",
-                   sub=f"<b>{fmt.fmt_pct(v / tot if tot else float('nan'))}</b> del flete marítimo · "
-                       f"{fmt.fmt_int(len(d))} embarques", help=ayuda)
+    sv = h[est != "Validado"]
     chart_title("¿Cuánto del flete marítimo está validado para pagar?",
-                "«Flete Int PAGADO» es el 100 % facturado por el agente; se paga cuando Logística Internacional lo valida")
+                "Lo que todavía no está validado y se está procesando: no está en el costo de arriba")
+
+    def k(nombre, d, status, ayuda):
+        v = float(d["flete_pagado"].clip(lower=0).sum())
+        return KPI(nombre, fmt.fmt_usd(v), status=status if len(d) else "ok", help=ayuda,
+                   sub=f"<b>{fmt.fmt_pct(v / tot if tot else float('nan'))}</b> del flete marítimo facturado · "
+                       f"{fmt.fmt_int(len(d))} embarques")
     kpi_row([
-        k("Validado para pagar", "Validado", "ok", "«Resultado Validación» = Validado o, en lo anterior a septiembre, el check "
-          "«Validación Logística Internacional» marcado."),
-        k("Observado (en análisis)", "Observado", "warn", "«Resultado Validación» = Observado: el agente tiene que ajustar."),
-        k("Pendiente de validar", "Pendiente", "bad", "Sin «Resultado Validación» ni check de validación."),
+        k("Sin validar (en proceso)", sv, "warn", "Observados + pendientes de validar: flete facturado por el agente que "
+          "todavía no está aprobado para pagar."),
+        k("Observado (en análisis)", h[est == "Observado"], "warn", "«Resultado Validación» = Observado: el agente "
+          "tiene que ajustar."),
+        k("Pendiente de validar", h[est == "Pendiente"], "bad", "Sin «Resultado Validación» ni check de validación."),
     ], columns=3)
 
 
@@ -238,36 +239,52 @@ def _yoy(v: float, prev: pd.DataFrame | None, col: str) -> tuple[str, str]:
 def _gasto(bundle, h, a, p, p_all, p_prev, h_all=None, ventana=None) -> None:
     from utils import panorama as pan
     t = today()
-    section("¿Cuánto pagamos?", "Embarques marítimos y aéreos zarpados en el período, con flete pagado. Costo total = "
-                                "flete internacional + gastos en origen + gastos en destino.")
+    section("¿Cuánto pagamos?", "Lo validado para pagar: marítimos con «Resultado Validación» = Validado (o el check de "
+                                "Validación Logística Internacional) y aéreos zarpados del período. Costo total = flete "
+                                "certificado + otros gastos (lo que no se certificó) + gastos en origen + gastos en destino.")
     if p.empty:
         empty()
         return
     with guard("KPIs de gasto"):
-        ind = pan.costo(p, p_all, t)
+        def validado(d):
+            if d is None or d.empty or "resultado_validacion" not in d:
+                return d
+            return d[(d["medio"] != "Marítimo") | (d["resultado_validacion"] == "Validado")]
+
+        def con_partes(d):
+            if d is None or d.empty:
+                return d
+            pag = d["flete_pagado"].clip(lower=0).fillna(0)
+            cert = d["flete_certificado"].clip(lower=0).fillna(0).clip(upper=pag) if "flete_certificado" in d else pag * 0
+            return d.assign(flete_cert=cert, otros_gastos=pag - cert)
+        pv, pv_all, pv_prev = (con_partes(validado(x)) for x in (p, p_all, p_prev))
+        ind = pan.costo(pv, pv_all, t)
         fl = calc.describe(h["flete_por_ctnr"]) if h is not None and len(h) else calc.describe(pd.Series(dtype=float))
         kg = calc.describe((a["flete_pagado"] / a["chargeable"].where(a["chargeable"] > 0))[
             (a["etd"] <= t) & (a["flete_pagado"] > 0)]) if a is not None and len(a) and "chargeable" in a \
             else calc.describe(pd.Series(dtype=float))
         cm3 = calc.describe(h["costo_por_m3"]) if h is not None and len(h) else calc.describe(pd.Series(dtype=float))
+
         def parte(col):
-            v = p[col].clip(lower=0).fillna(0)
-            mar, aer = float(v[p["medio"] == "Marítimo"].sum()), float(v[p["medio"] == "Aéreo"].sum())
+            v = pv[col].clip(lower=0).fillna(0)
+            mar, aer = float(v[pv["medio"] == "Marítimo"].sum()), float(v[pv["medio"] == "Aéreo"].sum())
             return mar + aer, f"marítimo {fmt.fmt_usd(mar)} · aéreo {fmt.fmt_usd(aer)}"
-        tot_costo = float(p["costo"].sum())
-        partes = {}
+        tot_costo = float(pv["costo"].sum())
+        tarjetas = []
         for col, nombre, ayuda in (
-                ("flete_pagado", "Flete internacional pagado", "Columna «Flete Int PAGADO» (marítimo) y «Flete "
-                 "total» (aéreo) de los embarques zarpados del período."),
+                ("flete_cert", "Flete internacional certificado", "«Flete Certificado»: lo que se declara como flete "
+                 "en aduana."),
+                ("otros_gastos", "Otros gastos (no certificado)", "«Flete Int PAGADO» − «Flete Certificado»: la parte "
+                 "del flete que el agente factura por otro concepto y no entra en la base imponible."),
                 ("gastos_origen", "Gastos en origen", "«TOTAL GASTOS ORIGEN» (marítimo) y «Gastos en Origen» (aéreo)."),
-                ("gastos_locales", "Gastos en destino (locales)", "«Gastos Locales» de marítimo y aéreo.")):
+                ("gastos_locales", "Gastos en destino", "«Gastos Locales» de marítimo y aéreo.")):
             v, sub = parte(col)
-            dl, tono = _yoy(v, p_prev, col)
-            partes[col] = KPI(nombre, fmt.fmt_usd(v), help=ayuda, delta=dl, tono=tono,
-                              sub=f"<b>{fmt.fmt_pct(v / tot_costo if tot_costo else float('nan'))}</b> del costo · {sub}")
-        kpi_row(list(partes.values()) + [
-            KPI("Costo logístico total", ind.valor, sub=ind.sub, delta=ind.delta, tono=ind.tono,
-                help=ind.ayuda + f" {fmt.fmt_int(len(p))} embarques con flete pagado.")])
+            dl, tono = _yoy(v, pv_prev, col)
+            tarjetas.append(KPI(nombre, fmt.fmt_usd(v), help=ayuda, delta=dl, tono=tono,
+                                sub=f"<b>{fmt.fmt_pct(v / tot_costo if tot_costo else float('nan'))}</b> del costo · {sub}"))
+        kpi_row(tarjetas + [
+            KPI("Costo logístico total", fmt.fmt_usd(tot_costo), sub=ind.sub, delta=ind.delta, tono=ind.tono,
+                help=ind.ayuda + f" {fmt.fmt_int(len(pv))} embarques validados para pagar.")], columns=5)
         _estado_pago(h)
         kpi_row([
             KPI("Flete por contenedor", fmt.fmt_usd(fl.median, compact=False) if fl.enough else "—",
@@ -297,8 +314,6 @@ def _gasto(bundle, h, a, p, p_all, p_prev, h_all=None, ventana=None) -> None:
             base = base[base[col] > 0]          # sin el gasto cargado no entra en la mediana
         sla_view.flete_mes_matrix(cs.concepto_mes(base, tipo, t.year, col), t)
 
-    with guard("Puente del flete"):
-        _puente(h, h_all, ventana)
 
     c1, c2 = st.columns(2, gap="medium")
     with c1, guard("Costo mensual"):
