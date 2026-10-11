@@ -192,13 +192,9 @@ def render() -> None:
         from views.resumen import render_anio
         render_anio(bundle, filters, numerado=False, shippers=False, proyeccion=True,
                     sub="¿Cuánto movimos en el año? Operaciones embarcadas, año calendario completo.")
-    with guard("Importadores"):
-        _importadores(bundle, filters, t)
     section("¿Cómo estamos?",
             f"Embarques que zarparon {periodo_txt(filters)}. Cada recuadro abre su detalle; el ⓘ explica el cálculo.")
     with guard("Tiempos"):
         _row("Tiempos", _tiempos(bundle, filters, t))
     with guard("Volumen y costos"):
         _row("Costos", _volumen_costos(bundle, filters, t))
-    with guard("Necesita atención"):
-        _atencion(bundle, filters)
