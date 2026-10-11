@@ -104,3 +104,94 @@ def ranking_agentes(cot: pd.DataFrame | None, hist: pd.DataFrame, today: pd.Time
     out = g.groupby("forwarder").agg(rutas=("flete", "size"), mejor_en=("es_mejor", "sum"),
                                      vs_mejor=("vs", "median")).reset_index()
     return out.sort_values(["mejor_en", "vs_mejor"], ascending=[False, True]).reset_index(drop=True)
+
+
+# ---------------------------------------------------------------------------
+# Cotizaciones en curso / próximas: menor tarifa por ruta y con quién negociar
+# ---------------------------------------------------------------------------
+def periodo(cot: pd.DataFrame | None, today: pd.Timestamp, cual: str, destino: str = "Argentina") -> pd.DataFrame:
+    """Tarifas de un período: "curso" (vigentes hoy), "proxima" (empiezan después de hoy) o "anterior" (la última
+    tanda que venció antes de hoy, para comparar)."""
+    if cot is None or cot.empty:
+        return pd.DataFrame(columns=["forwarder", "puerto", "tipo_ctnr", "flete", "validez_desde", "validez_hasta"])
+    c = cot[cot["flete"] > 0]
+    if "destino" in c:
+        c = c[c["destino"] == destino]
+    if cual == "curso":
+        return c[(c["validez_desde"] <= today) & (c["validez_hasta"] >= today)]
+    if cual == "proxima":
+        return c[c["validez_desde"] > today]
+    vencidas = c[c["validez_hasta"] < today]
+    if vencidas.empty:
+        return vencidas
+    ult = vencidas["validez_hasta"].max()
+    return vencidas[vencidas["validez_hasta"] >= ult - pd.Timedelta(days=6)]   # la última tanda
+
+
+def _menores(c: pd.DataFrame) -> pd.DataFrame:
+    """Por ruta (puerto plegado × tipo) y agente: la menor tarifa que cotizó (con su línea y tránsito)."""
+    if c.empty:
+        return pd.DataFrame(columns=["_p", "tipo_ctnr", "forwarder", "flete", "linea", "tt"])
+    x = c.assign(_p=c["puerto"].map(fold)).sort_values("flete")
+    cols = ["_p", "puerto", "tipo_ctnr", "forwarder", "flete"] + [k for k in ("linea", "tt") if k in x]
+    return x.drop_duplicates(["_p", "tipo_ctnr", "forwarder"])[cols]
+
+
+def matriz(hist: pd.DataFrame, cot: pd.DataFrame | None, today: pd.Timestamp, cual: str = "curso",
+           dias: int = 60, solo_nuestras: bool = True, destino: str = "Argentina") -> tuple[pd.DataFrame, list[str]]:
+    """Una fila por ruta (puerto × contenedor) con la menor tarifa de cada agente en el período, la menor de todas
+    (la mejor), su variación contra el período anterior y con quién negociar.
+
+    Devuelve (tabla, agentes). Columnas fijas: puerto, tipo_ctnr, contenedores, agente (principal), menor,
+    menor_agente, menor_linea, menor_tt, anterior, var, tarifa_principal, negociar, estado; + una columna por agente."""
+    act = _menores(periodo(cot, today, cual, destino))
+    if act.empty:
+        return pd.DataFrame(), []
+    ant = _menores(periodo(cot, today, "anterior" if cual == "curso" else "curso", destino))
+    ant_min = ant.groupby(["_p", "tipo_ctnr"])["flete"].min() if len(ant) else pd.Series(dtype=float)
+    h = hist[(hist["etd"] <= today) & (hist["etd"] > today - pd.Timedelta(days=dias)) & hist["tipo_ctnr"].notna()]
+    if "destino" in h:
+        h = h[h["destino"] == destino]
+    h = h.assign(_p=h["puerto"].map(fold), _c=h["contenedores"].fillna(1))
+    uso = h.groupby(["_p", "tipo_ctnr"])["_c"].sum()
+    principal = (h.groupby(["_p", "tipo_ctnr", "forwarder"])["_c"].sum().reset_index()
+                 .sort_values("_c").drop_duplicates(["_p", "tipo_ctnr"], keep="last")
+                 .set_index(["_p", "tipo_ctnr"])["forwarder"]) if len(h) else pd.Series(dtype=object)
+    agentes = act["forwarder"].value_counts().index.tolist()
+    rows = []
+    for (p, tipo), g in act.groupby(["_p", "tipo_ctnr"]):
+        cont = float(uso.get((p, tipo), 0))
+        if solo_nuestras and cont == 0:
+            continue
+        best = g.iloc[g["flete"].values.argmin()]
+        pr = principal.get((p, tipo))
+        tar_pr = g.loc[g["forwarder"].map(fold) == fold(pr), "flete"].min() if isinstance(pr, str) else np.nan
+        prev = ant_min.get((p, tipo), np.nan)
+        u = lambda v: f"USD {v:,.0f}".replace(",", ".")  # noqa: E731
+        if not isinstance(pr, str):
+            neg, est = "—", "Sin uso"
+        elif tar_pr != tar_pr:
+            neg, est = f"Pedir cotización a {pr} (menor: {u(best['flete'])} de {best['forwarder']})", "Pedir"
+        elif tar_pr <= best["flete"]:
+            neg, est = f"OK · {pr} tiene la menor", "OK"
+        else:
+            neg, est = (f"{pr}: pedir {u(best['flete'])} como {best['forwarder']} (hoy cotiza {u(tar_pr)}, "
+                        f"{u(tar_pr - best['flete'])} más)"), "Negociar"
+        r = {"puerto": g["puerto"].iloc[0], "tipo_ctnr": tipo, "contenedores": cont, "agente": pr,
+             "menor": float(best["flete"]), "menor_agente": best["forwarder"],
+             "menor_linea": best.get("linea") if "linea" in g else None, "menor_tt": best.get("tt") if "tt" in g else None,
+             "anterior": prev, "var": (best["flete"] / prev - 1) if prev == prev and prev else np.nan,
+             "tarifa_principal": tar_pr, "negociar": neg, "estado": est}
+        for a in agentes:
+            v = g.loc[g["forwarder"] == a, "flete"]
+            r[a] = float(v.min()) if len(v) else np.nan
+        rows.append(r)
+    t = pd.DataFrame(rows)
+    if t.empty:
+        return t, agentes
+    orden = {"Negociar": 0, "Pedir": 1, "OK": 2, "Sin uso": 3}
+    t["_ahorro"] = (t["tarifa_principal"] - t["menor"]).clip(lower=0).fillna(0) * t["contenedores"]
+    t = t.assign(_o=t["estado"].map(orden)).sort_values(["_o", "_ahorro", "contenedores"],
+                                                        ascending=[True, False, False]).drop(columns="_o")
+    agentes = [a for a in agentes if t[a].notna().any()]
+    return t.reset_index(drop=True), agentes

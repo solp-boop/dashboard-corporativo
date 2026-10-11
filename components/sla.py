@@ -555,3 +555,69 @@ def linea_mes_matrix(g: pd.DataFrame, today: pd.Timestamp, medida: str = "pct", 
                     + "</tr>")
     st.markdown('<div class="scorecard compact matriz"><table><thead><tr>' + "".join(f"<th>{h}</th>" for h in head)
                 + f'</tr></thead><tbody>{"".join(body)}</tbody></table></div>', unsafe_allow_html=True)
+
+
+def _var_td(v, sube_es_malo: bool = True) -> str:
+    if v != v or v is None:
+        return "<td class='na'>—</td>"
+    cls = ("bad" if v > 0.005 else "ok" if v < -0.005 else "") if sube_es_malo else ""
+    flecha = "▲" if v > 0.005 else ("▼" if v < -0.005 else "=")
+    return f"<td class='{cls}'>{flecha} {fmt.fmt_pct(abs(v))}</td>"
+
+
+def flete_mes_matrix(t: pd.DataFrame, today: pd.Timestamp) -> None:
+    """Mes · mediana por contenedor · variación vs mes anterior · mismo mes del año anterior · variación."""
+    if t.empty:
+        st.markdown('<div class="empty">Sin fletes pagados para este contenedor.</div>', unsafe_allow_html=True)
+        return
+    y = today.year
+    head = ["Mes ETD", "Embarques", f"Mediana / cont. {y}", "vs mes anterior", f"Mismo mes {y - 1}", f"vs {y - 1}"]
+    body = []
+    for _, r in t.iterrows():
+        total = pd.isna(r["mes"])
+        lbl = f"Año {y} (a la fecha)" if total else _mes_txt(r["mes"], today)
+        ant = r["anio_ant"]
+        body.append(("<tr class='tot'>" if total else "<tr>")
+                    + f"<th class='rowh'>{lbl}</th><td>{fmt.fmt_int(r['n'])}</td>"
+                    + f"<td class='hl'>{fmt.fmt_usd(r['mediana'], compact=False)}</td>"
+                    + (_var_td(r["var_mes"]) if not total else "<td class='na'></td>")
+                    + (f"<td>{fmt.fmt_usd(ant, compact=False)}</td>" if ant == ant else "<td class='na'>—</td>")
+                    + _var_td(r["var_anio"]) + "</tr>")
+    st.markdown('<div class="scorecard compact matriz"><table><thead><tr>' + "".join(f"<th>{h}</th>" for h in head)
+                + f'</tr></thead><tbody>{"".join(body)}</tbody></table></div>', unsafe_allow_html=True)
+
+
+def cotizaciones_matrix(t: pd.DataFrame, agentes: list[str]) -> None:
+    """Ruta × agente: la menor tarifa que cotizó cada uno (verde = la menor de la ruta; ● = el agente que más
+    usamos en esa ruta), la menor, su variación contra el período anterior y con quién negociar."""
+    if t.empty:
+        st.markdown('<div class="empty">No hay cotizaciones para este período en nuestras rutas.</div>',
+                    unsafe_allow_html=True)
+        return
+    head = ["Ruta", "Cont. 60 d"] + agentes + ["Menor tarifa", "vs período anterior", "Con quién negociar"]
+    body = []
+    for _, r in t.iterrows():
+        cells = [f"<th class='rowh'>{html.escape(str(r['puerto']))} · {html.escape(str(r['tipo_ctnr']))}</th>",
+                 f"<td>{fmt.fmt_int(r['contenedores'])}</td>"]
+        for a in agentes:
+            v = r.get(a)
+            usa = isinstance(r["agente"], str) and r["agente"].strip().lower() == a.strip().lower()
+            marca = " ●" if usa else ""
+            if v != v or v is None:
+                cells.append(f"<td class='na'>—{marca}</td>")
+            else:
+                cls = "ok" if v <= r["menor"] else ""
+                cells.append(f"<td class='{cls}'>{fmt.fmt_int(v)}{marca}</td>")
+        linea = r.get("menor_linea") if isinstance(r.get("menor_linea"), str) else None
+        tt = r.get("menor_tt")
+        tt = f"TT {fmt.fmt_int(tt)} d" if isinstance(tt, (int, float)) and tt == tt else None
+        extra = " · ".join(x for x in (linea, tt) if x)
+        cells.append(f"<td class='hl'>USD {fmt.fmt_int(r['menor'])}<span class='n'>{html.escape(str(r['menor_agente']))}"
+                     f"{' · ' + html.escape(extra) if extra else ''}</span></td>")
+        cells.append(_var_td(r["var"]))
+        cls = {"Negociar": "bad", "Pedir": "", "OK": "ok"}.get(r["estado"], "")
+        cells.append(f"<td class='{cls}' style='text-align:left;white-space:normal;min-width:16rem'>"
+                     f"{html.escape(str(r['negociar']))}</td>")
+        body.append("<tr>" + "".join(cells) + "</tr>")
+    st.markdown('<div class="scorecard compact matriz"><table><thead><tr>' + "".join(f"<th>{h}</th>" for h in head)
+                + f'</tr></thead><tbody>{"".join(body)}</tbody></table></div>', unsafe_allow_html=True)

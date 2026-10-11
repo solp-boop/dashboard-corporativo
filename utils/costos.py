@@ -77,3 +77,31 @@ def casos(d: pd.DataFrame, dim: str, grupo: str) -> pd.DataFrame:
     v = d[dim].map(lambda x: SIN_DATO if x is None or (isinstance(x, float) and np.isnan(x)) or str(x).strip() == ""
                    else str(x).strip())
     return d[v == grupo]
+
+
+def flete_mes(h: pd.DataFrame, tipo: str, year: int) -> pd.DataFrame:
+    """Mediana del flete por contenedor por mes de ETD del año, para un tipo de contenedor, con la variación contra
+    el mes anterior y contra el mismo mes del año anterior. Última fila (mes NaT) = año completo."""
+    cols = ["mes", "n", "mediana", "var_mes", "anio_ant", "var_anio"]
+    d = h[(h["tipo_ctnr"] == tipo) & (h["flete_por_ctnr"] > 0) & h["etd"].notna()] if h is not None and len(h) \
+        else pd.DataFrame(columns=["etd", "flete_por_ctnr"])
+    if d.empty:
+        return pd.DataFrame(columns=cols)
+    d = d.assign(mes=d["etd"].dt.to_period("M").dt.to_timestamp())
+    med = d.groupby("mes")["flete_por_ctnr"].median()
+    n = d.groupby("mes")["flete_por_ctnr"].size()
+    rows = []
+    for m in sorted(x for x in med.index if x.year == year):
+        prev = med.get(m - pd.DateOffset(months=1), np.nan)
+        ya = med.get(m - pd.DateOffset(years=1), np.nan)
+        v = med[m]
+        rows.append({"mes": m, "n": int(n[m]), "mediana": float(v),
+                     "var_mes": v / prev - 1 if prev == prev and prev else np.nan, "anio_ant": ya,
+                     "var_anio": v / ya - 1 if ya == ya and ya else np.nan})
+    este = d[d["mes"].dt.year == year]
+    ant = d[(d["mes"].dt.year == year - 1) & (d["mes"].dt.month <= (este["mes"].dt.month.max() if len(este) else 12))]
+    if len(este):
+        a, b = float(este["flete_por_ctnr"].median()), float(ant["flete_por_ctnr"].median()) if len(ant) else np.nan
+        rows.append({"mes": pd.NaT, "n": int(len(este)), "mediana": a, "var_mes": np.nan, "anio_ant": b,
+                     "var_anio": a / b - 1 if b == b and b else np.nan})
+    return pd.DataFrame(rows, columns=cols)
