@@ -268,18 +268,6 @@ def _maritimo(bundle, filters, z, z_all, z_prev) -> None:
                                 [("cons_min", "Mín."), ("cons_med", "Mediana"), ("cons_max", "Máx.")], t,
                                 resaltar=["cons_med"], pct=("pct_sla", "% en SLA"), textos=[("sla_txt", "SLA")])
 
-    with guard("Objetivo −15 % consolidación"):
-        section(f"Cierre de mes · consolidación por embarque · objetivo −{fmt.fmt_pct(settings.REDUCCION_OBJETIVO)} "
-                f"vs {t.year - 1}",
-                "Igual al cuadro «CIERRE DE MES · CONSOLIDACION POR EMBARQUE» de la hoja Envío mensual. No es time to "
-                "market (ese es por SO, en su pestaña). "
-                "Packeo mínimo → ETD por embarque, destino Argentina, marítimo según «Tipo Carga». Cada estructura contra "
-                f"el mismo mes de {t.year - 1}; el total pondera mono y conso por el volumen de {t.year}.")
-        base = z_all[z_all["destino"].isna() | (z_all["destino"] == "Argentina")] if "destino" in z_all else z_all
-        res = objetivo.vs_anio_anterior(base.drop_duplicates("embarque"), t, "etd", "dias_consolidacion")
-        sla_view.objetivo_kpis(res, "embarques")
-        sla_view.objetivo_matrix(res, t)
-
     section("Análisis para descargar",
             "Elegí la dimensión y bajá el Excel: resumen por esa dimensión y detalle de cada embarque.")
     with guard("Diagnóstico marítimo"):
