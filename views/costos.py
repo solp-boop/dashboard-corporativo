@@ -267,7 +267,7 @@ def _gasto(bundle, h, a, p, p_all, p_prev, h_all=None, ventana=None) -> None:
         kpi_row(tarjetas + [
             KPI("Costo logístico total", fmt.fmt_usd(tot_costo), sub=ind.sub, delta=ind.delta, tono=ind.tono,
                 help=ind.ayuda + f" {fmt.fmt_int(len(pv))} embarques validados para pagar.")], columns=5)
-        _estado_pago(h)
+        chart_title("Costo unitario", "Marítimo y aéreo, todos los embarques zarpados del período con flete")
         kpi_row([
             KPI("Flete por contenedor", fmt.fmt_usd(fl.median, compact=False) if fl.enough else "—",
                 sub=f"Marítimo · mediana · P25–P75 {fmt.fmt_usd(fl.p25, compact=False)}–"
@@ -277,13 +277,14 @@ def _gasto(bundle, h, a, p, p_all, p_prev, h_all=None, ventana=None) -> None:
             KPI("Costo por m³", fmt.fmt_usd(cm3.median, compact=False) if cm3.enough else "—",
                 sub="Marítimo · mediana del costo total / m³"),
         ], columns=4)
+        _estado_pago(h)
     with guard("Costo por contenedor mes a mes"):
         t = today()
         conceptos = {"flete_por_ctnr": "Flete internacional", "locales_por_ctnr": "Gastos en destino",
                      "origen_por_ctnr": "Gastos en origen"}
         section(f"Costo por contenedor · mes a mes {t.year}",
-                "Mediana por contenedor (marítimo, todos los destinos del filtro), variación contra el mes anterior y "
-                f"contra el mismo mes de {t.year - 1}. Rojo = subió; verde = bajó. * mes en curso.")
+                "Mediana por contenedor (marítimo, todos los destinos del filtro) contra el mismo mes de "
+                f"{t.year - 1}. Rojo = subió; verde = bajó. * mes en curso.")
         c1, c2 = st.columns(2, gap="small")
         with c1:
             col = st.segmented_control("Concepto", list(conceptos), default="flete_por_ctnr", format_func=conceptos.get,

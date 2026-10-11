@@ -566,12 +566,12 @@ def _var_td(v, sube_es_malo: bool = True) -> str:
 
 
 def flete_mes_matrix(t: pd.DataFrame, today: pd.Timestamp) -> None:
-    """Mes · mediana por contenedor · variación vs mes anterior · mismo mes del año anterior · variación."""
+    """Mes · mediana por contenedor · mismo mes del año anterior · variación."""
     if t.empty:
         st.markdown('<div class="empty">Sin fletes pagados para este contenedor.</div>', unsafe_allow_html=True)
         return
     y = today.year
-    head = ["Mes ETD", "Embarques", f"Mediana / cont. {y}", "vs mes anterior", f"Mismo mes {y - 1}", f"vs {y - 1}"]
+    head = ["Mes ETD", "Embarques", f"Mediana / cont. {y}", f"Mismo mes {y - 1}", f"vs {y - 1}"]
     body = []
     for _, r in t.iterrows():
         total = pd.isna(r["mes"])
@@ -580,7 +580,6 @@ def flete_mes_matrix(t: pd.DataFrame, today: pd.Timestamp) -> None:
         body.append(("<tr class='tot'>" if total else "<tr>")
                     + f"<th class='rowh'>{lbl}</th><td>{fmt.fmt_int(r['n'])}</td>"
                     + f"<td class='hl'>{fmt.fmt_usd(r['mediana'], compact=False)}</td>"
-                    + (_var_td(r["var_mes"]) if not total else "<td class='na'></td>")
                     + (f"<td>{fmt.fmt_usd(ant, compact=False)}</td>" if ant == ant else "<td class='na'>—</td>")
                     + _var_td(r["var_anio"]) + "</tr>")
     st.markdown('<div class="scorecard compact matriz"><table><thead><tr>' + "".join(f"<th>{h}</th>" for h in head)
