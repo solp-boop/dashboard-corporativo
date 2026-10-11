@@ -132,3 +132,70 @@ def subas_tt(d: pd.DataFrame, umbral: int = 7) -> pd.DataFrame:
     x["vs_obj"] = x["dias_tt"] - x["obj_tt"] if "obj_tt" in x else np.nan
     m = (x["vs_obj"] > 0) | (x["vs_linea"] >= umbral)
     return x[m].sort_values("eta", ascending=False)
+
+
+# ---------------------------------------------------------------------------
+# Tránsito: dispersión contra Validaciones (no es un objetivo: es para levantar la mano)
+# ---------------------------------------------------------------------------
+def con_desvio(d: pd.DataFrame, rango: int | None = None) -> pd.DataFrame:
+    """Agrega desvío (tránsito − Validaciones del puerto) y si quedó fuera de ± rango días (más largo / más corto)."""
+    from config import settings
+    rango = settings.TT_RANGO_DIAS if rango is None else rango
+    x = d.dropna(subset=["dias_tt"]).copy()
+    obj = x["obj_tt"] if "obj_tt" in x else pd.Series(np.nan, index=x.index)
+    x["desvio"] = x["dias_tt"] - obj
+    x["rango"] = np.select([x["desvio"] > rango, x["desvio"] < -rango, x["desvio"].notna()],
+                           ["Más largo", "Más corto", "En rango"], "Sin Validaciones")
+    return x
+
+
+def _disp(g: pd.DataFrame) -> dict:
+    con = g[g["rango"] != "Sin Validaciones"]
+    q = g["dias_tt"].quantile([.25, .5, .75])
+    return {"n": int(len(g)), "p25": float(q[.25]), "med": float(q[.5]), "p75": float(q[.75]),
+            "iqr": float(q[.75] - q[.25]), "n_val": int(len(con)),
+            "fuera": float((con["rango"] != "En rango").mean()) if len(con) else np.nan,
+            "largos": int((con["rango"] == "Más largo").sum()), "cortos": int((con["rango"] == "Más corto").sum()),
+            "obj": float(con["obj_tt"].median()) if len(con) else np.nan}
+
+
+def dispersion_mes(d: pd.DataFrame) -> pd.DataFrame:
+    """Por mes de ETA (solo llegados): P25, mediana, P75, dispersión (P75 − P25) y % fuera de rango + total (NaT)."""
+    x = con_desvio(d.dropna(subset=["eta"]))
+    if x.empty:
+        return pd.DataFrame(columns=["mes", "n", "p25", "med", "p75", "iqr", "n_val", "fuera", "largos", "cortos", "obj"])
+    x = x.assign(mes=calc.month_start(x["eta"]))
+    rows = [{"mes": m, **_disp(g)} for m, g in x.groupby("mes")] + [{"mes": pd.NaT, **_disp(x)}]
+    return pd.DataFrame(rows)
+
+
+def dispersion_puerto(d: pd.DataFrame, today: pd.Timestamp, meses: int = 3, min_n: int = 5) -> pd.DataFrame:
+    """Por puerto, últimos `meses` meses cerrados por ETA: tránsito de Validaciones, mediana, P25–P75 y % fuera de
+    rango. «Revisar» = más del TT_ALERTA_FUERA de los embarques fuera de rango."""
+    from config import settings
+    fin = today.to_period("M").to_timestamp()
+    ini = fin - pd.DateOffset(months=meses)
+    x = con_desvio(d[(d["eta"] >= ini) & (d["eta"] < fin)])
+    if x.empty:
+        return pd.DataFrame(columns=["puerto", "n", "obj", "p25", "med", "p75", "iqr", "fuera", "largos", "cortos",
+                                     "revisar"])
+    t = pd.DataFrame([{"puerto": p, **_disp(g)} for p, g in x.groupby("puerto")])
+    t = t[t["n"] >= min_n]
+    t["revisar"] = t["fuera"] > settings.TT_ALERTA_FUERA
+    return t.sort_values(["revisar", "fuera"], ascending=[False, False]).reset_index(drop=True)
+
+
+def punta_a_punta_mes(d: pd.DataFrame) -> pd.DataFrame:
+    """Fin de producción → ETA por mes de ETA (solo llegados): mediana y n de monoproveedor, consolidado y total."""
+    x = d.dropna(subset=["eta", "dias_total"])
+    if x.empty:
+        return pd.DataFrame(columns=["mes", "mono_n", "mono_med", "conso_n", "conso_med", "n", "med"])
+    x = x.assign(mes=calc.month_start(x["eta"]))
+
+    def fila(g):
+        mo, co = g[g["estructura"] == "Monoproveedor"]["dias_total"], g[g["estructura"] == "Consolidado"]["dias_total"]
+        return {"mono_n": len(mo), "mono_med": float(mo.median()) if len(mo) else np.nan,
+                "conso_n": len(co), "conso_med": float(co.median()) if len(co) else np.nan,
+                "n": len(g), "med": float(g["dias_total"].median())}
+    rows = [{"mes": m, **fila(g)} for m, g in x.groupby("mes")] + [{"mes": pd.NaT, **fila(x)}]
+    return pd.DataFrame(rows)

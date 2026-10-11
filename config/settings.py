@@ -113,6 +113,9 @@ SLA_TT_DEFAULT = 50
 SLA_TOTAL_DEFAULT = 75
 # Tolerancia para "amarillo": hasta +20 % sobre el SLA.
 SLA_WARNING_TOLERANCE = 0.20
+# Tránsito marítimo: no hay objetivo; se mira la dispersión contra el tránsito de Validaciones de cada puerto.
+TT_RANGO_DIAS = 7          # un embarque está «en rango» si su tránsito queda a ± 7 días del de Validaciones
+TT_ALERTA_FUERA = 0.25     # se levanta la mano si más del 25 % de los embarques (mes o puerto) queda fuera de rango
 
 # Referencia de consolidación para in advance / spot (sin SLA formal).
 REF_CONSOLIDACION_BOOKING = 20

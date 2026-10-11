@@ -701,3 +701,57 @@ def objetivo_matrix(res: dict, today: pd.Timestamp) -> None:
     st.caption(f"Objetivo = mediana del mismo mes de {y - 1} × {1 - settings.REDUCCION_OBJETIVO:.2f}. Verde = bajó "
                f"{fmt.fmt_pct(settings.REDUCCION_OBJETIVO)} o más; amarillo = bajó menos; rojo = subió. Sin color si "
                f"algún año tiene menos de {settings.OBJ_MIN_N} casos. * mes en curso (no se califica).")
+
+
+# ---------------------------------------------------------------------------
+# Tránsito: dispersión contra Validaciones · Punta a punta mono vs conso
+# ---------------------------------------------------------------------------
+def _dias(v) -> str:
+    return "—" if v != v or v is None else (f"{fmt.fmt_int(v)} d" if float(v).is_integer() else f"{fmt.fmt_num(v, 1)} d")
+
+
+def dispersion_matrix(t: pd.DataFrame, today: pd.Timestamp, por: str = "mes") -> None:
+    """Mes (o puerto) × dispersión: P25, mediana, P75, ancho P75 − P25 y % fuera de ± TT_RANGO_DIAS del tránsito
+    de Validaciones (rojo cuando pasa TT_ALERTA_FUERA: hay que levantar la mano)."""
+    if t.empty:
+        st.markdown('<div class="empty">Sin embarques llegados.</div>', unsafe_allow_html=True)
+        return
+    r = settings.TT_RANGO_DIAS
+    primera = "Mes ETA" if por == "mes" else "Puerto"
+    head = [primera, "Embarques"] + (["Validaciones"] if por != "mes" else []) + \
+        ["P25", "Mediana", "P75", "Dispersión (P75 − P25)", f"Fuera de ± {r} d", "Más largos", "Más cortos"]
+    body = []
+    rows = t.sort_values("mes", na_position="last") if por == "mes" else t
+    for _, x in rows.iterrows():
+        total = por == "mes" and pd.isna(x["mes"])
+        lbl = (f"Total {today.year}" if total else _mes_txt(x["mes"], today)) if por == "mes" else html.escape(str(x["puerto"]))
+        f = x["fuera"]
+        cls = "" if f != f else ("bad" if f > settings.TT_ALERTA_FUERA else "ok")
+        body.append(("<tr class='tot'>" if total else "<tr>") + f"<th class='rowh'>{lbl}</th><td>{fmt.fmt_int(x['n'])}</td>"
+                    + (f"<td>{_dias(x['obj'])}</td>" if por != "mes" else "")
+                    + f"<td>{_dias(x['p25'])}</td><td class='hl'>{_dias(x['med'])}</td><td>{_dias(x['p75'])}</td>"
+                    + f"<td>{_dias(x['iqr'])}</td>"
+                    + (f"<td class='{cls}'>{fmt.fmt_pct(f)}<span class='n'>n={fmt.fmt_int(x['n_val'])}</span></td>"
+                       if f == f else "<td class='na'>—</td>")
+                    + f"<td>{fmt.fmt_int(x['largos'])}</td><td>{fmt.fmt_int(x['cortos'])}</td></tr>")
+    st.markdown("<div class='scorecard compact matriz'><table><thead><tr>" + "".join(f"<th>{h}</th>" for h in head)
+                + "</tr></thead><tbody>" + "".join(body) + "</tbody></table></div>", unsafe_allow_html=True)
+
+
+def punta_mes_matrix(t: pd.DataFrame, today: pd.Timestamp) -> None:
+    """Mes de ETA × monoproveedor / consolidado / total: mediana de fin de producción → ETA y n."""
+    if t.empty:
+        st.markdown('<div class="empty">Sin embarques llegados con fin de producción.</div>', unsafe_allow_html=True)
+        return
+    head = "<tr><th rowspan='2'>Mes ETA</th><th colspan='2'>Monoproveedor</th><th colspan='2'>Consolidado</th>" \
+           "<th colspan='2'>Total</th></tr><tr>" + "<th>Mediana</th><th>Embarques</th>" * 3 + "</tr>"
+    body = []
+    for _, x in t.sort_values("mes", na_position="last").iterrows():
+        total = pd.isna(x["mes"])
+        lbl = f"Total {today.year}" if total else _mes_txt(x["mes"], today)
+        body.append(("<tr class='tot'>" if total else "<tr>") + f"<th class='rowh'>{lbl}</th>"
+                    + f"<td class='hl'>{_dias(x['mono_med'])}</td><td>{fmt.fmt_int(x['mono_n'])}</td>"
+                    + f"<td class='hl'>{_dias(x['conso_med'])}</td><td>{fmt.fmt_int(x['conso_n'])}</td>"
+                    + f"<td>{_dias(x['med'])}</td><td>{fmt.fmt_int(x['n'])}</td></tr>")
+    st.markdown("<div class='scorecard compact matriz'><table><thead>" + head + "</thead><tbody>" + "".join(body)
+                + "</tbody></table></div>", unsafe_allow_html=True)

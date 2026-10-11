@@ -12,7 +12,7 @@ import streamlit as st
 from components import sla as sla_view
 from components.drill import diagnostico
 from components.kpi_cards import KPI, kpi_row
-from components.layout import chart_title, coverage, empty, guard, require, section, semaforo_legend
+from components.layout import coverage, empty, guard, require, section, semaforo_legend
 from components.tables import ColSpec, data_table, solo_descarga
 from config import settings
 from utils import calculations as calc
@@ -230,54 +230,12 @@ def _maritimo(bundle, filters, z, z_all, z_prev) -> None:
                 sub=f"<b>{fmt.fmt_pct(top.iloc[0] / len(causas))}</b> de los fuera de SLA con causa" if len(top) else
                 "Sin causas cargadas", help="«Tipo de demora» más frecuente entre los embarques fuera de SLA."),
         ])
-    with guard("Etapas por mes"):
-        section("Tiempo de consolidación · mes a mes",
-                "Consolidación (packeo mínimo → ETD) por mes de ETD: mínimo, mediana y máximo, solo destino Argentina. "
-                "100 % = todos los embarques. SLA = el definido: monoproveedor según la ETD ("
-                f"{calc.sla_mono_txt()}), consolidado según el puerto (mediana del mes). «% en SLA» = embarques dentro del "
-                "SLA (verde si llega al "
-                f"{fmt.fmt_pct(settings.CUMPLIMIENTO_OBJETIVO)}). * mes en curso.")
-        base = z[z["destino"].isna() | (z["destino"] == "Argentina")] if "destino" in z else z
-        estructura = st.segmented_control("Estructura", ["100 %", "Monoproveedor", "Consolidado"], default="100 %",
-                                          key="tm_mar_estructura", label_visibility="collapsed") or "100 %"
-        if estructura != "100 %":
-            base = base[base["estructura"] == estructura]
-        x = base.dropna(subset=["etd", "dias_consolidacion"]).assign(mes=lambda d: calc.month_start(d["etd"]))
-        if x.empty:
-            empty()
-        else:
-            g = x.groupby("mes")
-
-            def sla_txt(d):
-                mono = d.loc[d["estructura"] == "Monoproveedor", "sla_consolidacion"].median()
-                cons = d.loc[d["estructura"] == "Consolidado", "sla_consolidacion"].median()
-                partes = ([f"Mono {fmt.fmt_int(mono)} d"] if mono == mono and estructura != "Consolidado" else []) + \
-                         ([f"Conso {fmt.fmt_int(cons)} d"] if cons == cons and estructura != "Monoproveedor" else [])
-                return " · ".join(partes)
-            tab = pd.DataFrame({
-                "sla_txt": g.apply(sla_txt, include_groups=False),
-                "n": g.size(), "cons_min": g["dias_consolidacion"].min(), "cons_med": g["dias_consolidacion"].median(),
-                "cons_max": g["dias_consolidacion"].max(),
-                "pct_sla": g.apply(lambda d: (d["dias_consolidacion"] <= d["sla_consolidacion"])[
-                    d["sla_consolidacion"].notna()].mean(), include_groups=False),
-            }).reset_index()
-            tot = {"mes": pd.NaT, "n": len(x), "sla_txt": "", "cons_min": x["dias_consolidacion"].min(),
-                   "cons_med": x["dias_consolidacion"].median(), "cons_max": x["dias_consolidacion"].max(),
-                   "pct_sla": (x["dias_consolidacion"] <= x["sla_consolidacion"])[x["sla_consolidacion"].notna()].mean()}
-            sla_view.mes_matrix(pd.concat([tab, pd.DataFrame([tot])], ignore_index=True),
-                                [("cons_min", "Mín."), ("cons_med", "Mediana"), ("cons_max", "Máx.")], t,
-                                resaltar=["cons_med"], pct=("pct_sla", "% en SLA"), textos=[("sla_txt", "SLA")])
-
     section("Análisis para descargar",
             "Elegí la dimensión y bajá el Excel: resumen por esa dimensión y detalle de cada embarque.")
     with guard("Diagnóstico marítimo"):
         diagnostico(z, DIMS_MAR, "dias_consolidacion", "sla_consolidacion", key="tm_mar", casos_cols=CASOS_MAR,
                     prev=z_prev, prev_txt="el mismo período del año anterior", unidad="embarques")
 
-    with st.expander("Cierre de mes, cumplimiento y tiempos por puerto"):
-        chart_title("Cumplimiento mes a mes", "% de embarques con consolidación dentro del SLA")
-        sla_view.compliance_chart(sla.monthly_compliance(z), t, key="tm_mar_cumpl")
-        _cierre_maritimo(bundle, filters, z)
 
 
 def _cierre_maritimo(bundle, filters, z: pd.DataFrame) -> None:
@@ -329,49 +287,70 @@ CASOS_TT = [
 
 
 def _transito(bundle, filters, z, z_all, z_prev) -> None:
-    from utils import resumen_kpis as rk
-    from views.resumen import tt_puerto_table
+    from utils import tiempos_mes as tm
     t = today()
     section("Tránsito marítimo · ETD → ETA",
-            "Cada embarque contra el objetivo de tránsito de su puerto (Validaciones · «Transito ARG»; monoproveedor usa "
-            "el renglón «-Monoproducto» si existe). Solo embarques que ya llegaron.")
+            "Acá no hay objetivo: lo que se mira es que el tránsito no se disperse del que tenemos en Validaciones para "
+            f"cada puerto («Transito ARG»; monoproveedor usa «-Monoproducto» si existe). Un embarque está en rango si "
+            f"queda a ± {settings.TT_RANGO_DIAS} días de Validaciones; se levanta la mano cuando más del "
+            f"{fmt.fmt_pct(settings.TT_ALERTA_FUERA)} queda fuera. Solo embarques que ya llegaron.")
     llego = lambda x: x[x["eta"] <= t].dropna(subset=["dias_tt"])  # noqa: E731 · ETA futura = estimada
     d = llego(z)
     if d.empty:
         empty("Sin embarques llegados en el período.")
         return
     with guard("Situación tránsito"):
-        pct, ok, n = rk.tt_vs_objetivo(d)
-        fuera = d[d["dias_tt"] > d["obj_tt"]]
+        x = tm.con_desvio(d)
+        con = x[x["rango"] != "Sin Validaciones"]
+        fuera = con[con["rango"] != "En rango"]
+        pf = len(fuera) / len(con) if len(con) else float("nan")
         delta, tono = _mediana_delta(llego(z_all), "dias_tt", t)
-        tab, _, _ = rk.tt_por_puerto(sla.zarpados(filtered(bundle, "historicas", filters, use_period=False), t), t)
-        sobre = tab[tab["estado"] == "Fuera de SLA"]["puerto"].tolist() if len(tab) else []
-        enough = n >= settings.MIN_SAMPLE
+        puertos = tm.dispersion_puerto(llego(z_all), t)
+        revisar = puertos[puertos["revisar"]]["puerto"].tolist() if len(puertos) else []
+        q = d["dias_tt"].quantile([.25, .75])
         kpi_row([
             KPI("Tránsito (mediana)", fmt.fmt_int(d["dias_tt"].median()), "d", delta=delta, tono=tono,
-                sub=f"P90 {fmt.fmt_int(d['dias_tt'].quantile(.9))} d · n={fmt.fmt_int(len(d))}"),
-            KPI("En objetivo", fmt.fmt_pct(pct) if enough else "—",
-                status=("ok" if pct >= settings.CUMPLIMIENTO_OBJETIVO else "bad") if enough else "",
-                sub=f"<b>{fmt.fmt_int(ok)}</b> de {fmt.fmt_int(n)} con objetivo de su puerto"),
-            KPI("Fuera de objetivo", fmt.fmt_int(len(fuera)), status="bad" if len(fuera) else "ok",
-                sub=f"se pasan <b>{fmt.fmt_int((fuera['dias_tt'] - fuera['obj_tt']).median())} d</b> (mediana)"
-                if len(fuera) else ""),
-            KPI("Puertos sobre objetivo", fmt.fmt_int(len(sobre)), status="warn" if sobre else "ok",
-                sub=", ".join(sobre[:3]) + (" …" if len(sobre) > 3 else "") if sobre else "últimos 3 meses cerrados",
-                help="Puertos cuya mediana de tránsito de los últimos 3 meses cerrados supera el objetivo en más de "
-                     f"{fmt.fmt_pct(settings.SLA_WARNING_TOLERANCE)}."),
+                sub=f"P25–P75 {fmt.fmt_int(q[.25])}–{fmt.fmt_int(q[.75])} d · n={fmt.fmt_int(len(d))}"),
+            KPI(f"Fuera de ± {settings.TT_RANGO_DIAS} d de Validaciones", fmt.fmt_pct(pf) if len(con) else "—",
+                status=("bad" if pf > settings.TT_ALERTA_FUERA else "ok") if len(con) else "",
+                badge=("Revisar" if pf > settings.TT_ALERTA_FUERA else "") if len(con) else "",
+                sub=f"<b>{fmt.fmt_int((fuera['rango'] == 'Más largo').sum())}</b> más largos · "
+                    f"<b>{fmt.fmt_int((fuera['rango'] == 'Más corto').sum())}</b> más cortos · de "
+                    f"{fmt.fmt_int(len(con))} con Validaciones",
+                help=f"Embarques cuyo tránsito se aleja más de {settings.TT_RANGO_DIAS} días (para arriba o para "
+                     "abajo) del tránsito de Validaciones de su puerto. Rojo cuando pasa el "
+                     f"{fmt.fmt_pct(settings.TT_ALERTA_FUERA)}."),
+            KPI("Dispersión (P75 − P25)", fmt.fmt_int(q[.75] - q[.25]), "d",
+                sub="ancho del 50 % central de los tránsitos: cuanto más chico, más previsible"),
+            KPI("Puertos para revisar", fmt.fmt_int(len(revisar)), status="warn" if revisar else "ok",
+                sub=", ".join(revisar[:3]) + (" …" if len(revisar) > 3 else "") if revisar else
+                "últimos 3 meses cerrados, puertos con ≥ 5 embarques",
+                help=f"Puertos con más del {fmt.fmt_pct(settings.TT_ALERTA_FUERA)} de los embarques fuera de "
+                     f"± {settings.TT_RANGO_DIAS} días de Validaciones en los últimos 3 meses cerrados."),
         ])
-    from utils import tiempos_mes as tm
     with guard("Tránsito mes a mes"):
-        section("Tránsito · mes a mes (por ETA)",
-                "Solo embarques que ya llegaron, por mes de llegada. «% en objetivo» = tránsito dentro del objetivo de "
-                f"su puerto (verde si llega al {fmt.fmt_pct(settings.CUMPLIMIENTO_OBJETIVO)}). * mes en curso.")
+        section("Tránsito · dispersión mes a mes (por ETA)",
+                "Solo embarques que ya llegaron, por mes de llegada. P25 / P75 = el 25 % más rápido y el 25 % más lento; "
+                f"«Fuera de ± {settings.TT_RANGO_DIAS} d» en rojo = hay que levantar la mano ese mes. * mes en curso.")
         lineas = ["Todas las líneas"] + list(d["linea"].map(tm.linea).value_counts().index) if "linea" in d \
             else ["Todas las líneas"]
         ln = st.selectbox("Línea marítima", lineas, key="tm_tt_linea")
         dd = d if ln == "Todas las líneas" else d[d["linea"].map(tm.linea) == ln]
-        sla_view.mes_matrix(tm.tt_mes(dd), [("tt_min", "Mín."), ("tt_med", "Mediana"), ("tt_max", "Máx.")], t,
-                            resaltar=["tt_med"], pct=("pct_obj", "% en objetivo"), fecha="Mes ETA")
+        sla_view.dispersion_matrix(tm.dispersion_mes(dd), t)
+
+    with guard("Punta a punta mono vs conso"):
+        section("Punta a punta · mes a mes · monoproveedor vs consolidado (por ETA)",
+                "Fin de producción → ETA, mediana por mes de llegada, solo destino Argentina y embarques que ya "
+                "llegaron con fin de producción cargado. * mes en curso.")
+        pp = tm.punta_a_punta_mes(llego(z_all[z_all["eta"].dt.year == t.year]) if "eta" in z_all else d)
+        sla_view.punta_mes_matrix(pp, t)
+        solo_descarga(llego(z_all[z_all["eta"].dt.year == t.year]).dropna(subset=["dias_total"]), [
+            ColSpec("embarque", "Embarque"), ColSpec("estructura", "Estructura"), ColSpec("puerto", "Puerto"),
+            ColSpec("forwarder", "Agente"), ColSpec("f_fin_produccion", "Fin de producción", "date"),
+            ColSpec("etd", "ETD", "date"), ColSpec("eta", "ETA", "date"),
+            ColSpec("dias_consolidacion", "Consolidación (d)", "days"), ColSpec("dias_tt", "Tránsito (d)", "days"),
+            ColSpec("dias_total", "Punta a punta (d)", "days"), ColSpec("responsable", "Responsable"),
+        ], key="tm_pp_casos", filename=f"punta_a_punta_{t:%Y%m%d}", label="Descargar embarques")
 
     with guard("Líneas marítimas"):
         section("Líneas marítimas · mes a mes (por ETA)",
@@ -423,9 +402,12 @@ def _transito(bundle, filters, z, z_all, z_prev) -> None:
         diagnostico(d, DIMS_TT, "dias_tt", "obj_tt", key="tm_tt", casos_cols=CASOS_TT,
                     prev=llego(z_prev) if z_prev is not None else None,
                     prev_txt="el mismo período del año anterior", unidad="embarques")
-    with st.expander("Cierre por puerto · últimos 3 meses cerrados"):
+    with st.expander("Dispersión por puerto · últimos 3 meses cerrados"):
         with guard("Tránsito por puerto"):
-            tt_puerto_table(filtered(bundle, "historicas", filters, use_period=False), t, key="lt_tt_puerto")
+            sla_view.dispersion_matrix(tm.dispersion_puerto(llego(z_all), t), t, por="puerto")
+            st.caption(f"Puertos con ≥ 5 embarques llegados. Rojo = más del {fmt.fmt_pct(settings.TT_ALERTA_FUERA)} "
+                       f"fuera de ± {settings.TT_RANGO_DIAS} días del tránsito de Validaciones: revisar con el agente "
+                       "o actualizar Validaciones.")
 
 
 # ---------------------------------------------------------------------------
