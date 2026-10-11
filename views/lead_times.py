@@ -269,7 +269,10 @@ def _maritimo(bundle, filters, z, z_all, z_prev) -> None:
                                 resaltar=["cons_med"], pct=("pct_sla", "% en SLA"), textos=[("sla_txt", "SLA")])
 
     with guard("Objetivo −15 % consolidación"):
-        section(f"Objetivo −{fmt.fmt_pct(settings.REDUCCION_OBJETIVO)} vs {t.year - 1} · consolidación",
+        section(f"Cierre de mes · consolidación por embarque · objetivo −{fmt.fmt_pct(settings.REDUCCION_OBJETIVO)} "
+                f"vs {t.year - 1}",
+                "Igual al cuadro «CIERRE DE MES · CONSOLIDACION POR EMBARQUE» de la hoja Envío mensual. No es time to "
+                "market (ese es por SO, en su pestaña). "
                 "Packeo mínimo → ETD por embarque, destino Argentina, marítimo según «Tipo Carga». Cada estructura contra "
                 f"el mismo mes de {t.year - 1}; el total pondera mono y conso por el volumen de {t.year}.")
         base = z_all[z_all["destino"].isna() | (z_all["destino"] == "Argentina")] if "destino" in z_all else z_all
@@ -594,9 +597,10 @@ def _time_to_market(bundle, filters, ventana) -> None:
     sel, nombre = productos.seleccion(du, grupo, medio)
     sub_g = sel[sel[grupo].fillna(False).astype(bool)] if grupo in sel else sel
     res = objetivo.vs_anio_anterior(productos.por_envio(sub_g), t, "etd", "tiempo")
-    section(f"Objetivo −{fmt.fmt_pct(settings.REDUCCION_OBJETIVO)} vs {t.year - 1} · {nombre}",
-            "Mediana del tiempo de consolidación por SO por envío, monoproveedor y consolidado por separado, contra el "
-            f"mismo mes de {t.year - 1}. El total pondera las dos por el volumen de {t.year}.")
+    section(f"Time to market · objetivo −{fmt.fmt_pct(settings.REDUCCION_OBJETIVO)} vs {t.year - 1} · {nombre}",
+            "Por SO (columna «Tiempo de consolidación» de Embarques Historicos), monoproveedor y consolidado por "
+            f"separado, contra el mismo mes de {t.year - 1}. El total pondera las dos por el volumen de {t.year}. Cada "
+            "combinación de botones tiene su cuadro igual en la hoja Envío mensual («TIME TO MARKET · … · OBJETIVO»).")
     with guard("Objetivo −15 %"):
         sla_view.objetivo_kpis(res, "SO")
         sla_view.objetivo_matrix(res, t)
