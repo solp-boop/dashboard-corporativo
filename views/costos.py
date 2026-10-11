@@ -161,7 +161,7 @@ def _certificacion(h) -> None:
     if h is None or h.empty or "flete_certificado" not in h:
         return
     d = h[(h["flete_pagado"] > 0) & (h["flete_certificado"] > 0)].copy()
-    section("3 · Certificación de flete (captura fiscal)",
+    section("Certificación de flete · captura en aduana",
             "«Flete Int PAGADO» es el 100 % del flete; «Flete Certificado» es lo que se declara como flete. La diferencia "
             "la factura el agente por otro concepto y sale de la base imponible de aduana: pagamos menos derechos. No se "
             "suma a 1 + 2 porque es un ahorro de aduana, no de flete.")
@@ -174,19 +174,27 @@ def _certificacion(h) -> None:
     pct = cert / pag if pag else float("nan")
     st_, badge = cert_status(pct)
     en_val = 1 - float(d["validado"].mean())
-    alic = settings.ALICUOTA_AHORRO_CERT
+    c1, _ = st.columns([1, 3])
+    with c1:
+        alic_pct = st.number_input(
+            "Alícuota para estimar el ahorro (%)", min_value=0.0, max_value=100.0, step=0.5,
+            value=float((settings.ALICUOTA_AHORRO_CERT or 0) * 100), key="co_cert_alic",
+            help="Derechos de importación promedio + tasa estadística (3 %). No está mapeada por producto: escribí la "
+                 "alícuota promedio y el ahorro se calcula sobre la base que sale de aduana.")
+    alic = alic_pct / 100 if alic_pct else None
     kpi_row([
-        KPI("Base que sale de aduana", fmt.fmt_usd(fuera), status="ok" if fuera > 0 else "",
+        KPI("Captura por certificación", fmt.fmt_usd(fuera * alic) if alic else "—",
+            status="ok" if alic and fuera > 0 else "",
+            sub=(f"ahorro en aduana · base fuera {fmt.fmt_usd(fuera)} × {fmt.fmt_num(alic_pct, 1)} %" if alic else
+                 f"escribí la alícuota arriba · base fuera de aduana {fmt.fmt_usd(fuera)}"),
+            help="Derechos + tasa estadística que no pagamos porque esa parte del flete no se certificó. Es una "
+                 "estimación con la alícuota promedio."),
+        KPI("Base que sale de aduana", fmt.fmt_usd(fuera),
             sub=f"flete pagado {fmt.fmt_usd(pag)} − certificado {fmt.fmt_usd(cert)} · "
                 f"{fmt.fmt_int(len(d))} embarques",
-            help="Suma de (Flete Int PAGADO − Flete Certificado): lo que no entra en la base imponible."),
+            help="Suma de (Flete Int PAGADO − Flete Certificado): lo que no entra en la base imponible. Dato real."),
         KPI("Certificación de flete", fmt.fmt_pct(pct), status=st_, badge=badge,
             sub=f"certificado / pagado · máximo {fmt.fmt_pct(settings.KPI_CERTIFICACION_MAX)}"),
-        KPI("Ahorro estimado en aduana", fmt.fmt_usd(fuera * alic) if alic else "—",
-            sub=(f"base × {fmt.fmt_pct(alic)} (derechos + tasa estadística)" if alic else
-                 "falta definir la alícuota promedio (derechos + tasa estadística)"),
-            help="Estimación: no hay columna con los derechos pagados por embarque. Se configura en "
-                 "ALICUOTA_AHORRO_CERT."),
         KPI("En validación", fmt.fmt_pct(en_val), status="warn" if en_val > 0 else "ok",
             sub=f"de los embarques certificados todavía no está validado para pagar "
                 f"({fmt.fmt_int(int((~d['validado']).sum()))})",
@@ -204,7 +212,7 @@ def _certificacion(h) -> None:
             ColSpec("fuera", "Base fuera de aduana (USD)", "usd"), ColSpec("en_val", "% en validación", "pct")]
     if alic:
         g["ahorro"] = g["fuera"] * alic
-        cols.append(ColSpec("ahorro", "Ahorro estimado (USD)", "usd"))
+        cols.insert(6, ColSpec("ahorro", "Captura por certificación (USD)", "usd"))
     data_table(g, cols, key="co_cert_mes", filename="certificacion_flete_mes", search=False)
     solo_descarga(d.sort_values("base_fuera", ascending=False), [
         ColSpec("embarque", "Embarque"), ColSpec("etd", "ETD", "date"), ColSpec("forwarder", "Agente"),
@@ -539,6 +547,8 @@ def _captura(bundle, filters, h, ventana, m=None) -> None:
             prev_txt = (f"{'▲' if d > 0 else '▼' if d < 0 else '='} {fmt.fmt_usd(abs(d))} vs mismo período del año "
                         f"anterior ({fmt.fmt_usd(r0['total'])})")
         _cuatro_ahorros(bundle, h, m, casos_neg, r, hay_sin, prev_txt)
+        with guard("Certificación de flete"):
+            _certificacion(h)
         sin_base = int(h["embarque"].nunique()) - int(r["neg_emb"]) if hay_sin else 0
         chart_title("Realizado: el detalle", "Las dos fuentes de ahorro que sí se suman")
         kpi_row([
@@ -570,8 +580,6 @@ def _captura(bundle, filters, h, ventana, m=None) -> None:
                                                            tickformat=",.0f", rangemode="tozero"))
             charts.theme(fig, y_title="USD por mes")
             charts.show(fig, key="co_captura_mes")
-    with guard("Certificación de flete"):
-        _certificacion(h)
     with guard("Captura por trimestre"):
         t = today()
         qq = cap.por_trimestre(casos_neg, nor, t.year)
