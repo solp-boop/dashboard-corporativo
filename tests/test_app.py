@@ -174,3 +174,13 @@ def test_tiempos_cada_vista(vista, local_files):
     at.run()
     assert_clean(at)
     assert at.session_state["tiempos_vista"] == vista
+
+
+@pytest.mark.parametrize("vista", ["captura", "tarifas", "validacion", "contenedores"])
+def test_costos_cada_vista(vista, local_files):
+    at = AppTest.from_file(RUNNER, default_timeout=120)
+    at.secrets["local_files"] = local_files
+    at.secrets["test_page"] = "costos"
+    at.query_params["vista"] = vista
+    at.run()
+    assert_clean(at)

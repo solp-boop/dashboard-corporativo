@@ -113,3 +113,48 @@ def resumen(neg_casos: pd.DataFrame, nor: pd.DataFrame) -> dict:
             "neg_emb": int(len(neg_casos)) if neg_casos is not None else 0,
             "nor_cont": float(nor["contenedores"].sum()) if nor is not None and len(nor) else 0.0,
             "neg_cont": float(neg_casos["contenedores"].sum()) if neg_casos is not None and len(neg_casos) else np.nan}
+
+
+def por_agente(hist: pd.DataFrame, neg_casos: pd.DataFrame, nor: pd.DataFrame) -> pd.DataFrame:
+    """Una fila por agente: embarques marítimos con flete, cuántos tienen la tarifa identificada (cobertura),
+    contenedores, captura por negociación, por 40 NOR y total; % de la negociación sobre la tarifa original."""
+    cols = ["agente", "embarques", "con_tarifa", "cobertura", "contenedores", "negociacion", "nor", "total", "pct"]
+    if hist is None or hist.empty:
+        return pd.DataFrame(columns=cols)
+    ag = lambda s: s.fillna("Sin agente").astype(str)  # noqa: E731
+    base = hist.assign(agente=ag(hist["forwarder"])).groupby("agente").agg(
+        embarques=("embarque", "nunique"), contenedores=("contenedores", "sum"))
+    out = base.copy()
+    if neg_casos is not None and len(neg_casos):
+        n = neg_casos.assign(agente=ag(neg_casos["forwarder"]),
+                             _orig=neg_casos["flete_original"] * neg_casos["contenedores"].fillna(1))
+        gn = n.groupby("agente").agg(con_tarifa=("embarque", "nunique"), negociacion=("captura", "sum"),
+                                     _orig=("_orig", "sum"))
+        out = out.join(gn)
+    if nor is not None and len(nor):
+        out = out.join(nor.assign(agente=ag(nor["forwarder"])).groupby("agente")["ahorro"].sum().rename("nor"))
+    for c in ("con_tarifa", "negociacion", "nor", "_orig"):
+        if c not in out:
+            out[c] = 0.0
+    out = out.fillna({"con_tarifa": 0, "negociacion": 0.0, "nor": 0.0, "_orig": 0.0})
+    out["cobertura"] = out["con_tarifa"] / out["embarques"]
+    out["total"] = out["negociacion"] + out["nor"]
+    out["pct"] = (out["negociacion"] / out["_orig"]).where(out["_orig"] > 0)
+    return out.reset_index().sort_values("total", ascending=False)[cols].reset_index(drop=True)
+
+
+def por_trimestre(neg_casos: pd.DataFrame, nor: pd.DataFrame, year: int) -> pd.DataFrame:
+    """Q1..Q4 del año: negociación, 40 NOR, total y contenedores 40 NOR."""
+    rows = []
+    for q in range(1, 5):
+        ini = pd.Timestamp(year, 3 * q - 2, 1)
+        fin = ini + pd.DateOffset(months=3)
+        n = neg_casos[(neg_casos["etd"] >= ini) & (neg_casos["etd"] < fin)] if neg_casos is not None and len(neg_casos) \
+            else pd.DataFrame(columns=["captura"])
+        r = nor[(nor["etd"] >= ini) & (nor["etd"] < fin)] if nor is not None and len(nor) \
+            else pd.DataFrame(columns=["ahorro", "contenedores"])
+        rows.append({"q": f"Q{q}", "negociacion": float(n["captura"].sum()), "nor": float(r["ahorro"].sum()),
+                     "nor_cont": float(r["contenedores"].sum()), "neg_emb": int(len(n))})
+    out = pd.DataFrame(rows)
+    out["total"] = out["negociacion"] + out["nor"]
+    return out

@@ -205,7 +205,7 @@ def costo(pagos: pd.DataFrame, pagos_all: pd.DataFrame, t: pd.Timestamp) -> Indi
         tono=_tono(d, mejor_si_baja=True),
         ayuda="Flete + gastos en origen + gastos locales, marítimo y aéreo. Incidencia = costo / FOB, solo embarques "
               "con FOB cargado. La flecha compara la incidencia del último mes cerrado con la del anterior.",
-        destino="fletes")
+        destino="fletes?vista=gasto")
 
 
 def captura(nor: pd.DataFrame, nor_prev: pd.DataFrame | None, neg: pd.DataFrame | None = None,
@@ -229,14 +229,14 @@ def captura(nor: pd.DataFrame, nor_prev: pd.DataFrame | None, neg: pd.DataFrame 
         ayuda="Lo que la gestión ahorró y se puede sumar: rebaja al negociar las tarifas (tarifa sin negociar − "
               "negociada, en los embarques que salieron con esa tarifa) + uso de 40 NOR en lugar de 40 ST/HQ "
               "(mediana pagada ese mes). No incluye la posición contra el mercado.",
-        destino="fletes")
+        destino="fletes?vista=captura")
 
 
 def vs_mercado(pct: float, n: int, pct_last: float, pct_prev: float, t: pd.Timestamp) -> Indicador:
     """pct_last / pct_prev = NaN cuando ese mes tiene pocos embarques comparados."""
     tol = settings.PAGADO_VS_MERCADO_TOLERANCIA
     if n < settings.MIN_SAMPLE or pct != pct:
-        return Indicador("Pagado vs mercado", "—", sub="Sin cotizaciones para comparar", destino="fletes",
+        return Indicador("Pagado vs mercado", "—", sub="Sin cotizaciones para comparar", destino="fletes?vista=tarifas",
                          ayuda="Flete pagado por contenedor contra la mediana de mercado del mes (cotizaciones).")
     estado = "ok" if pct <= 0 else ("warn" if pct <= tol else "bad")
     last, prev = _meses(t)
@@ -250,7 +250,7 @@ def vs_mercado(pct: float, n: int, pct_last: float, pct_prev: float, t: pd.Times
         ayuda=("Flete pagado contra la mediana de mercado del mes (mejor tarifa de cada forwarder cotizada para ese "
                "tipo de contenedor y destino), ponderado por contenedores. Negativo = pagamos menos que el mercado. "
                f"Verde ≤ 0 %, ámbar hasta +{fmt.fmt_pct(tol)}, rojo por encima."),
-        destino="fletes")
+        destino="fletes?vista=tarifas")
 
 
 def ventana_anterior(start: pd.Timestamp, end: pd.Timestamp) -> tuple[pd.Timestamp, pd.Timestamp]:

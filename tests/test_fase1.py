@@ -345,3 +345,16 @@ def test_tiempos_lineas_y_subas():
     assert s["embarque"].tolist() == ["E"] and s.iloc[0]["vs_linea"] == 19
     m = tm.tt_mes(d)
     assert m.iloc[-1]["n"] == 5 and m.iloc[-1]["pct_obj"] == 0.8
+
+
+def test_captura_por_agente_y_trimestre():
+    from utils import captura as cap
+    h = pd.DataFrame({"embarque": ["A", "B", "C"], "forwarder": ["X", "X", "Y"], "contenedores": [1.0, 2.0, 1.0]})
+    neg = pd.DataFrame({"embarque": ["A"], "forwarder": ["X"], "captura": [100.0], "flete_original": [1000.0],
+                        "contenedores": [1.0], "etd": [ts("2026-05-01")]})
+    nor = pd.DataFrame({"embarque": ["C"], "forwarder": ["Y"], "ahorro": [250.0], "contenedores": [1.0],
+                        "etd": [ts("2026-08-01")]})
+    a = cap.por_agente(h, neg, nor).set_index("agente")
+    assert a.loc["X", "cobertura"] == 0.5 and a.loc["X", "pct"] == 0.1 and a.loc["Y", "total"] == 250
+    q = cap.por_trimestre(neg, nor, 2026).set_index("q")
+    assert q.loc["Q2", "negociacion"] == 100 and q.loc["Q3", "nor"] == 250 and q.loc["Q1", "total"] == 0

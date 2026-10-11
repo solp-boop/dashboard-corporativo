@@ -12,7 +12,7 @@ import streamlit as st
 from components import charts
 from components.kpi_cards import KPI, cert_status, cert_sub, kpi_row
 from components.layout import chart_title, empty, guard, require, section
-from components.tables import ColSpec, data_table
+from components.tables import ColSpec, data_table, solo_descarga
 from config import settings
 from config.mappings import MODOS_MARITIMOS
 from utils import calculations as calc
@@ -55,16 +55,27 @@ def render() -> None:
     _, _, p_all = _datos(bundle, filters, use_period=False)
     ventana = _ventana_prev(filters, t)
     p_prev = p_all[p_all["etd"].between(*ventana)] if ventana else None
-    tabs = st.tabs(["Gasto", "Captura", "Tarifas y negociación", "Validación", "Contenedores y cargas especiales"])
-    with tabs[0]:
+    # Solo se dibuja la vista elegida (con pestañas se calculaban todas en cada interacción).
+    vistas = {"gasto": "Gasto", "captura": "Captura", "tarifas": "Tarifas y negociación", "validacion": "Validación",
+              "contenedores": "Contenedores y cargas especiales"}
+    pedida = st.query_params.get("vista")
+    if pedida in vistas and pedida != st.session_state.get("_costos_qp"):
+        st.session_state["costos_vista"] = pedida
+    st.session_state.setdefault("costos_vista", "gasto")
+    vista = st.segmented_control("Vista", list(vistas), format_func=vistas.get, key="costos_vista",
+                                 label_visibility="collapsed") or "gasto"
+    st.session_state["_costos_qp"] = vista
+    if st.query_params.get("vista") != vista:
+        st.query_params["vista"] = vista
+    if vista == "gasto":
         _gasto(bundle, h, a, p, p_all, p_prev)
-    with tabs[1]:
+    elif vista == "captura":
         _captura(bundle, filters, h, ventana)
-    with tabs[2]:
+    elif vista == "tarifas":
         _tarifas(bundle, h)
-    with tabs[3]:
+    elif vista == "validacion":
         _validacion(h, a)
-    with tabs[4]:
+    else:
         from views import resumen
         with guard("Contenedores"):
             resumen.render_contenedores(bundle, filters)
@@ -257,34 +268,66 @@ def _captura(bundle, filters, h, ventana) -> None:
                                                            tickformat=",.0f", rangemode="tozero"))
             charts.theme(fig, y_title="USD por mes")
             charts.show(fig, key="co_captura_mes")
-    c1, c2 = st.columns(2, gap="medium")
-    with c1, guard("Detalle negociación"):
-        chart_title("Negociación · embarques con su tarifa", "Tarifa sin negociar vs negociada, por contenedor")
-        if casos_neg.empty:
-            empty("Sin embarques con tarifa identificada." if hay_sin else
-                  "Falta la solapa de cotizaciones sin negociar.")
-        else:
-            data_table(casos_neg, [
+    with guard("Captura por trimestre"):
+        t = today()
+        qq = cap.por_trimestre(casos_neg, nor, t.year)
+        q_act = f"Q{(t.month - 1) // 3 + 1}"
+        chart_title(f"Resultado por trimestre · {t.year}", "Negociación de tarifas + uso de 40 NOR · * en curso")
+        kpi_row([KPI(f"{r['q']}{'*' if r['q'] == q_act else ''} · captura", fmt.fmt_usd(r["total"]),
+                     status="ok" if r["total"] > 0 else ("bad" if r["total"] < 0 else ""),
+                     sub=f"negociación {fmt.fmt_usd(r['negociacion'])} · 40 NOR {fmt.fmt_usd(r['nor'])} "
+                         f"({fmt.fmt_int(r['nor_cont'])} cont.)") for _, r in qq.iterrows()], columns=4)
+
+    with guard("Captura por agente"):
+        ag = cap.por_agente(h, casos_neg, nor)
+        chart_title("Captura por agente", "Ordenado por captura total · cobertura = embarques con la tarifa "
+                    "negociada identificada / embarques marítimos con flete pagado")
+        data_table(ag, [
+            ColSpec("agente", "Agente"), ColSpec("embarques", "Embarques", "int"),
+            ColSpec("con_tarifa", "Con tarifa identificada", "int"), ColSpec("cobertura", "Cobertura", "pct"),
+            ColSpec("contenedores", "Contenedores", "int"), ColSpec("negociacion", "Negociación (USD)", "usd"),
+            ColSpec("pct", "% s/ tarifa original", "pct"), ColSpec("nor", "40 NOR (USD)", "usd"),
+            ColSpec("total", "Captura total (USD)", "usd"),
+        ], key="co_cap_agente", filename="captura_por_agente", search=False)
+
+    with guard("Captura mes por agente"):
+        partes = []
+        if len(casos_neg):
+            partes.append(casos_neg.assign(v=casos_neg["captura"])[["forwarder", "mes", "v"]])
+        if len(nor):
+            partes.append(nor.assign(v=nor["ahorro"])[["forwarder", "mes", "v"]])
+        if partes:
+            mm = pd.concat(partes, ignore_index=True).assign(forwarder=lambda x: x["forwarder"].fillna("Sin agente"))
+            pv = mm.pivot_table(index="forwarder", columns="mes", values="v", aggfunc="sum", fill_value=0)
+            pv = pv.loc[pv.sum(axis=1).sort_values(ascending=False).index]
+            pv.loc["Total"] = pv.sum()
+            pv["Total"] = pv.sum(axis=1)
+            chart_title("Captura · mes por agente", "USD por mes de ETD (negociación + 40 NOR)")
+            show = pv.copy()
+            show.columns = [fmt.fmt_month(c).capitalize() if c != "Total" else c for c in pv.columns]
+            show = show.reset_index().rename(columns={"forwarder": "Agente"})
+            estilos = pd.Series("", index=show.index)
+            estilos.iloc[-1] = "font-weight: 600; background-color: rgba(120,130,150,0.10)"
+            data_table(show, [ColSpec("Agente", "Agente")] + [ColSpec(c, c, "usd") for c in show.columns[1:]],
+                       key="co_cap_mes_agente", filename="captura_mes_por_agente", search=False, row_styles=estilos)
+
+    with guard("Descargas captura"):
+        c1, c2 = st.columns(2, gap="medium")
+        with c1:
+            solo_descarga(casos_neg, [
                 ColSpec("embarque", "Embarque"), ColSpec("etd", "ETD", "date"), ColSpec("forwarder", "Agente"),
                 ColSpec("puerto", "Puerto"), ColSpec("tipo_ctnr", "Tipo"), ColSpec("contenedores", "Cont.", "int"),
                 ColSpec("flete_original", "Sin negociar (USD)", "usd"),
                 ColSpec("flete_negociado", "Negociada (USD)", "usd"), ColSpec("flete_por_ctnr", "Pagado (USD)", "usd"),
                 ColSpec("captura", "Captura (USD)", "usd"),
-            ], key="co_neg", filename="captura_negociacion", search=len(casos_neg) > 12)
-    with c2, guard("Detalle 40 NOR"):
-        chart_title("40 NOR · por mes", "Contenedores 40 NOR contra la mediana pagada por un 40 ST/HQ")
-        if nor.empty:
-            empty("Sin embarques en 40 NOR con flete pagado en el período.")
-        else:
-            gn = nor.groupby("mes").agg(embarques=("embarque", "count"), contenedores=("contenedores", "sum"),
-                                        nor=("flete_por_ctnr", "median"), hq=("ref_hq", "first"),
-                                        ahorro=("ahorro", "sum")).reset_index()
-            gn["mes_txt"] = gn["mes"].map(lambda m: fmt.fmt_month(m, long=True))
-            data_table(gn.iloc[::-1], [
-                ColSpec("mes_txt", "Mes ETD"), ColSpec("contenedores", "Cont.", "int"),
-                ColSpec("hq", "40 ST/HQ (USD)", "usd"), ColSpec("nor", "40 NOR (USD)", "usd"),
-                ColSpec("ahorro", "Ahorro (USD)", "usd"),
-            ], key="co_nor", filename="captura_40nor", search=False)
+            ], key="co_neg", filename="captura_negociacion", label="Descargar embarques con tarifa negociada")
+        with c2:
+            solo_descarga(nor, [
+                ColSpec("embarque", "Embarque"), ColSpec("etd", "ETD", "date"), ColSpec("forwarder", "Agente"),
+                ColSpec("puerto", "Puerto"), ColSpec("contenedores", "Cont.", "int"),
+                ColSpec("ref_hq", "Mediana 40 ST/HQ del mes (USD)", "usd"),
+                ColSpec("flete_por_ctnr", "Pagado 40 NOR (USD)", "usd"), ColSpec("ahorro", "Ahorro (USD)", "usd"),
+            ], key="co_nor", filename="captura_40nor", label="Descargar embarques 40 NOR")
 
 
 # ---------------------------------------------------------------------------

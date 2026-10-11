@@ -7,7 +7,7 @@ from __future__ import annotations
 import streamlit as st
 
 st.set_page_config(
-    page_title="Dashboard Ejecutivo · Comex",
+    page_title="Dashboard · Comex",
     page_icon="🚢",
     layout="wide",
     initial_sidebar_state="auto",   # abierta en compu, cerrada en el celular

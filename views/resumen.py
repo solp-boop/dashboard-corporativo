@@ -888,7 +888,8 @@ def render_proyeccion(bundle, filters) -> None:
                                    label_visibility="collapsed") or "Contenedores"
     col, unidad = metricas[elegido]
     g = pr.por_estructura(d, t, fecha=fecha)
-    months = sorted(g["mes"].unique())
+    con_dato = g.groupby("mes")[col].sum()
+    months = sorted(con_dato[con_dato.round(0) > 0].index)   # meses sin dato en la medida elegida, afuera
     labels = [pr.etiqueta(m, t) for m in months]
     colores = {"Monoproveedor": settings.SERIES[0], "Consolidado": settings.SERIES[2],
                "Sin dato": settings.SERIES_OTHER}

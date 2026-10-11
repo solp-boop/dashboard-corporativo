@@ -56,7 +56,7 @@ def page_header(page_title: str, bundle: DataBundle | None, filters: FilterState
         f"""<div class="dash-header">
               <div>
                 <p class="eyebrow">Comercio Exterior · Logística Internacional</p>
-                <h1>Dashboard Ejecutivo <span class="page">· {esc(page_title)}</span></h1>
+                <h1>Dashboard <span class="page">· {esc(page_title)}</span></h1>
               </div>
               <div class="meta">{meta}{ftxt}</div>
             </div>""",
