@@ -233,7 +233,7 @@ def parse_numbers(series: pd.Series) -> tuple[pd.Series, ParseStats]:
 # ---------------------------------------------------------------------------
 # Flags
 # ---------------------------------------------------------------------------
-_TRUE = {"si", "ok", "yes", "true", "x", "1", "verdadero", "listo", "confirmado"}
+_TRUE = {"si", "ok", "yes", "true", "x", "1", "verdadero", "listo", "confirmado", "✓", "✔", "check", "validado"}
 _FALSE = {"no", "false", "0", "falso", "pendiente"}
 
 

@@ -133,6 +133,88 @@ def render() -> None:
 
 
 # ---------------------------------------------------------------------------
+def _estado_pago(h) -> None:
+    """Flete marítimo facturado por estado de validación: no todo lo facturado está pagado."""
+    if h is None or h.empty or "resultado_validacion" not in h:
+        return
+    est = h["resultado_validacion"].fillna("Pendiente")
+    tot = float(h["flete_pagado"].clip(lower=0).sum())
+
+    def k(nombre, clave, status, ayuda):
+        d = h[est == clave]
+        v = float(d["flete_pagado"].clip(lower=0).sum())
+        return KPI(nombre, fmt.fmt_usd(v), status=status if len(d) else "",
+                   sub=f"<b>{fmt.fmt_pct(v / tot if tot else float('nan'))}</b> del flete marítimo · "
+                       f"{fmt.fmt_int(len(d))} embarques", help=ayuda)
+    chart_title("¿Cuánto del flete marítimo está validado para pagar?",
+                "«Flete Int PAGADO» es el 100 % facturado por el agente; se paga cuando Logística Internacional lo valida")
+    kpi_row([
+        k("Validado para pagar", "Validado", "ok", "«Resultado Validación» = Validado o, en lo anterior a septiembre, el check "
+          "«Validación Logística Internacional» marcado."),
+        k("Observado (en análisis)", "Observado", "warn", "«Resultado Validación» = Observado: el agente tiene que ajustar."),
+        k("Pendiente de validar", "Pendiente", "bad", "Sin «Resultado Validación» ni check de validación."),
+    ], columns=3)
+
+
+def _certificacion(h) -> None:
+    """Captura fiscal: lo que no se certifica como flete sale de la base imponible de aduana."""
+    if h is None or h.empty or "flete_certificado" not in h:
+        return
+    d = h[(h["flete_pagado"] > 0) & (h["flete_certificado"] > 0)].copy()
+    section("3 · Certificación de flete (captura fiscal)",
+            "«Flete Int PAGADO» es el 100 % del flete; «Flete Certificado» es lo que se declara como flete. La diferencia "
+            "la factura el agente por otro concepto y sale de la base imponible de aduana: pagamos menos derechos. No se "
+            "suma a 1 + 2 porque es un ahorro de aduana, no de flete.")
+    if d.empty:
+        empty("Sin embarques con flete certificado en el período.")
+        return
+    d["base_fuera"] = (d["flete_pagado"] - d["flete_certificado"]).clip(lower=0)
+    d["validado"] = d["resultado_validacion"] == "Validado" if "resultado_validacion" in d else False
+    pag, cert, fuera = (float(d[c].sum()) for c in ("flete_pagado", "flete_certificado", "base_fuera"))
+    pct = cert / pag if pag else float("nan")
+    st_, badge = cert_status(pct)
+    en_val = 1 - float(d["validado"].mean())
+    alic = settings.ALICUOTA_AHORRO_CERT
+    kpi_row([
+        KPI("Base que sale de aduana", fmt.fmt_usd(fuera), status="ok" if fuera > 0 else "",
+            sub=f"flete pagado {fmt.fmt_usd(pag)} − certificado {fmt.fmt_usd(cert)} · "
+                f"{fmt.fmt_int(len(d))} embarques",
+            help="Suma de (Flete Int PAGADO − Flete Certificado): lo que no entra en la base imponible."),
+        KPI("Certificación de flete", fmt.fmt_pct(pct), status=st_, badge=badge,
+            sub=f"certificado / pagado · máximo {fmt.fmt_pct(settings.KPI_CERTIFICACION_MAX)}"),
+        KPI("Ahorro estimado en aduana", fmt.fmt_usd(fuera * alic) if alic else "—",
+            sub=(f"base × {fmt.fmt_pct(alic)} (derechos + tasa estadística)" if alic else
+                 "falta definir la alícuota promedio (derechos + tasa estadística)"),
+            help="Estimación: no hay columna con los derechos pagados por embarque. Se configura en "
+                 "ALICUOTA_AHORRO_CERT."),
+        KPI("En validación", fmt.fmt_pct(en_val), status="warn" if en_val > 0 else "ok",
+            sub=f"de los embarques certificados todavía no está validado para pagar "
+                f"({fmt.fmt_int(int((~d['validado']).sum()))})",
+            help="La certificación ya ocurrió en aduana; esto indica cuánto de esa captura corresponde a fletes que "
+                 "todavía no se validaron para pagar al agente."),
+    ])
+    g = d.assign(mes=calc.month_start(d["etd"])).groupby("mes").agg(
+        n=("embarque", "nunique"), pag=("flete_pagado", "sum"), cert=("flete_certificado", "sum"),
+        fuera=("base_fuera", "sum"), val=("validado", "mean")).reset_index().sort_values("mes")
+    g["pct"] = g["cert"] / g["pag"]
+    g["en_val"] = 1 - g["val"]
+    g["mes_txt"] = g["mes"].map(lambda m: fmt.fmt_month(m).capitalize())
+    cols = [ColSpec("mes_txt", "Mes ETD"), ColSpec("n", "Embarques", "int"), ColSpec("pag", "Flete pagado (USD)", "usd"),
+            ColSpec("cert", "Flete certificado (USD)", "usd"), ColSpec("pct", "% certificación", "pct"),
+            ColSpec("fuera", "Base fuera de aduana (USD)", "usd"), ColSpec("en_val", "% en validación", "pct")]
+    if alic:
+        g["ahorro"] = g["fuera"] * alic
+        cols.append(ColSpec("ahorro", "Ahorro estimado (USD)", "usd"))
+    data_table(g, cols, key="co_cert_mes", filename="certificacion_flete_mes", search=False)
+    solo_descarga(d.sort_values("base_fuera", ascending=False), [
+        ColSpec("embarque", "Embarque"), ColSpec("etd", "ETD", "date"), ColSpec("forwarder", "Agente"),
+        ColSpec("puerto", "Puerto"), ColSpec("flete_pagado", "Flete pagado (USD)", "usd"),
+        ColSpec("flete_certificado", "Flete certificado (USD)", "usd"),
+        ColSpec("base_fuera", "Base fuera de aduana (USD)", "usd"), ColSpec("resultado_validacion", "Validación"),
+        ColSpec("responsable", "Responsable"),
+    ], key="co_cert_casos", filename="certificacion_por_embarque", label="Descargar certificación por embarque")
+
+
 def _yoy(v: float, prev: pd.DataFrame | None, col: str) -> tuple[str, str]:
     """Delta contra el mismo período del año anterior (más gasto = malo)."""
     if prev is None or prev.empty or col not in prev:
@@ -178,6 +260,7 @@ def _gasto(bundle, h, a, p, p_all, p_prev, h_all=None, ventana=None) -> None:
         kpi_row(list(partes.values()) + [
             KPI("Costo logístico total", ind.valor, sub=ind.sub, delta=ind.delta, tono=ind.tono,
                 help=ind.ayuda + f" {fmt.fmt_int(len(p))} embarques con flete pagado.")])
+        _estado_pago(h)
         kpi_row([
             KPI("Flete por contenedor", fmt.fmt_usd(fl.median, compact=False) if fl.enough else "—",
                 sub=f"Marítimo · mediana · P25–P75 {fmt.fmt_usd(fl.p25, compact=False)}–"
@@ -487,6 +570,8 @@ def _captura(bundle, filters, h, ventana, m=None) -> None:
                                                            tickformat=",.0f", rangemode="tozero"))
             charts.theme(fig, y_title="USD por mes")
             charts.show(fig, key="co_captura_mes")
+    with guard("Certificación de flete"):
+        _certificacion(h)
     with guard("Captura por trimestre"):
         t = today()
         qq = cap.por_trimestre(casos_neg, nor, t.year)

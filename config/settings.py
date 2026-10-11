@@ -156,6 +156,9 @@ SERIES_OTHER = "#A9B1BC"
 # Flete certificado = lo que certificamos por fuera: flete certificado / flete pagado.
 # Menos es mejor; por encima del máximo está mal.
 KPI_CERTIFICACION_MAX = 0.60
+# Alícuota con la que se estima cuánto ahorramos en aduana por certificar menos flete (derechos + tasa estadística
+# promedio). None = no se estima en USD: se muestra solo la base que sale de aduana, que es un dato real.
+ALICUOTA_AHORRO_CERT = None
 
 # Recomendación de forwarder: un ETD se considera "en fecha" si el ETD real
 # difiere de la ETD estimada en hasta estos días.

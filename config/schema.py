@@ -128,6 +128,7 @@ HISTORICAS = DatasetSchema(
         C("gastos_locales", "Gastos Locales", kind="number"),
         C("flete_cotizado", "Flete Cotizado control", kind="number"),
         C("resultado_validacion", "Resultado Validación", "Resultado Validacion", kind="category"),
+        C("validacion_li", "Validación Logística Internacional", "Validacion Logistica Internacional", kind="flag"),
         C("motivo_observacion", "Motivo de Observación", "Motivo de Observacion", kind="category"),
         C("capacidad", "Capacidad contenedor", kind="number"),
         C("indice_carga", "Índice de carga completa", "Indice de carga completa", kind="number"),

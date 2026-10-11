@@ -448,6 +448,12 @@ def finish_dataset(key: str, df: pd.DataFrame, sla: pd.DataFrame, q: DatasetQual
         df["estructura"] = normalize_estructura(df["estructura"])
     if "booking" in df:
         df["booking"] = normalize_booking(df["booking"])
+    if "resultado_validacion" in df and "validacion_li" in df:
+        # Hasta septiembre 2026 la validación de Logística Internacional era un check («Validación Logística
+        # Internacional»: TRUE / x = validado; vacío = no). Después se usa «Resultado Validación», que manda.
+        viejo = df["validacion_li"].fillna(False).astype(bool)
+        df["resultado_validacion"] = df["resultado_validacion"].where(
+            df["resultado_validacion"].notna() | ~viejo, "Validado")
     if "tipo_carga" in df or "embarque" in df:
         df["modo"] = derive_modo(df)
 
