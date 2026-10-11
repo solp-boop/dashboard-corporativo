@@ -229,29 +229,35 @@ def _maritimo(bundle, filters, z, z_all, z_prev) -> None:
                 "Sin causas cargadas", help="«Tipo de demora» más frecuente entre los embarques fuera de SLA."),
         ])
     with guard("Etapas por mes"):
-        from utils import tiempos_mes as tm
-        section("¿En qué etapa se va el tiempo? · mes a mes",
-                "Mes de ETD. Mediana de cada etapa (días); resaltada, la más larga entre Comex y Agente. Si se instruyó "
-                "antes del packeo, Comex = 0 y el agente cuenta desde el packeo. «% en SLA» = "
-                "embarques con consolidación dentro del SLA (verde si llega al "
-                f"{fmt.fmt_pct(settings.CUMPLIMIENTO_OBJETIVO)}). Tránsito y total, solo lo que ya llegó. * mes en curso.")
-        # El 60 % de los embarques se instruye antes del packeo: si no, «Comex» da negativo y «Agente» supera a la
-        # consolidación. Igual que en aéreo, el agente cuenta desde lo último entre instrucción y packeo, y Comex no
-        # baja de 0: así Comex + Agente = consolidación de cada embarque.
-        zz = z.copy()
-        if {"dias_comex", "dias_consolidacion"} <= set(zz.columns):
-            zz["dias_comex"] = zz["dias_comex"].clip(lower=0)
-            zz["dias_agente"] = (zz["dias_consolidacion"] - zz["dias_comex"]).where(lambda x: x >= 0)
-        nombres = {"dias_comex": "Comex: packeo → instrucción", "dias_agente": "Agente: instrucción → ETD"}
-        etapas = [(c, nombres.get(c, lbl)) for c, lbl in ETAPAS if c in zz]
-        tab = tm.por_mes(zz, [c for c, _ in etapas], llegados=["dias_tt", "dias_total"], today=t)
-        ok = z.dropna(subset=["dias_consolidacion", "sla_consolidacion", "etd"])
-        cumple = (ok["dias_consolidacion"] <= ok["sla_consolidacion"]).groupby(calc.month_start(ok["etd"])).mean()
-        tab["pct_sla"] = tab["mes"].map(cumple)
-        sla_view.mes_matrix(tab, etapas, t, resaltar=["dias_comex", "dias_agente"], pct=("pct_sla", "% en SLA"))
+        section("Tiempo de consolidación · mes a mes",
+                "Consolidación (packeo mínimo → ETD) por mes de ETD: mínimo, mediana y máximo, solo destino Argentina. "
+                "100 % = todos los embarques. «% en SLA» = embarques dentro del SLA (verde si llega al "
+                f"{fmt.fmt_pct(settings.CUMPLIMIENTO_OBJETIVO)}). * mes en curso.")
+        base = z[z["destino"].isna() | (z["destino"] == "Argentina")] if "destino" in z else z
+        estructura = st.segmented_control("Estructura", ["100 %", "Monoproveedor", "Consolidado"], default="100 %",
+                                          key="tm_mar_estructura", label_visibility="collapsed") or "100 %"
+        if estructura != "100 %":
+            base = base[base["estructura"] == estructura]
+        x = base.dropna(subset=["etd", "dias_consolidacion"]).assign(mes=lambda d: calc.month_start(d["etd"]))
+        if x.empty:
+            empty()
+        else:
+            g = x.groupby("mes")
+            tab = pd.DataFrame({
+                "n": g.size(), "cons_min": g["dias_consolidacion"].min(), "cons_med": g["dias_consolidacion"].median(),
+                "cons_max": g["dias_consolidacion"].max(),
+                "pct_sla": g.apply(lambda d: (d["dias_consolidacion"] <= d["sla_consolidacion"])[
+                    d["sla_consolidacion"].notna()].mean(), include_groups=False),
+            }).reset_index()
+            tot = {"mes": pd.NaT, "n": len(x), "cons_min": x["dias_consolidacion"].min(),
+                   "cons_med": x["dias_consolidacion"].median(), "cons_max": x["dias_consolidacion"].max(),
+                   "pct_sla": (x["dias_consolidacion"] <= x["sla_consolidacion"])[x["sla_consolidacion"].notna()].mean()}
+            sla_view.mes_matrix(pd.concat([tab, pd.DataFrame([tot])], ignore_index=True),
+                                [("cons_min", "Mín."), ("cons_med", "Mediana"), ("cons_max", "Máx.")], t,
+                                resaltar=["cons_med"], pct=("pct_sla", "% en SLA"))
 
-    section("¿Qué lo explica?",
-            "Embarques del período por dimensión, ordenados por cuánto explican de los fuera de SLA.")
+    section("Análisis para descargar",
+            "Elegí la dimensión y bajá el Excel: resumen por esa dimensión y detalle de cada embarque.")
     with guard("Diagnóstico marítimo"):
         diagnostico(z, DIMS_MAR, "dias_consolidacion", "sla_consolidacion", key="tm_mar", casos_cols=CASOS_MAR,
                     prev=z_prev, prev_txt="el mismo período del año anterior", unidad="embarques")
@@ -343,8 +349,8 @@ def _transito(bundle, filters, z, z_all, z_prev) -> None:
                 help="Puertos cuya mediana de tránsito de los últimos 3 meses cerrados supera el objetivo en más de "
                      f"{fmt.fmt_pct(settings.SLA_WARNING_TOLERANCE)}."),
         ])
-    section("¿Qué lo explica?", "Embarques del período por dimensión, ordenados por cuánto explican de los fuera de "
-                                "objetivo.")
+    section("Análisis para descargar",
+            "Elegí la dimensión y bajá el Excel: resumen por esa dimensión y detalle de cada embarque.")
     with guard("Diagnóstico tránsito"):
         diagnostico(d, DIMS_TT, "dias_tt", "obj_tt", key="tm_tt", casos_cols=CASOS_TT,
                     prev=llego(z_prev) if z_prev is not None else None,
@@ -499,32 +505,35 @@ def _time_to_market(bundle, filters, ventana) -> None:
     t = today()
     du = memo(bundle, ("ttm_universo", t), lambda: productos.base_universo(
             bundle.get("emb_hist"), t, bundle.get("aereos"), bundle.get("planif"), bundle.get("historicas")))
-    summ = productos.objetivo_universo(du, t)
     section(f"Time to market · mes a mes {t.year}*",
-            "* Universo completo de SO, marítimas y aéreas, sin muestras ni repuestos. Elegí el grupo (todas las SO "
-            "= 100 %, SKU nuevos o top ranking) y el medio (todos, solo marítimo o solo aéreo).")
+            "* Universo completo de SO con destino Argentina, marítimas y aéreas, sin muestras ni repuestos. Los "
+            "botones de grupo y medio mandan sobre toda la sección: tabla, objetivo −15 %, gráfico y descarga.")
+    grupo, medio = sla_view.ttm_botones()
     with guard("Time to market mes a mes"):
-        sla_view.productos_mes_table(productos.mes_a_mes(du, t.year), t)
+        sla_view.productos_mes_table(productos.mes_a_mes(du, t.year), t, grupo, medio)
 
-    section("Objetivo −15 %",
+    sel, nombre = productos.seleccion(du, grupo, medio)
+    summ = productos.objetivo_seleccion(du, t, grupo, medio)
+    section(f"Objetivo −15 % · {nombre}",
             "Mediana del tiempo de consolidación por SO contra el objetivo de reducirla un "
             f"{fmt.fmt_pct(settings.REDUCCION_OBJETIVO)} respecto de Q1.")
     with guard("Objetivo −15 %"):
         sla_view.productos_table(summ, t)
-        chart_title("Mediana mensual por grupo", "Mes de ETD · línea punteada = objetivo de cada grupo")
-        sla_view.objetivo_mes_chart(productos.mensual_universo(du, t.year), summ, key="lt_obj15_mes")
+        chart_title(f"Mediana mensual · {nombre}", "Mes de ETD · línea punteada = objetivo")
+        sla_view.objetivo_mes_chart(productos.mensual_universo(sel, t.year, {grupo: nombre}), summ,
+                                    key="lt_obj15_mes")
 
-    fila = summ[summ["grupo"] == "Todas las SO"] if len(summ) else summ
-    objetivo = float(fila.iloc[0]["objetivo"]) if len(fila) and fila.iloc[0]["objetivo"] == fila.iloc[0]["objetivo"] \
+    objetivo = float(summ.iloc[0]["objetivo"]) if len(summ) and summ.iloc[0]["objetivo"] == summ.iloc[0]["objetivo"] \
         else np.nan
     with guard("Descarga time to market"):
         ini = pd.Timestamp(filters.start) if filters.start else pd.Timestamp(t.year, 1, 1)
         fin = min(pd.Timestamp(filters.end), t) if filters.end else t
-        so = _por_so(du[du["etd"].between(ini, fin)], objetivo)
+        sub = sel[sel[grupo].fillna(False).astype(bool)] if grupo in sel else sel
+        so = _por_so(sub[sub["etd"].between(ini, fin)], objetivo)
         if objetivo == objetivo and len(so):
             fuera = so[so["tiempo"] > so["objetivo"]].assign(_exc=lambda x: x["tiempo"] - x["objetivo"])
             solo_descarga(fuera.sort_values("_exc", ascending=False), CASOS_TTM, key="tm_ttm_fuera",
                           filename=f"time_to_market_sobre_objetivo_{t:%Y%m%d}",
-                          label="Descargar SO por encima del objetivo")
-            st.caption(f"SO del período cuya consolidación supera el objetivo de todas las SO "
+                          label=f"Descargar SO por encima del objetivo · {nombre}")
+            st.caption(f"SO del período ({nombre}) cuya consolidación supera el objetivo "
                        f"({fmt.fmt_num(objetivo, 1)} d). Se descarga en Excel; no se muestra en pantalla.")

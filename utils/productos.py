@@ -219,11 +219,26 @@ def objetivo_universo(du: pd.DataFrame, today: pd.Timestamp) -> pd.DataFrame:
     return summary(d, today, GRUPOS_TODO, ["Total"])
 
 
-def mensual_universo(du: pd.DataFrame, year: int) -> pd.DataFrame:
+def seleccion(du: pd.DataFrame, grupo: str, medio: str) -> tuple[pd.DataFrame, str]:
+    """Universo filtrado por medio y grupo (los botones de Tiempos) y su nombre para mostrar."""
+    d = du.assign(todas=True)
+    if medio != "todos" and "medio" in d:
+        d = d[d["medio"] == medio]
+    label = GRUPOS_TODO.get(grupo, grupo) + ("" if medio == "todos" else f" · {MEDIOS.get(medio, medio)}")
+    return d, label
+
+
+def objetivo_seleccion(du: pd.DataFrame, today: pd.Timestamp, grupo: str, medio: str) -> pd.DataFrame:
+    """Objetivo −15 % de lo elegido en los botones (un grupo, un medio)."""
+    d, label = seleccion(du, grupo, medio)
+    return summary(d.assign(estructura="Total"), today, {grupo: label}, ["Total"])
+
+
+def mensual_universo(du: pd.DataFrame, year: int, grupos: dict | None = None) -> pd.DataFrame:
     """Mediana mensual de días por SO de cada grupo (universo completo): columnas mes, grupo, so, mediana."""
     d = du[du["mes"].dt.year == year].assign(todas=True)
     rows = []
-    for g, label in GRUPOS_TODO.items():
+    for g, label in (grupos or GRUPOS_TODO).items():
         so = (d[d[g].fillna(False).astype(bool)].groupby(["so", "mes"], as_index=False)
               .agg(tiempo=("tiempo_consolidacion", "median")))
         for mes, x in so.groupby("mes"):

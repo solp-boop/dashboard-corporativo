@@ -192,19 +192,25 @@ def productos_table(summary: pd.DataFrame, today: pd.Timestamp) -> None:
                "mediana de todas las SO del año." + (" " + " ".join(notas) if notas else ""))
 
 
-def productos_mes_table(t: pd.DataFrame, today: pd.Timestamp, key: str = "prod_mes") -> None:
-    """Tabla mes a mes de un grupo y un medio elegidos: SO, % del universo, mínimo, mediana y máximo."""
+def ttm_botones(key: str = "prod_mes") -> tuple[str, str]:
+    """Botones de Grupo y Medio del time to market: mandan sobre toda la sección."""
+    from utils.productos import GRUPOS, MEDIOS
+    labels = {"todas": "Todas las SO (100 %)", **GRUPOS}
+    c1, c2 = st.columns([3, 2], gap="small")
+    elegido = c1.segmented_control("Grupo", list(labels), default="todas", key=key,
+                                   format_func=lambda g: labels[g]) or "todas"
+    medio = c2.segmented_control("Medio", list(MEDIOS), default="todos", key=f"{key}_medio",
+                                 format_func=lambda m: MEDIOS[m]) or "todos"
+    return elegido, medio
+
+
+def productos_mes_table(t: pd.DataFrame, today: pd.Timestamp, elegido: str = "todas", medio: str = "todos") -> None:
+    """Tabla mes a mes del grupo y el medio elegidos: SO, % del universo, mínimo, mediana y máximo."""
     if t.empty:
         st.markdown('<div class="empty">Sin datos.</div>', unsafe_allow_html=True)
         return
     grupos = t.attrs.get("grupos", {})
-    medios = t.attrs.get("medios", {"todos": "Todos"})
     labels = {g: ("Todas las SO (100 %)" if g == "todas" else lbl) for g, lbl in grupos.items()}
-    c1, c2 = st.columns([3, 2], gap="small")
-    elegido = c1.segmented_control("Grupo", list(labels), default="todas", key=key,
-                                   format_func=lambda g: labels[g]) or "todas"
-    medio = c2.segmented_control("Medio", list(medios), default="todos", key=f"{key}_medio",
-                                 format_func=lambda m: medios[m]) or "todos"
     this_month = today.to_period("M").to_timestamp()
     tot_so = t.iloc[-1]["todas|todos|so"] if "todas|todos|so" in t else 0
     pre = f"{elegido}|{medio}"
@@ -480,10 +486,12 @@ def mes_matrix(d: pd.DataFrame, columnas: list[tuple[str, str]], today: pd.Times
     extra = extra or []
     head = ["Mes ETD", "Embarques"] + ([pct[1]] if pct else []) + [lbl for _, lbl in columnas + extra]
     body = []
-    for _, r in d.sort_values("mes").iterrows():
+    for _, r in d.sort_values("mes", na_position="last").iterrows():
         cand = {c: r.get(c) for c in (resaltar or []) if r.get(c) == r.get(c) and r.get(c) is not None}
         mx = max(cand, key=cand.get) if cand else None
-        cells = [f"<th class='rowh'>{_mes_txt(r['mes'], today)}</th>", f"<td>{fmt.fmt_int(r['n'])}</td>"]
+        total = pd.isna(r["mes"])
+        mes_txt = f"Total {today.year}" if total else _mes_txt(r["mes"], today)
+        cells = [f"<th class='rowh'>{mes_txt}</th>", f"<td>{fmt.fmt_int(r['n'])}</td>"]
         if pct:
             v = r.get(pct[0])
             cells.append("<td class='na'>—</td>" if v != v or v is None else
@@ -494,6 +502,6 @@ def mes_matrix(d: pd.DataFrame, columnas: list[tuple[str, str]], today: pd.Times
                 cells.append("<td class='na'>—</td>")
             else:
                 cells.append(f"<td class='{'hl' if c == mx else ''}'>{fmt.fmt_int(v)} d</td>")
-        body.append("<tr>" + "".join(cells) + "</tr>")
+        body.append(("<tr class='tot'>" if total else "<tr>") + "".join(cells) + "</tr>")
     st.markdown('<div class="scorecard compact matriz"><table><thead><tr>' + "".join(f"<th>{h}</th>" for h in head)
                 + f'</tr></thead><tbody>{"".join(body)}</tbody></table></div>', unsafe_allow_html=True)

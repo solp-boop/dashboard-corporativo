@@ -94,7 +94,7 @@ DURATION_RANGES: dict[str, tuple[int, int]] = {
     "dias_etd_eta": (0, 45),
     "dias_eta_caldas": (0, 45),
     "dias_total_aereo": (0, 240),
-    "tiempo_consolidacion_so": (1, 240),   # negativos y 0 = sin dato   # 0 = la planilla no lo calculó (sin dato)
+    "tiempo_consolidacion_so": (1, 365),   # negativos y 0 = sin dato   # 0 = la planilla no lo calculó (sin dato)
 }
 
 # --------------------------------------------------------------------------
