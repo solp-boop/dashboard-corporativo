@@ -35,8 +35,7 @@ def render_anio(bundle, filters, numerado: bool = True, compacto: bool = False, 
     compacto=True (Panorama): solo los totales del año y la apertura por medio y estructura."""
     t = today()
     hist = filtered(bundle, "historicas", filters, use_period=False)
-    sub = sub or ("¿Cuánto movimos en el año? Operaciones embarcadas, año calendario completo. El detalle mes a mes y "
-           "por shipper está en Operación en curso → Embarcado." if compacto
+    sub = sub or ("¿Cuánto movimos en el año? Operaciones embarcadas, año calendario completo." if compacto
            else "¿Cuánto movimos? Operaciones embarcadas.")
     (block if numerado else (lambda _n, a, b: section(a, b)))(1, f"Nuestro {t.year}", sub)
     if hist is None or hist.empty:

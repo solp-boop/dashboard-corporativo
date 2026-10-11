@@ -1,30 +1,20 @@
-"""Operación en curso (nivel 2): lo que está en tránsito, lo que viene, lo que se embarcó y la carga del equipo.
+"""Operación en curso (nivel 2): lo que está en tránsito y la carga del equipo.
 
-Reúne lo que antes eran las páginas Embarques en curso, Pipeline de origen, Histórico, Analistas y Agentes,
-y el bloque «Nuestro año» del Resumen.
+«Lo que viene» y «Embarcado» se sacaron porque repetían Panorama («Nuestro año» y la proyección por Planif cargas).
+Las páginas pipeline.py e historico.py siguen en el repo por si se quieren volver a mostrar.
 """
 from __future__ import annotations
 
 import streamlit as st
 
 from components.layout import guard
-from views import agentes, analistas, embarques, historico, pipeline, resumen
-from views._common import ctx
+from views import agentes, analistas, embarques
 
 
 def render() -> None:
-    tab_curso, tab_viene, tab_emb, tab_equipo = st.tabs(
-        ["En curso", "Lo que viene", "Embarcado", "Equipo y agentes"])
+    tab_curso, tab_equipo = st.tabs(["En curso", "Equipo y agentes"])
     with tab_curso:
         embarques.render()
-    with tab_viene:
-        pipeline.render()
-    with tab_emb:
-        bundle, filters = ctx()
-        with guard("Nuestro año"):
-            resumen.render_anio(bundle, filters, numerado=False)
-        with st.expander("Comparación con el año anterior y aéreos históricos"):
-            historico.render()
     with tab_equipo:
         with guard("Analistas"):
             analistas.render()

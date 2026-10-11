@@ -190,8 +190,7 @@ def render() -> None:
     with guard("Nuestro año"):
         from views.resumen import render_anio
         render_anio(bundle, filters, numerado=False, shippers=False, proyeccion=True,
-                    sub="¿Cuánto movimos en el año? Operaciones embarcadas, año calendario completo. El detalle por "
-                        "shipper está en Operación en curso → Embarcado.")
+                    sub="¿Cuánto movimos en el año? Operaciones embarcadas, año calendario completo.")
     with guard("Importadores"):
         _importadores(bundle, filters, t)
     section("¿Cómo estamos?",
