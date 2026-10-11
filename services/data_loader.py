@@ -380,6 +380,12 @@ def prepare_emb_hist(eh: pd.DataFrame, hist: pd.DataFrame | None) -> None:
         est_h = est_h.map(lambda v: {"consolidado": "Consolidado", "monoproveedor": "Monoproveedor"}.get(dc.fold(v), v)
                           if isinstance(v, str) else None)
         eh["estructura"] = est_h.where(est_h.notna(), est_eh)
+        if "destino" in hist and "destino" in eh:
+            # En 2025 «Destino» de Embarques Historicos está vacío: se completa con el de Reservas Historicas del
+            # mismo embarque (sin esto, todo 2025 quedaba afuera del time to market, que es solo Argentina).
+            h_dest = h.dropna(subset=["destino"]).drop_duplicates("_k").set_index("_k")["destino"]
+            vacio = eh["destino"].isna() | (eh["destino"].astype(str).str.strip() == "")
+            eh["destino"] = eh["destino"].where(~vacio, key.map(h_dest))
     else:
         eh["estructura"] = est_eh
     eh["maritimo"] = eh["embarque"].map(lambda v: str(v).strip().upper().startswith(("FCL", "LCL")))
