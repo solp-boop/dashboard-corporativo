@@ -358,3 +358,27 @@ def test_captura_por_agente_y_trimestre():
     assert a.loc["X", "cobertura"] == 0.5 and a.loc["X", "pct"] == 0.1 and a.loc["Y", "total"] == 250
     q = cap.por_trimestre(neg, nor, 2026).set_index("q")
     assert q.loc["Q2", "negociacion"] == 100 and q.loc["Q3", "nor"] == 250 and q.loc["Q1", "total"] == 0
+
+
+def test_bandeja_validacion_y_negociar():
+    from utils import negociar
+    hoy = ts("2026-10-11")
+    h = pd.DataFrame({"embarque": ["A", "B", "C", "D"], "modo": ["Marítimo FCL"] * 4,
+                      "etd": [ts("2026-08-01"), ts("2026-10-01"), ts("2026-09-01"), ts("2025-09-01")],
+                      "resultado_validacion": [None, None, "Observado", None],
+                      "motivo_observacion": [None, None, "Diferencia en el flete", None],
+                      "forwarder": ["X", "X", "Y", "X"], "responsable": ["Sol", None, "Sofi", "Sol"]})
+    v, o = bandeja.casos_validacion(h, hoy)
+    assert v["embarque"].tolist() == ["A", "B"] and v["prioridad"].tolist() == ["Alta", "Media"]
+    assert o.iloc[0]["accion"] == "Pedir a Y que ajuste (Diferencia en el flete)"
+    hist = pd.DataFrame({"embarque": ["E1", "E2"], "etd": [ts("2026-09-20"), ts("2026-10-01")],
+                         "flete_por_ctnr": [1500.0, 1600.0], "tipo_ctnr": ["40ST/40HQ"] * 2,
+                         "puerto": ["Ningbo"] * 2, "destino": ["Argentina"] * 2, "contenedores": [2.0, 1.0],
+                         "forwarder": ["Delfin", "Delfin"]})
+    cot = pd.DataFrame({"forwarder": ["Delfin", "Rhenus", "Seaside"], "puerto": ["NINGBO"] * 3,
+                        "tipo_ctnr": ["40ST/40HQ"] * 3, "flete": [1400.0, 1200.0, 1300.0],
+                        "validez_desde": [ts("2026-10-01")] * 3, "validez_hasta": [ts("2026-10-15")] * 3,
+                        "destino": ["Argentina"] * 3})
+    s = negociar.situacion(hist, cot, hoy).iloc[0]
+    assert s["estado"] == "Negociar" and s["mejor_agente"] == "Rhenus" and s["brecha"] == 200
+    assert s["potencial_mes"] == 300 and s["mercado"] == 1300

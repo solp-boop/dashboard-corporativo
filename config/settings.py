@@ -258,3 +258,6 @@ TERMINAL_POR_LINEA: dict[str, str] = {
     "HAPAG": "Exolgan o Terminal 4 (Hapag, según servicio)",
     "ONE": "Exolgan o TRP (ONE, según servicio)",
 }
+
+# Costos · tarifas: ventana para «qué pagamos hoy» y las rutas que usamos.
+NEGOCIAR_VENTANA_DIAS = 60

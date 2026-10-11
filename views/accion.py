@@ -31,6 +31,7 @@ def casos(bundle, filters) -> pd.DataFrame:
     if bundle.get("historicas") is not None:
         h = filtered(bundle, "historicas", filters, use_period=False)
         partes += bandeja.casos_cerrados(h, t)
+        partes += bandeja.casos_validacion(h, t)
         partes += bandeja.casos_impo2(h, t, salud.solapa(bundle, "historicas"), requiere_ok=False)
     partes += bandeja.casos_datos(salud.controles_cache(bundle, t))
     df = bandeja.armar(partes)
@@ -75,6 +76,13 @@ def render() -> None:
                 help=f"Embarques que salieron hace {settings.IMPO2_DIAS} días o más, con «ETD OK FFWW», y que en "
                      "«Cargado en Importaciones2» todavía no figuran como cargados (Reservas y Reservas Históricas, "
                      "marítimo y camión)."),
+            KPI("Validación de fletes", fmt.fmt_int(n_tipo.get(bandeja.TIPOS["validar"], 0)
+                                                    + n_tipo.get(bandeja.TIPOS["ajuste"], 0)),
+                status="warn" if n_tipo.get(bandeja.TIPOS["ajuste"], 0) else "ok",
+                sub=f"<b>{fmt.fmt_int(n_tipo.get(bandeja.TIPOS['validar'], 0))}</b> sin validar (analistas) · "
+                    f"<b>{fmt.fmt_int(n_tipo.get(bandeja.TIPOS['ajuste'], 0))}</b> observados (agentes)",
+                help="Marítimos zarpados desde 2026 sin «Resultado Validación» (los valida el analista responsable; "
+                     "prioridad alta si zarpó hace más de 30 días) y «Observado» (el agente tiene que ajustar)."),
             KPI("Riesgo de SLA", fmt.fmt_int(n_tipo.get(bandeja.TIPOS["sla"], 0)),
                 status="bad" if n_tipo.get(bandeja.TIPOS["sla"], 0) else "ok",
                 help="Marítimos con consolidación proyectada fuera de SLA y aéreos con punta a punta proyectado fuera "
@@ -110,10 +118,12 @@ def render() -> None:
                       forwarder=("tipo", lambda s: int((s == bandeja.TIPOS["forwarder"]).sum())),
                       sla=("tipo", lambda s: int((s == bandeja.TIPOS["sla"]).sum())),
                       impo2=("tipo", lambda s: int((s == bandeja.TIPOS["impo2"]).sum())),
+                      validar=("tipo", lambda s: int(s.isin([bandeja.TIPOS["validar"], bandeja.TIPOS["ajuste"]]).sum())),
                       datos=("tipo", lambda s: int(s.isin([bandeja.TIPOS["dato"], bandeja.TIPOS["cerrado"]]).sum())))
                  .sort_values(["alta", "casos"], ascending=False).reset_index())
             data_table(g, [
                 ColSpec("responsable", "Responsable"), ColSpec("casos", "Casos", "int"), ColSpec("alta", "Alta", "int"),
                 ColSpec("forwarder", "Forwarder", "int"), ColSpec("sla", "Riesgo SLA", "int"),
-                ColSpec("impo2", "Impo2", "int"), ColSpec("datos", "Datos", "int"),
+                ColSpec("impo2", "Impo2", "int"), ColSpec("validar", "Validación fletes", "int"),
+                ColSpec("datos", "Datos", "int"),
             ], key="acc_resp_tabla", filename="bandeja_por_responsable", search=False)

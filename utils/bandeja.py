@@ -21,7 +21,8 @@ COLUMNAS = ["prioridad", "tipo", "situacion", "accion", "embarque", "so", "prove
             "modo", "f_packeo", "etd", "dias", "sla", "excedido", "causa", "solapa"]
 PRIORIDADES = ["Alta", "Media", "Baja"]
 TIPOS = {"forwarder": "Confirmar o reclamar al forwarder", "sla": "Riesgo de SLA",
-         "impo2": "Pasar a Impo2", "cerrado": "Cerrado sin causa", "dato": "Dato a corregir"}
+         "impo2": "Pasar a Impo2", "validar": "Validar flete (analista)", "ajuste": "Reclamar ajuste al agente",
+         "cerrado": "Cerrado sin causa", "dato": "Dato a corregir"}
 
 # Controles de Salud de datos que se resuelven por registro (los de columna van solo a Salud de datos).
 CONTROLES_POR_REGISTRO = ("llego_en_reservas", "packeo_post_etd", "eta_antes_etd", "sin_so", "duplicado", "criticos")
@@ -150,6 +151,42 @@ def casos_impo2(df: pd.DataFrame | None, today: pd.Timestamp, solapa: str, requi
     return [_base(d, tipo=TIPOS["impo2"],
                   situacion=[f"Salió hace {n} d{ok_txt}: falta pasar a Impo2" for n in dias],
                   accion="Pasar el embarque a Importaciones2", prioridad="Alta", dias=dias, solapa=solapa)]
+
+
+def pendientes_validar(hist: pd.DataFrame | None, today: pd.Timestamp) -> pd.DataFrame:
+    """Marítimos zarpados (desde SALUD_DESDE) sin «Resultado Validación»."""
+    if hist is None or hist.empty or "resultado_validacion" not in hist:
+        return pd.DataFrame(columns=list(hist.columns) if hist is not None else [])
+    from config.mappings import MODOS_MARITIMOS
+    h = hist[hist["modo"].isin(MODOS_MARITIMOS) & (hist["etd"] <= today)
+             & (hist["etd"] >= pd.Timestamp(settings.SALUD_DESDE))]
+    return h[h["resultado_validacion"].isna()].sort_values("etd")
+
+
+def casos_validacion(hist: pd.DataFrame | None, today: pd.Timestamp) -> list[pd.DataFrame]:
+    """Fletes sin validar (los valida el analista responsable) y observados (el agente tiene que ajustar)."""
+    if hist is None or hist.empty or "resultado_validacion" not in hist:
+        return []
+    from config.mappings import MODOS_MARITIMOS
+    out = []
+    pend = pendientes_validar(hist, today)
+    if len(pend):
+        dias = (today - pend["etd"]).dt.days
+        out.append(_base(pend, tipo=TIPOS["validar"],
+                         situacion=[f"Zarpó hace {n} d y el flete no está validado" for n in dias],
+                         accion=pend["responsable"].map(lambda r: f"Validar el flete ({r})" if isinstance(r, str)
+                                                        else "Validar el flete (sin responsable)"),
+                         prioridad=np.where(dias > 30, "Alta", "Media"), dias=dias, solapa="Reservas Historicas"))
+    h = hist[hist["modo"].isin(MODOS_MARITIMOS) & (hist["etd"] >= pd.Timestamp(settings.SALUD_DESDE))]
+    obs = h[h["resultado_validacion"] == "Observado"]
+    if len(obs):
+        motivo = obs["motivo_observacion"].fillna("sin motivo cargado") if "motivo_observacion" in obs \
+            else pd.Series("sin motivo cargado", index=obs.index)
+        out.append(_base(obs, tipo=TIPOS["ajuste"], situacion=[f"Observado: {m}" for m in motivo],
+                         accion=[f"Pedir a {f} que ajuste ({m})" if isinstance(f, str) else f"Pedir ajuste ({m})"
+                                 for f, m in zip(obs["forwarder"], motivo)],
+                         prioridad="Alta", dias=(today - obs["etd"]).dt.days, solapa="Reservas Historicas"))
+    return out
 
 
 def casos_aereos(riesgo_aereo: pd.DataFrame, today: pd.Timestamp) -> list[pd.DataFrame]:
