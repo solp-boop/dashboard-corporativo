@@ -261,3 +261,17 @@ TERMINAL_POR_LINEA: dict[str, str] = {
 
 # Costos · tarifas: ventana para «qué pagamos hoy» y las rutas que usamos.
 NEGOCIAR_VENTANA_DIAS = 60
+
+# ---------------------------------------------------------------------------
+# Costos · motor de oportunidades (utils/oportunidades.py). Criterio comercial centralizado.
+# ---------------------------------------------------------------------------
+OPORT_UMBRAL_PCT = 0.03        # negociar si la tarifa actual supera la mejor comparable en ≥ 3 %…
+OPORT_UMBRAL_USD = 100         # …y en ≥ USD 100 por contenedor…
+OPORT_MIN_CONT = 2             # …con ≥ 2 contenedores en la ventana
+OPORT_TT_TOL = 7               # comparable: tránsito ± 7 días
+OPORT_VENCE_DIAS = 5           # alerta de tarifas que vencen en ≤ 5 días
+OPORT_CONCENTRACION = 0.50     # alerta si un agente supera el 50 % de los contenedores (90 días)
+OPORT_SUBA = 0.10              # alerta si la menor comparable de la ruta sube > 10 % vs el período anterior
+OPORT_SOBRE_HISTORICO = 0.15   # alerta si la mediana pagada del mes supera en > 15 % la de los 6 meses previos
+OPORT_ADHERENCIA_TOL = 0.02    # pagó más que su cotización si supera en > 2 %
+OPORT_MIN_N = 5                # menos observaciones = confianza baja (sin color)

@@ -1,7 +1,8 @@
 """Costos y captura (nivel 2): cuánto pagamos, cuánto capturamos y dónde hay oportunidad.
 
 Reúne lo que antes estaba en «Fletes y gastos pagados» y «Cotizaciones», en cuatro pestañas:
-Gasto · Captura · Tarifas y negociación · Validación.
+Gasto · Captura · Tarifas, negociación y validación · Contenedores. Arriba, las acciones de mayor impacto
+(utils.oportunidades).
 """
 from __future__ import annotations
 
@@ -12,7 +13,7 @@ import streamlit as st
 from components import charts
 from components import sla as sla_view
 from components.kpi_cards import KPI, cert_status, cert_sub, kpi_row
-from components.layout import chart_title, empty, guard, require, section
+from components.layout import chart_title, empty, esc, guard, require, section
 from components.tables import ColSpec, data_table, solo_descarga
 from config import settings
 from config.mappings import MODOS_MARITIMOS
@@ -22,8 +23,9 @@ from utils import captura as cap
 from utils import costos as cs
 from utils import formatting as fmt
 from utils import freight
+from utils import oportunidades as oport
 from views import cotizaciones, fletes_pagados
-from views._common import ctx, filtered, month_labels, today
+from views._common import ctx, filtered, memo, month_labels, today
 
 DIMS = [("forwarder", "Agente"), ("puerto", "Puerto"), ("medio", "Medio"), ("tipo_ctnr", "Tipo de contenedor"),
         ("linea", "Línea marítima"), ("responsable", "Responsable")]
@@ -48,6 +50,44 @@ def _datos(bundle, filters, use_period=True):
     return h, a, cs.pagos(h, a, t)
 
 
+def _motor(bundle, filters, h_all) -> dict:
+    """Oportunidades, adherencia, alertas y acciones (utils.oportunidades). Una vez por carga, día y filtros."""
+    t = today()
+
+    def calc_():
+        cot = bundle.get("cotizaciones")
+        op = oport.oportunidades(h_all, cot, t, reservas=bundle.get("reservas"))
+        adh = oport.adherencia(h_all, cot, desde=t - pd.Timedelta(days=365))
+        al = oport.alertas(h_all, cot, t, op, adh)
+        return {"op": op, "adh": adh, "al": al, "top": oport.top_acciones(op, al)}
+    clave = ("costos_motor", t, tuple(sorted((k, tuple(v)) for k, v in filters.selections.items() if v)))
+    return memo(bundle, clave, calc_)
+
+
+PRIO_ICON = {"Alta": "🔴 Alta", "Media": "🟡 Media", "Baja": "⚪ Baja"}
+TIPO_ICON = {"Inmediata": "🔴 Inmediata", "Investigar": "🟡 Investigar", "Seguimiento": "🔵 Seguimiento", "OK": "🟢 OK"}
+
+
+def _acciones(m: dict) -> None:
+    """Franja fija arriba de las vistas: las 3–5 acciones con más impacto en USD."""
+    top = m["top"]
+    if top is None or top.empty:
+        return
+    tiles = []
+    for _, r in top.iterrows():
+        if r.get("usd_mes") == r.get("usd_mes") and r.get("usd_mes"):
+            monto = f"{fmt.fmt_usd(r['usd_mes'])}<span class='u'> / mes</span>"
+        elif r.get("usd") == r.get("usd") and r.get("usd"):
+            monto = f"{fmt.fmt_usd(r['usd'])}<span class='u'> a reclamar</span>"
+        else:
+            monto = "<span class='u'>sin monto estimable</span>"
+        tiles.append(f"<div class='acc {esc(str(r['prioridad']).lower())}'><div class='p'>{esc(r['prioridad'])} · "
+                     f"{esc(r['titulo'])}</div><div class='n'>{monto}</div><div class='s'>{esc(r['texto'])}</div></div>")
+    st.markdown("<div class='section-sub' style='margin:.2rem 0 .4rem'><b>Acciones de mayor impacto</b> · "
+                f"criterio comparable, últimos {settings.NEGOCIAR_VENTANA_DIAS} días, destino Argentina, solo flete</div>"
+                f"<div class='acciones'>{''.join(tiles)}</div>", unsafe_allow_html=True)
+
+
 def render() -> None:
     bundle, filters = ctx()
     if require(bundle, "historicas") is None:
@@ -57,6 +97,11 @@ def render() -> None:
     h_all, _, p_all = _datos(bundle, filters, use_period=False)
     ventana = _ventana_prev(filters, t)
     p_prev = p_all[p_all["etd"].between(*ventana)] if ventana else None
+    m = None
+    with guard("Acciones de mayor impacto"):
+        if h_all is not None and len(h_all):
+            m = _motor(bundle, filters, h_all)
+            _acciones(m)
     # Solo se dibuja la vista elegida (con pestañas se calculaban todas en cada interacción).
     vistas = {"gasto": "Gasto", "captura": "Captura", "tarifas": "Tarifas, negociación y validación",
               "contenedores": "Contenedores y cargas especiales"}
@@ -71,21 +116,34 @@ def render() -> None:
     if st.query_params.get("vista") != vista:
         st.query_params["vista"] = vista
     if vista == "gasto":
-        _gasto(bundle, h, a, p, p_all, p_prev, h_all)
+        _gasto(bundle, h, a, p, p_all, p_prev, h_all, ventana)
     elif vista == "captura":
-        _captura(bundle, filters, h, ventana)
+        _captura(bundle, filters, h, ventana, m)
     elif vista == "tarifas":
-        _tarifas(bundle, h)
+        _tarifas(bundle, h, m, h_all)
         _validacion(h, a)
     else:
         from views import resumen
+        _equipos(h)
         with guard("Contenedores"):
             resumen.render_contenedores(bundle, filters)
         resumen.render_especiales(bundle, filters)
 
 
 # ---------------------------------------------------------------------------
-def _gasto(bundle, h, a, p, p_all, p_prev, h_all=None) -> None:
+def _yoy(v: float, prev: pd.DataFrame | None, col: str) -> tuple[str, str]:
+    """Delta contra el mismo período del año anterior (más gasto = malo)."""
+    if prev is None or prev.empty or col not in prev:
+        return "", ""
+    b = float(prev[col].clip(lower=0).fillna(0).sum())
+    if not b:
+        return "", ""
+    d = v / b - 1
+    return f"{'▲' if d > 0 else '▼'} {fmt.fmt_pct(abs(d))} vs año anterior ({fmt.fmt_usd(b)})", \
+        ("bad" if d > 0 else "good")
+
+
+def _gasto(bundle, h, a, p, p_all, p_prev, h_all=None, ventana=None) -> None:
     from utils import panorama as pan
     t = today()
     section("¿Cuánto pagamos?", "Embarques marítimos y aéreos zarpados en el período, con flete pagado. Costo total = "
@@ -112,7 +170,8 @@ def _gasto(bundle, h, a, p, p_all, p_prev, h_all=None) -> None:
                 ("gastos_origen", "Gastos en origen", "«TOTAL GASTOS ORIGEN» (marítimo) y «Gastos en Origen» (aéreo)."),
                 ("gastos_locales", "Gastos en destino (locales)", "«Gastos Locales» de marítimo y aéreo.")):
             v, sub = parte(col)
-            partes[col] = KPI(nombre, fmt.fmt_usd(v), help=ayuda,
+            dl, tono = _yoy(v, p_prev, col)
+            partes[col] = KPI(nombre, fmt.fmt_usd(v), help=ayuda, delta=dl, tono=tono,
                               sub=f"<b>{fmt.fmt_pct(v / tot_costo if tot_costo else float('nan'))}</b> del costo · {sub}")
         kpi_row(list(partes.values()) + [
             KPI("Costo logístico total", ind.valor, sub=ind.sub, delta=ind.delta, tono=ind.tono,
@@ -126,14 +185,27 @@ def _gasto(bundle, h, a, p, p_all, p_prev, h_all=None) -> None:
             KPI("Costo por m³", fmt.fmt_usd(cm3.median, compact=False) if cm3.enough else "—",
                 sub="Marítimo · mediana del costo total / m³"),
         ], columns=4)
-    with guard("Flete por contenedor mes a mes"):
+    with guard("Costo por contenedor mes a mes"):
         t = today()
-        section(f"Flete por contenedor · mes a mes {t.year}",
-                "Mediana del flete pagado por contenedor (marítimo, todos los destinos del filtro), variación contra el "
-                f"mes anterior y contra el mismo mes de {t.year - 1}. Rojo = subió; verde = bajó. * mes en curso.")
-        tipo = st.segmented_control("Contenedor", ["40ST/40HQ", "20ST", "40NOR"], default="40ST/40HQ",
-                                    key="co_flete_mes_tipo", label_visibility="collapsed") or "40ST/40HQ"
-        sla_view.flete_mes_matrix(cs.flete_mes(h_all if h_all is not None else h, tipo, t.year), t)
+        conceptos = {"flete_por_ctnr": "Flete internacional", "locales_por_ctnr": "Gastos en destino",
+                     "origen_por_ctnr": "Gastos en origen"}
+        section(f"Costo por contenedor · mes a mes {t.year}",
+                "Mediana por contenedor (marítimo, todos los destinos del filtro), variación contra el mes anterior y "
+                f"contra el mismo mes de {t.year - 1}. Rojo = subió; verde = bajó. * mes en curso.")
+        c1, c2 = st.columns(2, gap="small")
+        with c1:
+            col = st.segmented_control("Concepto", list(conceptos), default="flete_por_ctnr", format_func=conceptos.get,
+                                       key="co_concepto_mes", label_visibility="collapsed") or "flete_por_ctnr"
+        with c2:
+            tipo = st.segmented_control("Contenedor", ["40ST/40HQ", "20ST", "40NOR"], default="40ST/40HQ",
+                                        key="co_flete_mes_tipo", label_visibility="collapsed") or "40ST/40HQ"
+        base = h_all if h_all is not None else h
+        if col != "flete_por_ctnr" and col in base:
+            base = base[base[col] > 0]          # sin el gasto cargado no entra en la mediana
+        sla_view.flete_mes_matrix(cs.concepto_mes(base, tipo, t.year, col), t)
+
+    with guard("Puente del flete"):
+        _puente(h, h_all, ventana)
 
     c1, c2 = st.columns(2, gap="medium")
     with c1, guard("Costo mensual"):
@@ -152,10 +224,24 @@ def _gasto(bundle, h, a, p, p_all, p_prev, h_all=None) -> None:
             fig.update_layout(barmode="stack")
             charts.theme(fig, y_title="USD")
             charts.show(fig, key="co_mes")
-    with c2, guard("Pagado vs mercado"):
-        chart_title("Flete por contenedor: pagado vs mercado",
-                    "Marítimo, destino Argentina · mediana pagada vs mediana de mercado y mejor cotización del mes")
-        _pagado_vs_mercado_chart(bundle, h)
+    with c2, guard("Concentración"):
+        chart_title("Concentración del gasto", "Flete internacional del período por agente · los 5 principales")
+        f = p.assign(forwarder=p["forwarder"].fillna("Sin agente")).groupby("forwarder")["flete_pagado"] \
+            .apply(lambda x: x.clip(lower=0).sum()).sort_values(ascending=False)
+        tot = float(f.sum())
+        if not tot:
+            empty()
+        else:
+            top = f.head(5)
+            fig = charts.hbar(top.index, (top / tot * 100).values, x_suffix=" %",
+                              text=[f"{v / tot:.0%} · {fmt.fmt_usd(v)}" for v in top.values],
+                              hover="%{y}: %{x:.0f} % del flete<extra></extra>", height=300)
+            fig.update_xaxes(range=[0, float(top.iloc[0] / tot * 100) * 1.7])
+            charts.show(fig, key="co_concentracion")
+            lider = f.index[0]
+            st.caption(f"{lider} concentra {f.iloc[0] / tot:.0%} del flete; los 3 primeros, "
+                       f"{f.head(3).sum() / tot:.0%}." + (" Dependencia alta: ver alertas en Tarifas."
+                                                          if f.iloc[0] / tot > settings.OPORT_CONCENTRACION else ""))
 
     section("¿Dónde se va el gasto?", "Por dimensión, ordenado por gasto. Hacé clic en una fila para ver sus embarques.")
     with guard("Gasto por dimensión"):
@@ -207,6 +293,52 @@ def _gasto(bundle, h, a, p, p_all, p_prev, h_all=None) -> None:
             ], key=f"co_casos_{dim}", filename="gasto_por_embarque", search=len(c) > 12)
 
 
+def _puente(h, h_all, ventana) -> None:
+    """Puente volumen / mezcla / precio del flete marítimo pagado contra el mismo período del año anterior."""
+    t = today()
+    if h_all is None or h_all.empty:
+        return
+    if ventana:
+        cur, prev = h, h_all[h_all["etd"].between(*ventana)]
+        txt = "el período elegido vs el mismo período del año anterior"
+    else:
+        cur = h_all[h_all["etd"].dt.year == t.year]
+        prev = h_all[(h_all["etd"].dt.year == t.year - 1) & (h_all["etd"] <= t - pd.DateOffset(years=1))]
+        txt = f"{t.year} a la fecha vs el mismo tramo de {t.year - 1}"
+    r = cs.puente(prev, cur)
+    section("¿Por qué cambió el flete pagado?",
+            f"Flete internacional marítimo, {txt}. Volumen = más o menos contenedores; mezcla = otro reparto entre "
+            "20 ST, 40 ST/HQ y 40 NOR; precio = cada equipo más caro o más barato. Usa promedios por equipo para que "
+            "las partes sumen exacto (es la única excepción a la mediana).")
+    if not r:
+        empty("Falta uno de los dos períodos para comparar.")
+        return
+    c1, c2 = st.columns([3, 2], gap="medium")
+    with c1:
+        fig = go.Figure(go.Waterfall(
+            x=["Año anterior", "Volumen", "Mezcla", "Precio", "Actual"],
+            measure=["absolute", "relative", "relative", "relative", "total"],
+            y=[r["base"], r["volumen"], r["mezcla"], r["precio"], r["final"]],
+            text=[fmt.fmt_usd(r["base"]), *(("+" if v > 0 else "−") + fmt.fmt_usd(abs(v))
+                                            for v in (r["volumen"], r["mezcla"], r["precio"])), fmt.fmt_usd(r["final"])],
+            textposition="outside", connector=dict(line=dict(color="#CBD2D9", width=1)),
+            increasing=dict(marker=dict(color="#D64545")), decreasing=dict(marker=dict(color="#2F9E6E")),
+            totals=dict(marker=dict(color=settings.SERIES[0])),
+            hovertemplate="%{x}: USD %{y:,.0f}<extra></extra>"))
+        charts.theme(fig, y_title="USD", legend=False)
+        charts.show(fig, key="co_puente")
+    with c2:
+        d = r["final"] - r["base"]
+        kpi_row([
+            KPI("Variación del flete", ("+" if d > 0 else "−") + fmt.fmt_usd(abs(d)),
+                status="bad" if d > 0 else "ok",
+                sub=f"{fmt.fmt_int(r['q0'])} → {fmt.fmt_int(r['q1'])} contenedores"),
+            KPI("Por precio", ("+" if r["precio"] > 0 else "−") + fmt.fmt_usd(abs(r["precio"])),
+                status="bad" if r["precio"] > 0 else "ok",
+                sub="lo que depende de la tarifa: es la parte que se negocia"),
+        ], columns=1)
+
+
 def _pagado_vs_mercado_chart(bundle, h) -> None:
     tipos = fletes_pagados.TIPOS
     tipo = st.segmented_control("Tipo de contenedor", tipos, default=tipos[0], key="co_tipo",
@@ -241,18 +373,66 @@ def _pagado_vs_mercado_chart(bundle, h) -> None:
 
 
 # ---------------------------------------------------------------------------
-def _captura(bundle, filters, h, ventana) -> None:
-    section("¿Cuánto capturamos?", "Plata que dejamos de pagar gracias a una decisión del equipo.")
+def _cuatro_ahorros(bundle, h, m, casos_neg, r, hay_sin, prev_txt="") -> None:
+    """Los cuatro ahorros, separados para no contar dos veces: realizado (suma), negociado, por selección y potencial
+    (no se suman: miden otra cosa)."""
+    neg = freight.negotiation(bundle.get("cotizaciones"), bundle.get("cot_sin_negociar"))
+    if len(neg) and len(h):
+        neg = neg[(neg["validez_hasta"] >= h["etd"].min()) & (neg["validez_desde"] <= h["etd"].max())]
+    rb = neg["rebaja_pct"][neg["rebaja_pct"] > 0] if len(neg) else pd.Series(dtype=float)
+    sel = oport.por_seleccion(h, bundle.get("cotizaciones"))
+    pot = m["op"][m["op"]["tipo"] == "Inmediata"] if m else pd.DataFrame()
+    kpi_row([
+        KPI("Realizado", fmt.fmt_usd(r["total"]), status="ok" if r["total"] > 0 else "", delta=prev_txt,
+            tono="good" if prev_txt.startswith("▲") else ("bad" if prev_txt.startswith("▼") else "neutral"),
+            sub="negociación de tarifas + uso de 40 NOR, sobre embarques ya pagados",
+            help="Plata que efectivamente dejamos de pagar. Es la única de las cuatro que se acumula como resultado."),
+        KPI("Negociado", (f"{fmt.fmt_pct(rb.median())}" if hay_sin and len(rb) else "—"),
+            sub=(f"rebaja mediana sobre la tarifa original · n={fmt.fmt_int(len(rb))} tarifas rebajadas de "
+                 f"{fmt.fmt_int(len(neg))}" if hay_sin else "Falta la solapa «SIN NEGOCIAR»"),
+            help="Cuánto bajamos la tarifa al negociar, sin importar si después embarcamos con ella. Mide la "
+                 "negociación, no el resultado (por eso no se suma)."),
+        KPI("Por selección", fmt.fmt_usd(float(sel["ahorro"].sum())) if len(sel) else "—",
+            status=("ok" if sel["ahorro"].sum() > 0 else "bad") if len(sel) else "",
+            sub=(f"mediana {('+' if sel['ahorro'].median() > 0 else '')}{fmt.fmt_usd(sel['ahorro'].median(), compact=False)}"
+                 f" por embarque · {fmt.fmt_pct((sel['ahorro'] > 0).mean())} eligió más barato · n="
+                 f"{fmt.fmt_int(len(sel))}") if len(sel) else "Sin cotizaciones de otros agentes al zarpe",
+            help="Para cada embarque: mediana de las tarifas de OTROS agentes vigentes al zarpe (misma ruta y "
+                 "contenedor) menos lo que pagamos, × contenedores. Positivo = elegimos mejor que la alternativa típica. "
+                 "No se suma al realizado (se superpone con la negociación)."),
+        KPI("Potencial", fmt.fmt_usd(float(pot["ahorro_mes"].sum())) if len(pot) else "USD 0",
+            sub=f"por mes · {fmt.fmt_int(len(pot))} rutas para renegociar hoy (ver Tarifas)",
+            status="warn" if len(pot) else "ok",
+            help="Si el agente actual iguala la mejor tarifa comparable, al ritmo de contenedores de los últimos "
+                 f"{settings.NEGOCIAR_VENTANA_DIAS} días. Es plata por capturar, no capturada."),
+    ], columns=4)
+    if len(sel) or len(casos_neg):
+        solo_descarga(sel.sort_values("ahorro"), [
+            ColSpec("embarque", "Embarque"), ColSpec("etd", "ETD", "date"), ColSpec("forwarder", "Agente"),
+            ColSpec("puerto", "Puerto"), ColSpec("tipo_ctnr", "Tipo"), ColSpec("contenedores", "Cont.", "int"),
+            ColSpec("pagado", "Pagado / cont. (USD)", "usd"),
+            ColSpec("alternativa", "Mediana otros agentes (USD)", "usd"),
+            ColSpec("alternativas", "Agentes comparados", "int"), ColSpec("ahorro", "Ahorro por selección (USD)", "usd"),
+        ], key="co_sel", filename="ahorro_por_seleccion", label="Descargar ahorro por selección por embarque")
+
+
+def _captura(bundle, filters, h, ventana, m=None) -> None:
+    section("¿Cuánto capturamos?", "Cuatro ahorros distintos, separados para no contar dos veces.")
     st.markdown(
         '<div class="panel" style="margin-bottom:.8rem"><div class="panel-title">Cómo se lee</div>'
         '<div style="font-size:.88rem;line-height:1.55;color:var(--ink-2)">'
+        '<b>Realizado</b> = lo que efectivamente dejamos de pagar (1 + 2, abajo). <b>Negociado</b> = cuánto bajamos la '
+        'tarifa al negociar (%). <b>Por selección</b> = cuánto más barato embarcamos que la alternativa típica de otros '
+        'agentes. <b>Potencial</b> = lo que falta capturar si el agente iguala la mejor tarifa comparable. Solo el '
+        'realizado es resultado; los otros tres no se suman.<br><br>'
         '<b>1 · Negociación de tarifas.</b> El agente cotiza una tarifa, la negociamos y sale más barata. Captura = '
         '(tarifa original − tarifa negociada) × contenedores. <i>Ej.: cotizó USD 2.000, cerramos en USD 1.800 y '
         'mandamos 3 contenedores → USD 600.</i> Solo cuenta si lo que pagamos coincide con la tarifa negociada.<br>'
         '<b>2 · Uso de 40 NOR.</b> Mandar la carga en 40 NOR en vez de 40 ST/HQ. Captura = (lo que pagamos en la '
         'mediana por un 40 ST/HQ ese mes − lo que pagamos por el 40 NOR) × contenedores. <i>Ej.: el 40 HQ salió USD '
         '1.400, el 40 NOR USD 1.100 → USD 300 por contenedor.</i> Puede dar negativo si ese mes el 40 NOR salió más caro.'
-        '<br><b>Captura total = 1 + 2.</b> La comparación contra el mercado está en «Tarifas y negociación» y no se suma.'
+        '<br><b>Realizado = 1 + 2.</b> Las tarifas se cruzan con la vigente al zarpe (ETD). Si un embarque no tiene '
+        'tarifa comparable, no suma: queda «sin base comparable».'
         '</div></div>', unsafe_allow_html=True)
     if h is None or h.empty:
         empty()
@@ -273,13 +453,13 @@ def _captura(bundle, filters, h, ventana) -> None:
             d = r["total"] - r0["total"]
             prev_txt = (f"{'▲' if d > 0 else '▼' if d < 0 else '='} {fmt.fmt_usd(abs(d))} vs mismo período del año "
                         f"anterior ({fmt.fmt_usd(r0['total'])})")
+        _cuatro_ahorros(bundle, h, m, casos_neg, r, hay_sin, prev_txt)
+        sin_base = int(h["embarque"].nunique()) - int(r["neg_emb"]) if hay_sin else 0
+        chart_title("Realizado: el detalle", "Las dos fuentes de ahorro que sí se suman")
         kpi_row([
-            KPI("Captura total (1 + 2)", fmt.fmt_usd(r["total"]), delta=prev_txt,
-                tono="good" if prev_txt.startswith("▲") else ("bad" if prev_txt.startswith("▼") else "neutral"),
-                sub=(f"negociación {fmt.fmt_usd(r['negociacion'])}" if hay_sin else
-                     "negociación: falta la solapa sin negociar") + f" · 40 NOR {fmt.fmt_usd(r['nor'])}"),
             KPI("1 · Negociación de tarifas", fmt.fmt_usd(r["negociacion"]) if hay_sin else "—",
-                sub=(f"<b>{fmt.fmt_int(r['neg_emb'])}</b> embarques con su tarifa identificada" if hay_sin else
+                sub=(f"<b>{fmt.fmt_int(r['neg_emb'])}</b> embarques con su tarifa identificada · "
+                     f"{fmt.fmt_int(sin_base)} sin base comparable (no suman)" if hay_sin else
                      "Falta la solapa «Cotizaciones Maritimos SIN NEGOCIAR»"),
                 help="(Tarifa sin negociar − tarifa negociada) × contenedores, para los embarques cuyo flete pagado "
                      f"coincide (± {fmt.fmt_pct(cap.TOLERANCIA)}) con una tarifa negociada vigente del mismo forwarder, "
@@ -287,7 +467,7 @@ def _captura(bundle, filters, h, ventana) -> None:
             KPI("2 · Uso de 40 NOR", fmt.fmt_usd(r["nor"]),
                 sub=f"<b>{fmt.fmt_int(r['nor_cont'])}</b> contenedores vs 40 ST/HQ del mismo mes",
                 help="(Mediana pagada por un 40 ST/HQ ese mes − flete pagado por el 40 NOR) × contenedores."),
-        ], columns=3)
+        ], columns=2)
         g = cap.mensual(casos_neg, nor)
         if len(g):
             chart_title("Captura por mes", "USD por mes de ETD y fuente · la línea es el acumulado del período")
@@ -361,18 +541,123 @@ def _captura(bundle, filters, h, ventana) -> None:
 
 
 # ---------------------------------------------------------------------------
-def _tarifas(bundle, h) -> None:
-    from utils import negociar
+def _tarifas(bundle, h, m=None, h_all=None) -> None:
     t = today()
     dias = settings.NEGOCIAR_VENTANA_DIAS
-    cot = bundle.get("cotizaciones")
-    section("Cotizaciones: ¿cuál es la menor y con quién negociar?",
-            "Tarifas de «Cotizaciones Maritimos Negociado» (destino Argentina) para las rutas que usamos en los "
-            f"últimos {dias} días. La mejor tarifa es la menor. Verde = la menor de la ruta; ● = el agente con el que más "
-            "embarcamos esa ruta. Por contenedor, en USD.")
-    if h is None or h.empty:
+    section("¿Pagamos precios competitivos?",
+            f"Rutas marítimas destino Argentina usadas en los últimos {dias} días. Se compara solo contra tarifas "
+            "comparables: mismo puerto, contenedor y quincena, mismo pagadero, mismo servicio (directo / trasbordo) y "
+            f"tránsito dentro de ± {settings.OPORT_TT_TOL} días. Solo flete por contenedor, en USD (los locales ARG "
+            "van aparte).")
+    if h is None or h.empty or not m:
         empty()
         return
+    op, adh, al = m["op"], m["adh"], m["al"]
+    with guard("KPIs de tarifas"):
+        inm = op[op["tipo"] == "Inmediata"]
+        rec = adh[adh["etd"] >= t - pd.Timedelta(days=90)] if len(adh) else adh
+        pm = rec[rec["pago_mas"]] if len(rec) else rec
+        uno = op[op["agentes"] <= 1]
+        kpi_row([
+            KPI("Rutas para renegociar ya", fmt.fmt_int(len(inm)), status="warn" if len(inm) else "ok",
+                sub=f"de <b>{fmt.fmt_int(len(op))}</b> rutas usadas · diferencia ≥ "
+                    f"{fmt.fmt_pct(settings.OPORT_UMBRAL_PCT)} y ≥ USD {settings.OPORT_UMBRAL_USD} por contenedor"),
+            KPI("Ahorro potencial", fmt.fmt_usd(float(inm["ahorro_mes"].sum())), unit="/ mes",
+                status="warn" if len(inm) else "ok", sub="si el agente actual iguala la mejor comparable",
+                help="(Tarifa del agente principal − mejor tarifa comparable de otro agente) × contenedores por mes "
+                     f"de los últimos {dias} días, en las rutas para renegociar."),
+            KPI("Pagamos más de lo cotizado", fmt.fmt_pct(len(pm) / len(rec)) if len(rec) else "—",
+                status=("bad" if len(pm) / len(rec) > 0.1 else "warn" if len(pm) else "ok") if len(rec) else "",
+                sub=(f"{fmt.fmt_int(len(pm))} de {fmt.fmt_int(len(rec))} embarques (90 d) · "
+                     f"<b>{fmt.fmt_usd(float(pm['exceso'].sum()))}</b> por encima") if len(rec) else
+                    "Sin embarques con cotización vigente al zarpe",
+                help="Flete pagado por contenedor contra la tarifa que ese mismo agente cotizó para la ruta y "
+                     f"contenedor, vigente a la ETD. Cuenta si supera la más alta de sus tarifas en más de "
+                     f"{fmt.fmt_pct(settings.OPORT_ADHERENCIA_TOL)}."),
+            KPI("Rutas con un solo agente", fmt.fmt_int(len(uno)), status="warn" if len(uno) else "ok",
+                sub="sin competencia en la quincena en curso: pedir más cotizaciones"),
+        ])
+
+    with guard("Alertas"):
+        section("Alertas", "🔴 Inmediata: actuar esta semana · 🟡 Investigar: falta un dato o una cotización · "
+                           "🔵 Seguimiento: mirar la tendencia.")
+        if al.empty:
+            empty("Sin alertas con el criterio actual.")
+        else:
+            res = al.groupby(["tipo", "situacion"]).size().reset_index(name="n")
+            orden = {"Inmediata": 0, "Investigar": 1, "Seguimiento": 2}
+            res = res.assign(_o=res["tipo"].map(orden)).sort_values(["_o", "n"], ascending=[True, False])
+            st.markdown("<div class='chips'>" + "".join(
+                f"<span class='chip {esc(r['tipo'].lower())}'>{esc(r['situacion'])} <b>{r['n']}</b></span>"
+                for _, r in res.iterrows()) + "</div>", unsafe_allow_html=True)
+            data_table(al.assign(tipo=al["tipo"].map(TIPO_ICON)), [
+                ColSpec("tipo", "Tipo"), ColSpec("situacion", "Situación"), ColSpec("sujeto", "Ruta / agente"),
+                ColSpec("detalle", "Detalle", width="medium"), ColSpec("usd", "USD", "usd"),
+                ColSpec("accion", "Acción", width="large"),
+            ], key="co_alertas", filename=f"alertas_costos_{t:%Y%m%d}", search=len(al) > 12, height=min(420, 38 + 35 * len(al)))
+
+    with guard("Oportunidades"):
+        section("Oportunidades por ruta", "Una fila por ruta y contenedor. Prioridad = ahorro por mes × confianza "
+                "(volumen, cantidad de cotizaciones) × urgencia (reservas en 30 días o tarifa por vencer).")
+        ver = st.segmented_control("Ver", ["accion", "todas"], default="accion", key="co_op_ver",
+                                   format_func={"accion": "Para actuar", "todas": "Todas las rutas"}.get,
+                                   label_visibility="collapsed") or "accion"
+        o = op if ver == "todas" else op[op["tipo"].isin(["Inmediata", "Investigar"])]
+        o = o.assign(prioridad=o["prioridad"].map(PRIO_ICON).fillna(""), tipo=o["tipo"].map(TIPO_ICON))
+        data_table(o, [
+            ColSpec("prioridad", "Prioridad"), ColSpec("tipo", "Tipo"), ColSpec("puerto", "Ruta (POL)"),
+            ColSpec("tipo_ctnr", "Equipo"), ColSpec("contenedores", f"Cont. {dias} d", "int"),
+            ColSpec("agente", "Agente actual"), ColSpec("tarifa_actual", "Tarifa actual", "usd"),
+            ColSpec("mejor", "Mejor comparable", "usd"), ColSpec("mejor_agente", "La ofrece"),
+            ColSpec("dif_usd", "Diferencia (USD)", "usd"), ColSpec("dif_pct", "Diferencia %", "pct"),
+            ColSpec("ahorro_mes", "Ahorro potencial / mes", "usd"), ColSpec("negociar_con", "Negociar con"),
+            ColSpec("objetivo", "Tarifa objetivo", "usd"), ColSpec("vence", "Vence", "date"),
+            ColSpec("agentes", "Agentes que cotizan", "int"), ColSpec("confianza", "Confianza"),
+            ColSpec("accion", "Acción", width="large"),
+            ColSpec("motivo_no_comparable", "Menor no comparable"),
+        ], key=f"co_oport_{ver}", filename=f"oportunidades_{t:%Y%m%d}", search=len(o) > 12)
+
+    _cotizaciones_cuadro(bundle, h, t, dias)
+
+    with guard("Adherencia"):
+        section("¿Pagamos lo que nos cotizaron?",
+                "Por agente, últimos 12 meses: flete pagado por contenedor contra la tarifa que ese agente cotizó para "
+                "la ruta y contenedor vigente al zarpe (ETD). Se compara contra la más alta de sus tarifas, para no "
+                "marcar de más.")
+        pa = oport.adherencia_por_agente(adh)
+        if pa.empty:
+            empty("Sin embarques con cotización propia vigente al zarpe.")
+        else:
+            data_table(pa, [
+                ColSpec("forwarder", "Agente"), ColSpec("embarques", "Embarques comparados", "int"),
+                ColSpec("pago_mas", "Pagaron más", "int"), ColSpec("pct", "% pagaron más", "pct"),
+                ColSpec("dif_med", "Diferencia mediana / cont.", "usd"), ColSpec("exceso", "Exceso total (USD)", "usd"),
+            ], key="co_adh_ag", filename="adherencia_por_agente", search=False)
+            solo_descarga(adh[adh["pago_mas"]], [
+                ColSpec("embarque", "Embarque"), ColSpec("etd", "ETD", "date"), ColSpec("forwarder", "Agente"),
+                ColSpec("puerto", "Puerto"), ColSpec("tipo_ctnr", "Tipo"), ColSpec("contenedores", "Cont.", "int"),
+                ColSpec("pagado", "Pagado / cont. (USD)", "usd"), ColSpec("cotizado", "Cotizado / cont. (USD)", "usd"),
+                ColSpec("dif_pct", "Diferencia %", "pct"), ColSpec("exceso", "Exceso (USD)", "usd"),
+                ColSpec("responsable", "Responsable"),
+            ], key="co_adh_casos", filename=f"pagamos_mas_que_lo_cotizado_{t:%Y%m%d}",
+                label="Descargar embarques que pagaron más que lo cotizado")
+
+    with guard("Pagado vs mercado"):
+        section("Flete por contenedor: pagado vs mercado",
+                "Marítimo, destino Argentina · mediana pagada vs mediana de mercado y mejor cotización del mes")
+        _pagado_vs_mercado_chart(bundle, h)
+    with st.expander("Todas las cotizaciones: mapa de tarifas y evolución del mercado"):
+        cotizaciones.render()
+
+
+def _cotizaciones_cuadro(bundle, h, t, dias) -> None:
+    from utils import negociar
+    cot = bundle.get("cotizaciones")
+    section("Cotizaciones: ruta × agente",
+            "Tarifas de «Cotizaciones Maritimos Negociado» (destino Argentina) para las rutas que usamos en los "
+            f"últimos {dias} días. La mejor tarifa es la menor. Verde = la menor de la ruta; ● = el agente con el que más "
+            "embarcamos esa ruta. Por contenedor, en USD. Este cuadro compara todas las tarifas; la tabla de "
+            "oportunidades, solo las comparables.")
     with guard("Cotizaciones"):
         cur = negociar.periodo(cot, t, "curso")
         prox = negociar.periodo(cot, t, "proxima")
@@ -386,35 +671,71 @@ def _tarifas(bundle, h) -> None:
         if m.empty:
             empty("Todavía no hay cotizaciones cargadas para las próximas quincenas." if cual == "proxima" else
                   "No hay cotizaciones vigentes para nuestras rutas.")
+            return
+        var = m["var"].median()
+        st.caption(f"{fmt.fmt_int(len(negociar.periodo(cot, t, cual)))} tarifas de {fmt.fmt_int(len(agentes))} agentes"
+                   + (f" · la menor tarifa de cada ruta {'subió' if var > 0 else 'bajó'} {fmt.fmt_pct(abs(var))} "
+                      "(mediana) contra el período anterior" if var == var else ""))
+        sla_view.cotizaciones_matrix(m, agentes)
+        solo_descarga(m, [ColSpec("puerto", "Puerto"), ColSpec("tipo_ctnr", "Contenedor"),
+                          ColSpec("contenedores", f"Cont. {dias} d", "int"), ColSpec("agente", "Agente principal")]
+                      + [ColSpec(a, a, "usd") for a in agentes]
+                      + [ColSpec("menor", "Menor (USD)", "usd"), ColSpec("menor_agente", "La ofrece"),
+                         ColSpec("menor_linea", "Línea"), ColSpec("var", "vs anterior", "pct"),
+                         ColSpec("negociar", "Con quién negociar")],
+                      key=f"co_cot_{cual}", filename=f"cotizaciones_{cual}_{t:%Y%m%d}",
+                      label="Descargar cuadro")
+
+
+def _equipos(h) -> None:
+    """Costo por equipo (por m³), espacio vacío y sobrecosto IMO comparable."""
+    section("¿Qué equipo nos conviene?", "Marítimo, embarques zarpados del período. El flete por m³ cargado compara "
+            "equipos de distinto tamaño: es lo que pagamos por cada m³ que viajó. Todo por mediana.")
+    if h is None or h.empty:
+        empty()
+        return
+    with guard("Costo por equipo"):
+        eq = cs.equipos(h)
+        if eq.empty:
+            empty("Sin m³ cargados para calcular costo por m³.")
         else:
-            neg = m[m["estado"] == "Negociar"]
-            ahorro_mes = float(((neg["tarifa_principal"] - neg["menor"]) * neg["contenedores"]).sum()) / (dias / 30)
-            var = m["var"].median()
-            kpi_row([
-                KPI("Tarifas recibidas", fmt.fmt_int(len(negociar.periodo(cot, t, cual))),
-                    sub=f"de <b>{fmt.fmt_int(len(agentes))}</b> agentes · {opciones[cual].lower()}"),
-                KPI("Rutas para negociar", fmt.fmt_int(len(neg)), status="warn" if len(neg) else "ok",
-                    sub=f"nuestro agente no tiene la menor · {fmt.fmt_int((m['estado'] == 'Pedir').sum())} sin "
-                        "cotización de nuestro agente"),
-                KPI("Ahorro si igualan la menor", fmt.fmt_usd(ahorro_mes), sub="por mes, al ritmo de los últimos "
-                    f"{dias} días", help="(Tarifa de nuestro agente − menor tarifa) × contenedores por mes, en las rutas "
-                                         "para negociar."),
-                KPI("Menor tarifa vs período anterior", (("▲ " if var > 0 else "▼ ") + fmt.fmt_pct(abs(var)))
-                    if var == var else "—", status=("bad" if var > 0 else "ok") if var == var else "",
-                    sub="mediana de las rutas", help="Cuánto cambió la menor tarifa de cada ruta contra el período "
-                                                     "anterior (para «Próximas», contra el en curso)."),
-            ])
-            sla_view.cotizaciones_matrix(m, agentes)
-            solo_descarga(m, [ColSpec("puerto", "Puerto"), ColSpec("tipo_ctnr", "Contenedor"),
-                              ColSpec("contenedores", f"Cont. {dias} d", "int"), ColSpec("agente", "Agente principal")]
-                          + [ColSpec(a, a, "usd") for a in agentes]
-                          + [ColSpec("menor", "Menor (USD)", "usd"), ColSpec("menor_agente", "La ofrece"),
-                             ColSpec("menor_linea", "Línea"), ColSpec("var", "vs anterior", "pct"),
-                             ColSpec("negociar", "Con quién negociar")],
-                          key=f"co_cot_{cual}", filename=f"cotizaciones_{cual}_{t:%Y%m%d}",
-                          label="Descargar cuadro")
-    with st.expander("Todas las cotizaciones: mapa de tarifas y evolución del mercado"):
-        cotizaciones.render()
+            show = pd.DataFrame({
+                "Equipo": eq["equipo"], "Contenedores": eq["contenedores"].map(fmt.fmt_int),
+                "Flete / cont. (USD)": eq["flete_ctnr"].map(lambda v: fmt.fmt_int(v)),
+                "Capacidad (m³)": eq["capacidad"].map(lambda v: fmt.fmt_num(v, 0) if v == v else "—"),
+                "Ocupación": eq["ocupacion"].map(lambda v: fmt.fmt_pct(v) if v == v else "—"),
+                "m³ cargados / cont.": eq["m3_cargado"].map(lambda v: fmt.fmt_num(v, 1)),
+                "USD por m³ cargado": eq["flete_m3"].map(lambda v: fmt.fmt_num(v, 1)),
+                "USD por m³ de capacidad": eq["flete_m3_cap"].map(lambda v: fmt.fmt_num(v, 1) if v == v else "—"),
+                "n embarques": eq["n"].map(fmt.fmt_int),
+            })
+            st.dataframe(show, hide_index=True, width="stretch", height=38 + 35 * len(show))
+        u = settings.OCUPACION_UMBRAL
+        ev = cs.espacio_vacio(h, u)
+        imo = cs.imo_sobrecosto(h)
+        kpi_row([
+            KPI(f"Embarques con ocupación < {fmt.fmt_pct(u)}", fmt.fmt_int(ev["bajos"]),
+                status="warn" if ev["bajos"] else "ok",
+                sub=f"{fmt.fmt_pct(ev['pct'])} de {fmt.fmt_int(ev['n'])} embarques con m³ y capacidad · "
+                    f"{fmt.fmt_int(ev['cont_bajos'])} contenedores"),
+            KPI("Flete pagado por espacio vacío", fmt.fmt_usd(ev["usd_vacio"]), status="warn" if ev["usd_vacio"] else "",
+                sub="flete × (1 − ocupación) en esos embarques · es una cota: no toda carga se puede consolidar"),
+            KPI("Sobrecosto IMO comparable",
+                ("+" if imo.get("dif_med", 0) > 0 else "") + fmt.fmt_usd(imo["dif_med"], compact=False)
+                if imo.get("n_celdas") else "—",
+                sub=(f"mediana por contenedor ({fmt.fmt_pct(imo['pct_med'])}) · misma ruta, equipo y mes · "
+                     f"n={fmt.fmt_int(imo['n_celdas'])} comparaciones") if imo.get("n_celdas") else
+                    "Sin meses con carga IMO y no IMO en la misma ruta y equipo"),
+        ], columns=3)
+        if ev["bajos"]:
+            c = ev["casos"].assign(vacio=lambda x: x["flete_pagado"] * (1 - x["ocup"].clip(upper=1)))
+            solo_descarga(c.sort_values("vacio", ascending=False), [
+                ColSpec("embarque", "Embarque"), ColSpec("etd", "ETD", "date"), ColSpec("forwarder", "Agente"),
+                ColSpec("puerto", "Puerto"), ColSpec("tipo_ctnr", "Tipo"), ColSpec("contenedores", "Cont.", "int"),
+                ColSpec("m3", "m³", "num"), ColSpec("ocup", "Ocupación", "pct"),
+                ColSpec("flete_pagado", "Flete (USD)", "usd"), ColSpec("vacio", "Flete por espacio vacío (USD)", "usd"),
+                ColSpec("responsable", "Responsable"),
+            ], key="co_vacio", filename="contenedores_con_espacio_vacio", label="Descargar contenedores con espacio vacío")
 
 
 # ---------------------------------------------------------------------------

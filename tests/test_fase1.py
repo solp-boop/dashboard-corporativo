@@ -165,13 +165,13 @@ def test_captura_por_negociacion_asigna_tarifa_vigente_y_parecida():
     hist = pd.DataFrame({
         "embarque": ["A", "B", "C"], "forwarder": ["Delfin"] * 3, "puerto": ["Ningbo"] * 3,
         "tipo_ctnr": ["40ST/40HQ"] * 3, "contenedores": [2.0, 1.0, 1.0], "flete_por_ctnr": [1000.0, 2000.0, 1000.0],
-        "f_instruccion": [ts("2026-05-05"), ts("2026-05-05"), ts("2026-07-01")], "etd": [ts("2026-05-20")] * 3,
+        "f_instruccion": [ts("2026-04-20")] * 3, "etd": [ts("2026-05-05"), ts("2026-05-05"), ts("2026-07-01")],
     })
     neg = pd.DataFrame({"forwarder": ["DELFIN"], "puerto": ["ningbo"], "tipo_ctnr": ["40ST/40HQ"],
                         "validez_desde": [ts("2026-05-01")], "validez_hasta": [ts("2026-05-15")],
                         "flete_original": [1200.0], "flete_negociado": [1000.0], "rebaja": [200.0]})
     c = cap.por_negociacion(hist, neg)
-    assert list(c["embarque"]) == ["A"]                # B pagó muy distinto; C fuera de vigencia
+    assert list(c["embarque"]) == ["A"]                # B pagó muy distinto; C zarpó fuera de vigencia (rige la ETD)
     assert c.iloc[0]["captura"] == 400.0               # 200 × 2 contenedores
 
 

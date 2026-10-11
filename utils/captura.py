@@ -1,7 +1,7 @@
 """Captura: lo que la gestión ahorró con una decisión, por fuente.
 
 - Negociación de tarifas: a cada embarque marítimo se le asigna la tarifa con la que salió (mismo forwarder,
-  puerto, tipo de contenedor y destino, vigente a la fecha de instrucción o, si falta, de ETD, con el flete
+  puerto, tipo de contenedor y destino, vigente a la fecha de ETD (zarpe), con el flete
   negociado más parecido a lo pagado, y pagando menos que la tarifa original). Captura = (tarifa sin negociar − tarifa negociada) × contenedores. Si ninguna tarifa
   vigente se parece a lo pagado (± TOLERANCIA), el embarque no suma: no hay evidencia de que haya salido con ella.
 - 40 NOR: (mediana pagada por un 40 ST/HQ ese mes − flete pagado por el 40 NOR) × contenedores (utils.freight).
@@ -29,7 +29,7 @@ def por_negociacion(hist: pd.DataFrame, neg: pd.DataFrame) -> pd.DataFrame:
     h = hist[(hist["flete_por_ctnr"] > 0) & hist["tipo_ctnr"].notna() & hist["forwarder"].notna()].copy()
     if h.empty:
         return pd.DataFrame(columns=COLS)
-    h["_fecha"] = h["f_instruccion"].fillna(h["etd"]) if "f_instruccion" in h else h["etd"]
+    h["_fecha"] = h["etd"]   # la tarifa que aplica es la vigente al zarpe
     h["_f"], h["_p"] = h["forwarder"].map(fold), h["puerto"].map(fold)
     n = neg[neg["rebaja"].notna()].copy()
     n["_f"], n["_p"] = n["forwarder"].map(fold), n["puerto"].map(fold)

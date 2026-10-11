@@ -105,3 +105,94 @@ def flete_mes(h: pd.DataFrame, tipo: str, year: int) -> pd.DataFrame:
         rows.append({"mes": pd.NaT, "n": int(len(este)), "mediana": a, "var_mes": np.nan, "anio_ant": b,
                      "var_anio": a / b - 1 if b == b and b else np.nan})
     return pd.DataFrame(rows, columns=cols)
+
+
+def puente(prev: pd.DataFrame, cur: pd.DataFrame) -> dict:
+    """Puente del flete marítimo pagado entre dos períodos: cuánto de la variación es volumen (más contenedores),
+    mezcla (otro reparto entre 20 ST / 40 ST-HQ / 40 NOR) y precio (cada equipo más caro o más barato).
+
+    Descomposición exacta de totales (por eso usa el flete promedio por contenedor de cada equipo, no la mediana):
+      volumen = (Q1 − Q0) × P̄0 · mezcla = Σ (s1ᵢ − s0ᵢ) × Q1 × p0ᵢ · precio = Σ q1ᵢ × (p1ᵢ − p0ᵢ)
+    Un equipo que no estaba en el período anterior entra entero en mezcla (a su precio actual)."""
+    def agg(d):
+        d = d[(d["flete_pagado"] > 0) & d["tipo_ctnr"].notna()]
+        g = d.groupby("tipo_ctnr").agg(q=("contenedores", "sum"), v=("flete_pagado", "sum"))
+        g["p"] = g["v"] / g["q"]
+        return g
+    a, b = agg(prev), agg(cur)
+    if a.empty or b.empty:
+        return {}
+    q0, q1 = a["q"].sum(), b["q"].sum()
+    v0, v1 = a["v"].sum(), b["v"].sum()
+    p0 = v0 / q0
+    tipos = a.index.union(b.index)
+    s0 = (a["q"] / q0).reindex(tipos).fillna(0)
+    s1 = (b["q"] / q1).reindex(tipos).fillna(0)
+    pi0 = a["p"].reindex(tipos)
+    pi1 = b["p"].reindex(tipos)
+    pi0_f = pi0.fillna(pi1)                       # equipo nuevo: su precio actual
+    vol = (q1 - q0) * p0
+    mix = float(((s1 - s0) * q1 * pi0_f).sum()) + (q1 * (s0 * pi0_f).sum() - q1 * p0)
+    precio = float((b["q"].reindex(tipos).fillna(0) * (pi1.fillna(pi0_f) - pi0_f)).sum())
+    return {"base": v0, "volumen": vol, "mezcla": mix, "precio": precio, "final": v1,
+            "q0": q0, "q1": q1, "residuo": v1 - (v0 + vol + mix + precio)}
+
+
+def concepto_mes(h: pd.DataFrame, tipo: str, year: int, col: str = "flete_por_ctnr") -> pd.DataFrame:
+    """flete_mes para otro concepto por contenedor (locales_por_ctnr, origen_por_ctnr)."""
+    if h is None or h.empty or col not in h:
+        return pd.DataFrame(columns=["mes", "n", "mediana", "var_mes", "anio_ant", "var_anio"])
+    return flete_mes(h.assign(flete_por_ctnr=h[col]), tipo, year)
+
+
+EQUIPOS = {"20ST": "20 ST", "40ST/40HQ": "40 ST / 40 HQ", "40NOR": "40 NOR"}
+
+
+def equipos(h: pd.DataFrame) -> pd.DataFrame:
+    """Por tipo de contenedor: contenedores, flete por contenedor, capacidad, ocupación y flete por m³ (cargado y de
+    capacidad), todo por mediana. El costo por m³ cargado es el que compara equipos de distinto tamaño."""
+    cols = ["equipo", "contenedores", "flete_ctnr", "capacidad", "ocupacion", "m3_cargado", "flete_m3", "flete_m3_cap",
+            "n"]
+    d = h[(h["flete_por_ctnr"] > 0) & h["tipo_ctnr"].notna() & (h["m3"] > 0) & (h["contenedores"] > 0)]
+    if d.empty:
+        return pd.DataFrame(columns=cols)
+    cap = d["capacidad"].where(d["capacidad"] > 0) if "capacidad" in d else pd.Series(np.nan, index=d.index)
+    d = d.assign(cap=cap, m3_ctnr=d["m3"] / d["contenedores"])
+    d["ocup"] = d["m3_ctnr"] / d["cap"]
+    d["f_m3"] = d["flete_por_ctnr"] / d["m3_ctnr"]
+    d["f_m3_cap"] = d["flete_por_ctnr"] / d["cap"]
+    g = d.groupby("tipo_ctnr").agg(contenedores=("contenedores", "sum"), flete_ctnr=("flete_por_ctnr", "median"),
+                                   capacidad=("cap", "median"), ocupacion=("ocup", "median"),
+                                   m3_cargado=("m3_ctnr", "median"), flete_m3=("f_m3", "median"),
+                                   flete_m3_cap=("f_m3_cap", "median"), n=("embarque", "nunique")).reset_index()
+    g["equipo"] = g["tipo_ctnr"].map(EQUIPOS).fillna(g["tipo_ctnr"])
+    return g[cols].sort_values("contenedores", ascending=False).reset_index(drop=True)
+
+
+def espacio_vacio(h: pd.DataFrame, umbral: float) -> dict:
+    """Contenedores por debajo del umbral de ocupación y el flete pagado por el espacio que viajó vacío
+    (flete × (1 − ocupación)). Es una cota: no toda carga se puede consolidar."""
+    d = h[(h["flete_por_ctnr"] > 0) & (h["m3"] > 0) & (h["contenedores"] > 0)]
+    cap = d["capacidad"].where(d["capacidad"] > 0) if "capacidad" in d else pd.Series(np.nan, index=d.index)
+    d = d.assign(ocup=(d["m3"] / d["contenedores"]) / cap).dropna(subset=["ocup"])
+    bajo = d[d["ocup"] < umbral]
+    vacio = float((bajo["flete_pagado"] * (1 - bajo["ocup"].clip(upper=1))).sum())
+    return {"n": int(len(d)), "bajos": int(len(bajo)), "cont_bajos": float(bajo["contenedores"].sum()),
+            "pct": len(bajo) / len(d) if len(d) else np.nan, "usd_vacio": vacio, "casos": bajo}
+
+
+def imo_sobrecosto(h: pd.DataFrame) -> dict:
+    """Sobrecosto IMO comparable: misma ruta (puerto), equipo y mes; mediana IMO − mediana no IMO en cada celda donde
+    hay de los dos, y la mediana de esas diferencias."""
+    d = h[(h["flete_por_ctnr"] > 0) & h["tipo_ctnr"].notna()].copy()
+    if "dg" not in d or d.empty:
+        return {"n_celdas": 0}
+    d["dg"] = d["dg"].fillna(False).astype(bool)
+    d["mes"] = d["etd"].dt.to_period("M")
+    g = d.groupby(["puerto", "tipo_ctnr", "mes", "dg"])["flete_por_ctnr"].median().unstack("dg")
+    if True not in g or False not in g:
+        return {"n_celdas": 0, "n_imo": int(d["dg"].sum())}
+    g = g.dropna(subset=[True, False])
+    dif = g[True] - g[False]
+    return {"n_celdas": int(len(dif)), "n_imo": int(d["dg"].sum()), "dif_med": float(dif.median()) if len(dif) else np.nan,
+            "pct_med": float((dif / g[False]).median()) if len(dif) else np.nan}
