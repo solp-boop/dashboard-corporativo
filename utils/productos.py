@@ -86,7 +86,8 @@ def base_universo(eh: pd.DataFrame, today: pd.Timestamp, aereos=None, planif=Non
     Columna «medio»: Marítimo (embarque FCL), Aéreo (AIR, sin DJI Baynal / RC Online / Aeropix) u Otro
     (el resto: AIR de esos tipos de negocio o embarques con otro código). Todas = Marítimo + Aéreo + Otro."""
     from utils.data_cleaning import fold, id_key
-    d = eh[eh["etd"].notna() & (eh["etd"] <= today) & eh["tiempo_consolidacion"].notna()].copy()
+    d = eh[eh["etd"].notna() & (eh["etd"] <= today) & eh["tiempo_consolidacion"].notna()
+           & eh["so"].notna() & (eh["so"].astype(str).str.strip() != "")].copy()     # filas sin SO no cuentan
     d = _solo_destino(d)
     embs, sos = muestras(aereos, planif, hist)
     d = d[~id_key(d["embarque"]).isin(embs) & ~d["so"].astype(str).isin(sos)]

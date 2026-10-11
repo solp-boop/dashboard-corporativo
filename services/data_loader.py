@@ -377,7 +377,8 @@ def prepare_emb_hist(eh: pd.DataFrame, hist: pd.DataFrame | None) -> None:
         h = hist.assign(_k=dc.id_key(hist["embarque"]))
         h_est = h.dropna(subset=["estructura"]).drop_duplicates("_k").set_index("_k")["estructura"]
         est_h = key.map(h_est)
-        est_h = est_h.map(lambda v: {"consolidado": "Consolidado", "monoproveedor": "Monoproveedor"}.get(dc.fold(v), v)
+        # Solo mono / consolidado: otros textos («FCL no figura en Emb Hist», «No aplica») no tapan el de Emb Hist.
+        est_h = est_h.map(lambda v: {"consolidado": "Consolidado", "monoproveedor": "Monoproveedor"}.get(dc.fold(v))
                           if isinstance(v, str) else None)
         eh["estructura"] = est_h.where(est_h.notna(), est_eh)
         if "destino" in hist and "destino" in eh:
