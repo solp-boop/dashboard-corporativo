@@ -86,7 +86,7 @@ def sla_consolidacion(z: pd.DataFrame, z_all: pd.DataFrame, t: pd.Timestamp) -> 
         ayuda=("% de embarques marítimos del período con consolidación (packeo → ETD) dentro de su SLA: "
                f"monoproveedor según la ETD ({calc.sla_mono_txt()}), consolidado según el puerto. "
                "La flecha compara el último mes cerrado con el anterior."),
-        destino="sla")
+        destino="sla?vista=maritimo")
 
 
 def _mediana_mes(df: pd.DataFrame, col: str, t: pd.Timestamp) -> tuple[float, float, int]:
@@ -117,7 +117,7 @@ def punta_aereo(a: pd.DataFrame, a_all: pd.DataFrame, t: pd.Timestamp) -> Indica
         ayuda=("Mediana de packeo mínimo → ETA Caldas (columna «Total» de Seguimiento Aéreos). El estado compara el % "
                f"de embarques dentro del SLA de su tipo (vigente desde el {settings.SLA_AEREO_DESDE:%d/%m/%Y}) con el "
                f"objetivo de {fmt.fmt_pct(obj)}. La flecha compara la mediana del último mes cerrado con la del anterior."),
-        destino="sla")
+        destino="sla?vista=aereo")
 
 
 def punta_maritimo(z: pd.DataFrame, z_all: pd.DataFrame, t: pd.Timestamp) -> Indicador:
@@ -136,7 +136,7 @@ def punta_maritimo(z: pd.DataFrame, z_all: pd.DataFrame, t: pd.Timestamp) -> Ind
         tono=_tono(d, mejor_si_baja=True),
         ayuda=("Mediana de fin de producción → ETA, solo embarques que ya llegaron. El estado compara el % dentro del SLA total de cada puerto "
                f"(Validaciones) con el objetivo de {fmt.fmt_pct(obj)}."),
-        destino="sla")
+        destino="sla?vista=transito")
 
 
 def time_to_market(summ: pd.DataFrame) -> Indicador:
@@ -145,7 +145,7 @@ def time_to_market(summ: pd.DataFrame) -> Indicador:
              f"Objetivo: bajar un {fmt.fmt_pct(settings.REDUCCION_OBJETIVO)} contra Q1.")
     r = summ[summ["grupo"] == "Todas las SO"] if len(summ) else summ
     if r.empty or r.iloc[0]["actual"] != r.iloc[0]["actual"]:
-        return Indicador("Time to market", "—", ayuda=ayuda, destino="sla")
+        return Indicador("Time to market", "—", ayuda=ayuda, destino="sla?vista=ttm")
     r = r.iloc[0]
     var = r["variacion"]
     estado = {"Cumple": "ok", "Reduce, sin llegar": "warn", "No reduce": "bad"}.get(r["estado"], "")
@@ -154,7 +154,7 @@ def time_to_market(summ: pd.DataFrame) -> Indicador:
         sub=f"{r['actual_q']} vs {r['base_q']} ({fmt.fmt_int(r['base'])} d) · objetivo "
             f"−{fmt.fmt_pct(settings.REDUCCION_OBJETIVO)}",
         delta=f"{_flecha(var)} {fmt.fmt_pct(abs(var))} {r['actual_q']} vs {r['base_q']}" if var == var else "",
-        tono=_tono(var, mejor_si_baja=True), ayuda=ayuda, destino="sla")
+        tono=_tono(var, mejor_si_baja=True), ayuda=ayuda, destino="sla?vista=ttm")
 
 
 # ---------------------------------------------------------------------------

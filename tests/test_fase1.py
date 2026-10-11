@@ -315,3 +315,18 @@ def test_ttm_por_medio_cierra():
     # S1 viajó en 2 embarques: cuenta 2 (SO por envío). AIR 3 (Baynal) y LCL 4 quedan en «otro».
     assert m["todas|todos|so"] == 5 and m["todas|Marítimo|so"] == 2 and m["todas|Aéreo|so"] == 1
     assert m["todas|otro|so"] == 2 and m["es_nuevo|Marítimo|so"] == 1
+
+
+def test_tiempos_mes_tipo_y_etapas():
+    from utils import tiempos_mes as tm
+    a = pd.DataFrame({"etd": [ts("2026-09-02"), ts("2026-09-20"), ts("2026-10-01"), ts("2026-09-05")],
+                      "tipo_label": ["GADNIC", "GADNIC", "GADNIC", "DJI"], "dias_aereo": [20.0, 30.0, 18.0, 25.0],
+                      "sla_aereo": [24.0, 24.0, 24.0, 24.0]})
+    t = tm.tipo_por_mes(a).set_index(["tipo", "mes"])
+    sep = t.loc[("GADNIC", ts("2026-09-01"))]
+    assert sep["n"] == 2 and sep["mediana"] == 25 and sep["dentro"] == 1 and sep["pct"] == 0.5
+    assert t.loc[("Todos", ts("2026-09-01")), "n"] == 3 and t.loc[("Todos", ts("2026-09-01")), "pct"] == 1 / 3
+    z = pd.DataFrame({"etd": [ts("2026-09-02"), ts("2026-09-10")], "eta": [ts("2026-10-20"), ts("2026-11-30")],
+                      "dias_comex": [5.0, 7.0], "dias_tt": [48.0, 81.0]})
+    m = tm.por_mes(z, ["dias_comex", "dias_tt"], llegados=["dias_tt"], today=ts("2026-10-25")).iloc[0]
+    assert m["n"] == 2 and m["dias_comex"] == 6 and m["dias_tt"] == 48 and m["dias_tt_n"] == 1

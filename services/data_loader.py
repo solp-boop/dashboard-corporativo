@@ -763,7 +763,7 @@ def _code_version() -> str:
     return h.hexdigest()[:12]
 
 
-@st.cache_resource(ttl=settings.CACHE_TTL_SECONDS, show_spinner="Cargando datos de la planilla…")
+@st.cache_resource(ttl=settings.CACHE_TTL_SECONDS, max_entries=1, show_spinner="Cargando datos de la planilla…")
 def _load_bundle(code_version: str = "") -> DataBundle:
     """Una sola carga compartida por todos los usuarios hasta que vence el TTL.
 

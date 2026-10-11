@@ -239,3 +239,11 @@ a.kpi-link:hover { border-color: var(--blue); box-shadow: 0 1px 6px rgba(20, 30,
 @media (max-width: 380px) {
   .kpi-grid { grid-template-columns: 1fr !important; }
 }
+
+/* Matrices mes a mes: verde = dentro del SLA, rojo = fuera; «pre» = antes de que rija el SLA (referencia) */
+.scorecard.matriz td { text-align: center; }
+.scorecard.matriz td.ok { background: #E6F3EC; color: #1E6B41; font-weight: 600; }
+.scorecard.matriz td.bad { background: #F8E4E1; color: #9A2B20; font-weight: 600; }
+.scorecard.matriz td.pre { opacity: .6; font-style: italic; }
+.scorecard.matriz tr.tot th, .scorecard.matriz tr.tot td { border-top: 2px solid var(--line); font-weight: 600; }
+.scorecard.matriz td .n { font-weight: 400; }

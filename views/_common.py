@@ -11,6 +11,15 @@ from utils.filters import FilterState, apply_filters
 from utils import formatting as fmt
 
 
+def memo(bundle: DataBundle, key, fn):
+    """Resultado de fn() guardado en el bundle (una carga de datos): lo que no depende de los filtros se calcula
+    una sola vez por carga y no en cada interacción. Una carga nueva trae un bundle nuevo y vacío."""
+    store = bundle.__dict__.setdefault("_memo", {})
+    if key not in store:
+        store[key] = fn()
+    return store[key]
+
+
 def ctx() -> tuple[DataBundle, FilterState]:
     return get_data(), current_filters()
 

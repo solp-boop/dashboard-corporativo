@@ -138,3 +138,23 @@ def data_table(df: pd.DataFrame, cols: list[ColSpec], key: str, filename: str,
         data = data.apply(lambda row: [css[row.name]] * len(row), axis=1)
     st.dataframe(data, column_config=config, hide_index=True, height=h, width="stretch", placeholder="—")
     st.caption((caption + " · " if caption else "") + f"{rows:,} filas".replace(",", "."))
+
+
+def solo_descarga(df: pd.DataFrame, cols: list[ColSpec], key: str, filename: str, label: str,
+                  hojas: dict[str, tuple[pd.DataFrame, list[ColSpec]]] | None = None) -> None:
+    """Botón que descarga un Excel sin mostrar la tabla en pantalla. `hojas`: solapas adicionales del archivo."""
+    display, _ = _display_frame(df, cols)
+
+    def armar() -> bytes:
+        if not hojas:
+            return to_excel(display, "Detalle")
+        buf = io.BytesIO()
+        with pd.ExcelWriter(buf, engine="openpyxl", date_format="DD/MM/YYYY") as xw:
+            for nombre, (d, c) in {"Detalle": (df, cols), **hojas}.items():
+                _display_frame(d, c)[0].to_excel(xw, index=False, sheet_name=nombre[:31])
+                xw.sheets[nombre[:31]].freeze_panes = "A2"
+        return buf.getvalue()
+
+    st.download_button(f"{label} ({len(display):,})".replace(",", "."), icon=":material/download:", data=armar,
+                       file_name=f"{filename}.xlsx", key=f"dl_{key}", disabled=display.empty,
+                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")

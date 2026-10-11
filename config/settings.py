@@ -55,7 +55,7 @@ SHEET_GIDS: dict[str, dict[str, int]] = {
 TARGET_DESCUENTO_FLETE = 0.15
 
 # Caché de datos normalizados (segundos). El botón "Actualizar datos" lo limpia.
-CACHE_TTL_SECONDS = 600
+CACHE_TTL_SECONDS = 1800   # 30 min; «Actualizar datos» fuerza la recarga
 
 TIMEZONE = "America/Argentina/Buenos_Aires"
 

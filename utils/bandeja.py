@@ -207,19 +207,17 @@ def casos_datos(ctrls) -> list[pd.DataFrame]:
     return out
 
 
-def enriquecer(df: pd.DataFrame, planif: pd.DataFrame | None, eh: pd.DataFrame | None) -> pd.DataFrame:
-    """Suma SO y proveedor de cada embarque: Planificación (en curso) y Embarques Históricos (cerrados)."""
-    if df.empty:
-        return df
+def indice_so(planif: pd.DataFrame | None, eh: pd.DataFrame | None) -> pd.DataFrame | None:
+    """Embarque (id_key) → texto de SO y proveedores (Planificación + Embarques Históricos). Una vez por carga."""
     partes = []
     for src in (planif, eh):
         if src is not None and len(src) and "embarque" in src and "so" in src:
             cols = ["embarque", "so"] + (["proveedor"] if "proveedor" in src else [])
             partes.append(src[cols].dropna(subset=["embarque"]))
     if not partes:
-        return df
+        return None
     m = pd.concat(partes, ignore_index=True)
-    m["_k"] = id_key(m["embarque"])
+    k = id_key(m["embarque"]).values
 
     def junta(s, limite=3):
         vals = sorted({str(v) for v in s.dropna() if str(v).strip()})
@@ -227,10 +225,20 @@ def enriquecer(df: pd.DataFrame, planif: pd.DataFrame | None, eh: pd.DataFrame |
             return None
         return ", ".join(vals[:limite]) + (f" +{len(vals) - limite}" if len(vals) > limite else "")
 
-    agg = {"so": junta}
+    out = {"so": m["so"].groupby(k).agg(junta)}
     if "proveedor" in m:
-        agg["proveedor"] = junta
-    g = m.groupby("_k").agg(agg)
+        out["proveedor"] = m["proveedor"].groupby(k).agg(junta)
+    return pd.DataFrame(out)
+
+
+def enriquecer(df: pd.DataFrame, planif: pd.DataFrame | None, eh: pd.DataFrame | None,
+               indice: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Suma SO y proveedor de cada embarque: Planificación (en curso) y Embarques Históricos (cerrados)."""
+    if df.empty:
+        return df
+    g = indice if indice is not None else indice_so(planif, eh)
+    if g is None:
+        return df
     k = id_key(df["embarque"].astype(str))
     df = df.copy()
     df["so"] = k.map(g["so"])

@@ -96,31 +96,37 @@ def casos(df: pd.DataFrame, dim: str, grupo: str) -> pd.DataFrame:
     return df[m]
 
 
-def unir_emb_hist(ops: pd.DataFrame, eh: pd.DataFrame | None) -> pd.DataFrame:
+def indice_emb_hist(eh: pd.DataFrame | None) -> pd.DataFrame | None:
+    """Embarque (id_key) → listas de SO, proveedores y category managers. Es lo lento de unir_emb_hist: conviene
+    calcularlo una vez por carga de datos y pasarlo como `indice`."""
+    if eh is None or eh.empty or "embarque" not in eh:
+        return None
+    e = eh.dropna(subset=["embarque"])
+    k = id_key(e["embarque"])
+
+    def lista(s):
+        return sorted({v for v in (str(x).strip(' "') for x in s.dropna()) if v})
+
+    cols = {"so": "so", "proveedor": "proveedor", "category": "category"}
+    out = {}
+    for src in cols:
+        if src in e:
+            out[src] = e[src].groupby(k.values).agg(lista)
+    return pd.DataFrame(out) if out else None
+
+
+def unir_emb_hist(ops: pd.DataFrame, eh: pd.DataFrame | None, indice: pd.DataFrame | None = None) -> pd.DataFrame:
     """Suma a cada embarque sus SO, proveedores y category managers (listas) desde Embarques Históricos."""
     out = ops.copy()
-    if eh is None or eh.empty or "embarque" not in eh:
+    g = indice if indice is not None else indice_emb_hist(eh)
+    if g is None:
         for c in ("sos", "proveedores", "categories"):
             out[c] = [[] for _ in range(len(out))]
         return out
-    e = eh.dropna(subset=["embarque"]).assign(_k=lambda x: id_key(x["embarque"]))
-
-    def lista(s):
-        return sorted({str(v).strip(' "') for v in s.dropna() if str(v).strip(' "')})
-
-    agg = {"so": lista}
-    if "proveedor" in e:
-        agg["proveedor"] = lista
-    if "category" in e:
-        agg["category"] = lista
-    g = e.groupby("_k").agg(agg)
     k = id_key(out["embarque"].astype(str))
-    vacio = [[] for _ in range(len(out))]
-    out["sos"] = k.map(g["so"]).where(k.isin(g.index)).tolist() if "so" in g else vacio
-    out["proveedores"] = k.map(g["proveedor"]).tolist() if "proveedor" in g else vacio
-    out["categories"] = k.map(g["category"]).tolist() if "category" in g else vacio
-    for c in ("sos", "proveedores", "categories"):
-        out[c] = out[c].map(lambda x: x if isinstance(x, list) else [])
+    for src, dst in (("so", "sos"), ("proveedor", "proveedores"), ("category", "categories")):
+        out[dst] = k.map(g[src]).tolist() if src in g else [[] for _ in range(len(out))]
+        out[dst] = out[dst].map(lambda x: x if isinstance(x, list) else [])
     return out
 
 

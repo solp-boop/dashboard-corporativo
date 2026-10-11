@@ -13,7 +13,7 @@ from config import settings
 from utils import bandeja, freight, productos, sla
 from utils import formatting as fmt
 from utils import panorama as pan
-from views._common import ctx, filtered, periodo_txt, today
+from views._common import memo, ctx, filtered, periodo_txt, today
 
 
 def _kpi(i: pan.Indicador) -> KPI:
@@ -70,8 +70,8 @@ def _tiempos(bundle, filters, t) -> list[pan.Indicador]:
     if h_f is not None:
         out.append(pan.punta_maritimo(z[z["eta"] <= t], z_all[z_all["eta"] <= t], t))   # ETA futura = estimada
     if bundle.get("emb_hist") is not None and len(bundle.get("emb_hist")):
-        du = productos.base_universo(bundle.get("emb_hist"), t, bundle.get("aereos"), bundle.get("planif"),
-                                      bundle.get("historicas"))
+        du = memo(bundle, ("ttm_universo", t), lambda: productos.base_universo(
+            bundle.get("emb_hist"), t, bundle.get("aereos"), bundle.get("planif"), bundle.get("historicas")))
         out.append(pan.time_to_market(productos.objetivo_universo(du, t)))
     return out
 

@@ -163,3 +163,14 @@ def test_fuente_caida_usa_ultima_carga_valida(monkeypatch):
     assert not at.exception
     assert any("últimos datos cargados" in w.value for w in at.warning)
     data_loader.clear_cache()
+
+
+@pytest.mark.parametrize("vista", ["aereo", "transito", "ttm"])
+def test_tiempos_cada_vista(vista, local_files):
+    at = AppTest.from_file(RUNNER, default_timeout=120)
+    at.secrets["local_files"] = local_files
+    at.secrets["test_page"] = "lead_times"
+    at.query_params["vista"] = vista
+    at.run()
+    assert_clean(at)
+    assert at.session_state["tiempos_vista"] == vista

@@ -17,7 +17,7 @@ from components.kpi_cards import KPI, kpi_row
 from components.tables import ColSpec, data_table
 from utils import anio
 from utils import resumen_kpis as rk
-from views._common import ctx, en_curso, filtered, maritimos_en_curso, periodo_txt, split_html, today
+from views._common import memo, ctx, en_curso, filtered, maritimos_en_curso, periodo_txt, split_html, today
 
 
 def _record_txt(tab: pd.DataFrame) -> str:
@@ -534,8 +534,8 @@ def render() -> None:
                    "(marítimo y aéreo, sin muestras ni repuestos). La base es Q1 y el objetivo es bajarla un 15 %: se "
                    "compara el último trimestre cerrado contra Q1. La apertura mes a mes está en Lead times y SLA.")
         with guard("Objetivo −15 %"):
-            du = productos.base_universo(bundle.get("emb_hist"), t, bundle.get("aereos"), bundle.get("planif"),
-                                      bundle.get("historicas"))
+            du = memo(bundle, ("ttm_universo", t), lambda: productos.base_universo(
+            bundle.get("emb_hist"), t, bundle.get("aereos"), bundle.get("planif"), bundle.get("historicas")))
             summ = productos.objetivo_universo(du, t)
             chart_title("Mediana por trimestre", "Todas las SO, SKU nuevos y top ranking · línea punteada = objetivo (Q1 −15 %)")
             sla_view.objetivo_q_chart(summ, t, key="res_obj15")

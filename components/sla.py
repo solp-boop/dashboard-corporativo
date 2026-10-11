@@ -415,3 +415,85 @@ def air_deviation_chart(a: pd.DataFrame, today: pd.Timestamp, key: str, height: 
     charts.show(fig, key=key)
     if d["tipo_sla"].nunique() > 4:
         st.caption("Se muestran los 4 tipos con más embarques; el resto está en la tabla.")
+
+
+# ---------------------------------------------------------------------------
+# Matrices mes a mes (tablas HTML con el estilo de cierre de mes)
+# ---------------------------------------------------------------------------
+def _mes_txt(m: pd.Timestamp, today: pd.Timestamp) -> str:
+    return fmt.fmt_month(m).capitalize() + ("*" if m == today.to_period("M").to_timestamp() else "")
+
+
+def tipo_mes_matrix(t: pd.DataFrame, today: pd.Timestamp, medida: str = "dias") -> None:
+    """Tipo de negocio × mes de ETD. medida="dias": mediana de días (verde si ≤ SLA del tipo, rojo si no);
+    medida="pct": % de embarques dentro del SLA de su tipo (verde si llega al objetivo)."""
+    if t.empty:
+        st.markdown('<div class="empty">Sin aéreos con «Total» cargado en el período.</div>', unsafe_allow_html=True)
+        return
+    desde = pd.Timestamp(settings.SLA_AEREO_DESDE)
+    meses = sorted(t["mes"].unique())
+    orden = [TIPO_LABEL.get(k, k.title()) for k in settings.SLA_AEREO_POR_TIPO]
+    tipos = [x for x in orden if x in set(t["tipo"])] + sorted(set(t["tipo"]) - set(orden) - {"Todos"}) + ["Todos"]
+    idx = t.set_index(["tipo", "mes"])
+    sla_tipo = {k: t.loc[t["tipo"] == k, "sla"].dropna().median() for k in tipos}
+    obj = settings.CUMPLIMIENTO_OBJETIVO
+
+    head = ["Tipo de negocio", "SLA"] + [_mes_txt(m, today) for m in meses]
+    body = []
+    for tp in tipos:
+        sla_v = sla_tipo.get(tp)
+        cells = [f"<th class='rowh'>{html.escape(tp)}</th>",
+                 f"<td>{fmt.fmt_int(sla_v) + ' d' if sla_v == sla_v and sla_v is not None else '—'}</td>"]
+        for m in meses:
+            if (tp, m) not in idx.index:
+                cells.append("<td class='na'>—</td>")
+                continue
+            r = idx.loc[(tp, m)]
+            pre = " pre" if m < desde else ""
+            if medida == "pct":
+                if r["pct"] != r["pct"]:
+                    cells.append(f"<td class='na{pre}'>—<span class='n'>n={int(r['n'])}</span></td>")
+                    continue
+                cls = "ok" if r["pct"] >= obj else "bad"
+                cells.append(f"<td class='{cls}{pre}'>{fmt.fmt_pct(r['pct'])}"
+                             f"<span class='n'>{int(r['dentro'])} de {int(r['n'])}</span></td>")
+            else:
+                cls = "" if tp == "Todos" or sla_v != sla_v or sla_v is None else \
+                    ("ok" if r["mediana"] <= sla_v else "bad")
+                cells.append(f"<td class='{cls}{pre}'>{fmt.fmt_int(r['mediana'])} d"
+                             f"<span class='n'>n={int(r['n'])}</span></td>")
+        style = " class='tot'" if tp == "Todos" else ""
+        body.append(f"<tr{style}>" + "".join(cells) + "</tr>")
+    st.markdown('<div class="scorecard compact matriz"><table><thead><tr>' + "".join(f"<th>{h}</th>" for h in head)
+                + f'</tr></thead><tbody>{"".join(body)}</tbody></table></div>', unsafe_allow_html=True)
+
+
+def mes_matrix(d: pd.DataFrame, columnas: list[tuple[str, str]], today: pd.Timestamp,
+               resaltar: list[str] | None = None, extra: list[tuple[str, str]] | None = None,
+               pct: tuple[str, str] | None = None) -> None:
+    """Meses (filas) × etapas o tramos (columnas): mediana de días. `resaltar`: columnas entre las que se marca
+    la más larga de cada mes. `extra`: columnas que se muestran después, sin resaltar. `pct`: (columna, título) de
+    un % de cumplimiento, en verde si llega al objetivo y en rojo si no."""
+    if d.empty:
+        st.markdown('<div class="empty">Sin datos.</div>', unsafe_allow_html=True)
+        return
+    extra = extra or []
+    head = ["Mes ETD", "Embarques"] + ([pct[1]] if pct else []) + [lbl for _, lbl in columnas + extra]
+    body = []
+    for _, r in d.sort_values("mes").iterrows():
+        cand = {c: r.get(c) for c in (resaltar or []) if r.get(c) == r.get(c) and r.get(c) is not None}
+        mx = max(cand, key=cand.get) if cand else None
+        cells = [f"<th class='rowh'>{_mes_txt(r['mes'], today)}</th>", f"<td>{fmt.fmt_int(r['n'])}</td>"]
+        if pct:
+            v = r.get(pct[0])
+            cells.append("<td class='na'>—</td>" if v != v or v is None else
+                         f"<td class='{'ok' if v >= settings.CUMPLIMIENTO_OBJETIVO else 'bad'}'>{fmt.fmt_pct(v)}</td>")
+        for c, _ in columnas + extra:
+            v = r.get(c)
+            if v != v or v is None:
+                cells.append("<td class='na'>—</td>")
+            else:
+                cells.append(f"<td class='{'hl' if c == mx else ''}'>{fmt.fmt_int(v)} d</td>")
+        body.append("<tr>" + "".join(cells) + "</tr>")
+    st.markdown('<div class="scorecard compact matriz"><table><thead><tr>' + "".join(f"<th>{h}</th>" for h in head)
+                + f'</tr></thead><tbody>{"".join(body)}</tbody></table></div>', unsafe_allow_html=True)

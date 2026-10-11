@@ -7,15 +7,13 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
 
-from components import charts
 from components import sla as sla_view
 from components.drill import diagnostico
 from components.kpi_cards import KPI, kpi_row
 from components.layout import chart_title, coverage, empty, guard, require, section, semaforo_legend
-from components.tables import ColSpec, data_table
+from components.tables import ColSpec, data_table, solo_descarga
 from config import settings
 from utils import calculations as calc
 from utils import data_cleaning as dc
@@ -23,7 +21,7 @@ from utils import diagnostico as dg
 from utils import formatting as fmt
 from utils import panorama as pan
 from utils import productos, sla
-from views._common import ctx, filtered, month_labels, today
+from views._common import ctx, filtered, memo, today
 
 ETAPAS = [
     ("dias_comex", "Comex: packeo → instrucción"),
@@ -53,15 +51,7 @@ DIMS_TT = [
     dg.Dimension("puerto", "Puerto"), dg.Dimension("forwarder", "Agente"), dg.Dimension("linea", "Línea marítima"),
     dg.Dimension("tipo_carga", "Tipo de carga"),
 ]
-DIMS_AER = [
-    dg.Dimension("tipo_label", "Tipo de negocio"), dg.Dimension("tramo_largo", "Tramo más largo"),
-    dg.Dimension("forwarder", "Agente"), dg.Dimension("aerolinea", "Aerolínea"), dg.Dimension("puerto", "Origen"),
-    dg.Dimension("imo", "IMO / DG"), dg.Dimension("tipo_demora", "Causa"),
-]
-DIMS_TTM = [
-    dg.Dimension("proveedor", "Proveedor"), dg.Dimension("category", "Category manager"),
-    dg.Dimension("grupo", "SKU nuevo / top ranking"), dg.Dimension("modo", "Modo"),
-]
+
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +81,7 @@ def _maritimo_ops(bundle, filters, t, use_period=True) -> pd.DataFrame:
     h = filtered(bundle, "historicas", filters, use_period=use_period)
     r = filtered(bundle, "reservas", filters, use_period=use_period) if bundle.get("reservas") is not None else None
     z = sla.zarpados_con_reservas(h, r, t)
-    z = dg.unir_emb_hist(z, _fuente_so(bundle))
+    z = dg.unir_emb_hist(z, None, indice=memo(bundle, "indice_so", lambda: dg.indice_emb_hist(_fuente_so(bundle))))
     z["imo"] = _imo(z)
     z["obj_tt"] = z["sla_tt"].where(z["sla_puerto_definido"].fillna(False).astype(bool)) \
         if "sla_puerto_definido" in z else np.nan
@@ -164,23 +154,35 @@ def render() -> None:
     if require(bundle, "historicas") is None:
         return
     t = today()
-    tab_mar, tab_aer, tab_tt, tab_ttm = st.tabs(["Marítimo · consolidación", "Aéreo · punta a punta",
-                                                 "Tránsito y puertos", "Time to market"])
+    # Se dibuja solo la vista elegida (con pestañas se calculaban las cuatro en cada interacción).
+    vistas = {"maritimo": "Marítimo · consolidación", "aereo": "Aéreo · punta a punta",
+              "transito": "Tránsito y puertos", "ttm": "Time to market"}
+    # ?vista=aereo (desde las tarjetas de Panorama) abre directo en esa vista.
+    pedida = st.query_params.get("vista")
+    if pedida in vistas and pedida != st.session_state.get("_tiempos_qp"):
+        st.session_state["tiempos_vista"] = pedida
+    st.session_state.setdefault("tiempos_vista", "maritimo")
+    vista = st.segmented_control("Vista", list(vistas), format_func=vistas.get, key="tiempos_vista",
+                                 label_visibility="collapsed") or "maritimo"
+    st.session_state["_tiempos_qp"] = vista
+    if st.query_params.get("vista") != vista:
+        st.query_params["vista"] = vista
     ventana = _ventana_prev(filters, t)
     z = z_all = z_prev = None
-    with guard("Preparación de tiempos marítimos"):
-        z = _maritimo_ops(bundle, filters, t)
-        z_all = _maritimo_ops(bundle, filters, t, use_period=False)
-        z_prev = z_all[z_all["etd"].between(*ventana)] if ventana else None
-    if z is None:
-        return
-    with tab_mar:
+    if vista in ("maritimo", "transito"):
+        with guard("Preparación de tiempos marítimos"):
+            z = _maritimo_ops(bundle, filters, t)
+            z_all = _maritimo_ops(bundle, filters, t, use_period=False)
+            z_prev = z_all[z_all["etd"].between(*ventana)] if ventana else None
+        if z is None:
+            return
+    if vista == "maritimo":
         _maritimo(bundle, filters, z, z_all, z_prev)
-    with tab_aer:
+    elif vista == "aereo":
         _aereo(bundle, filters, ventana)
-    with tab_tt:
+    elif vista == "transito":
         _transito(bundle, filters, z, z_all, z_prev)
-    with tab_ttm:
+    else:
         _time_to_market(bundle, filters, ventana)
 
 
@@ -226,14 +228,27 @@ def _maritimo(bundle, filters, z, z_all, z_prev) -> None:
                 sub=f"<b>{fmt.fmt_pct(top.iloc[0] / len(causas))}</b> de los fuera de SLA con causa" if len(top) else
                 "Sin causas cargadas", help="«Tipo de demora» más frecuente entre los embarques fuera de SLA."),
         ])
-        c1, c2 = st.columns(2, gap="medium")
-        with c1:
-            chart_title("Cumplimiento mes a mes", "% de embarques con consolidación dentro del SLA")
-            sla_view.compliance_chart(sla.monthly_compliance(z), t, key="tm_mar_cumpl")
-        with c2:
-            chart_title("¿En qué etapa se va el tiempo?",
-                        "Mediana y rango P25–P75 por etapa (días) · tránsito y total, solo lo que ya llegó")
-            _etapas_chart(z)
+    with guard("Etapas por mes"):
+        from utils import tiempos_mes as tm
+        section("¿En qué etapa se va el tiempo? · mes a mes",
+                "Mes de ETD. Mediana de cada etapa (días); resaltada, la más larga entre Comex y Agente. Si se instruyó "
+                "antes del packeo, Comex = 0 y el agente cuenta desde el packeo. «% en SLA» = "
+                "embarques con consolidación dentro del SLA (verde si llega al "
+                f"{fmt.fmt_pct(settings.CUMPLIMIENTO_OBJETIVO)}). Tránsito y total, solo lo que ya llegó. * mes en curso.")
+        # El 60 % de los embarques se instruye antes del packeo: si no, «Comex» da negativo y «Agente» supera a la
+        # consolidación. Igual que en aéreo, el agente cuenta desde lo último entre instrucción y packeo, y Comex no
+        # baja de 0: así Comex + Agente = consolidación de cada embarque.
+        zz = z.copy()
+        if {"dias_comex", "dias_consolidacion"} <= set(zz.columns):
+            zz["dias_comex"] = zz["dias_comex"].clip(lower=0)
+            zz["dias_agente"] = (zz["dias_consolidacion"] - zz["dias_comex"]).where(lambda x: x >= 0)
+        nombres = {"dias_comex": "Comex: packeo → instrucción", "dias_agente": "Agente: instrucción → ETD"}
+        etapas = [(c, nombres.get(c, lbl)) for c, lbl in ETAPAS if c in zz]
+        tab = tm.por_mes(zz, [c for c, _ in etapas], llegados=["dias_tt", "dias_total"], today=t)
+        ok = z.dropna(subset=["dias_consolidacion", "sla_consolidacion", "etd"])
+        cumple = (ok["dias_consolidacion"] <= ok["sla_consolidacion"]).groupby(calc.month_start(ok["etd"])).mean()
+        tab["pct_sla"] = tab["mes"].map(cumple)
+        sla_view.mes_matrix(tab, etapas, t, resaltar=["dias_comex", "dias_agente"], pct=("pct_sla", "% en SLA"))
 
     section("¿Qué lo explica?",
             "Embarques del período por dimensión, ordenados por cuánto explican de los fuera de SLA.")
@@ -241,33 +256,10 @@ def _maritimo(bundle, filters, z, z_all, z_prev) -> None:
         diagnostico(z, DIMS_MAR, "dias_consolidacion", "sla_consolidacion", key="tm_mar", casos_cols=CASOS_MAR,
                     prev=z_prev, prev_txt="el mismo período del año anterior", unidad="embarques")
 
-    with st.expander("Cierre de mes y tiempos por puerto"):
+    with st.expander("Cierre de mes, cumplimiento y tiempos por puerto"):
+        chart_title("Cumplimiento mes a mes", "% de embarques con consolidación dentro del SLA")
+        sla_view.compliance_chart(sla.monthly_compliance(z), t, key="tm_mar_cumpl")
         _cierre_maritimo(bundle, filters, z)
-
-
-def _etapas_chart(df: pd.DataFrame) -> None:
-    llegados = df[df["eta"] <= today()] if "eta" in df else df
-    rows = [(label, calc.describe((llegados if col in ("dias_tt", "dias_total") else df)[col]))
-            for col, label in ETAPAS if col in df]
-    rows = [(lbl, s) for lbl, s in rows if s.n]
-    if not rows:
-        empty()
-        return
-    labels = [r[0] for r in rows]
-    med = [r[1].median for r in rows]
-    fig = go.Figure(go.Bar(
-        y=labels, x=med, orientation="h", marker=dict(color=settings.SERIES[0], cornerradius=4),
-        error_x=dict(type="data", symmetric=False, array=[r[1].p75 - r[1].median for r in rows],
-                     arrayminus=[r[1].median - r[1].p25 for r in rows],
-                     color=settings.COLORS["slate"], thickness=1.2, width=4),
-        text=[f"{fmt.fmt_int(v)} d" for v in med], textposition="inside",
-        customdata=[[r[1].p25, r[1].p75, r[1].n] for r in rows],
-        hovertemplate="%{y}<br>Mediana: %{x:.0f} d<br>P25–P75: %{customdata[0]:.0f}–%{customdata[1]:.0f} d"
-                      "<br>n=%{customdata[2]}<extra></extra>",
-    ))
-    charts.theme(fig, height=320, y_title="días", horizontal=True, legend=False)
-    fig.update_yaxes(autorange="reversed")
-    charts.show(fig, key="tm_mar_etapas")
 
 
 def _cierre_maritimo(bundle, filters, z: pd.DataFrame) -> None:
@@ -417,103 +409,56 @@ def _aereo(bundle, filters, ventana) -> None:
                 help="ETA → ETA Caldas (mediana). Debajo, cuánto tardan la acreditación de fondos y la oficialización "
                      "desde la ETA, cuando están cargadas (muchas dicen «No aplica»)."),
         ])
-    c1, c2 = st.columns(2, gap="medium")
-    with c1, guard("Tramos por mes"):
-        chart_title("¿Dónde se va el tiempo? · por mes",
-                    "Mediana de cada tramo por mes de ETD (días) · los tramos se miden por separado")
-        _tramos_chart(a)
-    with c2, guard("Tramos por tipo"):
-        chart_title("¿Dónde se va el tiempo? · por tipo de negocio",
-                    "Mediana de cada tramo desde el SLA vigente · marca = SLA del tipo")
-        _tramos_tipo_chart(a[a["etd"] >= desde])
+    from utils import tiempos_mes as tm
+    with guard("Tipo de negocio por mes"):
+        section("Mes a mes por tipo de negocio",
+                "Mes de ETD. Verde = dentro del SLA del tipo; rojo = fuera. En gris e itálica, los meses anteriores al "
+                f"{desde:%d/%m/%Y} (el SLA todavía no regía: solo referencia). * mes en curso.")
+        medida = st.segmented_control("Medida", ["Días (mediana)", "% dentro del SLA"], default="Días (mediana)",
+                                      key="tm_aer_medida", label_visibility="collapsed") or "Días (mediana)"
+        tabla = tm.tipo_por_mes(a.assign(_sla_tipo=a["sla_aereo"] if "sla_aereo" in a else np.nan),
+                                sla="_sla_tipo")
+        sla_view.tipo_mes_matrix(tabla, t, "pct" if medida.startswith("%") else "dias")
 
-    section("¿Qué lo explica?", "Aéreos del período por dimensión. Los fuera de SLA se cuentan desde el "
-                                f"{desde:%d/%m/%Y}; antes solo se ven los tiempos.")
-    with guard("Diagnóstico aéreo"):
-        prev = None
-        if ventana:
-            ap = _aereo_ops(sla_view.air_zarpados(filtered(bundle, "aereos", filters, use_period=False), t))
-            prev = ap[ap["etd"].between(*ventana)]
-        diagnostico(a, DIMS_AER, "dias_aereo", "sla_vig", key="tm_aer", casos_cols=CASOS_AER, prev=prev,
-                    prev_txt="el mismo período del año anterior", unidad="aéreos")
+    with guard("Tramos por mes"):
+        section("¿En qué tramo se va el tiempo? · mes a mes",
+                "Mediana de cada tramo por mes de ETD; resaltado, el tramo más largo del mes. Los tramos se miden por "
+                "separado, así que no suman exactamente el total.")
+        tipos = ["Todos"] + [x for x in [sla_view.TIPO_LABEL.get(k, k.title()) for k in settings.SLA_AEREO_POR_TIPO]
+                             if x in set(a["tipo_label"])]
+        elegido = st.selectbox("Tipo de negocio", tipos, key="tm_aer_tramo_tipo")
+        sub = a if elegido == "Todos" else a[a["tipo_label"] == elegido]
+        cols = [(c, lbl) for c, lbl in TRAMOS_AEREO if c in a]
+        tab = tm.por_mes(sub, [c for c, _ in cols] + ["dias_aereo"])
+        sla_view.mes_matrix(tab, cols, t, resaltar=[c for c, _ in cols], extra=[("dias_aereo", "Total punta a punta")])
 
-    with st.expander("Cierre de mes por tipo de negocio"):
-        with guard("Cierre aéreo"):
-            t_air = sla_view.air_table(a, t)
-            last = t.to_period("M").to_timestamp() - pd.offsets.MonthBegin(1)
-            data_table(t_air, [
-                ColSpec("tipo", "Tipo de negocio"), ColSpec("sla", "SLA (d)", "days"),
-                ColSpec("antes", "Antes del SLA · mediana (d)", "days"), ColSpec("antes_n", "n", "int"),
-                ColSpec("desde", "Desde el SLA · mediana (d)", "days"),
-                ColSpec("desde_pct", "Desde el SLA · % dentro", "pct"), ColSpec("desde_n", "n ", "int"),
-                ColSpec("ult", f"{fmt.fmt_month(last, long=True)} · mediana (d)", "days"),
-                ColSpec("ult_pct", f"{fmt.fmt_month(last, long=True)} · % dentro", "pct"),
-                ColSpec("ult_n", "n  ", "int"),
-            ], key="lt_air", filename="sla_aereo_por_tipo", search=False)
-            c1, c2 = st.columns(2, gap="medium")
-            with c1:
-                chart_title("Cumplimiento mes a mes",
-                            "% dentro del SLA de su tipo. En gris, meses anteriores al SLA (referencia)")
-                sla_view.air_compliance_chart(a, t, key="lt_air_pct")
-            with c2:
-                chart_title("Días contra el SLA, por tipo de negocio",
-                            "Mediana de Total − SLA del tipo. 0 = justo en el SLA; positivo = tarde")
-                sla_view.air_deviation_chart(a, t, key="lt_air_dev")
+    with guard("Descarga aéreo"):
+        det = a.assign(mes=a["etd"].dt.strftime("%m/%Y"),
+                       _sla_ref=a["sla_aereo"] if "sla_aereo" in a else np.nan)
+        det["cumple"] = np.where(det["_sla_ref"].isna(), "", np.where(det["dias_aereo"] <= det["_sla_ref"], "Sí", "No"))
+        det["_exc"] = (det["dias_aereo"] - det["_sla_ref"]).clip(lower=0)
+        resumen = tabla.assign(mes_txt=pd.to_datetime(tabla["mes"]).dt.strftime("%m/%Y"))
+        cols_det = [ColSpec("mes", "Mes ETD")] + CASOS_AER[:1] + [ColSpec("tipo_label", "Tipo de negocio")] + \
+            [c for c in CASOS_AER[2:] if c.source not in ("sla_vig", "_exc")] + \
+            [ColSpec("_sla_ref", "SLA del tipo (d)", "days"), ColSpec("cumple", "Dentro del SLA"),
+             ColSpec("_exc", "Excedidos (d)", "days")]
+        solo_descarga(det.sort_values(["etd"]), cols_det, key="tm_aer_det", filename=f"aereos_por_tipo_y_mes_{t:%Y%m%d}",
+                      label="Descargar detalle por embarque, tipo y mes",
+                      hojas={"Resumen tipo x mes": (resumen, [
+                          ColSpec("tipo", "Tipo de negocio"), ColSpec("mes_txt", "Mes ETD"), ColSpec("n", "Embarques", "int"),
+                          ColSpec("mediana", "Mediana (d)", "days"), ColSpec("sla", "SLA (d)", "days"),
+                          ColSpec("dentro", "Dentro del SLA", "int"), ColSpec("pct", "% dentro", "pct")])})
+        st.caption("El Excel trae una fila por embarque (tramos, total, SLA del tipo y si llegó) y una solapa con el "
+                   "resumen tipo × mes. Antes del " f"{desde:%d/%m/%Y} el SLA es solo referencia.")
 
 
 def _tramo_mas_largo(a: pd.DataFrame) -> str:
+    """«Tramo · N d»: el tramo aéreo con la mediana más larga (lo usa el Resumen)."""
     med = {lbl: a[c].clip(lower=0).median() for c, lbl in TRAMOS_AEREO if c in a and a[c].notna().any()}
     if not med:
         return "—"
     lbl = max(med, key=med.get)
     return f"{lbl} · {fmt.fmt_int(med[lbl])} d"
-
-
-def _tramos_chart(a: pd.DataFrame) -> None:
-    d = a.dropna(subset=["etd"]).copy()
-    if d.empty:
-        empty()
-        return
-    d["mes"] = calc.month_start(d["etd"])
-    months = sorted(d["mes"].unique())[-12:]
-    fig = go.Figure()
-    colors = settings.SERIES + ["#3E8E7E", settings.SERIES_OTHER]
-    for i, (col, lbl) in enumerate(TRAMOS_AEREO):
-        if col not in d:
-            continue
-        s = d.groupby("mes")[col].apply(lambda x: x.clip(lower=0).median()).reindex(months).fillna(0)
-        fig.add_bar(x=month_labels(pd.Series(months)), y=s.values, name=lbl,
-                    marker=dict(color=colors[i], cornerradius=2),
-                    hovertemplate=f"%{{x}} · {lbl}: %{{y:.0f}} d<extra></extra>")
-    fig.update_layout(barmode="stack")
-    charts.theme(fig, height=380, y_title="días (mediana)")
-    charts.show(fig, key="lt_air_tramos_mes")
-
-
-def _tramos_tipo_chart(a: pd.DataFrame) -> None:
-    if a.empty:
-        empty()
-        return
-    d = a.copy()
-    tipos = d["tipo_label"].value_counts().index[:6].tolist()
-    fig = go.Figure()
-    colors = settings.SERIES + ["#3E8E7E", settings.SERIES_OTHER]
-    for i, (col, lbl) in enumerate(TRAMOS_AEREO):
-        if col not in d:
-            continue
-        s = d.groupby("tipo_label")[col].apply(lambda x: x.clip(lower=0).median()).reindex(tipos).fillna(0)
-        fig.add_bar(y=tipos, x=s.values, name=lbl, orientation="h",
-                    marker=dict(color=colors[i], cornerradius=2),
-                    hovertemplate=f"%{{y}} · {lbl}: %{{x:.0f}} d<extra></extra>")
-    sla_by_label = {sla_view.TIPO_LABEL.get(k, k.title()): v for k, v in settings.SLA_AEREO_POR_TIPO.items()}
-    fig.add_scatter(y=tipos, x=[sla_by_label.get(t) for t in tipos], mode="markers", name="SLA del tipo",
-                    marker=dict(symbol="line-ns-open", size=22, color=settings.COLORS["slate"], line=dict(width=3)),
-                    hovertemplate="%{y} · SLA %{x} d<extra></extra>")
-    fig.update_layout(barmode="stack")
-    charts.theme(fig, height=380, y_title="días (mediana)", horizontal=True)
-    fig.update_layout(margin=dict(l=8, r=24, t=28, b=8))
-    fig.update_yaxes(autorange="reversed")
-    charts.show(fig, key="lt_air_tramos_tipo")
 
 
 # ---------------------------------------------------------------------------
@@ -552,8 +497,8 @@ def _time_to_market(bundle, filters, ventana) -> None:
         empty("Sin datos de Embarques Historicos.")
         return
     t = today()
-    du = productos.base_universo(bundle.get("emb_hist"), t, bundle.get("aereos"), bundle.get("planif"),
-                                      bundle.get("historicas"))
+    du = memo(bundle, ("ttm_universo", t), lambda: productos.base_universo(
+            bundle.get("emb_hist"), t, bundle.get("aereos"), bundle.get("planif"), bundle.get("historicas")))
     summ = productos.objetivo_universo(du, t)
     section(f"Time to market · mes a mes {t.year}*",
             "* Universo completo de SO, marítimas y aéreas, sin muestras ni repuestos. Elegí el grupo (todas las SO "
@@ -572,17 +517,14 @@ def _time_to_market(bundle, filters, ventana) -> None:
     fila = summ[summ["grupo"] == "Todas las SO"] if len(summ) else summ
     objetivo = float(fila.iloc[0]["objetivo"]) if len(fila) and fila.iloc[0]["objetivo"] == fila.iloc[0]["objetivo"] \
         else np.nan
-    section("¿Qué lo explica?",
-            "SO del período por proveedor, category manager, grupo y modo. «Fuera» = SO cuya consolidación supera el "
-            f"objetivo de todas las SO ({fmt.fmt_num(objetivo, 1)} d)." if objetivo == objetivo else
-            "SO del período por proveedor, category manager, grupo y modo.")
-    with guard("Diagnóstico time to market"):
+    with guard("Descarga time to market"):
         ini = pd.Timestamp(filters.start) if filters.start else pd.Timestamp(t.year, 1, 1)
         fin = min(pd.Timestamp(filters.end), t) if filters.end else t
         so = _por_so(du[du["etd"].between(ini, fin)], objetivo)
-        prev = None
-        if ventana:
-            prev = _por_so(du[du["etd"].between(*ventana)], objetivo)
-        diagnostico(so, DIMS_TTM, "tiempo", "objetivo" if objetivo == objetivo else None, key="tm_ttm",
-                    casos_cols=CASOS_TTM, id_col="so", prev=prev, prev_txt="el mismo período del año anterior",
-                    unidad="SO")
+        if objetivo == objetivo and len(so):
+            fuera = so[so["tiempo"] > so["objetivo"]].assign(_exc=lambda x: x["tiempo"] - x["objetivo"])
+            solo_descarga(fuera.sort_values("_exc", ascending=False), CASOS_TTM, key="tm_ttm_fuera",
+                          filename=f"time_to_market_sobre_objetivo_{t:%Y%m%d}",
+                          label="Descargar SO por encima del objetivo")
+            st.caption(f"SO del período cuya consolidación supera el objetivo de todas las SO "
+                       f"({fmt.fmt_num(objetivo, 1)} d). Se descarga en Excel; no se muestra en pantalla.")

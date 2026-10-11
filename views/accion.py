@@ -34,7 +34,9 @@ def casos(bundle, filters) -> pd.DataFrame:
         partes += bandeja.casos_impo2(h, t, salud.solapa(bundle, "historicas"), requiere_ok=False)
     partes += bandeja.casos_datos(salud.controles_cache(bundle, t))
     df = bandeja.armar(partes)
-    return bandeja.enriquecer(df, bundle.get("planif"), bundle.get("emb_hist"))
+    from views._common import memo
+    idx = memo(bundle, "indice_so_bandeja", lambda: bandeja.indice_so(bundle.get("planif"), bundle.get("emb_hist")))
+    return bandeja.enriquecer(df, bundle.get("planif"), bundle.get("emb_hist"), indice=idx)
 
 
 COLS = [
