@@ -98,10 +98,9 @@ def render() -> None:
     ventana = _ventana_prev(filters, t)
     p_prev = p_all[p_all["etd"].between(*ventana)] if ventana else None
     m = None
-    with guard("Acciones de mayor impacto"):
+    with guard("Motor de oportunidades"):
         if h_all is not None and len(h_all):
             m = _motor(bundle, filters, h_all)
-            _acciones(m)
     # Solo se dibuja la vista elegida (con pestañas se calculaban todas en cada interacción).
     vistas = {"gasto": "Gasto", "captura": "Captura", "tarifas": "Tarifas, negociación y validación",
               "contenedores": "Contenedores y cargas especiales"}
@@ -120,6 +119,9 @@ def render() -> None:
     elif vista == "captura":
         _captura(bundle, filters, h, ventana, m)
     elif vista == "tarifas":
+        with guard("Acciones de mayor impacto"):
+            if m:
+                _acciones(m)       # solo en Tarifas: son acciones de negociación de fletes
         _tarifas(bundle, h, m, h_all)
         _validacion(h, a)
     else:
