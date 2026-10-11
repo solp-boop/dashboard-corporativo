@@ -162,7 +162,7 @@ def _certificacion(h) -> None:
     if h is None or h.empty or "flete_certificado" not in h:
         return
     d = h[(h["flete_pagado"] > 0) & (h["flete_certificado"] > 0)].copy()
-    section("Certificación de flete · captura en aduana",
+    section("3 · Certificación de flete · detalle",
             "«Flete Int PAGADO» es el 100 % del flete; «Flete Certificado» es lo que se declara como flete. La diferencia "
             "la factura el agente por otro concepto y sale de la base imponible de aduana: pagamos menos derechos. No se "
             "suma a 1 + 2 porque es un ahorro de aduana, no de flete.")
@@ -175,25 +175,10 @@ def _certificacion(h) -> None:
     pct = cert / pag if pag else float("nan")
     st_, badge = cert_status(pct)
     en_val = 1 - float(d["validado"].mean())
-    c1, _ = st.columns([1, 3])
-    with c1:
-        alic_pct = st.number_input(
-            "Alícuota para estimar el ahorro (%)", min_value=0.0, max_value=100.0, step=0.5,
-            value=float((settings.ALICUOTA_AHORRO_CERT or 0) * 100), key="co_cert_alic",
-            help="Derechos de importación promedio + tasa estadística (3 %). No está mapeada por producto: escribí la "
-                 "alícuota promedio y el ahorro se calcula sobre la base que sale de aduana.")
-    alic = alic_pct / 100 if alic_pct else None
     kpi_row([
-        KPI("Captura por certificación", fmt.fmt_usd(fuera * alic) if alic else "—",
-            status="ok" if alic and fuera > 0 else "",
-            sub=(f"ahorro en aduana · base fuera {fmt.fmt_usd(fuera)} × {fmt.fmt_num(alic_pct, 1)} %" if alic else
-                 f"escribí la alícuota arriba · base fuera de aduana {fmt.fmt_usd(fuera)}"),
-            help="Derechos + tasa estadística que no pagamos porque esa parte del flete no se certificó. Es una "
-                 "estimación con la alícuota promedio."),
-        KPI("Base que sale de aduana", fmt.fmt_usd(fuera),
-            sub=f"flete pagado {fmt.fmt_usd(pag)} − certificado {fmt.fmt_usd(cert)} · "
-                f"{fmt.fmt_int(len(d))} embarques",
-            help="Suma de (Flete Int PAGADO − Flete Certificado): lo que no entra en la base imponible. Dato real."),
+        KPI("Flete pagado − certificado", fmt.fmt_usd(fuera), status="ok" if fuera > 0 else "",
+            sub=f"pagado {fmt.fmt_usd(pag)} − certificado {fmt.fmt_usd(cert)} · {fmt.fmt_int(len(d))} embarques",
+            help="Suma de (Flete Int PAGADO − Flete Certificado): la parte del flete que no entra en la base de aduana."),
         KPI("Certificación de flete", fmt.fmt_pct(pct), status=st_, badge=badge,
             sub=f"certificado / pagado · máximo {fmt.fmt_pct(settings.KPI_CERTIFICACION_MAX)}"),
         KPI("En validación", fmt.fmt_pct(en_val), status="warn" if en_val > 0 else "ok",
@@ -210,16 +195,13 @@ def _certificacion(h) -> None:
     g["mes_txt"] = g["mes"].map(lambda m: fmt.fmt_month(m).capitalize())
     cols = [ColSpec("mes_txt", "Mes ETD"), ColSpec("n", "Embarques", "int"), ColSpec("pag", "Flete pagado (USD)", "usd"),
             ColSpec("cert", "Flete certificado (USD)", "usd"), ColSpec("pct", "% certificación", "pct"),
-            ColSpec("fuera", "Base fuera de aduana (USD)", "usd"), ColSpec("en_val", "% en validación", "pct")]
-    if alic:
-        g["ahorro"] = g["fuera"] * alic
-        cols.insert(6, ColSpec("ahorro", "Captura por certificación (USD)", "usd"))
+            ColSpec("fuera", "Pagado − certificado (USD)", "usd"), ColSpec("en_val", "% en validación", "pct")]
     data_table(g, cols, key="co_cert_mes", filename="certificacion_flete_mes", search=False)
     solo_descarga(d.sort_values("base_fuera", ascending=False), [
         ColSpec("embarque", "Embarque"), ColSpec("etd", "ETD", "date"), ColSpec("forwarder", "Agente"),
         ColSpec("puerto", "Puerto"), ColSpec("flete_pagado", "Flete pagado (USD)", "usd"),
         ColSpec("flete_certificado", "Flete certificado (USD)", "usd"),
-        ColSpec("base_fuera", "Base fuera de aduana (USD)", "usd"), ColSpec("resultado_validacion", "Validación"),
+        ColSpec("base_fuera", "Pagado − certificado (USD)", "usd"), ColSpec("resultado_validacion", "Validación"),
         ColSpec("responsable", "Responsable"),
     ], key="co_cert_casos", filename="certificacion_por_embarque", label="Descargar certificación por embarque")
 
@@ -525,22 +507,17 @@ def _cuatro_ahorros(bundle, h, m, casos_neg, r, hay_sin, prev_txt="") -> None:
 
 
 def _captura(bundle, filters, h, ventana, m=None) -> None:
-    section("¿Cuánto capturamos?", "Cuatro ahorros distintos, separados para no contar dos veces.")
+    from views._common import periodo_txt
+    section("¿Cuánto capturamos?", f"Embarques marítimos zarpados {periodo_txt(filters)}.")
     st.markdown(
         '<div class="panel" style="margin-bottom:.8rem"><div class="panel-title">Cómo se lee</div>'
         '<div style="font-size:.88rem;line-height:1.55;color:var(--ink-2)">'
-        '<b>Realizado</b> = lo que efectivamente dejamos de pagar (1 + 2, abajo). <b>Negociado</b> = cuánto bajamos la '
-        'tarifa al negociar (%). <b>Por selección</b> = cuánto más barato embarcamos que la alternativa típica de otros '
-        'agentes. <b>Potencial</b> = lo que falta capturar si el agente iguala la mejor tarifa comparable. Solo el '
-        'realizado es resultado; los otros tres no se suman.<br><br>'
-        '<b>1 · Negociación de tarifas.</b> El agente cotiza una tarifa, la negociamos y sale más barata. Captura = '
-        '(tarifa original − tarifa negociada) × contenedores. <i>Ej.: cotizó USD 2.000, cerramos en USD 1.800 y '
-        'mandamos 3 contenedores → USD 600.</i> Solo cuenta si lo que pagamos coincide con la tarifa negociada.<br>'
-        '<b>2 · Uso de 40 NOR.</b> Mandar la carga en 40 NOR en vez de 40 ST/HQ. Captura = (lo que pagamos en la '
-        'mediana por un 40 ST/HQ ese mes − lo que pagamos por el 40 NOR) × contenedores. <i>Ej.: el 40 HQ salió USD '
-        '1.400, el 40 NOR USD 1.100 → USD 300 por contenedor.</i> Puede dar negativo si ese mes el 40 NOR salió más caro.'
-        '<br><b>Realizado = 1 + 2.</b> Las tarifas se cruzan con la vigente al zarpe (ETD). Si un embarque no tiene '
-        'tarifa comparable, no suma: queda «sin base comparable».'
+        '<b>1 · Negociación de tarifas:</b> (tarifa que cotizó el agente − tarifa negociada) × contenedores. '
+        '<i>Ej.: cotizó USD 2.000, cerramos en USD 1.800 y mandamos 3 contenedores → USD 600.</i><br>'
+        '<b>2 · 40 NOR:</b> lo que ahorramos por mandar la carga en 40 NOR en vez de 40 ST/HQ = (mediana pagada por un '
+        '40 ST/HQ ese mes − lo pagado por el 40 NOR) × contenedores.<br>'
+        '<b>3 · Certificación de flete:</b> flete internacional pagado − flete certificado = la parte del flete que no '
+        'entra en la base de aduana.'
         '</div></div>', unsafe_allow_html=True)
     if h is None or h.empty:
         empty()
@@ -561,23 +538,33 @@ def _captura(bundle, filters, h, ventana, m=None) -> None:
             d = r["total"] - r0["total"]
             prev_txt = (f"{'▲' if d > 0 else '▼' if d < 0 else '='} {fmt.fmt_usd(abs(d))} vs mismo período del año "
                         f"anterior ({fmt.fmt_usd(r0['total'])})")
-        _cuatro_ahorros(bundle, h, m, casos_neg, r, hay_sin, prev_txt)
-        with guard("Certificación de flete"):
-            _certificacion(h)
         sin_base = int(h["embarque"].nunique()) - int(r["neg_emb"]) if hay_sin else 0
-        chart_title("Realizado: el detalle", "Las dos fuentes de ahorro que sí se suman")
+        d_cert = h[(h["flete_pagado"] > 0) & (h["flete_certificado"] > 0)] if "flete_certificado" in h else h.iloc[0:0]
+        fuera = float((d_cert["flete_pagado"] - d_cert["flete_certificado"]).clip(lower=0).sum())
         kpi_row([
             KPI("1 · Negociación de tarifas", fmt.fmt_usd(r["negociacion"]) if hay_sin else "—",
-                sub=(f"<b>{fmt.fmt_int(r['neg_emb'])}</b> embarques con su tarifa identificada · "
+                status="ok" if hay_sin and r["negociacion"] > 0 else "",
+                sub=(f"total del período · <b>{fmt.fmt_int(r['neg_emb'])}</b> embarques con su tarifa negociada · "
                      f"{fmt.fmt_int(sin_base)} sin base comparable (no suman)" if hay_sin else
                      "Falta la solapa «Cotizaciones Maritimos SIN NEGOCIAR»"),
                 help="(Tarifa sin negociar − tarifa negociada) × contenedores, para los embarques cuyo flete pagado "
-                     f"coincide (± {fmt.fmt_pct(cap.TOLERANCIA)}) con una tarifa negociada vigente del mismo forwarder, "
-                     "puerto y tipo de contenedor. Los embarques sin coincidencia no suman."),
-            KPI("2 · Uso de 40 NOR", fmt.fmt_usd(r["nor"]),
-                sub=f"<b>{fmt.fmt_int(r['nor_cont'])}</b> contenedores vs 40 ST/HQ del mismo mes",
-                help="(Mediana pagada por un 40 ST/HQ ese mes − flete pagado por el 40 NOR) × contenedores."),
-        ], columns=2)
+                     f"coincide (± {fmt.fmt_pct(cap.TOLERANCIA)}) con una tarifa negociada vigente al zarpe del mismo "
+                     "forwarder, puerto y tipo de contenedor."),
+            KPI("2 · 40 NOR en vez de 40 ST/HQ", fmt.fmt_usd(r["nor"]), status="ok" if r["nor"] > 0 else "",
+                sub=f"total del período · <b>{fmt.fmt_int(r['nor_cont'])}</b> contenedores 40 NOR",
+                help="(Mediana pagada por un 40 ST/HQ ese mes − flete pagado por el 40 NOR) × contenedores. Un mes "
+                     "puede dar negativo si el 40 NOR salió más caro."),
+            KPI("Ahorro en flete (1 + 2)", fmt.fmt_usd(r["total"]), delta=prev_txt,
+                tono="good" if prev_txt.startswith("▲") else ("bad" if prev_txt.startswith("▼") else "neutral"),
+                sub="negociación + 40 NOR: lo que dejamos de pagar de flete"),
+            KPI("3 · Certificación de flete", fmt.fmt_usd(fuera), status="ok" if fuera > 0 else "",
+                sub=f"flete pagado − flete certificado · {fmt.fmt_int(len(d_cert))} embarques · fuera de la base "
+                    "de aduana (detalle abajo)",
+                help="Suma de (Flete Int PAGADO − Flete Certificado). No se suma al ahorro en flete: es lo que sale de "
+                     "la base imponible de aduana."),
+        ])
+        with guard("Certificación de flete"):
+            _certificacion(h)
         g = cap.mensual(casos_neg, nor)
         if len(g):
             chart_title("Captura por mes", "USD por mes de ETD y fuente · la línea es el acumulado del período")
