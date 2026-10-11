@@ -513,7 +513,8 @@ def mes_matrix(d: pd.DataFrame, columnas: list[tuple[str, str]], today: pd.Times
                 + f'</tr></thead><tbody>{"".join(body)}</tbody></table></div>', unsafe_allow_html=True)
 
 
-def linea_mes_matrix(g: pd.DataFrame, today: pd.Timestamp, medida: str = "pct", max_lineas: int = 10) -> None:
+def linea_mes_matrix(g: pd.DataFrame, today: pd.Timestamp, medida: str = "pct", max_lineas: int = 10,
+                     titulo: str = "Línea marítima") -> None:
     """Línea marítima × mes de ETA. medida="pct": % de los contenedores que llegaron ese mes con cada línea;
     medida="tt": mediana de tránsito, con ▲ / ▼ contra el mes anterior de la misma línea (rojo si sube 5 d o más)."""
     if g.empty:
@@ -524,7 +525,7 @@ def linea_mes_matrix(g: pd.DataFrame, today: pd.Timestamp, medida: str = "pct", 
     orden = g.groupby("linea")["cont"].sum().sort_values(ascending=False)
     lineas = [x for x in orden.index if x != "Sin dato"][:max_lineas] + (["Sin dato"] if "Sin dato" in orden else [])
     idx = g.set_index(["linea", "mes"])
-    head = ["Línea marítima", "Cont. en el período"] + [_mes_txt(m, today) for m in meses]
+    head = [titulo, "Cont. en el período"] + [_mes_txt(m, today) for m in meses]
     body = []
     for ln in lineas:
         cells = [f"<th class='rowh'>{html.escape(ln)}</th>", f"<td>{fmt.fmt_int(orden[ln])}</td>"]

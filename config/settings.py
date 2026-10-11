@@ -241,4 +241,20 @@ IMPORTADORES_PANORAMA = ["Bemotec SRL", "Calitec SRL", "Compra Rapido", "CABA In
 
 # Tránsito · terminal de llegada en Buenos Aires según la línea marítima (la planilla no trae la terminal).
 # Clave = línea unificada (MSC, MAERSK, HAPAG, CMA CGM, COSCO, ZIM, HMM, PIL, ONE, EVERGREEN…). Vacío = cuadro pendiente.
-TERMINAL_POR_LINEA: dict[str, str] = {}
+# Fuentes (consultadas el 11/10/2026): AAACI 01/06/2026 (TRP: COSCO, Evergreen, CMA CGM, PIL, HMM, Yang Ming y el
+# nuevo servicio de ONE; Terminal 4: Maersk y ZIM), GlobalPorts 10/07/2026 (ONE · SX1 en Exolgan), Trade News
+# (servicio MSC / ONE / Hapag-Lloyd en Exolgan) y The Loadstar 08/10/2026 (Hapag-Lloyd: Ipanema con MSC/ONE,
+# AS3/ZFS con ZIM y slots en ASAS de Maersk). Hapag-Lloyd y ONE usan más de una terminal según el servicio.
+TERMINAL_POR_LINEA: dict[str, str] = {
+    "MAERSK": "Terminal 4 (APM)",
+    "ZIM": "Terminal 4 (APM)",
+    "MSC": "Exolgan (Dock Sud)",
+    "COSCO": "TRP",
+    "CMA CGM": "TRP",
+    "HMM": "TRP",
+    "PIL": "TRP",
+    "EVERGREEN": "TRP",
+    "YANG MING": "TRP",
+    "HAPAG": "Exolgan o Terminal 4 (Hapag, según servicio)",
+    "ONE": "Exolgan o TRP (ONE, según servicio)",
+}

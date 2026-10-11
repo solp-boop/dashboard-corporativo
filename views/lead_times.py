@@ -386,17 +386,22 @@ def _transito(bundle, filters, z, z_all, z_prev) -> None:
 
     with guard("Terminales"):
         section("Terminal de llegada · Buenos Aires (por ETA)",
-                "% de los contenedores que llega a cada terminal portuaria, por mes de ETA.")
+                "% de los contenedores que llega a cada terminal, por mes de ETA. La planilla no tiene la terminal: "
+                "se deduce de la línea marítima (información pública de octubre 2026). Hapag-Lloyd y ONE usan más de "
+                "una terminal según el servicio, por eso van aparte. «Sin definir» = línea sin terminal conocida o "
+                "embarque sin línea cargada.")
         mapa = settings.TERMINAL_POR_LINEA
         if not mapa:
             empty("Falta definir qué terminal usa cada línea marítima (la planilla no tiene la terminal). Cuando "
                   "esté la tabla línea → terminal, este cuadro se completa solo.")
         else:
             gt = g.assign(linea=g["linea"].map(lambda x: mapa.get(x, "Sin definir")))
+            gt = gt[gt["linea"] != "Sin definir"] if st.toggle("Ocultar «Sin definir»", value=False,
+                                                                   key="tm_tt_term_sin") else gt
             gt = gt.groupby(["linea", "mes"], as_index=False).agg(n=("n", "sum"), cont=("cont", "sum"),
                                                                  tt_med=("tt_med", "median"))
             gt["pct"] = gt["cont"] / gt.groupby("mes")["cont"].transform("sum")
-            sla_view.linea_mes_matrix(gt, t, "pct")
+            sla_view.linea_mes_matrix(gt, t, "pct", titulo="Terminal")
 
     with guard("Subas de tránsito"):
         subas = tm.subas_tt(d)
