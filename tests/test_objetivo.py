@@ -29,15 +29,15 @@ def test_mes_a_mes_acumulado_y_total_ponderado():
     ac = r["acumulado"].set_index("estructura")
     assert r["ult_mes"] == 2
     assert ac.loc["Consolidado", "ant"] == 30 and ac.loc["Consolidado", "n_act"] == 12   # ene + feb, sin marzo
-    # Total = variaciones ponderadas por el volumen 2026 (conso 12, mono 2)
-    v_c, v_m = ac.loc["Consolidado", "var"], ac.loc["Monoproveedor", "var"]
-    assert abs(r["total"]["var"] - (v_c * 12 + v_m * 2) / 14) < 1e-9
+    # Mono tiene 2 casos en 2026 (muestra chica): no entra al total, que queda solo con conso
+    assert abs(r["total"]["var"] - ac.loc["Consolidado", "var"]) < 1e-9
+    assert set(r["total"]["pesos"]) == {"Consolidado"}
 
 
 def test_la_mezcla_no_mueve_el_total():
     # Ninguna estructura mejora, pero en 2026 hay muchos más mono (más rápidos): la mediana total bajaría.
-    rows = [("2025-01-10", "Consolidado", 30)] * 10 + [("2025-01-10", "Monoproveedor", 15)] * 2
-    rows += [("2026-01-10", "Consolidado", 30)] * 2 + [("2026-01-10", "Monoproveedor", 15)] * 10
+    rows = [("2025-01-10", "Consolidado", 30)] * 20 + [("2025-01-10", "Monoproveedor", 15)] * 5
+    rows += [("2026-01-10", "Consolidado", 30)] * 5 + [("2026-01-10", "Monoproveedor", 15)] * 20
     r = objetivo.vs_anio_anterior(_d(rows), pd.Timestamp("2026-02-10"))
     assert r["total"]["var"] == 0 and r["total"]["estado"] == "No reduce"
 

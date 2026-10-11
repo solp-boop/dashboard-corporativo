@@ -6,7 +6,8 @@ Criterio (acordado con el jefe de Comex):
 - Acumulado: enero → último mes cerrado del año contra los mismos meses del año anterior (mediana de todo el tramo).
 - Total = promedio de las variaciones de mono y conso ponderado por el volumen de ESTE año. No se usa la mediana
   total de cada año: si cambia la mezcla (más mono, que es más rápido), el total bajaría sin mejorar nada.
-- Un mes solo se califica si los dos años tienen al menos OBJ_MIN_N casos; si no, se muestra sin color.
+- Un mes solo se califica si los dos años tienen al menos OBJ_MIN_N casos; si no, se muestra sin color. Una
+  estructura con muestra chica en el acumulado tampoco entra al total ponderado.
 - Siempre mediana. La unidad la decide quien llama (embarque en consolidación, SO por envío en time to market).
 """
 from __future__ import annotations
@@ -70,7 +71,9 @@ def vs_anio_anterior(d: pd.DataFrame, today: pd.Timestamp, fecha: str = "etd", v
                                           "var", "estado"])
     acumulado = pd.DataFrame(acum, columns=["estructura", "ant", "n_ant", "objetivo", "act", "n_act", "var", "estado"])
     ok = acumulado.dropna(subset=["var"])
-    ok = ok[ok["n_act"] > 0]
+    # Una estructura con muestra chica (menos de OBJ_MIN_N casos en algún año) no entra al total: con 1 caso
+    # en el año anterior arrastraría el total sin representar nada (ej. aéreo monoproveedor 2025).
+    ok = ok[(ok["n_act"] >= settings.OBJ_MIN_N) & (ok["n_ant"] >= settings.OBJ_MIN_N)]
     total = float((ok["var"] * ok["n_act"]).sum() / ok["n_act"].sum()) if len(ok) else np.nan
     n0 = int(acumulado["n_ant"].sum()) if len(acumulado) else 0
     n1 = int(ok["n_act"].sum()) if len(ok) else 0
