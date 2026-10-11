@@ -103,8 +103,9 @@ def base_universo(eh: pd.DataFrame, today: pd.Timestamp, aereos=None, planif=Non
 
 
 def per_so(d: pd.DataFrame) -> pd.DataFrame:
-    """Una fila por SO: mediana del tiempo de sus líneas (suele ser el mismo valor)."""
-    return (d.groupby(["so", "mes", "estructura"], as_index=False)
+    """Una fila por SO por envío (SO + embarque, como el mes a mes y el script «Envío mensual»): mediana del tiempo
+    de sus líneas (suele ser el mismo valor). Una SO que viajó en 2 embarques cuenta 2."""
+    return (d.groupby(["so", "embarque", "mes", "estructura"], as_index=False, dropna=False)
               .agg(tiempo=("tiempo_consolidacion", "median")))
 
 
@@ -112,7 +113,7 @@ def monthly(d: pd.DataFrame, grupo: str) -> pd.DataFrame:
     g = per_so(d[d[grupo]])
     if g.empty:
         return pd.DataFrame(columns=["mes", "estructura", "so", "mediana"])
-    return g.groupby(["mes", "estructura"], as_index=False).agg(so=("so", "nunique"), mediana=("tiempo", "median"))
+    return g.groupby(["mes", "estructura"], as_index=False).agg(so=("so", "size"), mediana=("tiempo", "median"))
 
 
 def quarters(year: int) -> list[pd.Timestamp]:
@@ -140,14 +141,14 @@ def summary(d: pd.DataFrame, today: pd.Timestamp, grupos: dict | None = None,
         so = so[so["mes"].dt.year == year].assign(q=lambda x: x["mes"].dt.to_period("Q").dt.to_timestamp())
         for est in (estructuras or ESTRUCTURAS):
             s = so[so["estructura"] == est]
-            row = {"grupo": label, "estructura": est, "so_anio": int(s["so"].nunique()), "nota": ""}
+            row = {"grupo": label, "estructura": est, "so_anio": int(len(s)), "nota": ""}
             stats = {}
             for q in qs:
                 t = s[s["q"] == q]["tiempo"]
                 stats[q] = (float(t.median()) if len(t) else np.nan, int(len(t)))
                 row[q_label(q)], row[q_label(q) + "_n"] = stats[q]
             row["anio"] = float(s["tiempo"].median()) if len(s) else np.nan
-            row["anio_n"] = int(s["so"].nunique())
+            row["anio_n"] = int(len(s))
             con_datos = [q for q in qs if stats[q][1] >= settings.MIN_SAMPLE and q < this_q]
             base_q = qs[0] if stats[qs[0]][1] >= settings.MIN_SAMPLE else (con_datos[0] if con_datos else None)
             if base_q is not None and base_q != qs[0]:
@@ -239,8 +240,8 @@ def mensual_universo(du: pd.DataFrame, year: int, grupos: dict | None = None) ->
     d = du[du["mes"].dt.year == year].assign(todas=True)
     rows = []
     for g, label in (grupos or GRUPOS_TODO).items():
-        so = (d[d[g].fillna(False).astype(bool)].groupby(["so", "mes"], as_index=False)
-              .agg(tiempo=("tiempo_consolidacion", "median")))
+        so = (d[d[g].fillna(False).astype(bool)].groupby(["so", "embarque", "mes"], as_index=False, dropna=False)
+              .agg(tiempo=("tiempo_consolidacion", "median")))      # SO por envío, igual que el mes a mes
         for mes, x in so.groupby("mes"):
-            rows.append({"mes": mes, "grupo": label, "so": int(x["so"].nunique()), "mediana": float(x["tiempo"].median())})
+            rows.append({"mes": mes, "grupo": label, "so": int(len(x)), "mediana": float(x["tiempo"].median())})
     return pd.DataFrame(rows, columns=["mes", "grupo", "so", "mediana"])
