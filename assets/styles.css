@@ -247,3 +247,5 @@ a.kpi-link:hover { border-color: var(--blue); box-shadow: 0 1px 6px rgba(20, 30,
 .scorecard.matriz td.pre { opacity: .6; font-style: italic; }
 .scorecard.matriz tr.tot th, .scorecard.matriz tr.tot td { border-top: 2px solid var(--line); font-weight: 600; }
 .scorecard.matriz td .n { font-weight: 400; }
+.scorecard.matriz thead th { text-align: center; }
+.scorecard.matriz thead th:first-child { text-align: left; }

@@ -476,7 +476,8 @@ def tipo_mes_matrix(t: pd.DataFrame, today: pd.Timestamp, medida: str = "dias") 
 
 def mes_matrix(d: pd.DataFrame, columnas: list[tuple[str, str]], today: pd.Timestamp,
                resaltar: list[str] | None = None, extra: list[tuple[str, str]] | None = None,
-               pct: tuple[str, str] | None = None) -> None:
+               pct: tuple[str, str] | None = None, textos: list[tuple[str, str]] | None = None,
+               fecha: str = "Mes ETD") -> None:
     """Meses (filas) × etapas o tramos (columnas): mediana de días. `resaltar`: columnas entre las que se marca
     la más larga de cada mes. `extra`: columnas que se muestran después, sin resaltar. `pct`: (columna, título) de
     un % de cumplimiento, en verde si llega al objetivo y en rojo si no."""
@@ -484,7 +485,9 @@ def mes_matrix(d: pd.DataFrame, columnas: list[tuple[str, str]], today: pd.Times
         st.markdown('<div class="empty">Sin datos.</div>', unsafe_allow_html=True)
         return
     extra = extra or []
-    head = ["Mes ETD", "Embarques"] + ([pct[1]] if pct else []) + [lbl for _, lbl in columnas + extra]
+    textos = textos or []
+    head = [fecha, "Embarques"] + [lbl for _, lbl in textos] + ([pct[1]] if pct else []) + \
+        [lbl for _, lbl in columnas + extra]
     body = []
     for _, r in d.sort_values("mes", na_position="last").iterrows():
         cand = {c: r.get(c) for c in (resaltar or []) if r.get(c) == r.get(c) and r.get(c) is not None}
@@ -492,6 +495,9 @@ def mes_matrix(d: pd.DataFrame, columnas: list[tuple[str, str]], today: pd.Times
         total = pd.isna(r["mes"])
         mes_txt = f"Total {today.year}" if total else _mes_txt(r["mes"], today)
         cells = [f"<th class='rowh'>{mes_txt}</th>", f"<td>{fmt.fmt_int(r['n'])}</td>"]
+        for c, _ in textos:
+            v = r.get(c)
+            cells.append(f"<td>{html.escape(str(v)) if isinstance(v, str) and v else '—'}</td>")
         if pct:
             v = r.get(pct[0])
             cells.append("<td class='na'>—</td>" if v != v or v is None else
@@ -503,5 +509,48 @@ def mes_matrix(d: pd.DataFrame, columnas: list[tuple[str, str]], today: pd.Times
             else:
                 cells.append(f"<td class='{'hl' if c == mx else ''}'>{fmt.fmt_int(v)} d</td>")
         body.append(("<tr class='tot'>" if total else "<tr>") + "".join(cells) + "</tr>")
+    st.markdown('<div class="scorecard compact matriz"><table><thead><tr>' + "".join(f"<th>{h}</th>" for h in head)
+                + f'</tr></thead><tbody>{"".join(body)}</tbody></table></div>', unsafe_allow_html=True)
+
+
+def linea_mes_matrix(g: pd.DataFrame, today: pd.Timestamp, medida: str = "pct", max_lineas: int = 10) -> None:
+    """Línea marítima × mes de ETA. medida="pct": % de los contenedores que llegaron ese mes con cada línea;
+    medida="tt": mediana de tránsito, con ▲ / ▼ contra el mes anterior de la misma línea (rojo si sube 5 d o más)."""
+    if g.empty:
+        st.markdown('<div class="empty">Sin embarques con ETA en el período.</div>', unsafe_allow_html=True)
+        return
+    meses = sorted(g["mes"].unique())[-12:]
+    g = g[g["mes"].isin(meses)]
+    orden = g.groupby("linea")["cont"].sum().sort_values(ascending=False)
+    lineas = [x for x in orden.index if x != "Sin dato"][:max_lineas] + (["Sin dato"] if "Sin dato" in orden else [])
+    idx = g.set_index(["linea", "mes"])
+    head = ["Línea marítima", "Cont. en el período"] + [_mes_txt(m, today) for m in meses]
+    body = []
+    for ln in lineas:
+        cells = [f"<th class='rowh'>{html.escape(ln)}</th>", f"<td>{fmt.fmt_int(orden[ln])}</td>"]
+        prev = np.nan
+        for m in meses:
+            if (ln, m) not in idx.index:
+                cells.append("<td class='na'>—</td>")
+                continue
+            r = idx.loc[(ln, m)]
+            if medida == "pct":
+                cells.append(f"<td>{fmt.fmt_pct(r['pct'])}<span class='n'>{fmt.fmt_int(r['cont'])} cont.</span></td>")
+            else:
+                v = r["tt_med"]
+                if v != v:
+                    cells.append("<td class='na'>—<span class='n'>en tránsito</span></td>")
+                    continue
+                dif = v - prev if prev == prev else np.nan
+                cls = "bad" if dif == dif and dif >= 5 else ("ok" if dif == dif and dif <= -5 else "")
+                flecha = (f"{'▲' if dif > 0 else '▼'} {fmt.fmt_int(abs(dif))} d" if dif == dif and dif != 0 else "")
+                cells.append(f"<td class='{cls}'>{fmt.fmt_int(v)} d<span class='n'>{flecha or f'n={int(r.n)}'}</span></td>")
+                prev = v
+        body.append("<tr>" + "".join(cells) + "</tr>")
+    if medida == "pct":
+        tot = g.groupby("mes")["cont"].sum()
+        body.append("<tr class='tot'><th class='rowh'>Total</th><td>" + fmt.fmt_int(tot.sum()) + "</td>"
+                    + "".join(f"<td>100 %<span class='n'>{fmt.fmt_int(tot.get(m, 0))} cont.</span></td>" for m in meses)
+                    + "</tr>")
     st.markdown('<div class="scorecard compact matriz"><table><thead><tr>' + "".join(f"<th>{h}</th>" for h in head)
                 + f'</tr></thead><tbody>{"".join(body)}</tbody></table></div>', unsafe_allow_html=True)

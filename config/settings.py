@@ -238,3 +238,7 @@ M3_POR_CONTENEDOR = 59
 
 # Panorama · «Importadores»: empresas que se muestran (nombre unificado de config/mappings.py).
 IMPORTADORES_PANORAMA = ["Bemotec SRL", "Calitec SRL", "Compra Rapido", "CABA Innovaciones SRL", "Foretec SRL"]
+
+# Tránsito · terminal de llegada en Buenos Aires según la línea marítima (la planilla no trae la terminal).
+# Clave = línea unificada (MSC, MAERSK, HAPAG, CMA CGM, COSCO, ZIM, HMM, PIL, ONE, EVERGREEN…). Vacío = cuadro pendiente.
+TERMINAL_POR_LINEA: dict[str, str] = {}

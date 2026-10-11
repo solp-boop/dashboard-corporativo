@@ -171,8 +171,10 @@ def render() -> None:
     z = z_all = z_prev = None
     if vista in ("maritimo", "transito"):
         with guard("Preparación de tiempos marítimos"):
-            z = _maritimo_ops(bundle, filters, t)
-            z_all = _maritimo_ops(bundle, filters, t, use_period=False)
+            # Solo destino Argentina (o sin destino cargado): así tarjetas, tablas y Panorama dan lo mismo.
+            from utils.tiempos_mes import solo_argentina
+            z = solo_argentina(_maritimo_ops(bundle, filters, t))
+            z_all = solo_argentina(_maritimo_ops(bundle, filters, t, use_period=False))
             z_prev = z_all[z_all["etd"].between(*ventana)] if ventana else None
         if z is None:
             return
@@ -231,7 +233,9 @@ def _maritimo(bundle, filters, z, z_all, z_prev) -> None:
     with guard("Etapas por mes"):
         section("Tiempo de consolidación · mes a mes",
                 "Consolidación (packeo mínimo → ETD) por mes de ETD: mínimo, mediana y máximo, solo destino Argentina. "
-                "100 % = todos los embarques. «% en SLA» = embarques dentro del SLA (verde si llega al "
+                "100 % = todos los embarques. SLA = el definido: monoproveedor según la ETD ("
+                f"{calc.sla_mono_txt()}), consolidado según el puerto (mediana del mes). «% en SLA» = embarques dentro del "
+                "SLA (verde si llega al "
                 f"{fmt.fmt_pct(settings.CUMPLIMIENTO_OBJETIVO)}). * mes en curso.")
         base = z[z["destino"].isna() | (z["destino"] == "Argentina")] if "destino" in z else z
         estructura = st.segmented_control("Estructura", ["100 %", "Monoproveedor", "Consolidado"], default="100 %",
@@ -243,18 +247,26 @@ def _maritimo(bundle, filters, z, z_all, z_prev) -> None:
             empty()
         else:
             g = x.groupby("mes")
+
+            def sla_txt(d):
+                mono = d.loc[d["estructura"] == "Monoproveedor", "sla_consolidacion"].median()
+                cons = d.loc[d["estructura"] == "Consolidado", "sla_consolidacion"].median()
+                partes = ([f"Mono {fmt.fmt_int(mono)} d"] if mono == mono and estructura != "Consolidado" else []) + \
+                         ([f"Conso {fmt.fmt_int(cons)} d"] if cons == cons and estructura != "Monoproveedor" else [])
+                return " · ".join(partes)
             tab = pd.DataFrame({
+                "sla_txt": g.apply(sla_txt, include_groups=False),
                 "n": g.size(), "cons_min": g["dias_consolidacion"].min(), "cons_med": g["dias_consolidacion"].median(),
                 "cons_max": g["dias_consolidacion"].max(),
                 "pct_sla": g.apply(lambda d: (d["dias_consolidacion"] <= d["sla_consolidacion"])[
                     d["sla_consolidacion"].notna()].mean(), include_groups=False),
             }).reset_index()
-            tot = {"mes": pd.NaT, "n": len(x), "cons_min": x["dias_consolidacion"].min(),
+            tot = {"mes": pd.NaT, "n": len(x), "sla_txt": "", "cons_min": x["dias_consolidacion"].min(),
                    "cons_med": x["dias_consolidacion"].median(), "cons_max": x["dias_consolidacion"].max(),
                    "pct_sla": (x["dias_consolidacion"] <= x["sla_consolidacion"])[x["sla_consolidacion"].notna()].mean()}
             sla_view.mes_matrix(pd.concat([tab, pd.DataFrame([tot])], ignore_index=True),
                                 [("cons_min", "Mín."), ("cons_med", "Mediana"), ("cons_max", "Máx.")], t,
-                                resaltar=["cons_med"], pct=("pct_sla", "% en SLA"))
+                                resaltar=["cons_med"], pct=("pct_sla", "% en SLA"), textos=[("sla_txt", "SLA")])
 
     section("Análisis para descargar",
             "Elegí la dimensión y bajá el Excel: resumen por esa dimensión y detalle de cada embarque.")
@@ -349,6 +361,57 @@ def _transito(bundle, filters, z, z_all, z_prev) -> None:
                 help="Puertos cuya mediana de tránsito de los últimos 3 meses cerrados supera el objetivo en más de "
                      f"{fmt.fmt_pct(settings.SLA_WARNING_TOLERANCE)}."),
         ])
+    from utils import tiempos_mes as tm
+    with guard("Tránsito mes a mes"):
+        section("Tránsito · mes a mes (por ETA)",
+                "Solo embarques que ya llegaron, por mes de llegada. «% en objetivo» = tránsito dentro del objetivo de "
+                f"su puerto (verde si llega al {fmt.fmt_pct(settings.CUMPLIMIENTO_OBJETIVO)}). * mes en curso.")
+        lineas = ["Todas las líneas"] + list(d["linea"].map(tm.linea).value_counts().index) if "linea" in d \
+            else ["Todas las líneas"]
+        ln = st.selectbox("Línea marítima", lineas, key="tm_tt_linea")
+        dd = d if ln == "Todas las líneas" else d[d["linea"].map(tm.linea) == ln]
+        sla_view.mes_matrix(tm.tt_mes(dd), [("tt_min", "Mín."), ("tt_med", "Mediana"), ("tt_max", "Máx.")], t,
+                            resaltar=["tt_med"], pct=("pct_obj", "% en objetivo"), fecha="Mes ETA")
+
+    with guard("Líneas marítimas"):
+        section("Líneas marítimas · mes a mes (por ETA)",
+                "¿Con qué línea llega la carga y cuánto tarda cada una? «% de la carga» = contenedores de cada línea "
+                "sobre el total del mes (incluye lo que todavía viaja, por ETA estimada). «Tránsito» = mediana de lo "
+                "que ya llegó; ▲ rojo = subió 5 días o más contra el mes anterior de la misma línea.")
+        medida = st.segmented_control("Ver", ["% de la carga", "Tránsito (mediana)"], default="% de la carga",
+                                      key="tm_tt_lineas_medida", label_visibility="collapsed") or "% de la carga"
+        z_eta = z_all[z_all["eta"].dt.year == t.year] if "eta" in z_all else z_all
+        g = tm.lineas_mes(z_eta.assign(dias_tt=z_eta["dias_tt"].where(z_eta["eta"] <= t)))
+        sla_view.linea_mes_matrix(g, t, "pct" if medida.startswith("%") else "tt")
+
+    with guard("Terminales"):
+        section("Terminal de llegada · Buenos Aires (por ETA)",
+                "% de los contenedores que llega a cada terminal portuaria, por mes de ETA.")
+        mapa = settings.TERMINAL_POR_LINEA
+        if not mapa:
+            empty("Falta definir qué terminal usa cada línea marítima (la planilla no tiene la terminal). Cuando "
+                  "esté la tabla línea → terminal, este cuadro se completa solo.")
+        else:
+            gt = g.assign(linea=g["linea"].map(lambda x: mapa.get(x, "Sin definir")))
+            gt = gt.groupby(["linea", "mes"], as_index=False).agg(n=("n", "sum"), cont=("cont", "sum"),
+                                                                 tt_med=("tt_med", "median"))
+            gt["pct"] = gt["cont"] / gt.groupby("mes")["cont"].transform("sum")
+            sla_view.linea_mes_matrix(gt, t, "pct")
+
+    with guard("Subas de tránsito"):
+        subas = tm.subas_tt(d)
+        section("Casos para preventa · tránsito más largo de lo esperado",
+                "Embarques llegados que superaron el objetivo de su puerto, o la mediana de su línea de los 3 meses "
+                "anteriores en 7 días o más. Se descargan en Excel.")
+        solo_descarga(subas, [
+            ColSpec("embarque", "Embarque"), ColSpec("sos", "SO"), ColSpec("linea_u", "Línea"),
+            ColSpec("puerto", "Puerto"), ColSpec("forwarder", "Agente"), ColSpec("etd", "ETD", "date"),
+            ColSpec("eta", "ETA", "date"), ColSpec("dias_tt", "Tránsito (d)", "days"),
+            ColSpec("obj_tt", "Objetivo puerto (d)", "days"), ColSpec("vs_obj", "vs objetivo (d)", "days"),
+            ColSpec("ref_linea", "Mediana línea 3 meses (d)", "days"), ColSpec("vs_linea", "vs línea (d)", "days"),
+            ColSpec("responsable", "Responsable"),
+        ], key="tm_tt_subas", filename=f"transito_mas_largo_{t:%Y%m%d}", label="Descargar casos")
+
     section("Análisis para descargar",
             "Elegí la dimensión y bajá el Excel: resumen por esa dimensión y detalle de cada embarque.")
     with guard("Diagnóstico tránsito"):

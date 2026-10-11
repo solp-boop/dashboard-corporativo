@@ -62,7 +62,9 @@ def _tiempos(bundle, filters, t) -> list[pan.Indicador]:
     r_f, r_all = filtered(bundle, "reservas", filters), filtered(bundle, "reservas", filters, use_period=False)
     if h_f is not None:
         # Lo zarpado incluye lo que ya salió y todavía está en Reservas.
-        z, z_all = sla.zarpados_con_reservas(h_f, r_f, t), sla.zarpados_con_reservas(h_all, r_all, t)
+        from utils.tiempos_mes import solo_argentina   # igual que en Tiempos
+        z = solo_argentina(sla.zarpados_con_reservas(h_f, r_f, t))
+        z_all = solo_argentina(sla.zarpados_con_reservas(h_all, r_all, t))
         out.append(pan.sla_consolidacion(z, z_all, t))
     a_f, a_all = filtered(bundle, "aereos", filters), filtered(bundle, "aereos", filters, use_period=False)
     if a_f is not None:

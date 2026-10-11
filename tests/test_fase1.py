@@ -330,3 +330,18 @@ def test_tiempos_mes_tipo_y_etapas():
                       "dias_comex": [5.0, 7.0], "dias_tt": [48.0, 81.0]})
     m = tm.por_mes(z, ["dias_comex", "dias_tt"], llegados=["dias_tt"], today=ts("2026-10-25")).iloc[0]
     assert m["n"] == 2 and m["dias_comex"] == 6 and m["dias_tt"] == 48 and m["dias_tt_n"] == 1
+
+
+def test_tiempos_lineas_y_subas():
+    from utils import tiempos_mes as tm
+    assert tm.linea("Maersk") == "MAERSK" and tm.linea("cma-cgm") == "CMA CGM" and tm.linea(None) == "Sin dato"
+    d = pd.DataFrame({"embarque": ["A", "B", "C", "D", "E"], "linea": ["MSC", "msc", "MSC", "Maersk", "MSC"],
+                      "contenedores": [1, 1, 1, 3, 2.0],
+                      "eta": [ts("2026-06-10"), ts("2026-07-10"), ts("2026-07-20"), ts("2026-09-05"), ts("2026-09-10")],
+                      "dias_tt": [40.0, 41.0, 42.0, 45.0, 60.0], "obj_tt": [50.0] * 5})
+    g = tm.lineas_mes(d).set_index(["linea", "mes"])
+    assert g.loc[("MSC", ts("2026-09-01")), "pct"] == 0.4 and g.loc[("MSC", ts("2026-07-01")), "n"] == 2
+    s = tm.subas_tt(d)
+    assert s["embarque"].tolist() == ["E"] and s.iloc[0]["vs_linea"] == 19
+    m = tm.tt_mes(d)
+    assert m.iloc[-1]["n"] == 5 and m.iloc[-1]["pct_obj"] == 0.8
