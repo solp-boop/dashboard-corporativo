@@ -297,6 +297,9 @@ def _gasto(bundle, h, a, p, p_all, p_prev, h_all=None, ventana=None) -> None:
             base = base[base[col] > 0]          # sin el gasto cargado no entra en la mediana
         sla_view.flete_mes_matrix(cs.concepto_mes(base, tipo, t.year, col), t)
 
+    with guard("Flete de mercado"):
+        _mercado(bundle, t)
+
 
     c1, c2 = st.columns(2, gap="medium")
     with c1, guard("Costo mensual"):
@@ -334,54 +337,125 @@ def _gasto(bundle, h, a, p, p_all, p_prev, h_all=None, ventana=None) -> None:
                        f"{f.head(3).sum() / tot:.0%}." + (" Dependencia alta: ver alertas en Tarifas."
                                                           if f.iloc[0] / tot > settings.OPORT_CONCENTRACION else ""))
 
-    section("¿Dónde se va el gasto?", "Por dimensión, ordenado por gasto. Hacé clic en una fila para ver sus embarques.")
-    with guard("Gasto por dimensión"):
-        nombres = dict(DIMS)
-        dim = st.segmented_control("Ver por", list(nombres), default="forwarder", format_func=nombres.get,
-                                   key="co_dim", label_visibility="collapsed") or "forwarder"
-        tb = cs.por_dimension(p, dim, p_prev)
-        if tb.empty:
-            empty()
-        else:
-            show = pd.DataFrame({
-                nombres[dim]: tb["grupo"], "Embarques": tb["embarques"].map(lambda v: fmt.fmt_int(v)),
-                "Gasto (USD)": tb["gasto"].map(lambda v: fmt.fmt_int(v)),
-                "% del gasto": (tb["pct_gasto"] * 100).round(0),
-                "Flete / cont. (USD)": tb["flete_ctnr"].map(lambda v: fmt.fmt_int(v) if v == v else None), "Costo / FOB": tb["incidencia"].map(lambda v: fmt.fmt_pct(v, 1) if v == v else None),
-                "vs mercado": (tb["vs_mercado"] * 100).round(0),
-            })
-            config = {
-                "Gasto (USD)": st.column_config.TextColumn("Gasto (USD)"),
-                "% del gasto": st.column_config.ProgressColumn("% del gasto", format="%d %%", min_value=0, max_value=100),
-                "Flete / cont. (USD)": st.column_config.TextColumn("Flete / cont. (USD)", help="Mediana, solo marítimo"),
-                "Costo / FOB": st.column_config.TextColumn("Costo / FOB"),
-                "vs mercado": st.column_config.NumberColumn("vs mercado", format="%+d %%",
-                                                            help="Flete pagado vs mediana de mercado del mes, "
-                                                                 "ponderado por contenedores. Negativo = debajo"),
-            }
-            if tb["delta_ctnr"].notna().any():
-                show["Δ flete / cont. (USD)"] = tb["delta_ctnr"].map(
-                    lambda v: ("+" if v > 0 else "") + fmt.fmt_int(v) if v == v else None)
-                config["Δ flete / cont. (USD)"] = st.column_config.TextColumn(
-                    "Δ flete / cont. (USD)", help="Contra el mismo período del año anterior")
-            ev = st.dataframe(show, column_config=config, hide_index=True, width="stretch",
-                              height=min(420, 38 + 35 * len(show)), on_select="rerun", selection_mode="single-row",
-                              key=f"co_tabla_{dim}", placeholder="—")
-            filas = ev.selection.rows if ev is not None and hasattr(ev, "selection") else []
-            i = filas[0] if filas and filas[0] < len(tb) else 0
-            grupo = tb.iloc[i]["grupo"]
-            c = cs.casos(p, dim, grupo).sort_values("costo", ascending=False)
-            st.markdown(f'<div class="section-sub"><b>{fmt.plural(len(c), "embarque")} · '
-                        f'{nombres[dim].lower()}: {grupo}</b></div>', unsafe_allow_html=True)
-            data_table(c, [
-                ColSpec("embarque", "Embarque"), ColSpec("medio", "Medio"), ColSpec("etd", "ETD", "date"),
-                ColSpec("forwarder", "Agente"), ColSpec("puerto", "Puerto"), ColSpec("tipo_ctnr", "Tipo"),
-                ColSpec("contenedores", "Cont.", "int"), ColSpec("flete_pagado", "Flete (USD)", "usd"),
-                ColSpec("flete_por_ctnr", "Flete / cont.", "usd"), ColSpec("mercado_mes", "Mercado / cont.", "usd"),
-                ColSpec("vs_mercado", "vs mercado", "pct"), ColSpec("gastos_origen", "Origen (USD)", "usd"),
-                ColSpec("gastos_locales", "Locales (USD)", "usd"), ColSpec("costo", "Costo total (USD)", "usd"),
-                ColSpec("responsable", "Responsable"),
-            ], key=f"co_casos_{dim}", filename="gasto_por_embarque", search=len(c) > 12)
+    # Detalle para investigar (no es un indicador): queda plegado al final.
+    with st.expander("¿Dónde se va el gasto? · detalle por agente, puerto, medio, contenedor, línea o responsable"):
+        st.markdown("<div class='section-sub'>Por dimensión, ordenado por gasto. Hacé clic en una fila para ver sus embarques.</div>", unsafe_allow_html=True)
+        with guard("Gasto por dimensión"):
+            nombres = dict(DIMS)
+            dim = st.segmented_control("Ver por", list(nombres), default="forwarder", format_func=nombres.get,
+                                       key="co_dim", label_visibility="collapsed") or "forwarder"
+            tb = cs.por_dimension(p, dim, p_prev)
+            if tb.empty:
+                empty()
+            else:
+                show = pd.DataFrame({
+                    nombres[dim]: tb["grupo"], "Embarques": tb["embarques"].map(lambda v: fmt.fmt_int(v)),
+                    "Gasto (USD)": tb["gasto"].map(lambda v: fmt.fmt_int(v)),
+                    "% del gasto": (tb["pct_gasto"] * 100).round(0),
+                    "Flete / cont. (USD)": tb["flete_ctnr"].map(lambda v: fmt.fmt_int(v) if v == v else None), "Costo / FOB": tb["incidencia"].map(lambda v: fmt.fmt_pct(v, 1) if v == v else None),
+                    "vs mercado": (tb["vs_mercado"] * 100).round(0),
+                })
+                config = {
+                    "Gasto (USD)": st.column_config.TextColumn("Gasto (USD)"),
+                    "% del gasto": st.column_config.ProgressColumn("% del gasto", format="%d %%", min_value=0, max_value=100),
+                    "Flete / cont. (USD)": st.column_config.TextColumn("Flete / cont. (USD)", help="Mediana, solo marítimo"),
+                    "Costo / FOB": st.column_config.TextColumn("Costo / FOB"),
+                    "vs mercado": st.column_config.NumberColumn("vs mercado", format="%+d %%",
+                                                                help="Flete pagado vs mediana de mercado del mes, "
+                                                                     "ponderado por contenedores. Negativo = debajo"),
+                }
+                if tb["delta_ctnr"].notna().any():
+                    show["Δ flete / cont. (USD)"] = tb["delta_ctnr"].map(
+                        lambda v: ("+" if v > 0 else "") + fmt.fmt_int(v) if v == v else None)
+                    config["Δ flete / cont. (USD)"] = st.column_config.TextColumn(
+                        "Δ flete / cont. (USD)", help="Contra el mismo período del año anterior")
+                ev = st.dataframe(show, column_config=config, hide_index=True, width="stretch",
+                                  height=min(420, 38 + 35 * len(show)), on_select="rerun", selection_mode="single-row",
+                                  key=f"co_tabla_{dim}", placeholder="—")
+                filas = ev.selection.rows if ev is not None and hasattr(ev, "selection") else []
+                i = filas[0] if filas and filas[0] < len(tb) else 0
+                grupo = tb.iloc[i]["grupo"]
+                c = cs.casos(p, dim, grupo).sort_values("costo", ascending=False)
+                st.markdown(f'<div class="section-sub"><b>{fmt.plural(len(c), "embarque")} · '
+                            f'{nombres[dim].lower()}: {grupo}</b></div>', unsafe_allow_html=True)
+                data_table(c, [
+                    ColSpec("embarque", "Embarque"), ColSpec("medio", "Medio"), ColSpec("etd", "ETD", "date"),
+                    ColSpec("forwarder", "Agente"), ColSpec("puerto", "Puerto"), ColSpec("tipo_ctnr", "Tipo"),
+                    ColSpec("contenedores", "Cont.", "int"), ColSpec("flete_pagado", "Flete (USD)", "usd"),
+                    ColSpec("flete_por_ctnr", "Flete / cont.", "usd"), ColSpec("mercado_mes", "Mercado / cont.", "usd"),
+                    ColSpec("vs_mercado", "vs mercado", "pct"), ColSpec("gastos_origen", "Origen (USD)", "usd"),
+                    ColSpec("gastos_locales", "Locales (USD)", "usd"), ColSpec("costo", "Costo total (USD)", "usd"),
+                    ColSpec("responsable", "Responsable"),
+                ], key=f"co_casos_{dim}", filename="gasto_por_embarque", search=len(c) > 12)
+
+
+def _mercado(bundle, t: pd.Timestamp) -> None:
+    """Comparativa del flete de mercado mes a mes (como el reporte de fletes de la gerencia): año en curso con la
+    variación contra el mes anterior, y los últimos 13 meses para ver cada mes contra el mismo del año anterior."""
+    section("¿Cómo se mueve el flete de mercado?",
+            "Mediana de «Valor Flete» de «Cotizaciones Maritimos Negociado» por mes de «Validez Quincena Desde»: "
+            "todas las tarifas cotizadas (todos los puertos y agentes, no se aplican los filtros). Mismo criterio que el "
+            "reporte de fletes de la gerencia. Rojo = subió; verde = bajó. * mes en curso.")
+    c1, c2 = st.columns(2, gap="small")
+    with c1:
+        tipo = st.segmented_control("Contenedor", ["40ST/40HQ", "20ST", "40NOR"], default="40ST/40HQ",
+                                    key="co_mkt_tipo", label_visibility="collapsed") or "40ST/40HQ"
+    with c2:
+        vistas = {"ytd": f"Año {t.year} · mes a mes", "yoy": "Últimos 13 meses · vs año anterior"}
+        vista = st.segmented_control("Vista", list(vistas), default="ytd", format_func=vistas.get,
+                                     key="co_mkt_vista", label_visibility="collapsed") or "ytd"
+    mm = memo(bundle, ("mercado_mes", tipo, t), lambda: cs.mercado_mes(bundle.get("cotizaciones"), tipo, t))
+    if mm.empty:
+        empty("No hay cotizaciones cargadas para este contenedor.")
+        return
+    actual = t.to_period("M").to_timestamp()
+    if vista == "ytd":
+        d = mm[mm["mes"].dt.year == t.year]
+        var_col, var_nombre = "var_mes", "vs mes anterior"
+    else:
+        d = mm[mm["mes"] >= actual - pd.DateOffset(months=12)]
+        var_col, var_nombre = "var_anio", "vs año anterior"
+    if d.empty:
+        empty()
+        return
+    etiqueta = [fmt.fmt_month(m) + ("*" if m == actual else "") for m in d["mes"]]
+
+    def celda_var(v) -> str:
+        if v != v:
+            return "<td class='na'>—</td>"
+        cls = "bad" if v > 0.005 else "ok" if v < -0.005 else ""
+        return f"<td class='{cls}'>{'▲' if v > 0 else '▼' if v < 0 else '='} {fmt.fmt_pct(abs(v))}</td>"
+
+    filas = []
+    for lab, (_, r) in zip(etiqueta, d.iterrows()):
+        extra = (f"<td>{fmt.fmt_usd(r['anio_ant'], compact=False)}</td>" if vista == "yoy" else "")
+        filas.append(f"<tr><th class='rowh'>{esc(lab)}</th><td>{fmt.fmt_usd(r['mediana'], compact=False)}"
+                     f"<span class='n'>{fmt.plural(int(r['n']), 'tarifa')}</span></td>{extra}"
+                     f"{celda_var(r[var_col])}</tr>")
+    cab = ("<th>Período</th><th>Mediana flete</th>" + ("<th>Mismo mes año ant.</th>" if vista == "yoy" else "")
+           + f"<th>{var_nombre}</th>")
+    g1, g2 = st.columns([2, 3] if vista == "ytd" else [1, 1], gap="medium")
+    with g1:
+        st.markdown(f"<div class='scorecard matriz compact'><table><thead><tr>{cab}</tr></thead>"
+                    f"<tbody>{''.join(filas)}</tbody></table></div>", unsafe_allow_html=True)
+    with g2:
+        fig = go.Figure()
+        colores = [settings.SERIES[0] if (vista == "ytd" or m.year == t.year) else settings.SERIES[1] for m in d["mes"]]
+        fig.add_bar(x=etiqueta, y=d["mediana"], marker=dict(color=colores, cornerradius=3),
+                    text=[fmt.fmt_usd(v, compact=False).replace("USD ", "") for v in d["mediana"]],
+                    textposition="outside", textfont=dict(size=11), constraintext="none", cliponaxis=False,
+                    name="Mediana", hovertemplate="%{x}: USD %{y:,.0f}<extra></extra>")
+        if vista == "ytd" and d["anio_ant"].notna().any():
+            fig.add_scatter(x=etiqueta, y=d["anio_ant"], mode="markers", name=f"Mismo mes {t.year - 1}",
+                            marker=dict(color=settings.SERIES[3], size=16, symbol="line-ew-open",
+                                        line=dict(width=3, color=settings.SERIES[3])),
+                            hovertemplate=f"%{{x}} · {t.year - 1}: USD %{{y:,.0f}}<extra></extra>")
+        charts.theme(fig, y_title="USD por contenedor", legend=vista == "ytd", height=max(360, 57 * len(d) + 20))
+        fig.update_yaxes(range=[0, float(pd.concat([d["mediana"], d["anio_ant"]]).max()) * 1.18])
+        if vista == "yoy":
+            fig.update_layout(title=dict(text=f"Azul oscuro = {t.year} · azul claro = {t.year - 1}",
+                                         font=dict(size=11, color=settings.COLORS["slate"]), x=0.01, y=0.98))
+        charts.show(fig, key=f"co_mkt_{vista}")
 
 
 def _puente(h, h_all, ventana) -> None:

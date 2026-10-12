@@ -107,6 +107,34 @@ def flete_mes(h: pd.DataFrame, tipo: str, year: int) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=cols)
 
 
+def mercado_mes(cot: pd.DataFrame | None, tipo: str, hasta: pd.Timestamp) -> pd.DataFrame:
+    """Mediana de «Valor Flete» de «Cotizaciones Maritimos Negociado» por mes (de «Validez Quincena Desde»), para un
+    tipo de contenedor, hasta el mes de `hasta` inclusive. Mismo criterio que el reporte de fletes de la gerencia:
+    todas las cotizaciones (todos los puertos y agentes); en 40ST/40HQ también entran las que no tienen tipo cargado.
+    Columnas: mes, n, mediana, var_mes (vs mes anterior) y anio_ant / var_anio (vs mismo mes del año anterior)."""
+    cols = ["mes", "n", "mediana", "var_mes", "anio_ant", "var_anio"]
+    if cot is None or cot.empty or "flete" not in cot:
+        return pd.DataFrame(columns=cols)
+    tipos = cot["tipo_ctnr"]
+    sel = (tipos == tipo) | (tipos.isna() if tipo == "40ST/40HQ" else False)
+    d = cot[sel & (cot["flete"] > 0) & cot["validez_desde"].notna()]
+    if d.empty:
+        return pd.DataFrame(columns=cols)
+    mes = d["validez_desde"].dt.to_period("M").dt.to_timestamp()
+    g = d.groupby(mes)["flete"]
+    med, n = g.median(), g.size()
+    tope = pd.Timestamp(hasta).to_period("M").to_timestamp()
+    rows = []
+    for m in sorted(x for x in med.index if x <= tope):
+        v = float(med[m])
+        prev = med.get(m - pd.DateOffset(months=1), np.nan)
+        ya = med.get(m - pd.DateOffset(years=1), np.nan)
+        rows.append({"mes": m, "n": int(n[m]), "mediana": v,
+                     "var_mes": v / prev - 1 if prev == prev and prev else np.nan,
+                     "anio_ant": ya, "var_anio": v / ya - 1 if ya == ya and ya else np.nan})
+    return pd.DataFrame(rows, columns=cols)
+
+
 def puente(prev: pd.DataFrame, cur: pd.DataFrame) -> dict:
     """Puente del flete marítimo pagado entre dos períodos: cuánto de la variación es volumen (más contenedores),
     mezcla (otro reparto entre 20 ST / 40 ST-HQ / 40 NOR) y precio (cada equipo más caro o más barato).

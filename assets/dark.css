@@ -1,0 +1,39 @@
+/* Modo oscuro. layout.load_css lo aplica con html[data-theme="dark"] (lo fija un script según el tema activo de
+   Streamlit) y, mientras el script no corrió, con prefers-color-scheme: dark. Solo cambian colores. */
+__VARS__ {
+  --navy: #A9C4EE;
+  --blue: #7FA8E6;
+  --ink: #E6EAF0;
+  --ink-2: #BAC3CF;
+  --ink-3: #8E99A8;
+  --line: #2C3644;
+  --bg: #0F141B;
+  --card: #18202A;
+  --ok: #4CB782;
+  --warn: #E0A84A;
+  --bad: #EB6B5E;
+  --side-bg: #131A22;
+  --head-bg: #1D2631;
+  --soft-bg: #151C25;
+  --track: #2C3644;
+  --hl: rgba(127,168,230,0.14);
+  --shadow: rgba(0, 0, 0, .45);
+  --ok-bg: #163628; --ok-fg: #86DBAB;
+  --warn-bg: #3A2D12; --warn-fg: #F2CB7C;
+  --bad-bg: #431F1B; --bad-fg: #F4A398;
+  --info-bg: #1C2C45; --info-fg: #B3CBF0;
+  --mwarn-bg: #3A2D12; --mwarn-fg: #F2CB7C;
+  --dot-warn: #E0A84A; --alta: #EB6B5E; --media: #E8B23A;
+  --chip-inm-b: #6E3330; --chip-inm-bg: #2C1B1A;
+  --chip-inv-b: #6B5522; --chip-inv-bg: #2B2414;
+  --chip-seg-b: #33557F; --chip-seg-bg: #172437;
+}
+
+/* Gráficos (plotly con colores fijos): textos oscuros → claros, grilla y bordes más suaves. */
+__SEL__ .js-plotly-plot text[style*="fill: rgb(27, 35, 48)"],
+__SEL__ .js-plotly-plot text[style*="fill: rgb(21, 41, 75)"] { fill: #E6EAF0 !important; }
+__SEL__ .js-plotly-plot text[style*="fill: rgb(91, 102, 117)"],
+__SEL__ .js-plotly-plot text[style*="fill: rgb(68, 68, 68)"] { fill: #A9B3C1 !important; }
+__SEL__ .js-plotly-plot .gridlayer path { stroke: #263040 !important; }
+__SEL__ .js-plotly-plot path.xline, __SEL__ .js-plotly-plot path.yline { stroke: #3A4554 !important; }
+__SEL__ .js-plotly-plot .legend .bg { fill: transparent !important; }

@@ -71,11 +71,49 @@ from components.layout import guard, load_css, page_header  # noqa: E402
 from services.data_loader import SourceError, clear_cache, get_data  # noqa: E402
 from utils.logger import get_logger  # noqa: E402
 from views import (  # noqa: E402
-    accion, buscar, calidad, costos, lead_times, operacion, panorama,
+    accion, buscar, calidad, costos, equipo, lead_times, operacion, panorama,
 )
 
 log = get_logger("app")
 load_css()
+
+
+
+def _acceso_bandeja() -> bool:
+    """La Bandeja de acción es personal: solo se ve con la clave de [acceso] bandeja_clave (secrets de Streamlit Cloud,
+    nunca en el repo) o con un mail de [acceso] bandeja_emails si la app pide inicio de sesión. Sin clave configurada
+    no la ve nadie. La clave se ingresa una vez entrando con ?acceso al final del link; queda recordada 180 días en
+    ese navegador (cookie con un hash, no la clave)."""
+    import hashlib
+    try:
+        cfg = dict(st.secrets.get("acceso", {}))
+    except Exception:  # noqa: BLE001 · sin secrets (local / tests)
+        cfg = {}
+    try:
+        mail = str(st.user.get("email") or "").lower()
+    except Exception:  # noqa: BLE001 · app pública: no hay usuario
+        mail = ""
+    if mail and mail in [str(e).lower() for e in cfg.get("bandeja_emails", [])]:
+        return True
+    clave = str(cfg.get("bandeja_clave") or "")
+    if not clave:
+        return False
+    token = hashlib.sha256(f"bidcom-bandeja:{clave}".encode()).hexdigest()[:40]
+    if st.session_state.get("_bandeja_ok") or st.context.cookies.get("bandeja_acceso") == token:
+        return True
+    if "acceso" in st.query_params:
+        with st.sidebar:
+            intento = st.text_input("Clave de acceso personal", type="password", key="_bandeja_clave")
+        if intento:
+            if intento == clave:
+                st.session_state["_bandeja_ok"] = True
+                st.html(f"<script>document.cookie = 'bandeja_acceso={token}; max-age=15552000; path=/; "
+                        "SameSite=Lax; Secure';</script>", unsafe_allow_javascript=True)
+                return True
+            with st.sidebar:
+                st.caption("Clave incorrecta.")
+    return False
+
 
 PAGE_BUSCAR = st.Page(buscar.render, title="Buscar SO / embarque", icon=":material/search:", url_path="buscar")
 PAGES = {
@@ -86,9 +124,11 @@ PAGES = {
         st.Page(lead_times.render, title="Tiempos", icon=":material/timer:", url_path="sla"),
         st.Page(costos.render, title="Costos y captura", icon=":material/payments:", url_path="fletes"),
         st.Page(operacion.render, title="Operación en curso", icon=":material/directions_boat:", url_path="embarques"),
+        st.Page(equipo.render, title="Equipo y agentes", icon=":material/groups:", url_path="equipo"),
     ],
     "Acción": [
-        st.Page(accion.render, title="Bandeja de acción", icon=":material/task_alt:", url_path="accion"),
+        *([st.Page(accion.render, title="Bandeja de acción", icon=":material/task_alt:", url_path="accion")]
+          if _acceso_bandeja() else []),
         PAGE_BUSCAR,
         st.Page(calidad.render, title="Salud de datos", icon=":material/health_and_safety:", url_path="calidad"),
     ],

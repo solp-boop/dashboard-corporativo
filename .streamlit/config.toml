@@ -1,13 +1,23 @@
 [theme]
-base = "light"
+primaryColor = "#2456A6"
+font = "sans serif"
+baseRadius = "medium"
+showWidgetBorder = true
+
+# Claro y oscuro: cada usuario ve el que tiene su compu / celular (o elige en ⋮ → Settings).
+[theme.light]
 primaryColor = "#2456A6"
 backgroundColor = "#F6F7F9"
 secondaryBackgroundColor = "#FFFFFF"
 textColor = "#1B2330"
-font = "sans serif"
-baseRadius = "medium"
 borderColor = "#E3E7EC"
-showWidgetBorder = true
+
+[theme.dark]
+primaryColor = "#7FA8E6"
+backgroundColor = "#0F141B"
+secondaryBackgroundColor = "#18202A"
+textColor = "#E6EAF0"
+borderColor = "#2C3644"
 
 [client]
 toolbarMode = "viewer"

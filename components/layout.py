@@ -16,9 +16,28 @@ log = get_logger("ui")
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 
 
+# Marca <html data-theme="dark|light"> según el fondo que pinta Streamlit (claro u oscuro, lo elige cada usuario o
+# su sistema). Así el CSS propio (tarjetas, matrices, gráficos) sigue al tema aunque se cambie desde ⋮ → Settings.
+_TEMA_JS = """<script>(() => {
+  if (window.__temaBidcom) return; window.__temaBidcom = true;
+  const fijar = () => {
+    const a = document.querySelector('.stApp'); if (!a) return;
+    const m = getComputedStyle(a).backgroundColor.match(/[0-9.]+/g); if (!m) return;
+    const t = (0.299 * m[0] + 0.587 * m[1] + 0.114 * m[2]) < 128 ? 'dark' : 'light';
+    if (document.documentElement.dataset.theme !== t) document.documentElement.dataset.theme = t;
+  };
+  fijar(); setInterval(fijar, 700);
+})();</script>"""
+
+
 def load_css() -> None:
     css = (ASSETS / "styles.css").read_text(encoding="utf-8")
-    st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
+    oscuro = (ASSETS / "dark.css").read_text(encoding="utf-8")
+    por_atributo = oscuro.replace("__VARS__", 'html[data-theme="dark"]').replace("__SEL__", 'html[data-theme="dark"]')
+    por_sistema = oscuro.replace("__VARS__", 'html:not([data-theme="light"])') \
+        .replace("__SEL__", 'html:not([data-theme="light"])')
+    st.html(f"<style>{css}\n{por_atributo}\n@media (prefers-color-scheme: dark) {{\n{por_sistema}\n}}</style>"
+            + _TEMA_JS, unsafe_allow_javascript=True)
 
 
 def esc(v) -> str:
