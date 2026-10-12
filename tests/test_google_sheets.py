@@ -45,15 +45,16 @@ def test_find_tab():
     assert find_tab(["Otra"], "Reservas") is None
 
 
-def test_lectura_por_columnas_en_una_sola_llamada():
+def test_lectura_por_columnas_una_llamada_por_solapa():
     src = make_source()
     assert src.tab_titles("tablero") == ["Reservas", "Validaciones"]
     assert src.read_headers("tablero", ["Reservas"])["Reservas"] == ["Embarque", "Empresa", "ETD"]
     grids = src.read_tables("tablero", {"Reservas": [0, 2], "Validaciones": None})
     book = src._books["tablero"]
-    assert len(book.requests) == 2                                 # headers + datos
+    assert len(book.requests) == 3                                 # headers + una por solapa (menos memoria)
+    assert book.requests[1][0] == ["'Reservas'!A:A", "'Reservas'!C:C"]
     ranges, params = book.requests[-1]
-    assert ranges == ["'Reservas'!A:A", "'Reservas'!C:C", "'Validaciones'"]
+    assert ranges == ["'Validaciones'"]
     assert params["valueRenderOption"] == "UNFORMATTED_VALUE"
     g = grids["Reservas"]
     assert g[0] == ["Embarque", None, "ETD"]

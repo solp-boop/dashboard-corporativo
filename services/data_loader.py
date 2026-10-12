@@ -667,7 +667,7 @@ def build_bundle(source: SheetSource, datasets: dict[str, tuple[str, str]] | Non
         for key, tab in resolved.items():
             if key == "validaciones":
                 try:
-                    sla = parse_sla_table(grids.get(tab, []))
+                    sla = parse_sla_table(grids.pop(tab, []))
                     if sla.empty:
                         errors.append("No se encontró la tabla de SLA por puerto en Validaciones; "
                                       "se usan los SLA por defecto.")
@@ -679,8 +679,9 @@ def build_bundle(source: SheetSource, datasets: dict[str, tuple[str, str]] | Non
                 continue
             q = quality[key]
             try:
-                raw = grid_to_frame(SCHEMAS[key], grids.get(tab, []), colmaps[key])
+                raw = grid_to_frame(SCHEMAS[key], grids.pop(tab, []), colmaps[key])
                 frames[key] = process_dataset(key, raw, q)
+                del raw
             except Exception as exc:
                 log.exception("Error procesando %s", key)
                 q.message = f"No se pudo procesar la solapa '{tab}' ({type(exc).__name__})."

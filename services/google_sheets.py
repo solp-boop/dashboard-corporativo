@@ -123,39 +123,31 @@ class GoogleSheetsSource:
         return out
 
     def read_tables(self, book: str, request: dict[str, list[int] | None]) -> dict[str, Grid]:
-        ranges, owners = [], []
+        """Una solapa por pedido (no todas juntas): así nunca conviven en memoria las respuestas crudas de
+        todas las solapas, que era el pico más alto de la carga (y lo que tumba la app en Streamlit Cloud)."""
+        whole: dict[str, Grid] = {}
         for tab, cols in request.items():
             if cols is None:
-                ranges.append(f"'{tab}'")
-                owners.append((tab, None))
-            else:
-                for c in cols:
-                    L = col_letter(c)
-                    ranges.append(f"'{tab}'!{L}:{L}")
-                    owners.append((tab, c))
-        if not ranges:
-            return {}
-        resp = self._book(book).values_batch_get(
-            ranges, params={**self.RENDER, "majorDimension": "ROWS"}
-        )
-        value_ranges = resp.get("valueRanges", [])
-        whole: dict[str, Grid] = {}
-        columns: dict[str, dict[int, list]] = {}
-        for (tab, c), vr in zip(owners, value_ranges):
-            vals = vr.get("values", [])
-            if c is None:
+                resp = self._book(book).values_batch_get([f"'{tab}'"], params={**self.RENDER, "majorDimension": "ROWS"})
+                vrs = resp.get("valueRanges", [])
+                vals = vrs[0].get("values", []) if vrs else []
                 width = max((len(r) for r in vals), default=0)
                 whole[tab] = _pad(vals, width)
-            else:
-                columns.setdefault(tab, {})[c] = [r[0] if r else None for r in vals]
-        for tab, cols in columns.items():
-            length = max((len(v) for v in cols.values()), default=0)
-            order = request[tab] or []
-            max_idx = max(order) if order else -1
-            grid = [[None] * (max_idx + 1) for _ in range(length)]
-            for c, vals in cols.items():
+                del resp, vrs, vals
+                continue
+            if not cols:
+                continue
+            ranges = [f"'{tab}'!{col_letter(c)}:{col_letter(c)}" for c in cols]
+            resp = self._book(book).values_batch_get(ranges, params={**self.RENDER, "majorDimension": "ROWS"})
+            columnas = [[r[0] if r else None for r in vr.get("values", [])] for vr in resp.get("valueRanges", [])]
+            del resp
+            length = max((len(v) for v in columnas), default=0)
+            width = max(cols) + 1
+            grid = [[None] * width for _ in range(length)]
+            for c, vals in zip(cols, columnas):
                 for i, v in enumerate(vals):
                     grid[i][c] = v
+            del columnas
             whole[tab] = grid
         return whole
 
