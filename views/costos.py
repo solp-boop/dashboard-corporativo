@@ -297,8 +297,6 @@ def _gasto(bundle, h, a, p, p_all, p_prev, h_all=None, ventana=None) -> None:
             base = base[base[col] > 0]          # sin el gasto cargado no entra en la mediana
         sla_view.flete_mes_matrix(cs.concepto_mes(base, tipo, t.year, col), t)
 
-    with guard("Flete de mercado"):
-        _mercado(bundle, t)
 
 
     c1, c2 = st.columns(2, gap="medium")
@@ -790,6 +788,8 @@ def _tarifas(bundle, h, m=None, h_all=None) -> None:
         ], key=f"co_oport_{ver}", filename=f"oportunidades_{t:%Y%m%d}", search=len(o) > 12)
 
     _cotizaciones_cuadro(bundle, h, t, dias)
+    with guard("Flete de mercado"):
+        _mercado(bundle, t)
 
     with guard("Adherencia"):
         section("¿Pagamos lo que nos cotizaron?",

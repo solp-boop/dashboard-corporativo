@@ -282,3 +282,12 @@ a.kpi-link:hover { border-color: var(--blue); box-shadow: 0 1px 6px var(--shadow
 .chips .chip.seguimiento { border-color: var(--chip-seg-b); background: var(--chip-seg-bg); }
 @media (max-width: 640px) { .acciones { grid-template-columns: 1fr; } .acciones .acc .n { font-size: 1.1rem; } }
 .scorecard.matriz td.warn { background: var(--mwarn-bg); color: var(--mwarn-fg); font-weight: 600; }
+
+/* Selector de tema en la barra lateral */
+.tema-switch { display: grid; grid-template-columns: repeat(3, 1fr); gap: .3rem; margin: .1rem 0 .6rem 0; }
+.tema-switch .tema-lbl { font-size: .72rem; font-weight: 600; color: var(--ink-3); text-transform: uppercase;
+  letter-spacing: .05em; grid-column: 1 / -1; }
+.tema-switch button { font: inherit; font-size: .8rem; padding: .3rem .2rem; white-space: nowrap; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--card); color: var(--ink-2); }
+.tema-switch button:hover { border-color: var(--blue); color: var(--ink); }
+.tema-switch button.on { background: var(--blue); border-color: var(--blue); color: var(--bg); font-weight: 600; }

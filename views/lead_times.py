@@ -507,12 +507,15 @@ def _aereo(bundle, filters, ventana) -> None:
     with guard("Tipo de negocio por mes"):
         section("Mes a mes por tipo de negocio",
                 "Mes de ETD. Verde = dentro del SLA del tipo; rojo = fuera. En gris e itálica, los meses anteriores al "
-                f"{desde:%d/%m/%Y} (el SLA todavía no regía: solo referencia). * mes en curso.")
-        medida = st.segmented_control("Medida", ["Días (mediana)", "% dentro del SLA"], default="Días (mediana)",
-                                      key="tm_aer_medida", label_visibility="collapsed") or "Días (mediana)"
+                f"{desde:%d/%m/%Y} (el SLA todavía no regía: solo referencia). La cantidad cuenta los embarques "
+                "zarpados con «Total» cargado. * mes en curso.")
+        medida = st.segmented_control("Medida", ["Días (mediana)", "% dentro del SLA", "Cantidad de embarques"],
+                                      default="Días (mediana)", key="tm_aer_medida",
+                                      label_visibility="collapsed") or "Días (mediana)"
         tabla = tm.tipo_por_mes(a.assign(_sla_tipo=a["sla_aereo"] if "sla_aereo" in a else np.nan),
                                 sla="_sla_tipo")
-        sla_view.tipo_mes_matrix(tabla, t, "pct" if medida.startswith("%") else "dias")
+        sla_view.tipo_mes_matrix(tabla, t, "pct" if medida.startswith("%") else
+                                 "cant" if medida.startswith("Cantidad") else "dias")
 
     with guard("Tramos por mes"):
         section("¿En qué tramo se va el tiempo? · mes a mes",

@@ -432,7 +432,8 @@ def _mes_txt(m: pd.Timestamp, today: pd.Timestamp) -> str:
 
 def tipo_mes_matrix(t: pd.DataFrame, today: pd.Timestamp, medida: str = "dias") -> None:
     """Tipo de negocio × mes de ETD. medida="dias": mediana de días (verde si ≤ SLA del tipo, rojo si no);
-    medida="pct": % de embarques dentro del SLA de su tipo (verde si llega al objetivo)."""
+    medida="pct": % de embarques dentro del SLA de su tipo (verde si llega al objetivo); medida="cant": cantidad de
+    embarques, con el total del período al final."""
     if t.empty:
         st.markdown('<div class="empty">Sin aéreos con «Total» cargado en el período.</div>', unsafe_allow_html=True)
         return
@@ -444,7 +445,7 @@ def tipo_mes_matrix(t: pd.DataFrame, today: pd.Timestamp, medida: str = "dias") 
     sla_tipo = {k: t.loc[t["tipo"] == k, "sla"].dropna().median() for k in tipos}
     obj = settings.CUMPLIMIENTO_OBJETIVO
 
-    head = ["Tipo de negocio", "SLA"] + [_mes_txt(m, today) for m in meses]
+    head = ["Tipo de negocio", "SLA"] + [_mes_txt(m, today) for m in meses] + (["Total"] if medida == "cant" else [])
     body = []
     for tp in tipos:
         sla_v = sla_tipo.get(tp)
@@ -456,6 +457,9 @@ def tipo_mes_matrix(t: pd.DataFrame, today: pd.Timestamp, medida: str = "dias") 
                 continue
             r = idx.loc[(tp, m)]
             pre = " pre" if m < desde else ""
+            if medida == "cant":
+                cells.append(f"<td class='{pre.strip()}'>{fmt.fmt_int(r['n'])}</td>")
+                continue
             if medida == "pct":
                 if r["pct"] != r["pct"]:
                     cells.append(f"<td class='na{pre}'>—<span class='n'>n={int(r['n'])}</span></td>")
@@ -468,6 +472,8 @@ def tipo_mes_matrix(t: pd.DataFrame, today: pd.Timestamp, medida: str = "dias") 
                     ("ok" if r["mediana"] <= sla_v else "bad")
                 cells.append(f"<td class='{cls}{pre}'>{fmt.fmt_int(r['mediana'])} d"
                              f"<span class='n'>n={int(r['n'])}</span></td>")
+        if medida == "cant":
+            cells.append(f"<td><b>{fmt.fmt_int(t.loc[t['tipo'] == tp, 'n'].sum())}</b></td>")
         style = " class='tot'" if tp == "Todos" else ""
         body.append(f"<tr{style}>" + "".join(cells) + "</tr>")
     st.markdown('<div class="scorecard compact matriz"><table><thead><tr>' + "".join(f"<th>{h}</th>" for h in head)

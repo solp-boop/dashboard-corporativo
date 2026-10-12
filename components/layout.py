@@ -30,6 +30,40 @@ _TEMA_JS = """<script>(() => {
 })();</script>"""
 
 
+# Selector de tema a la vista (antes solo estaba en ⋮ → Settings). Escribe la misma preferencia que guarda Streamlit
+# (localStorage «stActiveTheme-<ruta>-v2» = "Light" | "Dark" | "System") y recarga la página para aplicarla.
+_TEMA_SWITCH = """<div class="tema-switch" id="tema-switch">
+  <span class="tema-lbl">Tema</span>
+  <button data-t="Light" title="Fondo blanco">☀ Claro</button>
+  <button data-t="Dark" title="Fondo negro">☾ Oscuro</button>
+  <button data-t="System" title="Igual que tu compu o celular">Auto</button>
+</div>
+<script>(() => {
+  const PAGINAS = ["panorama", "sla", "fletes", "embarques", "equipo", "accion", "buscar", "calidad"];
+  const ruta = window.location.pathname;
+  const partes = ruta.replace(/\/+$/, "").split("/");
+  const base = PAGINAS.includes(partes[partes.length - 1]) ? partes.slice(0, -1).join("/") + "/" : ruta;
+  const rutas = new Set([ruta, base, base.replace(/\/+$/, "")]);
+  PAGINAS.forEach(p => rutas.add(base + p));
+  const clave = r => `stActiveTheme-${r}-v2`;
+  let actual = "System";
+  try { actual = JSON.parse(localStorage.getItem(clave(ruta))) || "System"; } catch (e) {}
+  const caja = document.getElementById("tema-switch"); if (!caja || caja.dataset.listo) return;
+  caja.dataset.listo = "1";
+  caja.querySelectorAll("button").forEach(b => {
+    if (b.dataset.t === actual) b.classList.add("on");
+    b.addEventListener("click", () => {
+      try { rutas.forEach(r => localStorage.setItem(clave(r), JSON.stringify(b.dataset.t))); } catch (e) {}
+      window.location.reload();
+    });
+  });
+})();</script>"""
+
+
+def theme_switch() -> None:
+    st.html(_TEMA_SWITCH, unsafe_allow_javascript=True)
+
+
 def load_css() -> None:
     css = (ASSETS / "styles.css").read_text(encoding="utf-8")
     oscuro = (ASSETS / "dark.css").read_text(encoding="utf-8")
