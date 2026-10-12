@@ -10,6 +10,7 @@ después se mapea (las planillas tienen muchos valores repetidos).
 from __future__ import annotations
 
 import datetime as dt
+import functools
 import math
 import re
 import unicodedata
@@ -41,7 +42,13 @@ def fold(value) -> str:
     """Clave de comparación: minúsculas, sin acentos, sin signos, un espacio."""
     if value is None or (isinstance(value, float) and math.isnan(value)):
         return ""
-    s = unicodedata.normalize("NFKD", str(value))
+    return _fold_txt(value if isinstance(value, str) else str(value))
+
+
+@functools.lru_cache(maxsize=50_000)
+def _fold_txt(texto: str) -> str:
+    # Con caché: las mismas pocas decenas de forwarders / puertos se normalizan miles de veces por página.
+    s = unicodedata.normalize("NFKD", texto)
     s = "".join(ch for ch in s if not unicodedata.combining(ch)).lower()
     return _NON_ALNUM.sub(" ", s).strip()
 

@@ -47,16 +47,22 @@ def market(d: pd.DataFrame) -> tuple[float, float, str]:
 
 
 def market_by_month(cot: pd.DataFrame) -> pd.DataFrame:
-    """Mediana de mercado y mejor oferta por mes (inicio de validez) y tipo de contenedor."""
-    d = cot.dropna(subset=["validez_desde", "tipo_ctnr"]).copy()
+    """Mediana de mercado y mejor oferta por mes (inicio de validez) y tipo de contenedor.
+
+    Igual que aplicar market() a cada mes × tipo (mediana de la mejor tarifa de cada forwarder), pero vectorizado:
+    antes era un bucle por grupo y costaba ~2,5 s en cada página que lo usaba."""
+    cols = ["mes", "tipo_ctnr", "mercado", "mejor", "n_ffww"]
+    d = cot.dropna(subset=["validez_desde", "tipo_ctnr"])
     if d.empty:
-        return pd.DataFrame(columns=["mes", "tipo_ctnr", "mercado", "mejor", "n_ffww"])
-    d["mes"] = calc.month_start(d["validez_desde"])
-    rows = []
-    for (mes, tipo), g in d.groupby(["mes", "tipo_ctnr"]):
-        p, b, _ = market(g)
-        rows.append({"mes": mes, "tipo_ctnr": tipo, "mercado": p, "mejor": b, "n_ffww": g["forwarder"].nunique()})
-    return pd.DataFrame(rows)
+        return pd.DataFrame(columns=cols)
+    d = d.assign(mes=calc.month_start(d["validez_desde"]))
+    claves = ["mes", "tipo_ctnr"]
+    n = d.groupby(claves, observed=True)["forwarder"].nunique()
+    mejor_ffww = d.dropna(subset=["flete"]).groupby(claves + ["forwarder"], observed=True)["flete"].min()
+    g = mejor_ffww.groupby(level=[0, 1], observed=True)
+    out = pd.DataFrame({"mercado": g.median(), "mejor": g.min()}).reindex(n.index)
+    out["n_ffww"] = n
+    return out.reset_index()[cols]
 
 
 def add_market_reference(hist: pd.DataFrame, cot: pd.DataFrame | None) -> pd.DataFrame:
