@@ -1,11 +1,11 @@
 """Costos y captura (nivel 2): cuánto pagamos, cuánto capturamos y dónde hay oportunidad.
 
-Reúne lo que antes estaba en «Fletes y gastos pagados» y «Cotizaciones», en cuatro pestañas:
-Gasto · Captura · Tarifas, negociación y validación · Contenedores. Arriba, las acciones de mayor impacto
-(utils.oportunidades).
+Reúne lo que antes estaba en «Fletes y gastos pagados» y «Cotizaciones», en cuatro vistas:
+Gasto · Captura · Tarifas y validación (Qué hacer · Mercado · Negociación y validación) · Contenedores.
 """
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -102,9 +102,11 @@ def render() -> None:
         if h_all is not None and len(h_all):
             m = _motor(bundle, filters, h_all)
     # Solo se dibuja la vista elegida (con pestañas se calculaban todas en cada interacción).
-    vistas = {"gasto": "Gasto", "captura": "Captura", "tarifas": "Tarifas, negociación y validación",
+    vistas = {"gasto": "Gasto", "captura": "Captura", "tarifas": "Tarifas y validación",
               "contenedores": "Contenedores y cargas especiales"}
     pedida = st.query_params.get("vista")
+    if pedida == "validacion" and st.session_state.get("_costos_qp") != "tarifas":
+        st.session_state["co_tar_sub"] = "negociacion"     # enlaces viejos a «validación» abren esa parte
     pedida = "tarifas" if pedida == "validacion" else pedida
     if pedida in vistas and pedida != st.session_state.get("_costos_qp"):
         st.session_state["costos_vista"] = pedida
@@ -119,11 +121,7 @@ def render() -> None:
     elif vista == "captura":
         _captura(bundle, filters, h, ventana, m)
     elif vista == "tarifas":
-        with guard("Acciones de mayor impacto"):
-            if m:
-                _acciones(m)       # solo en Tarifas: son acciones de negociación de fletes
-        _tarifas(bundle, h, m, h_all)
-        _validacion(h, a)
+        _tarifas(bundle, h, m, h_all, a)
     else:
         from views import resumen
         _equipos(h)
@@ -711,17 +709,70 @@ def _captura(bundle, filters, h, ventana, m=None) -> None:
 
 
 # ---------------------------------------------------------------------------
-def _tarifas(bundle, h, m=None, h_all=None) -> None:
+def _lista_acciones(op: pd.DataFrame, al: pd.DataFrame) -> pd.DataFrame:
+    """Una sola lista de qué hacer: las rutas para renegociar o sin cotización (oportunidades) y las alertas, sin
+    repetir la misma ruta como «Poca competencia» cuando ya figura como «Falta cotización»."""
+    filas = []
+    for _, r in op[op["tipo"].isin(["Inmediata", "Investigar"])].iterrows():
+        renegociar = r["tipo"] == "Inmediata"
+        filas.append({
+            "tipo": r["tipo"], "prioridad": r["prioridad"],
+            "situacion": "Renegociar tarifa" if renegociar else "Falta cotización",
+            "sujeto": r["ruta"],
+            "detalle": (f"{r['agente']} {fmt.fmt_usd(r['tarifa_actual'], compact=False)} vs {r['mejor_agente']} "
+                        f"{fmt.fmt_usd(r['mejor'], compact=False)} · {r['contenedores']:.0f} cont."
+                        if renegociar else f"{r['contenedores']:.0f} cont. en {settings.NEGOCIAR_VENTANA_DIAS} días"),
+            "usd": r["ahorro_mes"] if renegociar else np.nan, "accion": r["accion"]})
+    falta = {f["sujeto"] for f in filas if f["situacion"] == "Falta cotización"}
+    for _, r in al.iterrows():
+        if r["situacion"] == "Poca competencia" and r["sujeto"] in falta:
+            continue
+        filas.append({"tipo": r["tipo"], "prioridad": "Alta" if r["tipo"] == "Inmediata" else
+                      "Media" if r["tipo"] == "Investigar" else "Baja",
+                      "situacion": r["situacion"], "sujeto": r["sujeto"], "detalle": r["detalle"], "usd": r["usd"],
+                      "accion": r["accion"]})
+    t = pd.DataFrame(filas, columns=["tipo", "prioridad", "situacion", "sujeto", "detalle", "usd", "accion"])
+    if t.empty:
+        return t
+    orden_t = {"Inmediata": 0, "Investigar": 1, "Seguimiento": 2}
+    orden_p = {"Alta": 0, "Media": 1, "Baja": 2}
+    return t.assign(_t=t["tipo"].map(orden_t), _p=t["prioridad"].map(orden_p).fillna(3)) \
+        .sort_values(["_t", "_p", "usd"], ascending=[True, True, False], na_position="last") \
+        .drop(columns=["_t", "_p"]).reset_index(drop=True)
+
+
+def _tarifas(bundle, h, m=None, h_all=None, a=None) -> None:
+    """Tarifas en tres partes cortas: qué hacer esta semana, cómo está el mercado, y si nos cobran lo negociado."""
     t = today()
     dias = settings.NEGOCIAR_VENTANA_DIAS
-    section("¿Pagamos precios competitivos?",
+    subs = {"hacer": "Qué hacer", "mercado": "Mercado", "negociacion": "Negociación y validación"}
+    sub = st.segmented_control("Tarifas", list(subs), default="hacer", format_func=subs.get, key="co_tar_sub",
+                               label_visibility="collapsed") or "hacer"
+    if sub == "mercado":
+        _cotizaciones_cuadro(bundle, h, t, dias)
+        with guard("Flete de mercado"):
+            _mercado(bundle, t)
+        with guard("Pagado vs mercado"):
+            section("Flete por contenedor: pagado vs mercado",
+                    "Marítimo, destino Argentina · mediana pagada vs mediana de mercado y mejor cotización del mes")
+            _pagado_vs_mercado_chart(bundle, h)
+        with st.expander("Todas las cotizaciones: mapa de tarifas y evolución del mercado"):
+            cotizaciones.render()
+        return
+    if sub == "negociacion":
+        _adherencia(m)
+        _validacion(h, a)
+        return
+
+    section("¿Qué hacemos esta semana con las tarifas?",
             f"Rutas marítimas destino Argentina usadas en los últimos {dias} días. Se compara solo contra tarifas "
             "comparables: mismo puerto, contenedor y quincena, mismo pagadero, mismo servicio (directo / trasbordo) y "
-            f"tránsito dentro de ± {settings.OPORT_TT_TOL} días. Solo flete por contenedor, en USD (los locales ARG "
-            "van aparte).")
+            f"tránsito dentro de ± {settings.OPORT_TT_TOL} días. Solo flete por contenedor, en USD.")
     if h is None or h.empty or not m:
         empty()
         return
+    with guard("Acciones de mayor impacto"):
+        _acciones(m)
     op, adh, al = m["op"], m["adh"], m["al"]
     with guard("KPIs de tarifas"):
         inm = op[op["tipo"] == "Inmediata"]
@@ -748,78 +799,75 @@ def _tarifas(bundle, h, m=None, h_all=None) -> None:
                 sub="sin competencia en la quincena en curso: pedir más cotizaciones"),
         ])
 
-    with guard("Alertas"):
-        section("Alertas", "🔴 Inmediata: actuar esta semana · 🟡 Investigar: falta un dato o una cotización · "
-                           "🔵 Seguimiento: mirar la tendencia.")
-        if al.empty:
-            empty("Sin alertas con el criterio actual.")
+    with guard("Lista de acciones"):
+        lista = _lista_acciones(op, al)
+        section("Lista de acciones", "Todo lo que hay que hacer, en una sola lista y por orden: 🔴 Inmediata (esta "
+                "semana) · 🟡 Investigar (falta un dato o una cotización) · 🔵 Seguimiento (mirar la tendencia).")
+        if lista.empty:
+            empty("Sin acciones pendientes con el criterio actual.")
         else:
-            res = al.groupby(["tipo", "situacion"]).size().reset_index(name="n")
+            res = lista.groupby(["tipo", "situacion"]).size().reset_index(name="n")
             orden = {"Inmediata": 0, "Investigar": 1, "Seguimiento": 2}
             res = res.assign(_o=res["tipo"].map(orden)).sort_values(["_o", "n"], ascending=[True, False])
             st.markdown("<div class='chips'>" + "".join(
                 f"<span class='chip {esc(r['tipo'].lower())}'>{esc(r['situacion'])} <b>{r['n']}</b></span>"
                 for _, r in res.iterrows()) + "</div>", unsafe_allow_html=True)
-            data_table(al.assign(tipo=al["tipo"].map(TIPO_ICON)), [
-                ColSpec("tipo", "Tipo"), ColSpec("situacion", "Situación"), ColSpec("sujeto", "Ruta / agente"),
-                ColSpec("detalle", "Detalle", width="medium"), ColSpec("usd", "USD", "usd"),
+            ver_todo = st.toggle("Ver también Seguimiento", value=False, key="co_lista_seg")
+            v = lista if ver_todo else lista[lista["tipo"] != "Seguimiento"]
+            data_table(v.assign(tipo=v["tipo"].map(TIPO_ICON), prioridad=v["prioridad"].map(PRIO_ICON).fillna("")), [
+                ColSpec("tipo", "Tipo"), ColSpec("prioridad", "Prioridad"), ColSpec("situacion", "Qué pasa"),
+                ColSpec("sujeto", "Ruta / agente"), ColSpec("detalle", "Detalle", width="medium"),
+                ColSpec("usd", "USD", "usd"), ColSpec("accion", "Qué hacer", width="large"),
+            ], key="co_lista", filename=f"acciones_tarifas_{t:%Y%m%d}", search=len(v) > 12,
+                height=min(460, 38 + 35 * len(v)), caption="USD: ahorro por mes si se renegocia, o lo pagado de más "
+                                                            "para reclamar.")
+
+    with st.expander("Detalle por ruta: tarifa actual, mejor comparable, objetivo y vencimiento"):
+        with guard("Oportunidades"):
+            ver = st.segmented_control("Ver", ["accion", "todas"], default="accion", key="co_op_ver",
+                                       format_func={"accion": "Para actuar", "todas": "Todas las rutas"}.get,
+                                       label_visibility="collapsed") or "accion"
+            o = op if ver == "todas" else op[op["tipo"].isin(["Inmediata", "Investigar"])]
+            o = o.assign(prioridad=o["prioridad"].map(PRIO_ICON).fillna(""), tipo=o["tipo"].map(TIPO_ICON))
+            data_table(o, [
+                ColSpec("prioridad", "Prioridad"), ColSpec("tipo", "Tipo"), ColSpec("puerto", "Ruta (POL)"),
+                ColSpec("tipo_ctnr", "Equipo"), ColSpec("contenedores", f"Cont. {dias} d", "int"),
+                ColSpec("agente", "Agente actual"), ColSpec("tarifa_actual", "Tarifa actual", "usd"),
+                ColSpec("mejor", "Mejor comparable", "usd"), ColSpec("mejor_agente", "La ofrece"),
+                ColSpec("dif_usd", "Diferencia (USD)", "usd"), ColSpec("dif_pct", "Diferencia %", "pct"),
+                ColSpec("ahorro_mes", "Ahorro potencial / mes", "usd"), ColSpec("negociar_con", "Negociar con"),
+                ColSpec("objetivo", "Tarifa objetivo", "usd"), ColSpec("vence", "Vence", "date"),
+                ColSpec("agentes", "Agentes que cotizan", "int"), ColSpec("confianza", "Confianza"),
                 ColSpec("accion", "Acción", width="large"),
-            ], key="co_alertas", filename=f"alertas_costos_{t:%Y%m%d}", search=len(al) > 12, height=min(420, 38 + 35 * len(al)))
+                ColSpec("motivo_no_comparable", "Menor no comparable"),
+            ], key=f"co_oport_{ver}", filename=f"oportunidades_{t:%Y%m%d}", search=len(o) > 12)
 
-    with guard("Oportunidades"):
-        section("Oportunidades por ruta", "Una fila por ruta y contenedor. Prioridad = ahorro por mes × confianza "
-                "(volumen, cantidad de cotizaciones) × urgencia (reservas en 30 días o tarifa por vencer).")
-        ver = st.segmented_control("Ver", ["accion", "todas"], default="accion", key="co_op_ver",
-                                   format_func={"accion": "Para actuar", "todas": "Todas las rutas"}.get,
-                                   label_visibility="collapsed") or "accion"
-        o = op if ver == "todas" else op[op["tipo"].isin(["Inmediata", "Investigar"])]
-        o = o.assign(prioridad=o["prioridad"].map(PRIO_ICON).fillna(""), tipo=o["tipo"].map(TIPO_ICON))
-        data_table(o, [
-            ColSpec("prioridad", "Prioridad"), ColSpec("tipo", "Tipo"), ColSpec("puerto", "Ruta (POL)"),
-            ColSpec("tipo_ctnr", "Equipo"), ColSpec("contenedores", f"Cont. {dias} d", "int"),
-            ColSpec("agente", "Agente actual"), ColSpec("tarifa_actual", "Tarifa actual", "usd"),
-            ColSpec("mejor", "Mejor comparable", "usd"), ColSpec("mejor_agente", "La ofrece"),
-            ColSpec("dif_usd", "Diferencia (USD)", "usd"), ColSpec("dif_pct", "Diferencia %", "pct"),
-            ColSpec("ahorro_mes", "Ahorro potencial / mes", "usd"), ColSpec("negociar_con", "Negociar con"),
-            ColSpec("objetivo", "Tarifa objetivo", "usd"), ColSpec("vence", "Vence", "date"),
-            ColSpec("agentes", "Agentes que cotizan", "int"), ColSpec("confianza", "Confianza"),
-            ColSpec("accion", "Acción", width="large"),
-            ColSpec("motivo_no_comparable", "Menor no comparable"),
-        ], key=f"co_oport_{ver}", filename=f"oportunidades_{t:%Y%m%d}", search=len(o) > 12)
 
-    _cotizaciones_cuadro(bundle, h, t, dias)
-    with guard("Flete de mercado"):
-        _mercado(bundle, t)
-
+def _adherencia(m) -> None:
+    t = today()
     with guard("Adherencia"):
         section("¿Pagamos lo que nos cotizaron?",
                 "Por agente, últimos 12 meses: flete pagado por contenedor contra la tarifa que ese agente cotizó para "
                 "la ruta y contenedor vigente al zarpe (ETD). Se compara contra la más alta de sus tarifas, para no "
                 "marcar de más.")
-        pa = oport.adherencia_por_agente(adh)
+        adh = m["adh"] if m else pd.DataFrame()
+        pa = oport.adherencia_por_agente(adh) if len(adh) else pd.DataFrame()
         if pa.empty:
             empty("Sin embarques con cotización propia vigente al zarpe.")
-        else:
-            data_table(pa, [
-                ColSpec("forwarder", "Agente"), ColSpec("embarques", "Embarques comparados", "int"),
-                ColSpec("pago_mas", "Pagaron más", "int"), ColSpec("pct", "% pagaron más", "pct"),
-                ColSpec("dif_med", "Diferencia mediana / cont.", "usd"), ColSpec("exceso", "Exceso total (USD)", "usd"),
-            ], key="co_adh_ag", filename="adherencia_por_agente", search=False)
-            solo_descarga(adh[adh["pago_mas"]], [
-                ColSpec("embarque", "Embarque"), ColSpec("etd", "ETD", "date"), ColSpec("forwarder", "Agente"),
-                ColSpec("puerto", "Puerto"), ColSpec("tipo_ctnr", "Tipo"), ColSpec("contenedores", "Cont.", "int"),
-                ColSpec("pagado", "Pagado / cont. (USD)", "usd"), ColSpec("cotizado", "Cotizado / cont. (USD)", "usd"),
-                ColSpec("dif_pct", "Diferencia %", "pct"), ColSpec("exceso", "Exceso (USD)", "usd"),
-                ColSpec("responsable", "Responsable"),
-            ], key="co_adh_casos", filename=f"pagamos_mas_que_lo_cotizado_{t:%Y%m%d}",
-                label="Descargar embarques que pagaron más que lo cotizado")
-
-    with guard("Pagado vs mercado"):
-        section("Flete por contenedor: pagado vs mercado",
-                "Marítimo, destino Argentina · mediana pagada vs mediana de mercado y mejor cotización del mes")
-        _pagado_vs_mercado_chart(bundle, h)
-    with st.expander("Todas las cotizaciones: mapa de tarifas y evolución del mercado"):
-        cotizaciones.render()
+            return
+        data_table(pa, [
+            ColSpec("forwarder", "Agente"), ColSpec("embarques", "Embarques comparados", "int"),
+            ColSpec("pago_mas", "Pagaron más", "int"), ColSpec("pct", "% pagaron más", "pct"),
+            ColSpec("dif_med", "Diferencia mediana / cont.", "usd"), ColSpec("exceso", "Exceso total (USD)", "usd"),
+        ], key="co_adh_ag", filename="adherencia_por_agente", search=False)
+        solo_descarga(adh[adh["pago_mas"]], [
+            ColSpec("embarque", "Embarque"), ColSpec("etd", "ETD", "date"), ColSpec("forwarder", "Agente"),
+            ColSpec("puerto", "Puerto"), ColSpec("tipo_ctnr", "Tipo"), ColSpec("contenedores", "Cont.", "int"),
+            ColSpec("pagado", "Pagado / cont. (USD)", "usd"), ColSpec("cotizado", "Cotizado / cont. (USD)", "usd"),
+            ColSpec("dif_pct", "Diferencia %", "pct"), ColSpec("exceso", "Exceso (USD)", "usd"),
+            ColSpec("responsable", "Responsable"),
+        ], key="co_adh_casos", filename=f"pagamos_mas_que_lo_cotizado_{t:%Y%m%d}",
+            label="Descargar embarques que pagaron más que lo cotizado")
 
 
 def _cotizaciones_cuadro(bundle, h, t, dias) -> None:
