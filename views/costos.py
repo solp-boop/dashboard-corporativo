@@ -25,7 +25,7 @@ from utils import formatting as fmt
 from utils import freight
 from utils import oportunidades as oport
 from views import cotizaciones, fletes_pagados
-from views._common import ctx, filtered, memo, month_labels, today
+from views._common import ctx, filtered, memo, month_labels, negociacion, today
 
 DIMS = [("forwarder", "Agente"), ("puerto", "Puerto"), ("medio", "Medio"), ("tipo_ctnr", "Tipo de contenedor"),
         ("linea", "Línea marítima"), ("responsable", "Responsable")]
@@ -467,7 +467,7 @@ def _pagado_vs_mercado_chart(bundle, h) -> None:
 def _cuatro_ahorros(bundle, h, m, casos_neg, r, hay_sin, prev_txt="") -> None:
     """Los cuatro ahorros, separados para no contar dos veces: realizado (suma), negociado, por selección y potencial
     (no se suman: miden otra cosa)."""
-    neg = freight.negotiation(bundle.get("cotizaciones"), bundle.get("cot_sin_negociar"))
+    neg = negociacion(bundle)
     if len(neg) and len(h):
         neg = neg[(neg["validez_hasta"] >= h["etd"].min()) & (neg["validez_desde"] <= h["etd"].max())]
     rb = neg["rebaja_pct"][neg["rebaja_pct"] > 0] if len(neg) else pd.Series(dtype=float)
@@ -524,7 +524,7 @@ def _captura(bundle, filters, h, ventana, m=None) -> None:
         empty()
         return
     with guard("Captura"):
-        neg = freight.negotiation(bundle.get("cotizaciones"), bundle.get("cot_sin_negociar"))
+        neg = negociacion(bundle)
         casos_neg = cap.por_negociacion(h, neg)
         nor = freight.nor_savings(h)
         nor = nor.dropna(subset=["ahorro"]) if len(nor) else nor

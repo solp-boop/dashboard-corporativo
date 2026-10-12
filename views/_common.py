@@ -11,13 +11,32 @@ from utils.filters import FilterState, apply_filters
 from utils import formatting as fmt
 
 
+MEMO_MAX = 24   # resultados guardados por carga: con filtros distintos se renuevan los más viejos (no crece sin límite)
+
+
 def memo(bundle: DataBundle, key, fn):
     """Resultado de fn() guardado en el bundle (una carga de datos): lo que no depende de los filtros se calcula
-    una sola vez por carga y no en cada interacción. Una carga nueva trae un bundle nuevo y vacío."""
-    store = bundle.__dict__.setdefault("_memo", {})
-    if key not in store:
-        store[key] = fn()
-    return store[key]
+    una sola vez por carga y no en cada interacción. Una carga nueva trae un bundle nuevo y vacío. Guarda como mucho
+    MEMO_MAX resultados (descarta los usados hace más tiempo) para no llenar la memoria del servidor."""
+    from collections import OrderedDict
+    store = bundle.__dict__.get("_memo")
+    if not isinstance(store, OrderedDict):
+        store = bundle.__dict__["_memo"] = OrderedDict(store or {})
+    if key in store:
+        store.move_to_end(key)
+        return store[key]
+    val = fn()
+    store[key] = val
+    while len(store) > MEMO_MAX:
+        store.popitem(last=False)
+    return val
+
+
+def negociacion(bundle: DataBundle):
+    """Tarifas negociadas vs sin negociar (freight.negotiation): no depende de los filtros, una vez por carga."""
+    from utils import freight
+    return memo(bundle, "negociacion", lambda: freight.negotiation(bundle.get("cotizaciones"),
+                                                                    bundle.get("cot_sin_negociar")))
 
 
 def ctx() -> tuple[DataBundle, FilterState]:

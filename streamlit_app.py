@@ -4,7 +4,27 @@ Punto de entrada. Ejecutar con:  streamlit run streamlit_app.py
 """
 from __future__ import annotations
 
-import streamlit as st
+
+def _limitar_arenas_malloc() -> None:
+    """Causa real de «la app superó sus límites de recursos» en Streamlit Cloud.
+
+    Streamlit corre cada ejecución en un hilo nuevo y glibc le da a cada hilo su propia «arena» de memoria; lo
+    que pandas libera queda repartido en esas arenas y el proceso nunca lo devuelve (medido: +50 MB por cada
+    recorrida de páginas, sin techo). Con 2 arenas la memoria queda plana (≈325 MB). Equivale a la variable de
+    entorno MALLOC_ARENA_MAX=2, que Streamlit Cloud no permite fijar antes de arrancar el proceso.
+    """
+    import ctypes
+    try:
+        libc = ctypes.CDLL("libc.so.6")
+        libc.mallopt(-8, 2)            # M_ARENA_MAX: solo sirve si todavía no se crearon hilos
+        libc.mallopt(-3, 64 * 1024)    # M_MMAP_THRESHOLD: bloques ≥64 KB (arrays de pandas) van por mmap y se devuelven al liberarse
+    except Exception:  # noqa: BLE001 · fuera de Linux/glibc no existe; no es un error
+        pass
+
+
+_limitar_arenas_malloc()
+
+import streamlit as st  # noqa: E402
 
 st.set_page_config(
     page_title="Dashboard · Comex",
@@ -114,3 +134,18 @@ with st.sidebar:
 page_header(pg.title, bundle, filters)
 with guard(pg.title):  # red de seguridad: un error inesperado nunca muestra un traceback
     pg.run()
+
+
+def _liberar_memoria() -> None:
+    """Devuelve al sistema la memoria que pandas ya liberó. Sin esto, en Streamlit Cloud (≈1 GB) la memoria del
+    proceso solo crece con cada interacción y la app se cae por «superó sus límites de recursos»."""
+    import ctypes
+    import gc
+    gc.collect()
+    try:
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:  # noqa: BLE001 · fuera de Linux no existe; no es un error
+        pass
+
+
+_liberar_memoria()

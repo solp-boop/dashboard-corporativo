@@ -13,7 +13,7 @@ from config import settings
 from utils import bandeja, freight, productos, sla
 from utils import formatting as fmt
 from utils import panorama as pan
-from views._common import memo, ctx, filtered, periodo_txt, today
+from views._common import memo, ctx, filtered, negociacion, periodo_txt, today
 
 
 def _kpi(i: pan.Indicador) -> KPI:
@@ -96,7 +96,7 @@ def _volumen_costos(bundle, filters, t) -> list[pan.Indicador]:
     out.append(pan.costo(pagos, pagos_all, t))
 
     from utils import captura as cap
-    neg = freight.negotiation(bundle.get("cotizaciones"), bundle.get("cot_sin_negociar"))
+    neg = negociacion(bundle)
     hay_neg = bundle.get("cot_sin_negociar") is not None and len(bundle.get("cot_sin_negociar")) > 0
     nor = freight.nor_savings(m_f)
     nor = nor.dropna(subset=["ahorro"]) if len(nor) else nor
