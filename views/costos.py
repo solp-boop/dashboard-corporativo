@@ -349,15 +349,15 @@ def _gasto(bundle, h, a, p, p_all, p_prev, h_all=None, ventana=None) -> None:
                     "Gasto (USD)": tb["gasto"].map(lambda v: fmt.fmt_int(v)),
                     "% del gasto": (tb["pct_gasto"] * 100).round(0),
                     "Flete / cont. (USD)": tb["flete_ctnr"].map(lambda v: fmt.fmt_int(v) if v == v else None), "Costo / FOB": tb["incidencia"].map(lambda v: fmt.fmt_pct(v, 1) if v == v else None),
-                    "vs mercado": (tb["vs_mercado"] * 100).round(0),
+                    "vs cotizaciones": (tb["vs_mercado"] * 100).round(0),
                 })
                 config = {
                     "Gasto (USD)": st.column_config.TextColumn("Gasto (USD)"),
                     "% del gasto": st.column_config.ProgressColumn("% del gasto", format="%d %%", min_value=0, max_value=100),
                     "Flete / cont. (USD)": st.column_config.TextColumn("Flete / cont. (USD)", help="Mediana, solo marítimo"),
                     "Costo / FOB": st.column_config.TextColumn("Costo / FOB"),
-                    "vs mercado": st.column_config.NumberColumn("vs mercado", format="%+d %%",
-                                                                help="Flete pagado vs mediana de mercado del mes, "
+                    "vs cotizaciones": st.column_config.NumberColumn("vs cotizaciones", format="%+d %%",
+                                                                help="Flete pagado vs mediana de nuestras cotizaciones del mes, "
                                                                      "ponderado por contenedores. Negativo = debajo"),
                 }
                 if tb["delta_ctnr"].notna().any():
@@ -378,8 +378,8 @@ def _gasto(bundle, h, a, p, p_all, p_prev, h_all=None, ventana=None) -> None:
                     ColSpec("embarque", "Embarque"), ColSpec("medio", "Medio"), ColSpec("etd", "ETD", "date"),
                     ColSpec("forwarder", "Agente"), ColSpec("puerto", "Puerto"), ColSpec("tipo_ctnr", "Tipo"),
                     ColSpec("contenedores", "Cont.", "int"), ColSpec("flete_pagado", "Flete (USD)", "usd"),
-                    ColSpec("flete_por_ctnr", "Flete / cont.", "usd"), ColSpec("mercado_mes", "Mercado / cont.", "usd"),
-                    ColSpec("vs_mercado", "vs mercado", "pct"), ColSpec("gastos_origen", "Origen (USD)", "usd"),
+                    ColSpec("flete_por_ctnr", "Flete / cont.", "usd"), ColSpec("mercado_mes", "Cotizaciones / cont.", "usd"),
+                    ColSpec("vs_mercado", "vs cotizaciones", "pct"), ColSpec("gastos_origen", "Origen (USD)", "usd"),
                     ColSpec("gastos_locales", "Locales (USD)", "usd"), ColSpec("costo", "Costo total (USD)", "usd"),
                     ColSpec("responsable", "Responsable"),
                 ], key=f"co_casos_{dim}", filename="gasto_por_embarque", search=len(c) > 12)
@@ -523,9 +523,9 @@ def _pagado_vs_mercado_chart(bundle, h) -> None:
                     line=dict(color=settings.SERIES[0], width=2.5), marker=dict(size=8),
                     hovertemplate="Pagado: USD %{y:,.0f}<extra></extra>")
     if len(mk):
-        fig.add_scatter(x=x, y=mk["mercado"].reindex(months).values, name="Mediana de mercado", mode="lines+markers",
+        fig.add_scatter(x=x, y=mk["mercado"].reindex(months).values, name="Mediana de cotizaciones", mode="lines+markers",
                         line=dict(color=settings.SERIES[1], width=2), marker=dict(size=8),
-                        hovertemplate="Mercado: USD %{y:,.0f}<extra></extra>")
+                        hovertemplate="Cotizaciones (mediana): USD %{y:,.0f}<extra></extra>")
         fig.add_scatter(x=x, y=mk["mejor"].reindex(months).values, name="Mejor cotización", mode="lines",
                         line=dict(color=settings.SERIES[2], width=1.5, dash="dash"),
                         hovertemplate="Mejor: USD %{y:,.0f}<extra></extra>")
@@ -753,8 +753,9 @@ def _tarifas(bundle, h, m=None, h_all=None, a=None) -> None:
         with guard("Flete de mercado"):
             _mercado(bundle, t)
         with guard("Pagado vs mercado"):
-            section("Flete por contenedor: pagado vs mercado",
-                    "Marítimo, destino Argentina · mediana pagada vs mediana de mercado y mejor cotización del mes")
+            section("Flete por contenedor: pagado vs cotizaciones del mes",
+                    "Marítimo, destino Argentina · mediana pagada vs mediana y mejor de nuestras cotizaciones del mes "
+                    "(son tarifas negociadas por nosotros, no un índice de mercado)")
             _pagado_vs_mercado_chart(bundle, h)
         with st.expander("Todas las cotizaciones: mapa de tarifas y evolución del mercado"):
             cotizaciones.render()

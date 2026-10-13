@@ -255,6 +255,39 @@ def vs_mercado(pct: float, n: int, pct_last: float, pct_prev: float, t: pd.Times
         destino="fletes?vista=tarifas")
 
 
+def vs_cotizado(pct: float, n: int, pct_last: float, pct_prev: float, t: pd.Timestamp, exceso: float, n_mas: int,
+                pct_mejor: float, n_mejor: int, sobrecosto: float) -> Indicador:
+    """¿Nos cobraron lo negociado? USD cobrados por encima de la tarifa de ese mismo agente (pct = % de embarques
+    cobrados de más) y, debajo, ¿elegimos bien?: pagado vs la tarifa más baja que teníamos. Las cotizaciones son
+    nuestras tarifas negociadas, no «el mercado»."""
+    if n < settings.MIN_SAMPLE or pct != pct:
+        return Indicador("Cobrado de más vs lo negociado", "—", sub="Sin embarques con su cotización vigente al zarpe",
+                         destino="fletes?vista=tarifas",
+                         ayuda="Flete pagado por contenedor contra la tarifa que ese mismo agente cotizó para la ruta "
+                               "y el contenedor, vigente a la ETD.")
+    estado = "ok" if n_mas == 0 else ("warn" if pct <= 0.10 else "bad")
+    last, prev = _meses(t)
+    d = (pct_last - pct_prev) * 100 if pct_last == pct_last and pct_prev == pct_prev else np.nan
+    sub = (f"{fmt.fmt_int(n_mas)} de {fmt.fmt_int(n)} embarques ({fmt.fmt_pct(pct)}) superaron la tarifa de su agente")
+    if n_mejor >= settings.MIN_SAMPLE and pct_mejor == pct_mejor:
+        sub += (f" · ¿elegimos bien?: <b>{fmt.fmt_pct(pct_mejor, signed=True)}</b> vs la tarifa más baja que teníamos "
+                f"({fmt.fmt_usd(sobrecosto)})")
+    return Indicador(
+        "Cobrado de más vs lo negociado", fmt.fmt_usd(exceso), estado=estado,
+        badge={"ok": "Según lo negociado", "warn": "Reclamar", "bad": "Reclamar"}[estado],
+        sub=sub,
+        delta=(f"{_flecha(d)} {fmt.fmt_num(abs(d), 0)} pp de embarques cobrados de más {_mes(last)} vs {_mes(prev)}"
+               if d == d else ""),
+        tono=_tono(d, mejor_si_baja=True),
+        ayuda=("¿Nos cobraron lo que negociamos? Cada embarque marítimo contra la tarifa de ESE agente para esa ruta y "
+               "contenedor, vigente a la ETD (si tenía varias, la más alta, para no acusar de más). Cuenta como cobrado "
+               f"de más lo que la supera en más de {fmt.fmt_pct(settings.OPORT_ADHERENCIA_TOL)}; el valor son los USD "
+               "por encima (para reclamar). Debajo, ¿elegimos bien?: lo pagado contra la tarifa más baja de cualquier "
+               "agente para ese puerto y contenedor vigente al zarpe, ponderado por contenedores (no mira servicio, "
+               "tránsito ni pagadero: es el máximo ahorro posible, no todo era elegible)."),
+        destino="fletes?vista=tarifas")
+
+
 def ventana_anterior(start: pd.Timestamp, end: pd.Timestamp) -> tuple[pd.Timestamp, pd.Timestamp]:
     return start - pd.DateOffset(years=1), end - pd.DateOffset(years=1)
 

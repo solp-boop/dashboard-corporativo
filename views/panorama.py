@@ -108,21 +108,32 @@ def _volumen_costos(bundle, filters, t) -> list[pan.Indicador]:
         neg_prev = cap.por_negociacion(m_prev, neg)
     out.append(pan.captura(nor, nor_prev, cap.por_negociacion(m_f, neg), neg_prev, hay_neg))
 
+    # Pagado vs lo cotizado: las cotizaciones son NUESTRAS tarifas negociadas (no «el mercado»): se compara cada
+    # embarque contra la tarifa de ese mismo agente vigente al zarpe y, aparte, contra la más baja que teníamos.
+    from utils import oportunidades as oport
     cot = bundle.get("cotizaciones")
-    hm = freight.add_market_reference(m_f, cot)
-    hm_all = freight.add_market_reference(m_all, cot)
-    pct, n = freight.vs_mercado_ponderado(hm)
+    clave = (t, filters.start, filters.end, tuple(sorted((k, tuple(v)) for k, v in filters.selections.items() if v)))
+    adh = memo(bundle, ("adh_panorama",) + clave, lambda: oport.adherencia(m_f, cot))
+    adh_all = memo(bundle, ("adh_panorama_all",) + clave, lambda: oport.adherencia(m_all, cot))
+    mej = memo(bundle, ("mejor_panorama",) + clave, lambda: oport.vs_mejor(m_f, cot))
+    n = len(adh)
+    pct = float(adh["pago_mas"].mean()) if n else float("nan")      # % de embarques cobrados de más
+    pct_mejor, n_mejor = oport.ponderado(mej, "mejor")
     last = t.to_period("M").to_timestamp() - pd.offsets.MonthBegin(1)
     prev = last - pd.offsets.MonthBegin(1)
-    mes = hm_all["etd"].dt.to_period("M").dt.to_timestamp() if len(hm_all) else pd.Series(dtype="datetime64[ns]")
+    mes = adh_all["etd"].dt.to_period("M").dt.to_timestamp() if len(adh_all) else pd.Series(dtype="datetime64[ns]")
+
     def pct_mes(m):
-        if not len(hm_all):
+        if not len(adh_all):
             return float("nan")
-        v, k = freight.vs_mercado_ponderado(hm_all[mes == m])
-        return v if k >= settings.MIN_SAMPLE else float("nan")
+        x = adh_all[mes == m]
+        return float(x["pago_mas"].mean()) if len(x) >= settings.MIN_SAMPLE else float("nan")
 
     p_last, p_prev = pct_mes(last), pct_mes(prev)
-    out.append(pan.vs_mercado(pct, n, p_last, p_prev, t))
+    exceso = float(adh["exceso"].sum()) if len(adh) else 0.0
+    n_mas = int(adh["pago_mas"].sum()) if len(adh) else 0
+    sobre = float(mej["sobrecosto"].sum()) if len(mej) else 0.0
+    out.append(pan.vs_cotizado(pct, n, p_last, p_prev, t, exceso, n_mas, pct_mejor, n_mejor, sobre))
     return out
 
 

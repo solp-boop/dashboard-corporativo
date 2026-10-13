@@ -210,6 +210,42 @@ def adherencia(hist: pd.DataFrame, cot: pd.DataFrame | None, desde: pd.Timestamp
     return g.reset_index(drop=True)[cols].sort_values("exceso", ascending=False)
 
 
+def vs_mejor(hist: pd.DataFrame, cot: pd.DataFrame | None) -> pd.DataFrame:
+    """Cada embarque marítimo contra la tarifa MÁS BAJA que teníamos cotizada al zarpe (ETD) para ese puerto y
+    contenedor, de cualquier agente (incluido el elegido). sobrecosto = (pagado − mejor) × contenedores, solo si
+    pagamos más. Responde «¿elegimos bien?»."""
+    cols = ["embarque", "etd", "forwarder", "puerto", "tipo_ctnr", "contenedores", "pagado", "mejor", "mejor_agente",
+            "dif_pct", "sobrecosto"]
+    if hist is None or hist.empty or cot is None or cot.empty:
+        return pd.DataFrame(columns=cols)
+    x = hist[(hist["flete_por_ctnr"] > 0) & hist["tipo_ctnr"].notna()]
+    x = x.assign(_p=x["puerto"].map(fold), _d=x["etd"]).reset_index()
+    c = cot.assign(_p=cot["puerto"].map(fold))
+    keys = ["_p", "tipo_ctnr"] + (["destino"] if "destino" in c and "destino" in x else [])
+    m = x[keys + ["index", "_d"]].merge(c[keys + ["forwarder", "validez_desde", "validez_hasta", "flete"]],
+                                        on=keys, how="inner")
+    m = m[(m["_d"] >= m["validez_desde"]) & (m["_d"] <= m["validez_hasta"]) & (m["flete"] > 0)]
+    if m.empty:
+        return pd.DataFrame(columns=cols)
+    best = m.sort_values("flete").drop_duplicates("index").set_index("index")[["flete", "forwarder"]] \
+        .rename(columns={"flete": "mejor", "forwarder": "mejor_agente"})
+    g = best.join(x.set_index("index"))
+    g["pagado"] = g["flete_por_ctnr"]
+    g["dif_pct"] = g["pagado"] / g["mejor"] - 1
+    g["sobrecosto"] = ((g["pagado"] - g["mejor"]).clip(lower=0) * g["contenedores"].fillna(1))
+    return g.reset_index(drop=True)[cols]
+
+
+def ponderado(d: pd.DataFrame, ref: str) -> tuple[float, int]:
+    """(Σ pagado × cont − Σ ref × cont) / Σ ref × cont y n embarques: pagado vs una referencia por contenedor."""
+    if d is None or d.empty:
+        return np.nan, 0
+    d = d.dropna(subset=["pagado", ref])
+    w = d["contenedores"].fillna(1)
+    base = float((d[ref] * w).sum())
+    return ((float((d["pagado"] * w).sum()) - base) / base if base else np.nan), int(len(d))
+
+
 def adherencia_por_agente(a: pd.DataFrame) -> pd.DataFrame:
     if a.empty:
         return pd.DataFrame(columns=["forwarder", "embarques", "pago_mas", "pct", "exceso", "dif_med"])
