@@ -120,3 +120,19 @@ def test_equipos_espacio_vacio_imo():
     assert ev["bajos"] == 1 and ev["usd_vacio"] == 2000
     imo = cs.imo_sobrecosto(h)
     assert imo["n_celdas"] == 1 and imo["dif_med"] == 1000
+
+
+def test_pagado_vs_cotizado_usa_la_tarifa_del_agente_mas_cercana():
+    import pandas as pd
+    from utils import oportunidades as op
+    h = pd.DataFrame({"embarque": ["E1", "E2"], "etd": pd.to_datetime(["2026-09-05", "2026-09-20"]),
+                      "forwarder": ["F1", "F1"], "puerto": ["Ningbo", "Ningbo"], "tipo_ctnr": ["40ST/40HQ"] * 2,
+                      "contenedores": [2, 1], "flete_por_ctnr": [1050.0, 900.0]})
+    cot = pd.DataFrame({"forwarder": ["F1", "F1", "F2"], "puerto": ["Ningbo"] * 3, "tipo_ctnr": ["40ST/40HQ"] * 3,
+                        "validez_desde": pd.to_datetime(["2026-09-01"] * 3),
+                        "validez_hasta": pd.to_datetime(["2026-09-30"] * 3), "flete": [1000.0, 1300.0, 800.0]})
+    d = op.pagado_vs_cotizado(h, cot).set_index("embarque")
+    assert d.loc["E1", "cotizado_ctnr"] == 1000 and d.loc["E1", "pagado"] == 2100 and d.loc["E1", "cotizado"] == 2000
+    assert d.loc["E2", "cotizado_ctnr"] == 1000                      # no usa la de otro agente (800)
+    m = op.pagado_vs_cotizado_mes(op.pagado_vs_cotizado(h, cot))
+    assert m.iloc[0]["pagado"] == 3000 and m.iloc[0]["cotizado"] == 3000 and m.iloc[0]["pct"] == 0

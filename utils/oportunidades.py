@@ -210,6 +210,46 @@ def adherencia(hist: pd.DataFrame, cot: pd.DataFrame | None, desde: pd.Timestamp
     return g.reset_index(drop=True)[cols].sort_values("exceso", ascending=False)
 
 
+def pagado_vs_cotizado(hist: pd.DataFrame, cot: pd.DataFrame | None) -> pd.DataFrame:
+    """Cada embarque marítimo con la tarifa de SU agente (mismo puerto, contenedor y destino) vigente a la ETD.
+    Si el agente tenía varias (líneas o servicios), se toma la más cercana a lo pagado: es la que se usó.
+    Columnas en USD totales del embarque (por contenedor × contenedores)."""
+    cols = ["embarque", "etd", "mes", "forwarder", "puerto", "tipo_ctnr", "contenedores", "pagado_ctnr",
+            "cotizado_ctnr", "pagado", "cotizado", "dif", "dif_pct"]
+    if hist is None or hist.empty or cot is None or cot.empty:
+        return pd.DataFrame(columns=cols)
+    x = hist[(hist["flete_por_ctnr"] > 0) & hist["tipo_ctnr"].notna()]
+    x = x.assign(_f=x["forwarder"].map(fold), _p=x["puerto"].map(fold), _d=x["etd"]).reset_index()
+    c = cot.assign(_f=cot["forwarder"].map(fold), _p=cot["puerto"].map(fold))
+    keys = ["_f", "_p", "tipo_ctnr"] + (["destino"] if "destino" in c and "destino" in x else [])
+    m = x[keys + ["index", "_d", "flete_por_ctnr"]].merge(c[keys + ["validez_desde", "validez_hasta", "flete"]],
+                                                         on=keys, how="inner")
+    m = m[(m["_d"] >= m["validez_desde"]) & (m["_d"] <= m["validez_hasta"]) & (m["flete"] > 0)]
+    if m.empty:
+        return pd.DataFrame(columns=cols)
+    m = m.assign(_dist=(m["flete"] - m["flete_por_ctnr"]).abs()).sort_values("_dist").drop_duplicates("index")
+    g = m.set_index("index")[["flete"]].rename(columns={"flete": "cotizado_ctnr"}).join(x.set_index("index"))
+    w = g["contenedores"].fillna(1)
+    g["pagado_ctnr"] = g["flete_por_ctnr"]
+    g["pagado"] = g["pagado_ctnr"] * w
+    g["cotizado"] = g["cotizado_ctnr"] * w
+    g["dif"] = g["pagado"] - g["cotizado"]
+    g["dif_pct"] = g["pagado_ctnr"] / g["cotizado_ctnr"] - 1
+    g["mes"] = g["etd"].dt.to_period("M").dt.to_timestamp()
+    return g.reset_index(drop=True)[cols].sort_values("etd")
+
+
+def pagado_vs_cotizado_mes(d: pd.DataFrame) -> pd.DataFrame:
+    """Por mes de ETD: embarques, contenedores, pagado, cotizado, diferencia USD y % (pagado / cotizado − 1)."""
+    if d is None or d.empty:
+        return pd.DataFrame(columns=["mes", "embarques", "contenedores", "pagado", "cotizado", "dif", "pct"])
+    g = d.groupby("mes").agg(embarques=("embarque", "size"), contenedores=("contenedores", "sum"),
+                             pagado=("pagado", "sum"), cotizado=("cotizado", "sum")).reset_index()
+    g["dif"] = g["pagado"] - g["cotizado"]
+    g["pct"] = g["pagado"] / g["cotizado"] - 1
+    return g
+
+
 def vs_mejor(hist: pd.DataFrame, cot: pd.DataFrame | None) -> pd.DataFrame:
     """Cada embarque marítimo contra la tarifa MÁS BAJA que teníamos cotizada al zarpe (ETD) para ese puerto y
     contenedor, de cualquier agente (incluido el elegido). sobrecosto = (pagado − mejor) × contenedores, solo si

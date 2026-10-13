@@ -103,7 +103,7 @@ def render() -> None:
         if h_all is not None and len(h_all):
             m = _motor(bundle, filters, h_all)
     # Una sola botonera con la pregunta que responde cada vista (antes eran dos niveles de pestañas).
-    vista = _navegacion(bundle, p, m, t)
+    vista = _navegacion(bundle, p, m, t, h_all)
     if vista == "gasto":
         _gasto(bundle, h, a, p, p_all, p_prev, h_all, ventana)
     elif vista == "captura":
@@ -130,7 +130,7 @@ VISTAS = {
 VISTAS_ALIAS = {"tarifas": "hacer", "validacion": "cobro"}
 
 
-def _navegacion(bundle, p, m, t) -> str:
+def _navegacion(bundle, p, m, t, h_all=None) -> str:
     """Tarjetas con la pregunta de cada vista y su dato principal: se ve de un vistazo dónde entrar."""
     pedida = st.query_params.get("vista")
     pedida = VISTAS_ALIAS.get(pedida, pedida)
@@ -151,6 +151,12 @@ def _navegacion(bundle, p, m, t) -> str:
             rec = adh[adh["etd"] >= t - pd.Timedelta(days=90)] if len(adh) else adh
             datos["cobro"] = (f"{fmt.fmt_usd(float(rec['exceso'].sum()))} cobrados de más (90 días) · validación"
                               if len(rec) else "validación de fletes")
+        _, _, pvc = _pvc(bundle, h_all, t)
+        cerr = pvc[pvc["mes"] < t.to_period("M").to_timestamp()] if len(pvc) else pvc
+        if len(cerr):
+            u = cerr.iloc[-1]
+            datos["cobro"] = (f"pagado vs cotizado {fmt.fmt_month(u['mes'])}: {fmt.fmt_pct(u['pct'], 1, signed=True)}"
+                              + (" · " + datos["cobro"].split(" · ")[0] if datos["cobro"] else ""))
         mm = memo(bundle, ("mercado_mes", "40ST/40HQ", t),
                   lambda: cs.mercado_mes(bundle.get("cotizaciones"), "40ST/40HQ", t))
         cerrados = mm[mm["mes"] < t.to_period("M").to_timestamp()] if len(mm) else mm
@@ -795,6 +801,8 @@ def _tarifas(bundle, h, m=None, h_all=None, a=None, sub: str = "hacer") -> None:
             cotizaciones.render()
         return
     if sub == "negociacion":
+        with guard("Pagado vs cotizado"):
+            _pagado_vs_cotizado(bundle, h_all, t)
         _adherencia(m)
         _validacion(h, a)
         return
@@ -876,6 +884,84 @@ def _tarifas(bundle, h, m=None, h_all=None, a=None, sub: str = "hacer") -> None:
                 ColSpec("accion", "Acción", width="large"),
                 ColSpec("motivo_no_comparable", "Menor no comparable"),
             ], key=f"co_oport_{ver}", filename=f"oportunidades_{t:%Y%m%d}", search=len(o) > 12)
+
+
+def _pvc(bundle, h_all, t: pd.Timestamp):
+    """(base 12 meses, detalle por embarque, resumen mensual) de pagado vs cotizado; memoizado por carga y filtros."""
+    desde = t.to_period("M").to_timestamp() - pd.DateOffset(months=12)
+    base = h_all[h_all["etd"] >= desde] if h_all is not None and len(h_all) else pd.DataFrame()
+    if base.empty:
+        return base, pd.DataFrame(), pd.DataFrame()
+    d = memo(bundle, ("pagado_vs_cotizado", t, len(base), float(base["flete_pagado"].sum())),
+             lambda: oport.pagado_vs_cotizado(base, bundle.get("cotizaciones")))
+    return base, d, oport.pagado_vs_cotizado_mes(d)
+
+def _pagado_vs_cotizado(bundle, h_all, t: pd.Timestamp) -> None:
+    """Indicador mensual del equipo: cuánto pagamos vs cuánto cotizamos, en USD y %."""
+    section("Pagado vs cotizado · mes a mes",
+            "Marítimos zarpados, por mes de ETD. Cotizado = la tarifa de «Cotizaciones Maritimos Negociado» del MISMO "
+            "agente para ese puerto y contenedor, vigente al zarpe (si tenía varias, la más cercana a lo pagado: la "
+            "que se usó). Pagado = «Flete Int PAGADO». Ambos en USD (por contenedor × contenedores). % = pagado / "
+            "cotizado − 1: positivo = pagamos más de lo cotizado. Solo entran los embarques que tienen su cotización.")
+    if h_all is None or h_all.empty:
+        empty()
+        return
+    base, d, m = _pvc(bundle, h_all, t)
+    if m.empty:
+        empty("Sin embarques con su cotización vigente al zarpe.")
+        return
+    actual = t.to_period("M").to_timestamp()
+    cerr = m[m["mes"] < actual]
+    ult = cerr.iloc[-1] if len(cerr) else m.iloc[-1]
+    ant = cerr.iloc[-2] if len(cerr) > 1 else None
+    anio = m[m["mes"].dt.year == t.year]
+    pa, co = float(anio["pagado"].sum()), float(anio["cotizado"].sum())
+    cobertura = len(d) / len(base) if len(base) else np.nan
+    kpi_row([
+        KPI(f"{fmt.fmt_month(ult['mes'], long=True)}", fmt.fmt_pct(ult["pct"], 1, signed=True),
+            status="ok" if ult["pct"] <= 0.01 else "warn" if ult["pct"] <= settings.PAGADO_VS_MERCADO_TOLERANCIA else "bad",
+            sub=f"pagado {fmt.fmt_usd(ult['pagado'])} vs cotizado {fmt.fmt_usd(ult['cotizado'])} · "
+                f"{fmt.fmt_int(ult['embarques'])} embarques",
+            delta=(f"{'▲' if ult['pct'] > ant['pct'] else '▼'} {abs(ult['pct'] - ant['pct']) * 100:.1f} pp vs "
+                   f"{fmt.fmt_month(ant['mes'], long=True)}") if ant is not None else "",
+            tono=("bad" if ult["pct"] > ant["pct"] else "good") if ant is not None else ""),
+        KPI(f"Año {t.year}", fmt.fmt_pct(pa / co - 1 if co else np.nan, 1, signed=True),
+            sub=f"pagado {fmt.fmt_usd(pa)} vs cotizado {fmt.fmt_usd(co)}"),
+        KPI(f"Diferencia {t.year}", fmt.fmt_usd(pa - co), sub="negativo = pagamos menos de lo cotizado"),
+        KPI("Cobertura", fmt.fmt_pct(cobertura), sub=f"{fmt.fmt_int(len(d))} de {fmt.fmt_int(len(base))} embarques "
+                                                       "de 12 meses tienen su cotización"),
+    ])
+    c1, c2 = st.columns([1, 1], gap="medium")
+    with c1:
+        tabla = m.assign(mes_txt=[fmt.fmt_month(x) + ("*" if x == actual else "") for x in m["mes"]])
+        data_table(tabla.iloc[::-1], [
+            ColSpec("mes_txt", "Mes"), ColSpec("pct", "%", "pct"), ColSpec("pagado", "Pagado (USD)", "usd"),
+            ColSpec("cotizado", "Cotizado (USD)", "usd"), ColSpec("dif", "Diferencia", "usd"),
+            ColSpec("embarques", "Emb.", "int"),
+        ], key="co_pvc_mes", filename=f"pagado_vs_cotizado_{t:%Y%m%d}", search=False,
+            height=min(500, 38 + 35 * len(m)))
+        solo_descarga(d.sort_values("etd", ascending=False), [
+            ColSpec("embarque", "Embarque"), ColSpec("etd", "ETD", "date"), ColSpec("forwarder", "Agente"),
+            ColSpec("puerto", "Puerto"), ColSpec("tipo_ctnr", "Tipo"), ColSpec("contenedores", "Cont.", "int"),
+            ColSpec("pagado_ctnr", "Pagado / cont.", "usd"), ColSpec("cotizado_ctnr", "Cotizado / cont.", "usd"),
+            ColSpec("pagado", "Pagado (USD)", "usd"), ColSpec("cotizado", "Cotizado (USD)", "usd"),
+            ColSpec("dif", "Diferencia (USD)", "usd"), ColSpec("dif_pct", "%", "pct"),
+        ], key="co_pvc_det", filename=f"pagado_vs_cotizado_detalle_{t:%Y%m%d}",
+            label="Descargar detalle por embarque")
+    with c2:
+        chart_title("% pagado vs cotizado", "Por mes de ETD · * mes en curso")
+        fig = go.Figure(go.Bar(
+            x=[fmt.fmt_month(x) + ("*" if x == actual else "") for x in m["mes"]], y=m["pct"] * 100,
+            marker=dict(color=[settings.COLORS["red"] if v > 0.01 else settings.COLORS["green"] for v in m["pct"]],
+                        cornerradius=3),
+            text=[fmt.fmt_pct(v, 1, signed=True) for v in m["pct"]], textposition="outside", cliponaxis=False,
+            textfont=dict(size=11), constraintext="none",
+            hovertemplate="%{x}: %{y:.1f} %<extra></extra>"))
+        charts.theme(fig, y_title="%", y_suffix=" %", height=max(360, 35 * len(m) + 60), legend=False)
+        lo, hi = float(m["pct"].min() * 100), float(m["pct"].max() * 100)
+        fig.update_yaxes(rangemode="normal", zeroline=True, zerolinecolor=settings.COLORS["slate"],
+                         range=[min(lo, 0) - 2.5, max(hi, 0) + 2.5])
+        charts.show(fig, key="co_pvc_chart")
 
 
 def _adherencia(m) -> None:
