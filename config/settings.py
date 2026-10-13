@@ -282,3 +282,24 @@ OPORT_SUBA = 0.10              # alerta si la menor comparable de la ruta sube >
 OPORT_SOBRE_HISTORICO = 0.15   # alerta si la mediana pagada del mes supera en > 15 % la de los 6 meses previos
 OPORT_ADHERENCIA_TOL = 0.02    # pagó más que su cotización si supera en > 2 %
 OPORT_MIN_N = 5                # menos observaciones = confianza baja (sin color)
+
+
+# --------------------------------------------------------------------------
+# Equipo y agentes (views/equipo.py, utils/equipo.py)
+# --------------------------------------------------------------------------
+# Desvío de ETD que se considera reprogramación relevante (ETD real − ETD estimada, días).
+EQ_DESVIO_DIAS = 7
+# Margen bajo el objetivo de cumplimiento que todavía es amarillo (10 pp).
+EQ_MARGEN_PP = 0.10
+# Caída de cumplimiento de un agente contra el período anterior que pide revisión (10 pp).
+EQ_DETERIORO_PP = 0.10
+# Un agente es «lento» si su mediana instrucción → ETD supera en este % a la del total.
+EQ_LENTO_PCT = 0.25
+# Carga concentrada: un analista con más de esta parte de los embarques en curso.
+EQ_CONCENTRACION = 0.40
+# Semáforos de salud operativa (verde hasta, amarillo hasta; más = rojo). Proporciones.
+EQ_SALUD = {
+    "alta": (0.10, 0.25),      # embarques en curso con un caso de prioridad alta en la Bandeja
+    "sin_ok": (0.25, 0.50),    # ETD de los próximos días sin «ETD OK FFWW»
+    "desvio": (0.20, 0.35),    # zarpados que salieron > EQ_DESVIO_DIAS después de la ETD estimada
+}
