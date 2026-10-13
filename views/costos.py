@@ -42,7 +42,15 @@ def _ventana_prev(filters, t):
 
 
 def _datos(bundle, filters, use_period=True):
+    """Marítimos zarpados con flete (con la referencia de cotizaciones del mes), aéreos y pagos. Memoizado por carga,
+    día y filtros: al cambiar de tarjeta no se recalcula."""
     t = today()
+    clave = ("costos_datos", use_period, t, filters.start if use_period else None, filters.end if use_period else None,
+             tuple(sorted((k, tuple(v)) for k, v in filters.selections.items() if v)))
+    return memo(bundle, clave, lambda: _datos_calc(bundle, filters, use_period, t))
+
+
+def _datos_calc(bundle, filters, use_period, t):
     h = filtered(bundle, "historicas", filters, use_period=use_period)
     a = filtered(bundle, "aereos", filters, use_period=use_period) if bundle.get("aereos") is not None else None
     if h is not None:

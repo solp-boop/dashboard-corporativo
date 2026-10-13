@@ -777,48 +777,94 @@ def _code_version() -> str:
     return h.hexdigest()[:12]
 
 
-@st.cache_resource(ttl=settings.CACHE_TTL_SECONDS, max_entries=1, show_spinner="Cargando datos de la planilla…")
-def _load_bundle(code_version: str = "") -> DataBundle:
-    """Una sola carga compartida por todos los usuarios hasta que vence el TTL.
-
-    Se usa cache_resource (y no cache_data) para no copiar los DataFrames en
-    cada interacción: las vistas nunca modifican estos objetos, solo filtran
-    (apply_filters siempre devuelve una copia).
-    """
-    bundle = build_bundle(make_source())
+def _cargar(source: SheetSource, code_version: str) -> DataBundle:
+    bundle = build_bundle(source)
     bundle.code_version = code_version
     if not bundle.datasets:
-        # Una excepción no queda cacheada: se reintenta en la próxima interacción.
         raise SourceError(" ".join(bundle.errors) or "No se pudo cargar ningún dataset.")
     return bundle
 
 
 @st.cache_resource(show_spinner=False)
 def _last_good() -> dict:
+    """Carga compartida por todos los usuarios del proceso: {bundle, cargado (epoch), forzar, recargando}."""
     return {}
 
 
-def get_data() -> DataBundle:
-    """Datos normalizados. Si la fuente falla, devuelve la última carga válida."""
-    store = _last_good()
-    try:
-        bundle = _load_bundle(_code_version())
-        store["bundle"] = bundle
-        return bundle
-    except Exception as exc:
-        msg = str(exc) if isinstance(exc, SourceError) else f"Error inesperado al cargar los datos ({type(exc).__name__})."
-        log.exception("Fallo de carga")
-        prev = store.get("bundle")
-        if prev is not None and getattr(prev, "code_version", None) == _code_version():
-            import copy
+def _lock(store: dict):
+    import threading
+    return store.setdefault("lock", threading.Lock())
 
-            stale = copy.copy(prev)
-            stale.stale = True
-            stale.errors = [msg] + [e for e in prev.errors if e != msg]
-            return stale
-        raise SourceError(msg) from exc
+
+def _recargar_en_fondo(store: dict, source: SheetSource, version: str) -> None:
+    """Relee la planilla en otro hilo y reemplaza la carga al terminar: nadie espera los ~15 s de Google Sheets.
+    Si falla, se sigue usando la carga anterior (se reintenta al próximo vencimiento)."""
+    import time
+    try:
+        nuevo = _cargar(source, version)
+        with _lock(store):
+            if not store.get("forzar"):
+                store.update(bundle=nuevo, cargado=time.time(), error=None)
+    except Exception as exc:  # noqa: BLE001
+        log.exception("Fallo de la recarga en segundo plano; se mantiene la carga anterior")
+        store["error"] = str(exc) if isinstance(exc, SourceError) else \
+            f"Error inesperado al cargar los datos ({type(exc).__name__})."
+        store["cargado"] = time.time() - settings.CACHE_TTL_SECONDS + 300   # reintenta en 5 minutos
+    finally:
+        store["recargando"] = False
+
+
+def get_data() -> DataBundle:
+    """Datos normalizados, compartidos por todos los usuarios.
+
+    - Primera carga, código nuevo o «Actualizar datos»: se lee la planilla y se espera.
+    - Vencido el TTL: se sigue mostrando la carga actual y se relee en segundo plano (stale-while-revalidate), así
+      la primera persona después de cada vencimiento no espera.
+    - Si la fuente falla, se devuelve la última carga válida (marcada como desactualizada)."""
+    import time
+    store = _last_good()
+    version = _code_version()
+    actual = store.get("bundle")
+    vigente = actual is not None and getattr(actual, "code_version", None) == version
+    if vigente and not store.get("forzar"):
+        if time.time() - store.get("cargado", 0) > settings.CACHE_TTL_SECONDS and not store.get("recargando"):
+            import threading
+            store["recargando"] = True
+            try:
+                threading.Thread(target=_recargar_en_fondo, args=(store, make_source(), version), daemon=True).start()
+            except Exception:  # noqa: BLE001
+                store["recargando"] = False
+                log.exception("No se pudo iniciar la recarga en segundo plano")
+        return _desactualizada(actual, store["error"]) if store.get("error") else actual
+    with _lock(store):
+        actual = store.get("bundle")
+        vigente = actual is not None and getattr(actual, "code_version", None) == version
+        if vigente and not store.get("forzar"):
+            return actual            # otro usuario la cargó mientras esperábamos
+        try:
+            with st.spinner("Cargando datos de la planilla…"):
+                nuevo = _cargar(make_source(), version)
+            store.update(bundle=nuevo, cargado=time.time(), forzar=False, error=None)
+            return nuevo
+        except Exception as exc:
+            store["forzar"] = False
+            msg = str(exc) if isinstance(exc, SourceError) else f"Error inesperado al cargar los datos ({type(exc).__name__})."
+            log.exception("Fallo de carga")
+            if vigente:
+                store["error"] = msg
+                return _desactualizada(actual, msg)
+            raise SourceError(msg) from exc
+
+
+def _desactualizada(bundle: DataBundle, msg: str) -> DataBundle:
+    """Copia liviana de la última carga válida, marcada como desactualizada (la vista muestra el aviso)."""
+    import copy
+    stale = copy.copy(bundle)
+    stale.stale = True
+    stale.errors = [msg] + [e for e in bundle.errors if e != msg]
+    return stale
 
 
 def clear_cache() -> None:
-    """Botón "Actualizar datos": fuerza una nueva lectura de la fuente."""
-    _load_bundle.clear()
+    """Botón "Actualizar datos": la próxima consulta relee la planilla (y espera) en vez de usar la carga actual."""
+    _last_good()["forzar"] = True
