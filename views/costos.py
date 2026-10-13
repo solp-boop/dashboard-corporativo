@@ -159,11 +159,11 @@ def _navegacion(bundle, p, m, t, h_all=None) -> str:
             rec = adh[adh["etd"] >= t - pd.Timedelta(days=90)] if len(adh) else adh
             datos["cobro"] = (f"{fmt.fmt_usd(float(rec['exceso'].sum()))} cobrados de más (90 días) · validación"
                               if len(rec) else "validación de fletes")
-        _, _, pvc = _pvc(bundle, h_all, t)
-        cerr = pvc[pvc["mes"] < t.to_period("M").to_timestamp()] if len(pvc) else pvc
-        if len(cerr):
+        pf = _perf(bundle)
+        cerr = pf[(pf["mes"] < t.to_period("M").to_timestamp()) & (pf["tipo"] == "40ST/40HQ")] if len(pf) else pf
+        if len(cerr) and cerr.iloc[-1]["variacion"] == cerr.iloc[-1]["variacion"]:
             u = cerr.iloc[-1]
-            datos["cobro"] = (f"pagado vs cotizado {fmt.fmt_month(u['mes'])}: {fmt.fmt_pct(u['pct'], 1, signed=True)}"
+            datos["cobro"] = (f"40ST/HQ {fmt.fmt_month(u['mes'])}: {fmt.fmt_pct(u['variacion'], signed=True)} vs negociado"
                               + (" · " + datos["cobro"].split(" · ")[0] if datos["cobro"] else ""))
         mm = memo(bundle, ("mercado_mes", "40ST/40HQ", t),
                   lambda: cs.mercado_mes(bundle.get("cotizaciones"), "40ST/40HQ", t))
@@ -809,8 +809,8 @@ def _tarifas(bundle, h, m=None, h_all=None, a=None, sub: str = "hacer") -> None:
             cotizaciones.render()
         return
     if sub == "negociacion":
-        with guard("Pagado vs cotizado"):
-            _pagado_vs_cotizado(bundle, h_all, t)
+        with guard("Performance de fletes"):
+            _performance(bundle, t)
         _adherencia(m)
         _validacion(h, a)
         return
@@ -894,83 +894,77 @@ def _tarifas(bundle, h, m=None, h_all=None, a=None, sub: str = "hacer") -> None:
             ], key=f"co_oport_{ver}", filename=f"oportunidades_{t:%Y%m%d}", search=len(o) > 12)
 
 
-def _pvc(bundle, h_all, t: pd.Timestamp):
-    """(base 12 meses, detalle por embarque, resumen mensual) de pagado vs cotizado; memoizado por carga y filtros."""
-    desde = t.to_period("M").to_timestamp() - pd.DateOffset(months=12)
-    base = h_all[h_all["etd"] >= desde] if h_all is not None and len(h_all) else pd.DataFrame()
-    if base.empty:
-        return base, pd.DataFrame(), pd.DataFrame()
-    d = memo(bundle, ("pagado_vs_cotizado", t, len(base), float(base["flete_pagado"].sum())),
-             lambda: oport.pagado_vs_cotizado(base, bundle.get("cotizaciones")))
-    return base, d, oport.pagado_vs_cotizado_mes(d)
+def _perf(bundle) -> pd.DataFrame:
+    """Reporte «pagado vs negociado» de todos los meses (sin filtros: es el número que presenta el equipo)."""
+    return memo(bundle, "performance_fletes",
+                lambda: cs.performance_fletes(bundle.get("historicas"), bundle.get("cotizaciones")))
 
-def _pagado_vs_cotizado(bundle, h_all, t: pd.Timestamp) -> None:
-    """Indicador mensual del equipo: cuánto pagamos vs cuánto cotizamos, en USD y %."""
-    section("Pagado vs cotizado · mes a mes",
-            "Marítimos zarpados, por mes de ETD. Cotizado = la tarifa de «Cotizaciones Maritimos Negociado» del MISMO "
-            "agente para ese puerto y contenedor, vigente al zarpe (si tenía varias, la más cercana a lo pagado: la "
-            "que se usó). Pagado = «Flete Int PAGADO». Ambos en USD (por contenedor × contenedores). % = pagado / "
-            "cotizado − 1: positivo = pagamos más de lo cotizado. Solo entran los embarques que tienen su cotización.")
-    if h_all is None or h_all.empty:
+
+def _performance(bundle, t: pd.Timestamp) -> None:
+    """«Performance de fletes — pagado vs negociado»: el reporte mensual del equipo, por tipo de contenedor."""
+    section("Performance de fletes — pagado vs negociado",
+            "Marítimos zarpados del mes (por ETD), por tipo de contenedor. Flete pagado = mediana de lo pagado por "
+            "contenedor. Flete negociado = mediana de «Cotizaciones Maritimos Negociado» con validez de ese mes, ese "
+            "contenedor y destino Argentina. Variación = pagado / negociado − 1 (negativo = pagamos menos). "
+            "% certificación = mediana de flete certificado / flete pagado. Toda la planilla (sin filtros).")
+    pf = _perf(bundle)
+    if pf.empty:
         empty()
         return
-    base, d, m = _pvc(bundle, h_all, t)
-    if m.empty:
-        empty("Sin embarques con su cotización vigente al zarpe.")
-        return
     actual = t.to_period("M").to_timestamp()
-    cerr = m[m["mes"] < actual]
-    ult = cerr.iloc[-1] if len(cerr) else m.iloc[-1]
-    ant = cerr.iloc[-2] if len(cerr) > 1 else None
-    anio = m[m["mes"].dt.year == t.year]
-    pa, co = float(anio["pagado"].sum()), float(anio["cotizado"].sum())
-    cobertura = len(d) / len(base) if len(base) else np.nan
-    kpi_row([
-        KPI(f"{fmt.fmt_month(ult['mes'], long=True)}", fmt.fmt_pct(ult["pct"], 1, signed=True),
-            status="ok" if ult["pct"] <= 0.01 else "warn" if ult["pct"] <= settings.PAGADO_VS_MERCADO_TOLERANCIA else "bad",
-            sub=f"pagado {fmt.fmt_usd(ult['pagado'])} vs cotizado {fmt.fmt_usd(ult['cotizado'])} · "
-                f"{fmt.fmt_int(ult['embarques'])} embarques",
-            delta=(f"{'▲' if ult['pct'] > ant['pct'] else '▼'} {abs(ult['pct'] - ant['pct']) * 100:.1f} pp vs "
-                   f"{fmt.fmt_month(ant['mes'], long=True)}") if ant is not None else "",
-            tono=("bad" if ult["pct"] > ant["pct"] else "good") if ant is not None else ""),
-        KPI(f"Año {t.year}", fmt.fmt_pct(pa / co - 1 if co else np.nan, 1, signed=True),
-            sub=f"pagado {fmt.fmt_usd(pa)} vs cotizado {fmt.fmt_usd(co)}"),
-        KPI(f"Diferencia {t.year}", fmt.fmt_usd(pa - co), sub="negativo = pagamos menos de lo cotizado"),
-        KPI("Cobertura", fmt.fmt_pct(cobertura), sub=f"{fmt.fmt_int(len(d))} de {fmt.fmt_int(len(base))} embarques "
-                                                       "de 12 meses tienen su cotización"),
-    ])
-    c1, c2 = st.columns([1, 1], gap="medium")
-    with c1:
-        tabla = m.assign(mes_txt=[fmt.fmt_month(x) + ("*" if x == actual else "") for x in m["mes"]])
-        data_table(tabla.iloc[::-1], [
-            ColSpec("mes_txt", "Mes"), ColSpec("pct", "%", "pct"), ColSpec("pagado", "Pagado (USD)", "usd"),
-            ColSpec("cotizado", "Cotizado (USD)", "usd"), ColSpec("dif", "Diferencia", "usd"),
-            ColSpec("embarques", "Emb.", "int"),
-        ], key="co_pvc_mes", filename=f"pagado_vs_cotizado_{t:%Y%m%d}", search=False,
-            height=min(500, 38 + 35 * len(m)))
-        solo_descarga(d.sort_values("etd", ascending=False), [
-            ColSpec("embarque", "Embarque"), ColSpec("etd", "ETD", "date"), ColSpec("forwarder", "Agente"),
-            ColSpec("puerto", "Puerto"), ColSpec("tipo_ctnr", "Tipo"), ColSpec("contenedores", "Cont.", "int"),
-            ColSpec("pagado_ctnr", "Pagado / cont.", "usd"), ColSpec("cotizado_ctnr", "Cotizado / cont.", "usd"),
-            ColSpec("pagado", "Pagado (USD)", "usd"), ColSpec("cotizado", "Cotizado (USD)", "usd"),
-            ColSpec("dif", "Diferencia (USD)", "usd"), ColSpec("dif_pct", "%", "pct"),
-        ], key="co_pvc_det", filename=f"pagado_vs_cotizado_detalle_{t:%Y%m%d}",
-            label="Descargar detalle por embarque")
-    with c2:
-        chart_title("% pagado vs cotizado", "Por mes de ETD · * mes en curso")
-        fig = go.Figure(go.Bar(
-            x=[fmt.fmt_month(x) + ("*" if x == actual else "") for x in m["mes"]], y=m["pct"] * 100,
-            marker=dict(color=[settings.COLORS["red"] if v > 0.01 else settings.COLORS["green"] for v in m["pct"]],
-                        cornerradius=3),
-            text=[fmt.fmt_pct(v, 1, signed=True) for v in m["pct"]], textposition="outside", cliponaxis=False,
-            textfont=dict(size=11), constraintext="none",
-            hovertemplate="%{x}: %{y:.1f} %<extra></extra>"))
-        charts.theme(fig, y_title="%", y_suffix=" %", height=max(360, 35 * len(m) + 60), legend=False)
-        lo, hi = float(m["pct"].min() * 100), float(m["pct"].max() * 100)
-        fig.update_yaxes(rangemode="normal", zeroline=True, zerolinecolor=settings.COLORS["slate"],
-                         range=[min(lo, 0) - 2.5, max(hi, 0) + 2.5])
-        charts.show(fig, key="co_pvc_chart")
+    meses = sorted(pf["mes"].unique(), reverse=True)
+    cerrados = [m for m in meses if m < actual]
+    mes = st.selectbox("Mes", meses, index=meses.index(cerrados[0]) if cerrados else 0, key="co_perf_mes",
+                       format_func=lambda m: fmt.fmt_month(m, long=True) + (" (en curso)" if m == actual else ""))
+    r = pf[pf["mes"] == mes]
 
+    def var_td(v) -> str:
+        if v != v:
+            return "<td class='na'>—</td>"
+        cls = "ok" if v <= 0.005 else "bad"
+        return f"<td class='{cls}'>{fmt.fmt_pct(v, signed=True)}</td>"
+
+    filas = []
+    for _, x in r.iterrows():
+        tot = x["tipo"] == "TOTAL"
+        clase = ' class="tot"' if tot else ""
+        filas.append(f"<tr{clase}><th class='rowh'>{esc(x['tipo'])}</th>"
+                     f"<td>{fmt.fmt_int(x['embarques'])}</td>"
+                     f"<td>{fmt.fmt_usd(x['pagado'], compact=False)}</td>"
+                     f"<td>{'—' if tot else fmt.fmt_usd(x['negociado'], compact=False)}</td>"
+                     f"{'<td>—</td>' if tot else var_td(x['variacion'])}"
+                     f"<td>{fmt.fmt_pct(x['certificacion'])}</td></tr>")
+    st.markdown("<div class='scorecard matriz'><table><thead><tr><th>Tipo contenedor</th><th>Embarques</th>"
+                "<th>Flete pagado (mediana)</th><th>Flete negociado (mediana)</th><th>Variación vs negociado</th>"
+                "<th>% Certificación</th></tr></thead><tbody>" + "".join(filas) + "</tbody></table></div>",
+                unsafe_allow_html=True)
+
+    chart_title("Mes a mes · variación vs negociado", "Últimos 12 meses · pagado (mediana) / negociado (mediana) − 1")
+    ult = [m for m in sorted(pf["mes"].unique()) if m >= actual - pd.DateOffset(months=12)]
+    tipos = [x for x in cs.TIPOS_PERF if x in set(pf["tipo"])]
+    cab = "".join(f"<th>{esc(x)}</th>" for x in tipos)
+    cuerpo = []
+    for m in reversed(ult):
+        celdas = []
+        for tp in tipos:
+            x = pf[(pf["mes"] == m) & (pf["tipo"] == tp)]
+            if x.empty or x.iloc[0]["variacion"] != x.iloc[0]["variacion"]:
+                celdas.append("<td class='na'>—</td>")
+                continue
+            x = x.iloc[0]
+            cls = "ok" if x["variacion"] <= 0.005 else "bad"
+            celdas.append(f"<td class='{cls}'>{fmt.fmt_pct(x['variacion'], signed=True)}"
+                          f"<span class='n'>{fmt.fmt_usd(x['pagado'], compact=False)} vs "
+                          f"{fmt.fmt_usd(x['negociado'], compact=False)} · n={fmt.fmt_int(x['embarques'])}</span></td>")
+        cuerpo.append(f"<tr><th class='rowh'>{fmt.fmt_month(m, long=True)}{'*' if m == actual else ''}</th>"
+                      + "".join(celdas) + "</tr>")
+    st.markdown("<div class='scorecard matriz compact'><table><thead><tr><th>Mes ETD</th>" + cab + "</tr></thead>"
+                "<tbody>" + "".join(cuerpo) + "</tbody></table></div>", unsafe_allow_html=True)
+    solo_descarga(pf[pf["mes"].isin(ult)].assign(mes=pf["mes"].dt.strftime("%m/%Y")), [
+        ColSpec("mes", "Mes"), ColSpec("tipo", "Tipo contenedor"), ColSpec("embarques", "Embarques", "int"),
+        ColSpec("pagado", "Flete pagado (mediana)", "usd"), ColSpec("negociado", "Flete negociado (mediana)", "usd"),
+        ColSpec("variacion", "Variación vs negociado", "pct"), ColSpec("certificacion", "% Certificación", "pct"),
+    ], key="co_perf_dl", filename=f"performance_fletes_{t:%Y%m%d}", label="Descargar reporte")
 
 def _adherencia(m) -> None:
     t = today()

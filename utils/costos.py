@@ -135,6 +135,56 @@ def mercado_mes(cot: pd.DataFrame | None, tipo: str, hasta: pd.Timestamp) -> pd.
     return pd.DataFrame(rows, columns=cols)
 
 
+TIPOS_PERF = ["20ST", "40ST/40HQ", "40NOR"]
+
+
+def performance_fletes(h: pd.DataFrame | None, cot: pd.DataFrame | None, destino: str = "Argentina") -> pd.DataFrame:
+    """«Performance de fletes — pagado vs negociado» (reporte mensual del equipo), para todos los meses.
+
+    Por mes de ETD y tipo de contenedor (marítimos zarpados):
+    - embarques: todos los marítimos del mes de ese tipo.
+    - pagado: mediana de «Flete Int unitario PAGADO» (flete por contenedor) de los que tienen flete.
+    - negociado: mediana de «Valor Flete» de «Cotizaciones Maritimos Negociado» con «Validez Quincena Desde» en
+      ese mes, ese tipo y destino Argentina.
+    - variacion: pagado / negociado − 1.
+    - certificacion: mediana de (flete certificado / flete pagado) por embarque.
+    Fila tipo = «TOTAL»: embarques y mediana pagada de todos los tipos (sin negociado)."""
+    from config.mappings import MODOS_MARITIMOS
+    cols = ["mes", "tipo", "embarques", "pagado", "negociado", "variacion", "certificacion"]
+    if h is None or h.empty:
+        return pd.DataFrame(columns=cols)
+    d = h[h["modo"].isin(MODOS_MARITIMOS) & h["etd"].notna()].drop_duplicates("embarque")
+    d = d.assign(mes=d["etd"].dt.to_period("M").dt.to_timestamp())
+    con = d[d["flete_pagado"] > 0]
+    cert = (con["flete_certificado"] / con["flete_pagado"]).where(con["flete_certificado"].notna())
+    con = con.assign(_cert=cert)
+    neg = pd.Series(dtype=float)
+    if cot is not None and len(cot):
+        c = cot[(cot["flete"] > 0) & cot["validez_desde"].notna()]
+        if destino and "destino" in c:
+            c = c[c["destino"] == destino]
+        c = c.assign(mes=c["validez_desde"].dt.to_period("M").dt.to_timestamp())
+        neg = c.groupby(["mes", "tipo_ctnr"])["flete"].median()
+    rows = []
+    for mes, g in d.groupby("mes"):
+        gc = con[con["mes"] == mes]
+        for tipo in TIPOS_PERF:
+            n = int((g["tipo_ctnr"] == tipo).sum())
+            if not n:
+                continue
+            x = gc[gc["tipo_ctnr"] == tipo]
+            pag = float(x["flete_por_ctnr"].median()) if len(x) else np.nan
+            ng = float(neg.get((mes, tipo), np.nan))
+            rows.append({"mes": mes, "tipo": tipo, "embarques": n, "pagado": pag, "negociado": ng,
+                         "variacion": pag / ng - 1 if pag == pag and ng == ng and ng else np.nan,
+                         "certificacion": float(x["_cert"].median()) if x["_cert"].notna().any() else np.nan})
+        rows.append({"mes": mes, "tipo": "TOTAL", "embarques": int(g["tipo_ctnr"].isin(TIPOS_PERF).sum()),
+                     "pagado": float(gc["flete_por_ctnr"].median()) if len(gc) else np.nan, "negociado": np.nan,
+                     "variacion": np.nan,
+                     "certificacion": float(gc["_cert"].median()) if gc["_cert"].notna().any() else np.nan})
+    return pd.DataFrame(rows, columns=cols)
+
+
 def puente(prev: pd.DataFrame, cur: pd.DataFrame) -> dict:
     """Puente del flete marítimo pagado entre dos períodos: cuánto de la variación es volumen (más contenedores),
     mezcla (otro reparto entre 20 ST / 40 ST-HQ / 40 NOR) y precio (cada equipo más caro o más barato).
