@@ -154,6 +154,9 @@ def controles(bundle, today: pd.Timestamp) -> list[Control]:
     fm = formato(bundle)
     out: list[Control] = []
 
+    # 0 · Títulos de columna rotos o faltantes (#REF!, #N/A, columna que el tablero necesita y no está)
+    out.append(_encabezados(bundle))
+
     # 1 · Errores de fórmula
     rows = [{"solapa": r["solapa"], "registro": f"Columna «{r['campo']}»", "fecha": pd.NaT, "responsable": None,
              "detalle": f"{r['n']} celdas con {r['tipo_txt'].split('(')[-1].rstrip(')')} · {_lista_filas(r['filas'])}".rstrip(" ·")}
@@ -300,6 +303,52 @@ def controles(bundle, today: pd.Timestamp) -> list[Control]:
                        "Tablero LI", "Actualizar la planilla", "warn", pd.DataFrame(rows, columns=COLS),
                        disponible=mod is not None, columna="—"))
     return out
+
+
+# Columnas opcionales que el tablero ya sabe leer pero todavía no existen en la planilla: no son un error.
+COLUMNAS_FUTURAS = {"Prioridad"}
+
+
+def _encabezados(bundle) -> Control:
+    """Fila de títulos de cada solapa: títulos con error de fórmula, títulos duplicados y columnas que el tablero
+    usa y no encuentra (obligatorias = sin ellas no carga la solapa; opcionales = ese dato queda vacío)."""
+    import re
+    from services.google_sheets import col_letter
+    error = re.compile(r"#(N/?A|N/D|REF!?|VALUE!?|VALOR!?|DIV/0!?|NUM!?|NULL!?|ERROR!?|NAME\??|NOMBRE\??)",
+                       re.IGNORECASE)
+    rows = []
+    for key, q in (getattr(bundle, "quality", {}) or {}).items():
+        sol = q.tab or q.title
+        if q.message and not q.tab:                       # la solapa no se encontró
+            rows.append({"solapa": q.title, "registro": "Solapa", "fecha": pd.NaT, "responsable": None,
+                         "detalle": q.message})
+            continue
+        vistos: dict[str, list[str]] = {}
+        for i, h in enumerate(q.headers or []):
+            txt = "" if h is None else str(h).strip()
+            if txt and error.search(txt):
+                rows.append({"solapa": sol, "registro": f"Columna {col_letter(i)}", "fecha": pd.NaT,
+                             "responsable": None, "detalle": f"El título tiene un error: «{txt}»"})
+            elif txt:
+                vistos.setdefault(txt.casefold(), []).append(col_letter(i))
+        for nombre in q.missing_required:
+            rows.append({"solapa": sol, "registro": f"Columna «{nombre}»", "fecha": pd.NaT, "responsable": None,
+                         "detalle": "Falta (obligatoria): sin esta columna la solapa no se carga en el tablero"})
+        for nombre in q.missing_optional:
+            if nombre in COLUMNAS_FUTURAS:
+                continue
+            rows.append({"solapa": sol, "registro": f"Columna «{nombre}»", "fecha": pd.NaT, "responsable": None,
+                         "detalle": "No se encuentra con ese título: el dato queda vacío en el tablero"})
+        for nombre, letras in vistos.items():
+            if len(letras) > 1:
+                titulo = next(str(h).strip() for h in q.headers if h is not None and str(h).strip().casefold() == nombre)
+                rows.append({"solapa": sol, "registro": f"Columnas {', '.join(letras)}", "fecha": pd.NaT,
+                             "responsable": None,
+                             "detalle": f"Título repetido «{titulo}»: el tablero toma la primera"})
+    return Control("encabezados", "Títulos de columnas", "Títulos con #REF! / #N/A, columnas que el tablero necesita "
+                   "y no están (o cambiaron de nombre) y títulos repetidos, en cada solapa que lee el tablero",
+                   "Según el caso", "Corregir el título en la fila 1 de la solapa (o avisar si la columna cambió de "
+                   "nombre)", "bad", pd.DataFrame(rows, columns=COLS), columna="Fila 1 (títulos)")
 
 
 def _packeo_sin_fechas(bundle, S, res, hist, aer) -> Control:

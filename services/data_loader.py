@@ -73,6 +73,8 @@ class DatasetQuality:
     issue_rows: dict[tuple[str, str], list[int]] = field(default_factory=dict)
     # filas con datos cuya referencia (Embarque / SO) es un error de fórmula (#N/A…): se descartan, pero se avisan
     ref_errores: list[dict] = field(default_factory=list)
+    # fila de títulos tal como está en la planilla (para el control de encabezados rotos)
+    headers: list = field(default_factory=list)
 
     @property
     def complete_pct(self) -> float:
@@ -644,7 +646,8 @@ def build_bundle(source: SheetSource, datasets: dict[str, tuple[str, str]] | Non
                 schema = SCHEMAS[key]
                 colmap, miss_req, miss_opt = resolve_columns(schema, headers.get(tab, []))
                 q = DatasetQuality(key, schema.title, tab=tab,
-                                   missing_required=miss_req, missing_optional=miss_opt)
+                                   missing_required=miss_req, missing_optional=miss_opt,
+                                   headers=list(headers.get(tab, [])))
                 quality[key] = q
                 if miss_opt:
                     log.warning("%s: faltan columnas opcionales %s", tab, miss_opt)
