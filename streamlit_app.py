@@ -79,7 +79,9 @@ load_css()
 
 
 
-PAGE_BUSCAR = st.Page(buscar.render, title="Buscador Comex", icon=":material/search:", url_path="buscar")
+# La ficha completa del buscador no va en el menú (se entra desde el Buscador Comex de la barra lateral).
+PAGE_BUSCAR = st.Page(buscar.render, title="Buscador Comex", icon=":material/search:", url_path="buscar",
+                      visibility="hidden")
 PAGES = {
     "General": [
         st.Page(panorama.render, title="Panorama", icon=":material/dashboard:", url_path="panorama", default=True),
@@ -109,13 +111,13 @@ with st.sidebar:
         if q:
             st.session_state["bc_q"] = q
             st.session_state["_abrir_buscador"] = True
+            st.session_state["global_q"] = ""      # la caja queda libre: buscar lo mismo otra vez vuelve a abrir
 
     st.markdown('<div class="side-label">🔎 Buscador Comex</div>', unsafe_allow_html=True)
     st.text_input("Buscador Comex", key="global_q", placeholder="SO, embarque, SKU o producto…",
                   label_visibility="collapsed", on_change=_buscar_global,
-                  help="Ej.: 38529 · FCL 2679 · AIR 199 · RCDJI070 · osmo action. Enter para buscar.")
-    if st.button("Abrir buscador", icon=":material/search:", width="stretch"):
-        st.session_state["_abrir_buscador"] = True
+                  help="Ej.: 38529 · FCL 2679 · AIR 199 · RCDJI070 · osmo action. Enter para buscar: se abre una ventana "
+                       "con los resultados.")
     if st.button("↻  Actualizar datos", width="stretch", type="primary",
                  help="Vuelve a consultar la planilla (los datos se refrescan solos cada 10 minutos)."):
         clear_cache()
