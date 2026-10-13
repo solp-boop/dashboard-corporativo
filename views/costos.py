@@ -119,12 +119,12 @@ def render() -> None:
 
 
 VISTAS = {
-    "gasto": "💰 ¿Cuánto gastamos?",
-    "captura": "🎯 ¿Cuánto ahorramos?",
-    "hacer": "✅ ¿Qué renegocio esta semana?",
-    "cobro": "🧾 ¿Nos cobran lo negociado?",
-    "mercado": "📈 ¿Cómo vienen las tarifas?",
-    "contenedores": "📦 Contenedores y cargas especiales",
+    "gasto": "¿Cuánto gastamos?",
+    "captura": "¿Cuánto ahorramos?",
+    "hacer": "¿Qué renegocio esta semana?",
+    "cobro": "¿Nos cobran lo negociado?",
+    "mercado": "¿Cómo vienen las tarifas?",
+    "contenedores": "Contenedores y cargas especiales",
 }
 # Enlaces viejos (?vista=tarifas / validacion) siguen funcionando.
 VISTAS_ALIAS = {"tarifas": "hacer", "validacion": "cobro"}
