@@ -175,7 +175,7 @@ def _motivo_revision(r, z: pd.DataFrame) -> str:
             r["pct_desvio_alto"] > settings.EQ_SALUD["desvio"][1]:
         motivos.append(f"{r['pct_desvio_alto']:.0%} sale > {settings.EQ_DESVIO_DIAS} d después de lo estimado")
     if r["demoras_agente"] >= 3:
-        motivos.append(f"{r['demoras_agente']} demoras atribuidas al agente")
+        motivos.append(f"{r['demoras_agente']} demoras con el agente involucrado")
     return " · ".join(motivos)
 
 

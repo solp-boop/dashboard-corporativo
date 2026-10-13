@@ -91,16 +91,43 @@ def render() -> None:
 # ---------------------------------------------------------------------------
 def _resumen(*, bundle, filters, t, z, act, casos, an, ag, **_) -> None:
     section("¿Cómo está la operación?",
-            "Salud operativa = el peor de cuatro indicadores medibles, cada uno con su semáforo (umbrales en "
-            "config/settings.py · EQ_SALUD). Verde = controlado · amarillo = seguimiento · rojo = intervenir. "
-            "Histórico = marítimos zarpados del período; «en curso» no depende del período.")
+            "«Salud operativa» es un semáforo general: toma el peor de los cuatro indicadores de al lado (no es un "
+            "promedio ni un puntaje). Verde = controlado · amarillo = seguimiento · rojo = intervenir. El ⓘ de cada "
+            "tarjeta explica cómo se mide y sus umbrales. Histórico = marítimos zarpados del período; «en curso» no "
+            "depende del período.")
     with guard("Salud operativa"):
         s = eq.salud(z, act, casos, t)
-        tarjetas = [KPI("Salud operativa", ESTADO_TXT.get(s["general"], "—"), status=s["general"],
-                        sub="el peor de los cuatro indicadores de salud",
-                        help="Rojo si algún indicador está en rojo; amarillo si alguno está en amarillo.")]
+        rojos = [c for c in s["componentes"] if c[2] == "bad"]
+        amarillos = [c for c in s["componentes"] if c[2] == "warn"]
+        motivo = rojos or amarillos
+        sub = ("En " + ("rojo" if rojos else "amarillo") + ": " + " · ".join(f"{esc(c[0])} ({_pct(c[1])})"
+                                                                         for c in motivo)) if motivo else \
+            "Los cuatro indicadores en verde"
+        umbral = settings.EQ_SALUD
+        obj = settings.CUMPLIMIENTO_OBJETIVO
+        tarjetas = [KPI("Salud operativa", ESTADO_TXT.get(s["general"], "—"), status=s["general"], sub=sub,
+                        help="Semáforo general de la operación: toma el PEOR de los 4 indicadores de al lado (no es un "
+                             "promedio ni un puntaje). Rojo = algún indicador en rojo → intervenir. Amarillo = alguno "
+                             "en amarillo → seguimiento. Verde = los 4 en verde. Umbrales: SLA verde ≥ "
+                             f"{obj:.0%}, rojo < {obj - settings.EQ_MARGEN_PP:.0%} · prioridad alta verde ≤ "
+                             f"{umbral['alta'][0]:.0%}, rojo > {umbral['alta'][1]:.0%} · ETD sin confirmar verde ≤ "
+                             f"{umbral['sin_ok'][0]:.0%}, rojo > {umbral['sin_ok'][1]:.0%} · salen tarde verde ≤ "
+                             f"{umbral['desvio'][0]:.0%}, rojo > {umbral['desvio'][1]:.0%}.")]
+        ayudas = {
+            "Cumplimiento SLA consolidación": "Marítimos zarpados del período con packeo → ETD dentro del SLA de su "
+                                              "puerto (monoproveedor: SLA mono). Más es mejor.",
+            "Activos con caso de prioridad alta": "Embarques EN CURSO que tienen al menos un caso de prioridad alta en "
+                                                  "la Bandeja de acción (ETD en ≤ 3 días sin confirmar, zarpó sin "
+                                                  "documentos, ya pasó el SLA…). Menos es mejor.",
+            "ETD próximos": "Embarques en curso con ETD en los próximos días que todavía no tienen «ETD OK FFWW». "
+                            "Menos es mejor.",
+            "Salen >": "Marítimos zarpados del período cuya ETD real fue más de "
+                       f"{settings.EQ_DESVIO_DIAS} días después de la ETD estimada (solo los que tienen ETD estimada). "
+                       "Menos es mejor.",
+        }
         for nombre, valor, estado, base in s["componentes"]:
-            tarjetas.append(KPI(nombre, _pct(valor), status=estado, sub=esc(base)))
+            ayuda = next((v for k, v in ayudas.items() if nombre.startswith(k)), "")
+            tarjetas.append(KPI(nombre, _pct(valor), status=estado, sub=esc(base), help=ayuda))
         kpi_row(tarjetas, columns=5)
 
     with guard("KPIs del equipo"):
@@ -112,8 +139,12 @@ def _resumen(*, bundle, filters, t, z, act, casos, an, ag, **_) -> None:
                 + (f" · aéreos sin responsable {fmt.fmt_int(n_act - an['activos'].sum())}"
                    if len(an) and n_act > an["activos"].sum() else "") if len(an) else ""),
             KPI("Zarpados en el período", fmt.fmt_int(len(z)), sub="marítimos · embarques únicos"),
-            KPI("Casos de prioridad alta", fmt.fmt_int(alta), status="bad" if alta else "ok",
-                sub="embarques en la Bandeja de acción", link="accion"),
+            KPI("Casos abiertos", fmt.fmt_int(casos["embarque"].nunique()) if len(casos) else "0",
+                status="bad" if alta else "ok", link="accion",
+                sub=f"embarques en la Bandeja · <b>{fmt.fmt_int(alta)}</b> con prioridad alta (en curso, ya zarpados "
+                    "y datos a corregir)",
+                help="Incluye todo lo de la Bandeja de acción, no solo lo en curso: por eso es más que el indicador de "
+                     "salud «activos con caso de prioridad alta», que mira solo los embarques en curso."),
             KPI("Instrucción tardía", _pct(eq._pct(z["_tarde"])) if len(z) else "—",
                 sub="instruidos después de que la carga estaba lista",
                 help="Bidcom / analista: % de embarques cuya instrucción salió después del último packeo (en un "
@@ -258,13 +289,13 @@ def _agentes(*, bundle, filters, t, z, z_prev, act, ag, **_) -> None:
             ColSpec("med_listo_etd", "Listo → ETD (d)", "days"), ColSpec("rango", "P25–P75"),
             ColSpec("med_desvio", "Desvío ETD (d)", "days"), ColSpec("pct_desvio_alto", f"% > {settings.EQ_DESVIO_DIAS} d tarde", "pct"),
             ColSpec("pct_advance", "% in advance", "pct"), ColSpec("pct_etd_ok", "% ETD OK (en curso)", "pct"),
-            ColSpec("demoras_agente", "Demoras del agente", "int"), ColSpec("certificacion", "% certificado", "pct"),
+            ColSpec("demoras_agente", "Demoras con el agente involucrado", "int"), ColSpec("certificacion", "% certificado", "pct"),
         ], key="eq_ag_tabla", filename="agentes", search=False,
             caption="Listo → ETD: desde que la carga está lista e instruida hasta la ETD (lo que depende del agente); "
                     "P25–P75 = dispersión. Desvío ETD = ETD real − ETD estimada. «Requiere revisión» se marca solo con "
                     f"n ≥ {settings.MIN_SAMPLE}: cumplimiento {settings.EQ_MARGEN_PP * 100:.0f} pp bajo el objetivo, caída ≥ "
                     f"{settings.EQ_DETERIORO_PP * 100:.0f} pp, listo → ETD {settings.EQ_LENTO_PCT:.0%} sobre el total, "
-                    "muchas salidas tarde o 3+ demoras atribuidas.")
+                    "muchas salidas tarde o 3+ demoras con el agente involucrado («Tipo de demora» que menciona al agente, aunque sea compartida, p. ej. «Proveedor + Agente»).")
     ok = ag[ag["embarques"] >= settings.MIN_SAMPLE]
     if len(ok):
         c1, c2 = st.columns(2, gap="medium")
