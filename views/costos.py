@@ -1,7 +1,8 @@
 """Costos y captura (nivel 2): cuánto pagamos, cuánto capturamos y dónde hay oportunidad.
 
 Reúne lo que antes estaba en «Fletes y gastos pagados» y «Cotizaciones», en cuatro vistas:
-Gasto · Captura · Tarifas y validación (Qué hacer · Mercado · Negociación y validación) · Contenedores.
+¿Cuánto gastamos? · ¿Cuánto ahorramos? · ¿Qué renegocio? · ¿Nos cobran lo negociado? · ¿Cómo vienen las tarifas? ·
+Contenedores (una sola botonera de tarjetas, views/costos._navegacion).
 """
 from __future__ import annotations
 
@@ -101,27 +102,14 @@ def render() -> None:
     with guard("Motor de oportunidades"):
         if h_all is not None and len(h_all):
             m = _motor(bundle, filters, h_all)
-    # Solo se dibuja la vista elegida (con pestañas se calculaban todas en cada interacción).
-    vistas = {"gasto": "Gasto", "captura": "Captura", "tarifas": "Tarifas y validación",
-              "contenedores": "Contenedores y cargas especiales"}
-    pedida = st.query_params.get("vista")
-    if pedida == "validacion" and st.session_state.get("_costos_qp") != "tarifas":
-        st.session_state["co_tar_sub"] = "negociacion"     # enlaces viejos a «validación» abren esa parte
-    pedida = "tarifas" if pedida == "validacion" else pedida
-    if pedida in vistas and pedida != st.session_state.get("_costos_qp"):
-        st.session_state["costos_vista"] = pedida
-    st.session_state.setdefault("costos_vista", "gasto")
-    vista = st.segmented_control("Vista", list(vistas), format_func=vistas.get, key="costos_vista",
-                                 label_visibility="collapsed") or "gasto"
-    st.session_state["_costos_qp"] = vista
-    if st.query_params.get("vista") != vista:
-        st.query_params["vista"] = vista
+    # Una sola botonera con la pregunta que responde cada vista (antes eran dos niveles de pestañas).
+    vista = _navegacion(bundle, p, m, t)
     if vista == "gasto":
         _gasto(bundle, h, a, p, p_all, p_prev, h_all, ventana)
     elif vista == "captura":
         _captura(bundle, filters, h, ventana, m)
-    elif vista == "tarifas":
-        _tarifas(bundle, h, m, h_all, a)
+    elif vista in ("hacer", "mercado", "cobro"):
+        _tarifas(bundle, h, m, h_all, a, sub={"cobro": "negociacion"}.get(vista, vista))
     else:
         from views import resumen
         _equipos(h)
@@ -129,6 +117,55 @@ def render() -> None:
             resumen.render_contenedores(bundle, filters)
         resumen.render_especiales(bundle, filters)
 
+
+VISTAS = {
+    "gasto": "💰 ¿Cuánto gastamos?",
+    "captura": "🎯 ¿Cuánto ahorramos?",
+    "hacer": "✅ ¿Qué renegocio esta semana?",
+    "cobro": "🧾 ¿Nos cobran lo negociado?",
+    "mercado": "📈 ¿Cómo vienen las tarifas?",
+    "contenedores": "📦 Contenedores y cargas especiales",
+}
+# Enlaces viejos (?vista=tarifas / validacion) siguen funcionando.
+VISTAS_ALIAS = {"tarifas": "hacer", "validacion": "cobro"}
+
+
+def _navegacion(bundle, p, m, t) -> str:
+    """Tarjetas con la pregunta de cada vista y su dato principal: se ve de un vistazo dónde entrar."""
+    pedida = st.query_params.get("vista")
+    pedida = VISTAS_ALIAS.get(pedida, pedida)
+    if pedida in VISTAS and pedida != st.session_state.get("_costos_qp"):
+        st.session_state["costos_vista"] = pedida
+    if st.session_state.get("costos_vista") not in VISTAS:
+        st.session_state["costos_vista"] = "gasto"
+    datos = {k: "" for k in VISTAS}
+    try:
+        if p is not None and len(p):
+            datos["gasto"] = f"{fmt.fmt_usd(float(p['costo'].sum()))} en el período · validación de pago"
+        datos["captura"] = "negociación · 40 NOR · certificación"
+        if m:
+            op, adh = m["op"], m["adh"]
+            inm = op[op["tipo"] == "Inmediata"]
+            datos["hacer"] = (f"{fmt.plural(len(inm), 'ruta')} para renegociar · "
+                              f"{fmt.fmt_usd(float(inm['ahorro_mes'].sum()))}/mes" if len(inm) else "sin rutas urgentes")
+            rec = adh[adh["etd"] >= t - pd.Timedelta(days=90)] if len(adh) else adh
+            datos["cobro"] = (f"{fmt.fmt_usd(float(rec['exceso'].sum()))} cobrados de más (90 días) · validación"
+                              if len(rec) else "validación de fletes")
+        mm = memo(bundle, ("mercado_mes", "40ST/40HQ", t),
+                  lambda: cs.mercado_mes(bundle.get("cotizaciones"), "40ST/40HQ", t))
+        cerrados = mm[mm["mes"] < t.to_period("M").to_timestamp()] if len(mm) else mm
+        if len(cerrados):
+            u = cerrados.iloc[-1]
+            datos["mercado"] = f"40ST/HQ {fmt.fmt_month(u['mes'])}: {fmt.fmt_usd(u['mediana'], compact=False)}"
+        datos["contenedores"] = "equipo conveniente · espacio vacío · IMO"
+    except Exception:  # noqa: BLE001 · el dato de la tarjeta es accesorio: nunca rompe la navegación
+        pass
+    vista = st.radio("Vista", list(VISTAS), format_func=VISTAS.get, key="costos_vista", horizontal=True,
+                     captions=[datos[k] or " " for k in VISTAS], label_visibility="collapsed")
+    st.session_state["_costos_qp"] = vista
+    if st.query_params.get("vista") != vista:
+        st.query_params["vista"] = vista
+    return vista
 
 # ---------------------------------------------------------------------------
 def _estado_pago(h) -> None:
@@ -741,13 +778,10 @@ def _lista_acciones(op: pd.DataFrame, al: pd.DataFrame) -> pd.DataFrame:
         .drop(columns=["_t", "_p"]).reset_index(drop=True)
 
 
-def _tarifas(bundle, h, m=None, h_all=None, a=None) -> None:
-    """Tarifas en tres partes cortas: qué hacer esta semana, cómo está el mercado, y si nos cobran lo negociado."""
+def _tarifas(bundle, h, m=None, h_all=None, a=None, sub: str = "hacer") -> None:
+    """Tarifas en tres vistas: qué renegociar esta semana, cómo vienen las tarifas y si nos cobran lo negociado."""
     t = today()
     dias = settings.NEGOCIAR_VENTANA_DIAS
-    subs = {"hacer": "Qué hacer", "mercado": "Mercado", "negociacion": "Negociación y validación"}
-    sub = st.segmented_control("Tarifas", list(subs), default="hacer", format_func=subs.get, key="co_tar_sub",
-                               label_visibility="collapsed") or "hacer"
     if sub == "mercado":
         _cotizaciones_cuadro(bundle, h, t, dias)
         with guard("Flete de mercado"):
