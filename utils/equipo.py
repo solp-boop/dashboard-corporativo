@@ -43,6 +43,11 @@ def origen_causa(v) -> str:
     return "Otra"
 
 
+def excluido(nombre) -> bool:
+    """Analista que ya no está en el equipo (settings.EQ_ANALISTAS_EXCLUIDOS)."""
+    return fold(nombre) in {fold(x) for x in settings.EQ_ANALISTAS_EXCLUIDOS}
+
+
 def _med(s: pd.Series) -> float:
     s = s.dropna()
     return float(s.median()) if len(s) else np.nan
@@ -97,7 +102,7 @@ def por_analista(z: pd.DataFrame, act: pd.DataFrame | None, casos: pd.DataFrame 
     if act is not None and len(act):
         nombres |= set(act["responsable"].dropna())
     rows = []
-    for a in sorted(nombres):
+    for a in sorted(x for x in nombres if not excluido(x)):
         g = z[z["responsable"] == a] if len(z) else z
         r = {"analista": a, **(_comun(g) if len(g) else {"embarques": 0})}
         r["pct_tarde"] = _pct(g["_tarde"]) if len(g) else np.nan

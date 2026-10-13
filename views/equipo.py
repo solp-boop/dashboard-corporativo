@@ -186,7 +186,9 @@ def _resumen(*, bundle, filters, t, z, act, casos, an, ag, **_) -> None:
 def _analistas(*, bundle, filters, t, z, act, casos, an, **_) -> None:
     section("Analistas · comparativa",
             "Cuatro dimensiones separadas, sin puntaje único: carga, resultado del proceso, gestión propia y "
-            "seguimiento. Histórico = marítimos zarpados del período; los aéreos no tienen responsable en la planilla.")
+            "seguimiento. Histórico = marítimos zarpados del período; los aéreos no tienen responsable en la planilla. "
+            f"No se muestran {', '.join(settings.EQ_ANALISTAS_EXCLUIDOS)} (ya no están en el equipo); sus embarques "
+            "siguen contando en los totales.")
     filter_notes(bundle.get("historicas"), filters, "Reservas Históricas")
     if an.empty:
         empty()
@@ -348,7 +350,8 @@ def _alertas(*, bundle, filters, t, z, act, casos, an, ag, **_) -> None:
                 + [KPI(f"Resuelve: {k}", fmt.fmt_int(v), sub="embarques") for k, v in q.items()])
         c1, c2 = st.columns(2, gap="small")
         with c1:
-            sel_a = st.selectbox("Analista", ["Todos"] + sorted(casos["responsable"].dropna().unique()), key="eq_al_an")
+            sel_a = st.selectbox("Analista", ["Todos"] + sorted(x for x in casos["responsable"].dropna().unique()
+                                                                if not eq.excluido(x)), key="eq_al_an")
         with c2:
             sel_q = st.selectbox("Resuelve", ["Todos"] + list(q.index), key="eq_al_q")
         v = casos
@@ -403,6 +406,7 @@ def _evolucion(*, bundle, filters, t, z, **_) -> None:
     with c1, guard("Carga por analista"):
         chart_title("Zarpados por mes y analista", "Embarques marítimos")
         p = eq.mensual(z, "responsable")
+        p = p[~p["responsable"].map(eq.excluido)] if len(p) else p
         if p.empty:
             empty()
         else:

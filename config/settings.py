@@ -295,6 +295,9 @@ EQ_MARGEN_PP = 0.10
 EQ_DETERIORO_PP = 0.10
 # Un agente es «lento» si su mediana instrucción → ETD supera en este % a la del total.
 EQ_LENTO_PCT = 0.25
+# Analistas que ya no están en el equipo: no se muestran como personas en «Equipo y agentes» (sus embarques siguen
+# contando en los totales del equipo). Se compara sin acentos ni mayúsculas.
+EQ_ANALISTAS_EXCLUIDOS = ["Rocio", "Agustín"]
 # Carga concentrada: un analista con más de esta parte de los embarques en curso.
 EQ_CONCENTRACION = 0.40
 # Semáforos de salud operativa (verde hasta, amarillo hasta; más = rojo). Proporciones.
