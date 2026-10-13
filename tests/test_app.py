@@ -165,7 +165,7 @@ def test_fuente_caida_usa_ultima_carga_valida(monkeypatch):
     data_loader.clear_cache()
 
 
-@pytest.mark.parametrize("vista", ["aereo", "transito", "ttm"])
+@pytest.mark.parametrize("vista", ["aereo", "transito", "ttm", "dg"])
 def test_tiempos_cada_vista(vista, local_files):
     at = AppTest.from_file(RUNNER, default_timeout=120)
     at.secrets["local_files"] = local_files

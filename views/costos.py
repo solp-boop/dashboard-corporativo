@@ -123,7 +123,7 @@ def render() -> None:
         _equipos(h)
         with guard("Contenedores"):
             resumen.render_contenedores(bundle, filters)
-        resumen.render_especiales(bundle, filters)
+        # Las cargas DG / IMO (costo y tiempos) se analizan en Tiempos › Cargas DG / IMO.
 
 
 VISTAS = {
@@ -171,7 +171,7 @@ def _navegacion(bundle, p, m, t, h_all=None) -> str:
         if len(cerrados):
             u = cerrados.iloc[-1]
             datos["mercado"] = f"40ST/HQ {fmt.fmt_month(u['mes'])}: {fmt.fmt_usd(u['mediana'], compact=False)}"
-        datos["contenedores"] = "equipo conveniente · espacio vacío · IMO"
+        datos["contenedores"] = "equipo conveniente · espacio vacío · uso de 20 ST"
     except Exception:  # noqa: BLE001 · el dato de la tarjeta es accesorio: nunca rompe la navegación
         pass
     vista = st.radio("Vista", list(VISTAS), format_func=VISTAS.get, key="costos_vista", horizontal=True,
@@ -1055,7 +1055,6 @@ def _equipos(h) -> None:
             st.dataframe(show, hide_index=True, width="stretch", height=38 + 35 * len(show))
         u = settings.OCUPACION_UMBRAL
         ev = cs.espacio_vacio(h, u)
-        imo = cs.imo_sobrecosto(h)
         kpi_row([
             KPI(f"Embarques con ocupación < {fmt.fmt_pct(u)}", fmt.fmt_int(ev["bajos"]),
                 status="warn" if ev["bajos"] else "ok",
@@ -1063,13 +1062,7 @@ def _equipos(h) -> None:
                     f"{fmt.fmt_int(ev['cont_bajos'])} contenedores"),
             KPI("Flete pagado por espacio vacío", fmt.fmt_usd(ev["usd_vacio"]), status="warn" if ev["usd_vacio"] else "",
                 sub="flete × (1 − ocupación) en esos embarques · es una cota: no toda carga se puede consolidar"),
-            KPI("Sobrecosto IMO comparable",
-                ("+" if imo.get("dif_med", 0) > 0 else "") + fmt.fmt_usd(imo["dif_med"], compact=False)
-                if imo.get("n_celdas") else "—",
-                sub=(f"mediana por contenedor ({fmt.fmt_pct(imo['pct_med'])}) · misma ruta, equipo y mes · "
-                     f"n={fmt.fmt_int(imo['n_celdas'])} comparaciones") if imo.get("n_celdas") else
-                    "Sin meses con carga IMO y no IMO en la misma ruta y equipo"),
-        ], columns=3)
+        ], columns=2)
         if ev["bajos"]:
             c = ev["casos"].assign(vacio=lambda x: x["flete_pagado"] * (1 - x["ocup"].clip(upper=1)))
             solo_descarga(c.sort_values("vacio", ascending=False), [

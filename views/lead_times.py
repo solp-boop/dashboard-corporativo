@@ -12,7 +12,7 @@ import streamlit as st
 from components import sla as sla_view
 from components.drill import diagnostico
 from components.kpi_cards import KPI, kpi_row
-from components.layout import coverage, empty, guard, require, section, semaforo_legend
+from components.layout import chart_title, coverage, empty, guard, require, section, semaforo_legend
 from components.tables import ColSpec, data_table, solo_descarga
 from config import settings
 from utils import calculations as calc
@@ -156,7 +156,7 @@ def render() -> None:
     t = today()
     # Se dibuja solo la vista elegida (con pestañas se calculaban las cuatro en cada interacción).
     vistas = {"maritimo": "Marítimo · consolidación", "aereo": "Aéreo · punta a punta",
-              "transito": "Tránsito y puertos", "ttm": "Time to market"}
+              "transito": "Tránsito y puertos", "ttm": "Time to market", "dg": "Cargas DG / IMO"}
     # ?vista=aereo (desde las tarjetas de Panorama) abre directo en esa vista.
     pedida = st.query_params.get("vista")
     if pedida in vistas and pedida != st.session_state.get("_tiempos_qp"):
@@ -169,7 +169,7 @@ def render() -> None:
         st.query_params["vista"] = vista
     ventana = _ventana_prev(filters, t)
     z = z_all = z_prev = None
-    if vista in ("maritimo", "transito"):
+    if vista in ("maritimo", "transito", "dg"):
         with guard("Preparación de tiempos marítimos"):
             # Solo destino Argentina (o sin destino cargado): así tarjetas, tablas y Panorama dan lo mismo.
             from utils.tiempos_mes import solo_argentina
@@ -184,6 +184,8 @@ def render() -> None:
         _aereo(bundle, filters, ventana)
     elif vista == "transito":
         _transito(bundle, filters, z, z_all, z_prev)
+    elif vista == "dg":
+        _cargas_dg(bundle, filters, z, t)
     else:
         _time_to_market(bundle, filters, ventana)
 
@@ -630,3 +632,105 @@ def _time_to_market(bundle, filters, ventana) -> None:
             st.caption(f"SO del período ({nombre}) cuya consolidación supera el objetivo de su estructura y su mes "
                        f"(mismo mes de {t.year - 1} −{fmt.fmt_pct(settings.REDUCCION_OBJETIVO)}). Se descarga en Excel; "
                        "no se muestra en pantalla.")
+
+
+# ---------------------------------------------------------------------------
+# Cargas DG / IMO
+# ---------------------------------------------------------------------------
+IMO = "Carga IMO / DG"
+
+
+def _cargas_dg(bundle, filters, z: pd.DataFrame, t: pd.Timestamp) -> None:
+    """Todo el análisis de cargas peligrosas en un lugar: tiempos (consolidación, tránsito), costo contra carga
+    comparable, agentes que las mueven y lo que está en curso (documentación IMO)."""
+    from views import resumen
+    section("Cargas DG / IMO · tiempos",
+            "Marítimos zarpados del período, destino Argentina. IMO / DG según «DG» de Reservas Históricas (o «CARGA "
+            "IMO» de Reservas). Consolidación = packeo mínimo → ETD contra su SLA. Todo por mediana.")
+    d = z[z["imo"] != dg.SIN_DATO] if len(z) else z
+    if d.empty:
+        empty("Sin embarques con el dato IMO / DG cargado en el período.")
+        return
+    imo, resto = d[d["imo"] == IMO], d[d["imo"] != IMO]
+    sin_dato = int((z["imo"] == dg.SIN_DATO).sum())
+
+    def pct_sla(x):
+        c = x["cumple_consolidacion"].dropna() if "cumple_consolidacion" in x else pd.Series(dtype=bool)
+        return float(c.mean()) if len(c) else np.nan
+
+    with guard("KPIs DG"):
+        ci, cr = imo["dias_consolidacion"].median(), resto["dias_consolidacion"].median()
+        si, sr = pct_sla(imo), pct_sla(resto)
+        ti, tr = imo["dias_tt"].median() if "dias_tt" in imo else np.nan, \
+            resto["dias_tt"].median() if "dias_tt" in resto else np.nan
+        kpi_row([
+            KPI("Embarques IMO / DG", fmt.fmt_int(len(imo)),
+                sub=f"<b>{fmt.fmt_pct(len(imo) / len(d))}</b> de {fmt.fmt_int(len(d))} con dato"
+                    + (f" · {fmt.fmt_int(sin_dato)} sin dato" if sin_dato else "")),
+            KPI("Consolidación IMO", fmt.fmt_int(ci) if ci == ci else "—", unit="d",
+                sub=f"sin IMO {fmt.fmt_int(cr)} d · <b>{('+' if ci - cr > 0 else '')}{fmt.fmt_int(ci - cr)} d</b>"
+                if ci == ci and cr == cr else ""),
+            KPI("Dentro de SLA · IMO", fmt.fmt_pct(si), sub=f"sin IMO {fmt.fmt_pct(sr)}",
+                status=("bad" if si < sr - 0.10 else "ok") if si == si and sr == sr and len(imo) >= settings.MIN_SAMPLE
+                else ""),
+            KPI("Tránsito IMO (ETD → ETA)", fmt.fmt_int(ti) if ti == ti else "—", unit="d",
+                sub=f"sin IMO {fmt.fmt_int(tr)} d" if tr == tr else ""),
+        ])
+        if len(imo) < settings.MIN_SAMPLE:
+            st.caption(f"Menos de {settings.MIN_SAMPLE} embarques IMO en el período: las comparaciones son orientativas.")
+
+    with guard("DG mes a mes"):
+        chart_title("Mes a mes", "Por mes de ETD · IMO vs el resto")
+        m = d.assign(mes=d["etd"].dt.to_period("M").dt.to_timestamp())
+        filas = []
+        for mes, g in m.groupby("mes"):
+            gi, gr = g[g["imo"] == IMO], g[g["imo"] != IMO]
+            filas.append({"mes": fmt.fmt_month(mes), "imo": len(gi), "pct": len(gi) / len(g),
+                          "cons_imo": gi["dias_consolidacion"].median(), "cons_resto": gr["dias_consolidacion"].median(),
+                          "sla_imo": pct_sla(gi), "sla_resto": pct_sla(gr)})
+        tabla = pd.DataFrame(filas).iloc[::-1]
+        data_table(tabla, [
+            ColSpec("mes", "Mes ETD"), ColSpec("imo", "Embarques IMO", "int"), ColSpec("pct", "% del mes", "pct"),
+            ColSpec("cons_imo", "Consolidación IMO (d)", "days"), ColSpec("cons_resto", "Consolidación resto (d)", "days"),
+            ColSpec("sla_imo", "% SLA IMO", "pct"), ColSpec("sla_resto", "% SLA resto", "pct"),
+        ], key="dg_mes", filename="cargas_dg_mensual", search=False, height=min(460, 38 + 35 * len(tabla)))
+
+    with guard("DG por agente"):
+        chart_title("¿Quién mueve las cargas IMO?", "Por agente · embarques IMO del período")
+        if len(imo):
+            g = imo.groupby("forwarder").agg(embarques=("embarque", "size"),
+                                             consolidacion=("dias_consolidacion", "median"),
+                                             tt=("dias_tt", "median") if "dias_tt" in imo else ("embarque", "size"))
+            g["sla"] = imo.groupby("forwarder").apply(pct_sla)
+            data_table(g.reset_index().sort_values("embarques", ascending=False), [
+                ColSpec("forwarder", "Agente"), ColSpec("embarques", "Embarques IMO", "int"),
+                ColSpec("consolidacion", "Consolidación (d)", "days"), ColSpec("sla", "% SLA", "pct"),
+                ColSpec("tt", "Tránsito (d)", "days"),
+            ], key="dg_agente", filename="cargas_dg_por_agente", search=False)
+        else:
+            empty("Sin embarques IMO en el período.")
+
+    with guard("DG en curso"):
+        res = filtered(bundle, "reservas", filters, use_period=False) if bundle.get("reservas") is not None else None
+        if res is not None and len(res) and "carga_imo" in res:
+            curso = res[res["carga_imo"].map(lambda x: dc.fold(x) == "si" if isinstance(x, str) else False)]
+            chart_title("En curso con carga IMO", "Reservas con «CARGA IMO» = SI · «DOC IMO (MSDS)» es la documentación "
+                                                  "que hay que tener antes de la salida")
+            if len(curso):
+                cur = curso.assign(doc=curso["doc_imo"].fillna("Sin cargar") if "doc_imo" in curso else "Sin dato",
+                                   etd_ok_txt=curso["etd_ok"].map({True: "Sí", False: "No"}).fillna("No")
+                                   if "etd_ok" in curso else "")
+                data_table(cur.sort_values("etd"), [
+                    ColSpec("embarque", "Embarque"), ColSpec("etd", "ETD", "date"), ColSpec("forwarder", "Agente"),
+                    ColSpec("puerto", "Puerto"), ColSpec("responsable", "Responsable"),
+                    ColSpec("doc", "DOC IMO (MSDS)"), ColSpec("etd_ok_txt", "ETD OK FFWW"),
+                ], key="dg_curso", filename="cargas_dg_en_curso", search=False)
+            else:
+                st.caption("No hay embarques en curso marcados como carga IMO.")
+
+    with guard("DG costo"):
+        resumen.render_especiales(bundle, filters)
+
+    with guard("DG descarga"):
+        solo_descarga(imo.sort_values("etd", ascending=False), CASOS_MAR + [ColSpec("dias_tt", "Tránsito (d)", "days")],
+                      key="dg_casos", filename="embarques_imo", label="Descargar embarques IMO / DG del período")
