@@ -79,7 +79,7 @@ load_css()
 
 
 
-PAGE_BUSCAR = st.Page(buscar.render, title="Buscar SO / embarque", icon=":material/search:", url_path="buscar")
+PAGE_BUSCAR = st.Page(buscar.render, title="Buscador Comex", icon=":material/search:", url_path="buscar")
 PAGES = {
     "General": [
         st.Page(panorama.render, title="Panorama", icon=":material/dashboard:", url_path="panorama", default=True),
@@ -103,17 +103,19 @@ with st.sidebar:
     st.markdown('<div class="side-brand">BIDCOM · Comex</div>'
                 '<div class="side-sub">Logística internacional</div>', unsafe_allow_html=True)
     theme_switch()
-    # Buscador fijo: lleva a la ficha de la operación desde cualquier página.
+    # Buscador Comex: desde cualquier página abre una ventana con los resultados (SO, embarque o producto / SKU).
     def _buscar_global():
         q = (st.session_state.get("global_q") or "").strip()
         if q:
-            st.session_state["search_q"] = q
-            st.session_state["_ir_a_buscar"] = True
+            st.session_state["bc_q"] = q
+            st.session_state["_abrir_buscador"] = True
 
-    st.text_input("Buscar SO / embarque", key="global_q", placeholder="SO-12345 o FCL 2544",
-                  label_visibility="collapsed", on_change=_buscar_global)
-    if st.session_state.pop("_ir_a_buscar", False) and pg.url_path != "buscar":
-        st.switch_page(PAGE_BUSCAR)
+    st.markdown('<div class="side-label">🔎 Buscador Comex</div>', unsafe_allow_html=True)
+    st.text_input("Buscador Comex", key="global_q", placeholder="SO, embarque, SKU o producto…",
+                  label_visibility="collapsed", on_change=_buscar_global,
+                  help="Ej.: 38529 · FCL 2679 · AIR 199 · RCDJI070 · osmo action. Enter para buscar.")
+    if st.button("Abrir buscador", icon=":material/search:", width="stretch"):
+        st.session_state["_abrir_buscador"] = True
     if st.button("↻  Actualizar datos", width="stretch", type="primary",
                  help="Vuelve a consultar la planilla (los datos se refrescan solos cada 10 minutos)."):
         clear_cache()
@@ -134,6 +136,10 @@ with st.sidebar:
         with st.expander("Avisos de la carga", expanded=False):
             for e in bundle.errors:
                 st.caption(f"• {e}")
+
+if st.session_state.pop("_abrir_buscador", False):
+    with guard("Buscador Comex"):
+        buscar.dialogo()
 
 page_header(pg.title, bundle, filters)
 with guard(pg.title):  # red de seguridad: un error inesperado nunca muestra un traceback

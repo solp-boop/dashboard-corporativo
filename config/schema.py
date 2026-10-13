@@ -221,6 +221,12 @@ PLANIF = DatasetSchema(
         C("status_final", "Status Final", kind="category"),
         C("f_packeo", "Unificacion Fecha de Packeo", "Fecha de Packeo", kind="date"),
         C("modalidad", "Modalidad de Costeo Reposicion", "Modalidad de Costeo Reposición", kind="category"),
+        # Producto (SKU): solo para el Buscador Comex.
+        C("codigo", "Codigo", "Código", kind="text"),
+        C("descripcion", "Descripcion", "Descripción", kind="text"),
+        C("descripcion_master", "Descripcion Master", "Descripción Master", kind="text"),
+        C("modelo", "Modelo", kind="text"),
+        C("cantidad", "Cantidad", kind="number"),
     ),
 )
 
