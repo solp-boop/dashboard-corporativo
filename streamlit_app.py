@@ -119,7 +119,7 @@ with st.sidebar:
                   help="Ej.: 38529 · FCL 2679 · AIR 199 · RCDJI070 · osmo action. Enter para buscar: se abre una ventana "
                        "con los resultados.")
     if st.button("↻  Actualizar datos", width="stretch", type="primary",
-                 help="Vuelve a consultar la planilla (los datos se refrescan solos cada 10 minutos)."):
+                 help="Vuelve a leer la planilla ahora y muestra lo último (tarda unos segundos). Igual se refrescan solos cada 30 minutos, sin hacer esperar a nadie."):
         clear_cache()
         st.rerun()
 
