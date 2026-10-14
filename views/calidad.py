@@ -58,30 +58,36 @@ def _health_check(bundle) -> None:
         KPI("Última edición de la planilla",
             fmt.fmt_datetime(mod.astimezone(ZoneInfo(settings.TIMEZONE))).split()[0] if mod else "—"),
     ])
-    tabla = pd.DataFrame([{"control": c.nombre, "detecta": c.detecta, "casos": c.n if c.disponible else None,
-                           "estado": ESTADO_ICONO[c.estado], "solapa": c.solapas, "columna": c.columna,
-                           "accion": c.accion,
-                           "_orden": {"Roto": 0, "A revisar": 1, "OK": 2, "Sin datos": 3}[c.estado]} for c in ctrls])
-    tabla = tabla.sort_values(["_orden", "casos"], ascending=[True, False])
-    data_table(tabla, [
-        ColSpec("estado", "Estado"), ColSpec("control", "Control"), ColSpec("casos", "Casos", "int"),
-        ColSpec("solapa", "Solapa a corregir", width="medium"), ColSpec("columna", "Columna", width="medium"),
-        ColSpec("accion", "Acción"), ColSpec("detecta", "Qué detecta", width="large"),
-    ], key="salud_controles", filename="salud_de_datos_controles", search=False)
     con_casos = sorted([c for c in ctrls if c.disponible and c.n], key=lambda c: (c.severidad != "bad", -c.n))
+    # Un solo cuadro de casos: se elige el control y se ven sus casos. La lista completa de controles (con los que
+    # están OK y qué detecta cada uno) queda plegada debajo, como referencia.
     if not con_casos:
-        return
-    nombres = {c.clave: f"{ESTADO_ICONO[c.estado]} · {c.nombre} · {fmt.plural(c.n, 'caso')}" for c in con_casos}
-    elegido = st.selectbox("Ver casos de", list(nombres), format_func=nombres.get, key="salud_ver")
-    c = next(x for x in con_casos if x.clave == elegido)
-    casos = c.casos.assign(fila=c.casos["fila"].map(lambda v: str(int(v)) if pd.notna(v) else ""))
-    data_table(casos, [
-        ColSpec("solapa", "Solapa"), ColSpec("registro", "Registro / columna"), ColSpec("fila", "Fila"),
-        ColSpec("fecha", "Fecha", "date"), ColSpec("responsable", "Responsable"),
-        ColSpec("detalle", "Detalle", width="large"),
-    ], key=f"salud_{c.clave}", filename=f"salud_{c.clave}", search=c.n > 15,
-        caption=f"Acción: {c.accion} · solapa {c.solapas}" + (f" · columna {c.columna}" if c.columna not in ("", "—") else "")
-                + " · Fila = número de fila en la solapa")
+        st.success("Todos los controles están OK.")
+    else:
+        nombres = {c.clave: f"{ESTADO_ICONO[c.estado]} · {c.nombre} · {fmt.plural(c.n, 'caso')}" for c in con_casos}
+        elegido = st.selectbox("Ver casos de", list(nombres), format_func=nombres.get, key="salud_ver")
+        c = next(x for x in con_casos if x.clave == elegido)
+        st.caption(f"Qué detecta: {c.detecta}")
+        casos = c.casos.assign(fila=c.casos["fila"].map(lambda v: str(int(v)) if pd.notna(v) else ""))
+        data_table(casos, [
+            ColSpec("solapa", "Solapa"), ColSpec("registro", "Registro / columna"), ColSpec("fila", "Fila"),
+            ColSpec("fecha", "Fecha", "date"), ColSpec("responsable", "Responsable"),
+            ColSpec("detalle", "Detalle", width="large"),
+        ], key=f"salud_{c.clave}", filename=f"salud_{c.clave}", search=c.n > 15,
+            caption=f"Acción: {c.accion} · solapa {c.solapas}"
+                    + (f" · columna {c.columna}" if c.columna not in ("", "—") else "")
+                    + " · Fila = número de fila en la solapa")
+    with st.expander(f"Todos los controles ({len(ctrls)}) · qué detecta cada uno, incluidos los que están OK"):
+        tabla = pd.DataFrame([{"control": c.nombre, "detecta": c.detecta, "casos": c.n if c.disponible else None,
+                               "estado": ESTADO_ICONO[c.estado], "solapa": c.solapas, "columna": c.columna,
+                               "accion": c.accion,
+                               "_orden": {"Roto": 0, "A revisar": 1, "OK": 2, "Sin datos": 3}[c.estado]} for c in ctrls])
+        tabla = tabla.sort_values(["_orden", "casos"], ascending=[True, False])
+        data_table(tabla, [
+            ColSpec("estado", "Estado"), ColSpec("control", "Control"), ColSpec("casos", "Casos", "int"),
+            ColSpec("solapa", "Solapa a corregir", width="medium"), ColSpec("columna", "Columna", width="medium"),
+            ColSpec("accion", "Acción"), ColSpec("detecta", "Qué detecta", width="large"),
+        ], key="salud_controles", filename="salud_de_datos_controles", search=False)
 
 
 def render() -> None:
@@ -142,36 +148,16 @@ def _completitud(bundle, filters) -> None:
                         sub="con todos los campos clave"),
                     KPI("% completos (filtros)", fmt.fmt_pct(complete_f), sub=f"{fmt.fmt_int(len(f))} registros filtrados"),
                 ])
-                c1, c2 = st.columns([2, 3], gap="medium")
-                with c1:
-                    n = len(base)
-                    rows = [{"campo": lbl, "faltan": int(base[c].isna().sum()),
-                             "pct": base[c].isna().mean() if n else 0} for c, lbl in labels.items()]
-                    if rows:
-                        data_table(pd.DataFrame(rows).sort_values("faltan", ascending=False), [
-                            ColSpec("campo", "Campo clave"), ColSpec("faltan", "Registros sin dato", "int"),
-                            ColSpec("pct", "% sin dato", "pct"),
-                        ], key=f"dq_fields_{key}", filename=f"calidad_campos_{key}", search=False,
-                            caption=f"Registros {alc}")
-                with c2:
-                    fm = salud.formato(bundle)
-                    fm = fm[fm["key"] == key]
-                    issues = [{"tipo": r["tipo_txt"], "campo": r["campo"], "n": r["n"],
-                               "filas": ", ".join(str(x) for x in r["filas"][:6])
-                                        + (f" (+{len(r['filas']) - 6})" if len(r["filas"]) > 6 else "")}
-                              for _, r in fm.iterrows()]
-                    issues += [{"tipo": "Columna opcional faltante", "campo": c, "n": None, "filas": ""}
-                               for c in q.missing_optional]
-                    alc_p = f"desde {desde:%Y}" + (" con «ETD OK FFWW»" if key == "reservas" else "")
-                    if issues:
-                        data_table(pd.DataFrame(issues), [
-                            ColSpec("tipo", "Problema"), ColSpec("campo", "Columna / cálculo"),
-                            ColSpec("n", "Registros", "int"), ColSpec("filas", "Filas en la solapa", width="medium"),
-                        ], key=f"dq_issues_{key}", filename=f"calidad_problemas_{key}", search=False,
-                            caption=f"Registros {alc_p} · los valores no convertibles y fuera de rango se tratan "
-                                    "como vacíos")
-                    else:
-                        st.caption(f"Sin problemas de formato en los registros {alc_p}.")
+                n = len(base)
+                rows = [{"campo": lbl, "faltan": int(base[c].isna().sum()),
+                         "pct": base[c].isna().mean() if n else 0} for c, lbl in labels.items()]
+                if rows:
+                    data_table(pd.DataFrame(rows).sort_values("faltan", ascending=False), [
+                        ColSpec("campo", "Campo clave"), ColSpec("faltan", "Registros sin dato", "int"),
+                        ColSpec("pct", "% sin dato", "pct"),
+                    ], key=f"dq_fields_{key}", filename=f"calidad_campos_{key}", search=False,
+                        caption=f"Registros {alc} · errores de fórmula, valores imposibles y títulos de columnas: "
+                                "arriba, en «Ver casos de»")
                 prob = problem_rows(key, base, labels)
                 if len(prob):
                     with st.expander(f"Ver {fmt.fmt_int(len(prob))} registros con campos clave vacíos"):
