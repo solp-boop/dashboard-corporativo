@@ -102,8 +102,9 @@ DURATION_RANGES: dict[str, tuple[int, int]] = {
 # --------------------------------------------------------------------------
 # Consolidación (ETD - Packeo mín.). Monoproveedor usa un SLA fijo según la fecha de ETD;
 # consolidado usa el target por puerto de la solapa Validaciones.
-# Vigencias del SLA monoproveedor (desde ETD, días): 15 hasta feb-2026, 12 desde marzo 2026.
-SLA_MONO_VIGENCIAS = [("1900-01-01", 15), ("2026-03-01", 12)]
+# Vigencias del SLA monoproveedor (según la ETD, días): 15 hasta feb-2026, 10 de marzo a agosto 2026,
+# 12 desde septiembre 2026.
+SLA_MONO_VIGENCIAS = [("1900-01-01", 15), ("2026-03-01", 10), ("2026-09-01", 12)]
 SLA_CONSOLIDACION_MONO = SLA_MONO_VIGENCIAS[-1][1]   # el vigente hoy (para textos)
 SLA_CONSOLIDACION_DEFAULT = 25   # si el puerto no tiene target
 # Embarques en curso (Reservas): tope fijo 25 d consolidado / 15 d monoproveedor, sin SLA por puerto.

@@ -227,8 +227,8 @@ def test_resumen_imo_comparable():
 
 
 def test_sla_mono_por_vigencia():
-    s = calc.sla_mono(pd.to_datetime(pd.Series(["2026-02-15", "2026-03-01", "2026-09-30", "2026-10-01", None])))
-    assert list(s) == [15, 12, 12, 12, 12]
+    s = calc.sla_mono(pd.to_datetime(pd.Series(["2026-02-15", "2026-03-01", "2026-08-31", "2026-09-01", None])))
+    assert list(s) == [15, 10, 10, 12, 12]
 
 
 def test_shippers_por_eta_dedup_y_fob_real():
