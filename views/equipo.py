@@ -187,7 +187,7 @@ def _analistas(*, bundle, filters, t, z, act, casos, an, **_) -> None:
     section("Analistas · comparativa",
             "Cuatro dimensiones separadas, sin puntaje único: carga, resultado del proceso, gestión propia y "
             "seguimiento. Histórico = marítimos zarpados del período; los aéreos no tienen responsable en la planilla. "
-            f"No se muestran {', '.join(settings.EQ_ANALISTAS_EXCLUIDOS)} (ya no están en el equipo); sus embarques "
+            f"No se muestran {', '.join(settings.EQ_ANALISTAS_EXCLUIDOS)} (no son analistas del equipo); sus embarques "
             "siguen contando en los totales.")
     filter_notes(bundle.get("historicas"), filters, "Reservas Históricas")
     if an.empty:
