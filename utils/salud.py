@@ -62,7 +62,17 @@ class Control:
         return "OK" if self.n == 0 else ("Roto" if self.severidad == "bad" else "A revisar")
 
 
+_PROVISORIO = r"^\s*[A-Za-z]*\s*[xX]+\s*$"   # «AIR XXX», «AIR xxxxx»: número de embarque todavía sin asignar
+
+
+def provisorio(embarque: pd.Series) -> pd.Series:
+    """Embarque con número provisorio (solo X): no genera alertas hasta tener su número real."""
+    return embarque.astype(str).str.match(_PROVISORIO) & embarque.notna()
+
+
 def _casos(df: pd.DataFrame, solapa: str, detalle, fecha: str = "etd", registro: str = "embarque") -> pd.DataFrame:
+    if df is not None and "embarque" in df:
+        df = df[~provisorio(df["embarque"])]
     if df is None or df.empty:
         return pd.DataFrame(columns=COLS)
     det = df.apply(detalle, axis=1) if callable(detalle) else detalle
