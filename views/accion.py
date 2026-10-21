@@ -6,6 +6,7 @@ import streamlit as st
 
 from components.kpi_cards import KPI, kpi_row
 from components.layout import empty, guard, section
+from components import vistos as vst
 from components.tables import ColSpec, data_table
 from config import settings
 from utils import bandeja, salud
@@ -57,15 +58,25 @@ def render() -> None:
             "Las operaciones sobre las que hay que actuar hoy, con la acción sugerida. En curso y cerrados respetan los "
             "filtros (salvo el período); los datos a corregir miran toda la planilla.")
     with guard("Bandeja de acción"):
-        df = casos(bundle, filters)
-        if df.empty:
+        todos = casos(bundle, filters)
+        t = today()
+        ya = vst.vistos(t)
+        ids = vst.caso_id(todos)
+        vistos_hoy = todos[ids.isin(ya)].assign(_id=ids[ids.isin(ya)])
+        df = todos[~ids.isin(ya)].assign(_id=ids[~ids.isin(ya)]).reset_index(drop=True)
+        if todos.empty:
             empty("No hay casos abiertos para los filtros seleccionados.")
+            return
+        if df.empty:
+            st.success(f"Todo visto por hoy ({fmt.fmt_int(len(vistos_hoy))} casos). Mañana vuelve lo que siga sin resolver.")
+            _vistos(vistos_hoy, t)
             return
         n_tipo = df["tipo"].value_counts()
         alta = int((df["prioridad"] == "Alta").sum())
         kpi_row([
             KPI("Casos abiertos", fmt.fmt_int(len(df)), status="bad" if alta else "warn",
-                sub=f"<b>{fmt.fmt_int(alta)}</b> de prioridad alta · {fmt.fmt_int(df['embarque'].nunique())} registros",
+                sub=f"<b>{fmt.fmt_int(alta)}</b> de prioridad alta · {fmt.fmt_int(df['embarque'].nunique())} registros"
+                    + (f" · {fmt.fmt_int(len(vistos_hoy))} vistos hoy" if len(vistos_hoy) else ""),
                 help="Prioridad alta: sale en 3 días o menos, zarpó sin documentación, salió hace "
                      f"{settings.IMPO2_DIAS}+ días sin pasar a Impo2 o ya se pasa del SLA."),
             KPI("Confirmar o reclamar al forwarder", fmt.fmt_int(n_tipo.get(bandeja.TIPOS["forwarder"], 0)),
@@ -87,7 +98,8 @@ def render() -> None:
             KPI("Riesgo de SLA", fmt.fmt_int(n_tipo.get(bandeja.TIPOS["sla"], 0)),
                 status="bad" if n_tipo.get(bandeja.TIPOS["sla"], 0) else "ok",
                 help="Marítimos con consolidación proyectada fuera de SLA y aéreos con punta a punta proyectado fuera "
-                     "del SLA de su tipo, todavía sin «ETD OK FFWW» (hay margen para actuar)."),
+                     "del SLA de su tipo, todavía sin reserva confirmada por el agente («ETD OK FFWW» o «Fecha de confirmación de "
+                     "Salida agente»): con la reserva OK ya no hay margen para actuar."),
             KPI("Datos a corregir", fmt.fmt_int(n_tipo.get(bandeja.TIPOS["dato"], 0)
                                                 + n_tipo.get(bandeja.TIPOS["cerrado"], 0)),
                 status="warn",
@@ -109,8 +121,17 @@ def render() -> None:
         if prio:
             v = v[v["prioridad"].isin(prio)]
         estilos = v["prioridad"].map({"Alta": "background-color: rgba(192,57,43,0.07)"}).fillna("")
-        data_table(v, COLS, key="acc_tabla", filename="bandeja_de_accion", row_styles=estilos,
-                   caption="Ordenado por prioridad y ETD · «Excedidos» = días por encima del SLA")
+        elegidos = data_table(v, COLS, key="acc_tabla", filename="bandeja_de_accion", row_styles=estilos,
+                              caption="Ordenado por prioridad y ETD · «Excedidos» = días por encima del SLA · "
+                                      "tildá los casos que ya viste y marcalos como vistos", seleccion=True)
+        b1, b2 = st.columns([2, 5], gap="small")
+        if b1.button(f"Marcar como visto hoy ({len(elegidos)})" if elegidos else "Marcar como visto hoy",
+                     icon=":material/done_all:", disabled=not elegidos, key="acc_marcar", width="stretch"):
+            vst.marcar(df.loc[elegidos, "_id"], t)
+            st.rerun()
+        b2.caption("Lo marcado desaparece de la bandeja por hoy (solo en este navegador). Mañana vuelve si sigue sin "
+                   "resolverse; si se resolvió en la planilla, ya no aparece.")
+        _vistos(vistos_hoy, t)
 
         with st.expander("Casos por responsable"):
             g = (df.assign(responsable=df["responsable"].fillna("Sin responsable"))
@@ -128,3 +149,17 @@ def render() -> None:
                 ColSpec("impo2", "Impo2", "int"), ColSpec("validar", "Validación fletes", "int"),
                 ColSpec("datos", "Datos", "int"),
             ], key="acc_resp_tabla", filename="bandeja_por_responsable", search=False)
+
+
+def _vistos(vistos_hoy: pd.DataFrame, t: pd.Timestamp) -> None:
+    """Los casos marcados como vistos hoy, con la opción de devolverlos a la bandeja."""
+    if vistos_hoy.empty:
+        return
+    vistos_hoy = vistos_hoy.reset_index(drop=True)
+    with st.expander(f"Vistos hoy ({fmt.fmt_int(len(vistos_hoy))}) · siguen abiertos en la planilla"):
+        elegidos = data_table(vistos_hoy, COLS, key="acc_vistos_tabla", filename="bandeja_vistos_hoy", search=False,
+                              seleccion=True)
+        if st.button(f"Volver a la bandeja ({len(elegidos)})" if elegidos else "Volver a la bandeja",
+                     icon=":material/undo:", disabled=not elegidos, key="acc_desmarcar"):
+            vst.marcar(vistos_hoy.loc[elegidos, "_id"], t, visto=False)
+            st.rerun()

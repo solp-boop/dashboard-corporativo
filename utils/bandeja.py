@@ -44,6 +44,14 @@ def _dias_a(df: pd.DataFrame, today: pd.Timestamp) -> pd.Series:
     return (df["etd"] - today).dt.days
 
 
+def reserva_confirmada(df: pd.DataFrame) -> pd.Series:
+    """Reserva OK del agente: «ETD OK FFWW» o «Fecha de confirmación de Salida agente» cargada."""
+    ok = df["etd_ok"].fillna(False).astype(bool) if "etd_ok" in df else pd.Series(False, index=df.index)
+    if "f_confirmacion" in df:
+        ok = ok | df["f_confirmacion"].notna()
+    return ok
+
+
 def casos_en_curso(res: pd.DataFrame, today: pd.Timestamp) -> list[pd.DataFrame]:
     """res = embarques en curso (Reservas marítimo/camión + aéreos activos), como lo arma views._common.en_curso."""
     if res is None or res.empty:
@@ -52,6 +60,7 @@ def casos_en_curso(res: pd.DataFrame, today: pd.Timestamp) -> list[pd.DataFrame]
     es_air = res["embarque"].astype(str).str.strip().str.upper().str.startswith("AIR")
     mar = (res["grupo_modo"] == "Marítimo") & ~es_air if "grupo_modo" in res else ~es_air
     etd_ok = res["etd_ok"].fillna(False).astype(bool) if "etd_ok" in res else pd.Series(False, index=res.index)
+    reserva_ok = reserva_confirmada(res)
     dias_a = _dias_a(res, today)
 
     # 1 · ETD en los próximos días sin confirmar
@@ -92,7 +101,8 @@ def casos_en_curso(res: pd.DataFrame, today: pd.Timestamp) -> list[pd.DataFrame]
     # 4 · Consolidación marítima proyectada fuera de SLA, todavía sin salir y sin ETD OK (hay margen)
     if "estado_consolidacion" in res:
         por_salir = res["etd"].isna() | (res["etd"] >= today)
-        m = mar & res["estado_consolidacion"].isin([calc.SEMAFORO_WARN, calc.SEMAFORO_BAD]) & ~etd_ok & por_salir
+        # Con la reserva confirmada por el agente ya no hay margen de acción: no se alerta.
+        m = mar & res["estado_consolidacion"].isin([calc.SEMAFORO_WARN, calc.SEMAFORO_BAD]) & ~reserva_ok & por_salir
         d = res[m]
         if len(d):
             exc = d["dias_consolidacion"] - d["sla_consolidacion"]
@@ -195,7 +205,7 @@ def casos_aereos(riesgo_aereo: pd.DataFrame, today: pd.Timestamp) -> list[pd.Dat
         return []
     d = riesgo_aereo
     # Solo lo que todavía no salió (después de la ETD queda poco por hacer) y con SLA vigente para su ETD.
-    d = d[d["etd"].isna() | (d["etd"] >= today)]
+    d = d[(d["etd"].isna() | (d["etd"] >= today)) & ~reserva_confirmada(d)]
     if "sla_vigente" in d:
         d = d[d["sla_vigente"].fillna(True).astype(bool)]
     if d.empty:

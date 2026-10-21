@@ -110,8 +110,9 @@ def to_excel(df: pd.DataFrame, sheet: str = "Datos") -> bytes:
 
 def data_table(df: pd.DataFrame, cols: list[ColSpec], key: str, filename: str,
                height: int | None = None, search: bool = True, caption: str = "",
-               row_styles: pd.Series | None = None) -> None:
-    """row_styles: CSS por fila (alineado con el índice de df), p. ej. para resaltar un récord."""
+               row_styles: pd.Series | None = None, seleccion: bool = False) -> list:
+    """row_styles: CSS por fila (alineado con el índice de df), p. ej. para resaltar un récord.
+    seleccion=True: casillas para elegir filas; devuelve las etiquetas del índice de df elegidas."""
     display, config = _display_frame(df, cols)
     formatters = _formatters(cols, set(display.columns))
     styles = (row_styles.reindex(df.index).fillna("").reset_index(drop=True)
@@ -129,15 +130,23 @@ def data_table(df: pd.DataFrame, cols: list[ColSpec], key: str, filename: str,
                            mime="text/csv", key=f"csv_{key}", width="stretch", disabled=shown.empty)
     if shown.empty:
         st.caption("Sin filas para mostrar.")
-        return
+        return []
     rows = len(shown)
     h = height or min(560, 38 + 35 * rows)
     data = shown.style.format(formatters, na_rep="—")
     if styles is not None and styles.loc[shown.index].ne("").any():
         css = styles.loc[shown.index]
         data = data.apply(lambda row: [css[row.name]] * len(row), axis=1)
-    st.dataframe(data, column_config=config, hide_index=True, height=h, width="stretch", placeholder="—")
+    elegidas = []
+    if seleccion:
+        ev = st.dataframe(data, column_config=config, hide_index=True, height=h, width="stretch", placeholder="—",
+                          key=f"sel_{key}", on_select="rerun", selection_mode="multi-row")
+        pos = list(getattr(getattr(ev, "selection", None), "rows", []) or [])
+        elegidas = [shown.index[i] for i in pos if i < len(shown)]
+    else:
+        st.dataframe(data, column_config=config, hide_index=True, height=h, width="stretch", placeholder="—")
     st.caption((caption + " · " if caption else "") + f"{rows:,} filas".replace(",", "."))
+    return elegidas
 
 
 def solo_descarga(df: pd.DataFrame, cols: list[ColSpec], key: str, filename: str, label: str,
