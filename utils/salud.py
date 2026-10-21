@@ -15,9 +15,21 @@ import pandas as pd
 
 from config import settings
 from config.mappings import MODOS_MARITIMOS
-from utils.data_cleaning import id_key
+from utils.data_cleaning import fold, id_key
 
 COLS = ["solapa", "registro", "fila", "fecha", "responsable", "detalle"]
+
+
+def sin_so_esperado(df: pd.DataFrame) -> pd.Series:
+    """Operaciones que no llevan SO (RC Online, DJI Baynal, Aeropix…): «Empresa» o «Tipo de envío aéreo» contiene
+    alguno de settings.SALUD_SIN_SO_EXCLUIR."""
+    pats = [fold(p).replace(" ", "") for p in settings.SALUD_SIN_SO_EXCLUIR]
+    out = pd.Series(False, index=df.index)
+    for col in ("empresa", "tipo_envio_aereo"):
+        if col in df:
+            v = df[col].map(lambda x: fold(x).replace(" ", "") if isinstance(x, str) else "")
+            out |= v.map(lambda t: any(p in t for p in pats))
+    return out
 
 
 @dataclass
@@ -207,7 +219,7 @@ def controles(bundle, today: pd.Timestamp) -> list[Control]:
     if hist is not None and eh is not None:
         claves = set(id_key(eh["embarque"].dropna()))
         d = hist[(hist["etd"].dt.year == today.year) & (hist["etd"] <= today - pd.Timedelta(days=settings.SALUD_DIAS_SIN_SO))]
-        d = d[~id_key(d["embarque"]).isin(claves)]
+        d = d[~id_key(d["embarque"]).isin(claves) & ~sin_so_esperado(d)]
         c.casos = _casos(d, S["emb_hist"], "Sin SO cargadas")
     out.append(c)
 
