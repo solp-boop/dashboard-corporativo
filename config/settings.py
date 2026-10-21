@@ -235,8 +235,9 @@ SALUD_DIAS_SIN_SO = 15                  # un embarque zarpado hace más de esto 
 # Operaciones sin SO (no van a Embarques Históricos): si «Empresa» o «Tipo de envío aéreo» contiene alguno de
 # estos textos (sin importar mayúsculas, acentos ni espacios), no se alerta «Embarque sin SO».
 SALUD_SIN_SO_EXCLUIR = ["RC Online", "Baynal", "Aeropix"]
-# Tampoco se alerta «Embarque sin SO» para estos destinos.
-SALUD_SIN_SO_DESTINOS_EXCLUIR = ["México", "Uruguay"]
+# Destinos que no generan alertas (Bandeja de acción y Salud de datos).
+ALERTAS_DESTINOS_EXCLUIR = ["México", "Uruguay"]
+SALUD_SIN_SO_DESTINOS_EXCLUIR = ALERTAS_DESTINOS_EXCLUIR
 IMPO2_DIAS = 7                          # días desde la ETD para que un embarque con OK del agente esté en Impo2
 SALUD_DESDE = "2026-01-01"              # completitud y controles de formato: registros con fecha desde acá
 SALUD_DIAS_HABILES_SIN_EDICION = 2      # planilla sin ediciones por más de esto = desactualizada

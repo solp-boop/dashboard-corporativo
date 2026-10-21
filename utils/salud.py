@@ -73,9 +73,22 @@ def provisorio(embarque: pd.Series) -> pd.Series:
     return embarque.astype(str).str.match(_PROVISORIO) & embarque.notna()
 
 
+def destino_excluido(df: pd.DataFrame) -> pd.Series:
+    """Registros con destino en settings.ALERTAS_DESTINOS_EXCLUIR (México, Uruguay): no generan alertas."""
+    if df is None or "destino" not in df:
+        return pd.Series(False, index=getattr(df, "index", None))
+    dest = {fold(d) for d in settings.ALERTAS_DESTINOS_EXCLUIR}
+    return df["destino"].map(lambda x: fold(x) in dest if isinstance(x, str) else False).astype(bool)
+
+
+def sin_destinos_excluidos(df: pd.DataFrame | None) -> pd.DataFrame | None:
+    return df if df is None or df.empty else df[~destino_excluido(df)]
+
+
 def _casos(df: pd.DataFrame, solapa: str, detalle, fecha: str = "etd", registro: str = "embarque") -> pd.DataFrame:
     if df is not None and "embarque" in df:
         df = df[~provisorio(df["embarque"])]
+    df = sin_destinos_excluidos(df)
     if df is None or df.empty:
         return pd.DataFrame(columns=COLS)
     det = df.apply(detalle, axis=1) if callable(detalle) else detalle

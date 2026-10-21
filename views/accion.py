@@ -20,16 +20,17 @@ def casos(bundle, filters) -> pd.DataFrame:
     t = today()
     partes = []
     res, _ = en_curso(bundle, filters)
+    res = salud.sin_destinos_excluidos(res)   # México / Uruguay no generan alertas
     partes += bandeja.casos_en_curso(res, t)
     if res is not None and len(res):
         partes += bandeja.casos_impo2(res[res["fuente"] == "Reservas"] if "fuente" in res else res, t,
                                       salud.solapa(bundle, "reservas"))
     if bundle.get("aereos") is not None:
         todos = filtered(bundle, "aereos", filters, use_period=False)
-        act = todos[todos["activo"]]
+        act = salud.sin_destinos_excluidos(todos[todos["activo"]])
         partes += bandeja.casos_aereos(aereos.riesgo_aereo(act, t) if len(act) else None, t)
     if bundle.get("historicas") is not None:
-        h = filtered(bundle, "historicas", filters, use_period=False)
+        h = salud.sin_destinos_excluidos(filtered(bundle, "historicas", filters, use_period=False))
         partes += bandeja.casos_cerrados(h, t)
         partes += bandeja.casos_validacion(h, t)
         partes += bandeja.casos_impo2(h, t, salud.solapa(bundle, "historicas"), requiere_ok=False)
