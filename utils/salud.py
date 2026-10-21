@@ -22,13 +22,16 @@ COLS = ["solapa", "registro", "fila", "fecha", "responsable", "detalle"]
 
 def sin_so_esperado(df: pd.DataFrame) -> pd.Series:
     """Operaciones que no llevan SO (RC Online, DJI Baynal, Aeropix…): «Empresa» o «Tipo de envío aéreo» contiene
-    alguno de settings.SALUD_SIN_SO_EXCLUIR."""
+    alguno de settings.SALUD_SIN_SO_EXCLUIR, o el destino es México / Uruguay (SALUD_SIN_SO_DESTINOS_EXCLUIR)."""
     pats = [fold(p).replace(" ", "") for p in settings.SALUD_SIN_SO_EXCLUIR]
     out = pd.Series(False, index=df.index)
     for col in ("empresa", "tipo_envio_aereo"):
         if col in df:
             v = df[col].map(lambda x: fold(x).replace(" ", "") if isinstance(x, str) else "")
             out |= v.map(lambda t: any(p in t for p in pats))
+    if "destino" in df:
+        dest = {fold(d) for d in settings.SALUD_SIN_SO_DESTINOS_EXCLUIR}
+        out |= df["destino"].map(lambda x: fold(x) in dest if isinstance(x, str) else False)
     return out
 
 
