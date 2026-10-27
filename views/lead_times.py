@@ -720,16 +720,23 @@ def _cargas_dg(bundle, filters, z: pd.DataFrame, t: pd.Timestamp) -> None:
             m = d.assign(mes=d["etd"].dt.to_period("M").dt.to_timestamp())
             filas = []
             for mes, g in m.groupby("mes"):
-                gi, gb, gr = (g[g["estado_dg"] == e] for e in ESTADOS_DG)
-                filas.append({"mes": fmt.fmt_month(mes), "imo": len(gi), "bat": len(gb), "gen": len(gr),
-                              "cons_imo": gi["dias_consolidacion"].median(), "cons_gen": gr["dias_consolidacion"].median(),
-                              "sla_imo": _pct_sla(gi), "sla_gen": _pct_sla(gr)})
+                gi, gb = (g[g["estado_dg"] == e] for e in (EST_IMO, EST_BAT))
+                ge = g[g["estado_dg"].isin([EST_IMO, EST_BAT])]
+                filas.append({"mes": fmt.fmt_month(mes), "imo": len(gi), "bat": len(gb), "esp": len(ge),
+                              "cons_imo": gi["dias_consolidacion"].median(), "cons_bat": gb["dias_consolidacion"].median(),
+                              "cons_esp": ge["dias_consolidacion"].median(),
+                              "sla_imo": _pct_sla(gi), "sla_bat": _pct_sla(gb), "sla_esp": _pct_sla(ge)})
             tabla = pd.DataFrame(filas).iloc[::-1]
+            st.caption("Solo cargas especiales: IMO / DG, con baterías aceptadas como carga general, y las dos juntas "
+                       "(IMO + baterías). Consolidación = mediana de packeo mínimo → ETD.")
             data_table(tabla, [
-                ColSpec("mes", "Mes ETD"), ColSpec("imo", "IMO / DG", "int"), ColSpec("bat", "Baterías como CG", "int"),
-                ColSpec("gen", "Carga general", "int"), ColSpec("cons_imo", "Consolidación IMO (d)", "days"),
-                ColSpec("cons_gen", "Consolidación CG (d)", "days"), ColSpec("sla_imo", "% SLA IMO", "pct"),
-                ColSpec("sla_gen", "% SLA CG", "pct"),
+                ColSpec("mes", "Mes ETD"), ColSpec("imo", "IMO / DG", "int"),
+                ColSpec("bat", "Baterías como carga general", "int"), ColSpec("esp", "IMO + baterías", "int"),
+                ColSpec("cons_imo", "Consolidación IMO / DG (d)", "days"),
+                ColSpec("cons_bat", "Consolidación baterías (d)", "days"),
+                ColSpec("cons_esp", "Consolidación IMO + baterías (d)", "days"),
+                ColSpec("sla_imo", "% SLA IMO / DG", "pct"), ColSpec("sla_bat", "% SLA baterías", "pct"),
+                ColSpec("sla_esp", "% SLA IMO + baterías", "pct"),
             ], key="dg_mes", filename="cargas_dg_mensual", search=False, height=min(460, 38 + 35 * len(tabla)))
         with guard("DG por agente"):
             chart_title("¿Quién mueve las cargas IMO y con baterías?", "Por agente · marítimo")
@@ -741,7 +748,7 @@ def _cargas_dg(bundle, filters, z: pd.DataFrame, t: pd.Timestamp) -> None:
                 g["sla"] = x.groupby("forwarder").apply(_pct_sla)
                 data_table(g.reset_index().sort_values("imo", ascending=False), [
                     ColSpec("forwarder", "Agente"), ColSpec("imo", "IMO / DG", "int"),
-                    ColSpec("bat", "Baterías como CG", "int"), ColSpec("consolidacion", "Consolidación (d)", "days"),
+                    ColSpec("bat", "Baterías como carga general", "int"), ColSpec("consolidacion", "Consolidación (d)", "days"),
                     ColSpec("sla", "% SLA", "pct"),
                 ], key="dg_agente", filename="cargas_dg_por_agente", search=False)
             else:
