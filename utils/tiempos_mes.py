@@ -199,3 +199,48 @@ def punta_a_punta_mes(d: pd.DataFrame) -> pd.DataFrame:
                 "n": len(g), "med": float(g["dias_total"].median())}
     rows = [{"mes": m, **fila(g)} for m, g in x.groupby("mes")] + [{"mes": pd.NaT, **fila(x)}]
     return pd.DataFrame(rows)
+
+
+_FECHAS_TRAMO = {"dias_packeo_wh": ("f_ingreso_wh", "f_packeo_min"), "dias_wh_etd": ("etd", "f_ingreso_wh"),
+                 "dias_etd_eta": ("eta", "etd"), "dias_eta_caldas": ("eta_caldas", "eta")}
+
+TRAMOS_ENTREGADOS = [
+    ("dias_packeo_wh", "Packeo mín. → ingreso WH"),
+    ("dias_wh_etd", "Ingreso WH → ETD"),
+    ("dias_etd_eta", "ETD → ETA"),
+    ("dias_eta_caldas", "ETA → Caldas"),
+]
+
+
+def tramos_entregados(d: pd.DataFrame, today: pd.Timestamp, year: int | None = None) -> pd.DataFrame:
+    """Aéreos ENTREGADOS por mes de ETD del año (todos los meses hasta el actual, también los que tienen 0): cantidad,
+    mediana de cada tramo, punta a punta («Total») y etapa más larga. Última fila (mes = NaT): todo el período.
+
+    Cada tramo usa los embarques que lo tienen cargado, aunque falte el total (p. ej. packeo «Revisar»)."""
+    year = year or today.year
+    tramos = [c for c, _ in TRAMOS_ENTREGADOS]
+    nombres = dict(TRAMOS_ENTREGADOS)
+    x = d.dropna(subset=["etd"])
+    x = x[x["etd"].dt.year == year].copy()
+    # Días crudos entre fechas, sin el filtro de rangos válidos de la carga: un negativo o un valor muy alto queda a la
+    # vista (fechas a revisar), igual que en la planilla de seguimiento.
+    for c, (fin, ini) in _FECHAS_TRAMO.items():
+        if fin in x and ini in x:
+            x[c] = (pd.to_datetime(x[fin]) - pd.to_datetime(x[ini])).dt.days.astype(float)
+    x = x.assign(mes=_mes(x)) if len(x) else x.assign(mes=pd.Series(dtype="datetime64[ns]"))
+
+    def fila(g: pd.DataFrame, mes) -> dict:
+        r = {"mes": mes, "n": int(len(g))}
+        for c in tramos + ["dias_aereo"]:
+            v = g[c].dropna() if c in g else pd.Series(dtype=float)   # sin recortar: un negativo = fechas a revisar
+            r[c] = float(v.median()) if len(v) else np.nan
+            r[f"{c}_n"] = int(len(v))
+        cand = {c: r[c] for c in tramos if r[c] == r[c]}
+        r["etapa"] = nombres[max(cand, key=cand.get)] if cand else ""
+        return r
+
+    ult = today.to_period("M").to_timestamp()
+    meses = [m for m in pd.date_range(pd.Timestamp(year, 1, 1), periods=12, freq="MS") if m <= ult]
+    rows = [fila(x[x["mes"] == m] if len(x) else x, m) for m in meses]
+    rows.append(fila(x, pd.NaT))
+    return pd.DataFrame(rows)

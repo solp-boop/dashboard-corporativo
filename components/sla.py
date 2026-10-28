@@ -483,7 +483,8 @@ def tipo_mes_matrix(t: pd.DataFrame, today: pd.Timestamp, medida: str = "dias") 
 def mes_matrix(d: pd.DataFrame, columnas: list[tuple[str, str]], today: pd.Timestamp,
                resaltar: list[str] | None = None, extra: list[tuple[str, str]] | None = None,
                pct: tuple[str, str] | None = None, textos: list[tuple[str, str]] | None = None,
-               fecha: str = "Mes ETD") -> None:
+               fecha: str = "Mes ETD", n_label: str = "Embarques", textos_al_final: bool = False,
+               total_label: str | None = None, medio_dia: bool = False) -> None:
     """Meses (filas) × etapas o tramos (columnas): mediana de días. `resaltar`: columnas entre las que se marca
     la más larga de cada mes. `extra`: columnas que se muestran después, sin resaltar. `pct`: (columna, título) de
     un % de cumplimiento, en verde si llega al objetivo y en rojo si no."""
@@ -492,16 +493,17 @@ def mes_matrix(d: pd.DataFrame, columnas: list[tuple[str, str]], today: pd.Times
         return
     extra = extra or []
     textos = textos or []
-    head = [fecha, "Embarques"] + [lbl for _, lbl in textos] + ([pct[1]] if pct else []) + \
-        [lbl for _, lbl in columnas + extra]
+    t_ini, t_fin = ([], textos) if textos_al_final else (textos, [])
+    head = [fecha, n_label] + [lbl for _, lbl in t_ini] + ([pct[1]] if pct else []) + \
+        [lbl for _, lbl in columnas + extra] + [lbl for _, lbl in t_fin]
     body = []
     for _, r in d.sort_values("mes", na_position="last").iterrows():
         cand = {c: r.get(c) for c in (resaltar or []) if r.get(c) == r.get(c) and r.get(c) is not None}
         mx = max(cand, key=cand.get) if cand else None
         total = pd.isna(r["mes"])
-        mes_txt = f"Total {today.year}" if total else _mes_txt(r["mes"], today)
+        mes_txt = (total_label or f"Total {today.year}") if total else _mes_txt(r["mes"], today)
         cells = [f"<th class='rowh'>{mes_txt}</th>", f"<td>{fmt.fmt_int(r['n'])}</td>"]
-        for c, _ in textos:
+        for c, _ in t_ini:
             v = r.get(c)
             cells.append(f"<td>{html.escape(str(v)) if isinstance(v, str) and v else '—'}</td>")
         if pct:
@@ -513,7 +515,11 @@ def mes_matrix(d: pd.DataFrame, columnas: list[tuple[str, str]], today: pd.Times
             if v != v or v is None:
                 cells.append("<td class='na'>—</td>")
             else:
-                cells.append(f"<td class='{'hl' if c == mx else ''}'>{fmt.fmt_int(v)} d</td>")
+                txt = (f"{v:.1f}".replace(".", ",") if medio_dia and v % 1 else fmt.fmt_int(v))
+                cells.append(f"<td class='{'hl' if c == mx else ''}'>{txt} d</td>")
+        for c, _ in t_fin:
+            v = r.get(c)
+            cells.append(f"<td>{html.escape(str(v)) if isinstance(v, str) and v else '—'}</td>")
         body.append(("<tr class='tot'>" if total else "<tr>") + "".join(cells) + "</tr>")
     st.markdown('<div class="scorecard compact matriz"><table><thead><tr>' + "".join(f"<th>{h}</th>" for h in head)
                 + f'</tr></thead><tbody>{"".join(body)}</tbody></table></div>', unsafe_allow_html=True)

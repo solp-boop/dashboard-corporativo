@@ -533,6 +533,28 @@ def _aereo(bundle, filters, ventana) -> None:
         tab = tm.por_mes(sub, [c for c, _ in cols] + ["dias_aereo"])
         sla_view.mes_matrix(tab, cols, t, resaltar=[c for c, _ in cols], extra=[("dias_aereo", "Total punta a punta")])
 
+    with guard("Entregados por tramo"):
+        section(f"Entregados · tramos mes a mes {t.year}",
+                "Solo aéreos con estadio ENTREGADO, por mes de ETD, del tipo de negocio elegido arriba. Mediana de "
+                "cada tramo; cada tramo usa los embarques que lo tienen cargado, aunque falte el total (por ejemplo, "
+                "packeo en «Revisar»). Punta a punta = columna «Total». Resaltado y última columna: la etapa más "
+                "larga del mes. Un valor negativo indica fechas inconsistentes en el seguimiento.")
+        ent = _aereo_ops(a_all[a_all["etd"].notna() & (a_all["etd"] <= t)])
+        if "estadio" in ent:
+            ent = ent[ent["estadio"].map(lambda v: dc.fold(v).upper() == "ENTREGADO" if isinstance(v, str) else False)]
+        if elegido != "Todos":
+            ent = ent[ent["tipo_label"] == elegido]
+        te = tm.tramos_entregados(ent, t)
+        cols_e = [(c, lbl) for c, lbl in tm.TRAMOS_ENTREGADOS if c in ent]
+        sla_view.mes_matrix(te, cols_e, t, resaltar=[c for c, _ in cols_e],
+                            extra=[("dias_aereo", "Punta a punta (mediana)")], textos=[("etapa", "Etapa más larga")],
+                            textos_al_final=True, n_label="Entregados", total_label="Todo el período",
+                            medio_dia=True)
+        sin_total = int((ent["dias_aereo"].isna()).sum()) if len(ent) and "dias_aereo" in ent else 0
+        if sin_total:
+            st.caption(f"{fmt.fmt_int(sin_total)} entregados sin «Total» en la planilla (falta o está mal el packeo): "
+                       "suman en los tramos que tienen cargados, no en el punta a punta.")
+
     with guard("Descarga aéreo"):
         det = a.assign(mes=a["etd"].dt.strftime("%m/%Y"),
                        _sla_ref=a["sla_aereo"] if "sla_aereo" in a else np.nan)
