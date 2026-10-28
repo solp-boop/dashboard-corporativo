@@ -56,6 +56,36 @@ def por_negociacion(hist: pd.DataFrame, neg: pd.DataFrame) -> pd.DataFrame:
     return m[COLS].sort_values("etd", ascending=False).reset_index(drop=True)
 
 
+def mes_por_trimestre(neg_casos: pd.DataFrame, nor: pd.DataFrame, year: int, hasta: pd.Timestamp) -> pd.DataFrame:
+    """Apertura de cada trimestre del año por mes (ETD), hasta el mes de `hasta`, con subtotal por trimestre.
+
+    Columnas: q, mes (Timestamp; NaT en el subtotal), negociacion, nor, nor_cont, total, acum_q, subtotal (bool)."""
+    rows = []
+    ult = pd.Timestamp(hasta).to_period("M").to_timestamp()
+    for q in range(1, 5):
+        meses = [pd.Timestamp(year, 3 * q - 2 + i, 1) for i in range(3)]
+        meses = [m for m in meses if m <= ult]
+        if not meses:
+            break
+        acum, tot = 0.0, {"negociacion": 0.0, "nor": 0.0, "nor_cont": 0.0}
+        for m in meses:
+            fin = m + pd.DateOffset(months=1)
+            n = neg_casos[(neg_casos["etd"] >= m) & (neg_casos["etd"] < fin)] if neg_casos is not None and len(neg_casos) \
+                else pd.DataFrame(columns=["captura"])
+            r = nor[(nor["etd"] >= m) & (nor["etd"] < fin)] if nor is not None and len(nor) \
+                else pd.DataFrame(columns=["ahorro", "contenedores"])
+            v = {"negociacion": float(n["captura"].sum()), "nor": float(r["ahorro"].sum()),
+                 "nor_cont": float(r["contenedores"].sum())}
+            acum += v["negociacion"] + v["nor"]
+            for k in tot:
+                tot[k] += v[k]
+            rows.append({"q": f"Q{q}", "mes": m, **v, "total": v["negociacion"] + v["nor"], "acum_q": acum,
+                         "subtotal": False})
+        rows.append({"q": f"Q{q}", "mes": pd.NaT, **tot, "total": tot["negociacion"] + tot["nor"], "acum_q": acum,
+                     "subtotal": True})
+    return pd.DataFrame(rows, columns=["q", "mes", "negociacion", "nor", "nor_cont", "total", "acum_q", "subtotal"])
+
+
 def mensual(neg_casos: pd.DataFrame, nor: pd.DataFrame) -> pd.DataFrame:
     """Captura por mes de ETD y fuente: columnas mes, negociacion, nor, total, acumulado."""
     partes = []

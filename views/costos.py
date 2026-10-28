@@ -713,6 +713,27 @@ def _captura(bundle, filters, h, ventana, m=None) -> None:
                      status="ok" if r["total"] > 0 else ("bad" if r["total"] < 0 else ""),
                      sub=f"negociación {fmt.fmt_usd(r['negociacion'])} · 40 NOR {fmt.fmt_usd(r['nor'])} "
                          f"({fmt.fmt_int(r['nor_cont'])} cont.)") for _, r in qq.iterrows()], columns=4)
+        ap = cap.mes_por_trimestre(casos_neg, nor, t.year, t)
+        if len(ap):
+            with st.expander("Ver cada trimestre abierto por mes", expanded=True):
+                ap = ap.iloc[::-1].reset_index(drop=True)   # el trimestre y el mes más recientes arriba
+                orden = []
+                for q in ap["q"].unique():                     # dentro de cada Q: subtotal primero, después los meses
+                    b = ap[ap["q"] == q]
+                    orden += list(b[b["subtotal"]].index) + list(b[~b["subtotal"]].index)
+                ap = ap.loc[orden].reset_index(drop=True)
+                ap["periodo"] = [f"{q}{'*' if q == q_act else ''} · total" if sub else f"   {fmt.fmt_month(m)}"
+                                 for q, m, sub in zip(ap["q"], ap["mes"], ap["subtotal"])]
+                ap["acum_txt"] = np.where(ap["subtotal"], np.nan, ap["acum_q"])
+                data_table(ap, [
+                    ColSpec("periodo", "Trimestre / mes"), ColSpec("nor", "40 NOR (USD)", "usd"),
+                    ColSpec("nor_cont", "Cont. 40 NOR", "int"), ColSpec("negociacion", "Negociación (USD)", "usd"),
+                    ColSpec("total", "Captura total (USD)", "usd"),
+                    ColSpec("acum_txt", "Acumulado del trimestre (USD)", "usd"),
+                ], key="co_cap_q_mes", filename=f"captura_trimestre_mes_{t.year}", search=False,
+                    row_styles=pd.Series(np.where(ap["subtotal"], "font-weight: 600; background-color: rgba(36,86,166,0.06)",
+                                                  ""), index=ap.index),
+                    caption="Por mes de ETD · * trimestre en curso · el acumulado suma los meses del trimestre hasta ese mes")
 
     with guard("Captura por agente"):
         ag = cap.por_agente(h, casos_neg, nor)
