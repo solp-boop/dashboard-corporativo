@@ -401,8 +401,18 @@ def test_cotizaciones_matriz_y_flete_mes():
     assert r["Delfin"] == 1400 and r["menor"] == 1200 and r["menor_agente"] == "Rhenus" and r["estado"] == "Negociar"
     assert r["anterior"] == 1600 and round(r["var"], 3) == -0.25 and "Delfin: pedir USD 1.200" in r["negociar"]
     # mediana de la ruta = de la menor de cada agente (Delfin 1.400, Rhenus 1.200), no de las 3 tarifas
+    assert ag == ["Rhenus", "Delfin"]          # Rhenus tiene la menor: primero
     assert r["mediana"] == 1300 and r["n_agentes"] == 2 and round(r["menor_vs_mediana"], 3) == -0.077
     h = pd.DataFrame({"etd": [ts("2025-09-10"), ts("2026-08-10"), ts("2026-09-10")], "tipo_ctnr": ["40ST/40HQ"] * 3,
                       "flete_por_ctnr": [2000.0, 1000.0, 1500.0]})
     f = cs.flete_mes(h, "40ST/40HQ", 2026).set_index("mes")
     assert f.loc[ts("2026-09-01"), "var_mes"] == 0.5 and f.loc[ts("2026-09-01"), "var_anio"] == -0.25
+
+
+def test_orden_agentes_mejor_a_peor():
+    from utils import negociar
+    t = pd.DataFrame({"menor": [100.0, 200.0, 300.0],
+                      "A": [110.0, 220.0, None],        # +10 % siempre
+                      "B": [100.0, 200.0, 360.0],       # mediana 0 %
+                      "C": [None, None, 300.0]})        # 0 % en 1 ruta
+    assert negociar.orden_agentes(t, ["A", "C", "B"]) == ["B", "C", "A"]

@@ -1020,7 +1020,8 @@ def _cotizaciones_cuadro(bundle, h, t, dias) -> None:
     section("Cotizaciones: ruta × agente",
             "Tarifas de «Cotizaciones Maritimos Negociado» (destino Argentina) para las rutas que usamos en los "
             f"últimos {dias} días. La mejor tarifa es la menor. Verde = la menor de la ruta; ● = el agente con el que más "
-            "embarcamos esa ruta. Por contenedor, en USD. Este cuadro compara todas las tarifas; la tabla de "
+            "embarcamos esa ruta. Agentes ordenados de la mejor alternativa a la última: primero el que, en las rutas "
+            "que cotizó, queda más cerca de la menor tarifa (mediana). Por contenedor, en USD. Este cuadro compara todas las tarifas; la tabla de "
             "oportunidades, solo las comparables. «Mediana de la ruta» = mediana de la menor tarifa de cada agente; "
             f"si la menor queda más de {fmt.fmt_pct(settings.COT_MENOR_VS_MEDIANA)} por debajo, se resalta: revisar sus "
             "condiciones (transbordo, línea, tránsito, días libres) antes de usarla para negociar.")

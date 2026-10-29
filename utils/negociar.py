@@ -197,5 +197,16 @@ def matriz(hist: pd.DataFrame, cot: pd.DataFrame | None, today: pd.Timestamp, cu
     t["_ahorro"] = (t["tarifa_principal"] - t["menor"]).clip(lower=0).fillna(0) * t["contenedores"]
     t = t.assign(_o=t["estado"].map(orden)).sort_values(["_o", "_ahorro", "contenedores"],
                                                         ascending=[True, False, False]).drop(columns="_o")
-    agentes = [a for a in agentes if t[a].notna().any()]
+    agentes = orden_agentes(t, [a for a in agentes if t[a].notna().any()])
     return t.reset_index(drop=True), agentes
+
+
+def orden_agentes(t: pd.DataFrame, agentes: list[str]) -> list[str]:
+    """De la mejor alternativa a la última: mediana de cuánto está cada agente por encima de la menor tarifa de cada
+    ruta que cotizó (0 % = siempre la menor). Desempate: más rutas donde es la menor y, después, más rutas cotizadas."""
+    def clave(a):
+        v = t[a]
+        ok = v.notna() & (t["menor"] > 0)
+        gap = (v[ok] / t.loc[ok, "menor"] - 1)
+        return (float(gap.median()) if len(gap) else np.inf, -int((v[ok] <= t.loc[ok, "menor"]).sum()), -int(ok.sum()))
+    return sorted(agentes, key=clave)
