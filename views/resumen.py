@@ -934,7 +934,7 @@ def _proyeccion_mono(d, t) -> None:
     from components import charts
     from utils import proyeccion as pr
     chart_title("¿Cuántos contenedores monoproveedor vamos a necesitar?",
-                "Planif cargas con «¿Es monoproveedor?» = SI, marítimo, por ETD · reservados (contenedores reales del "
+                "Planif cargas con «¿Es monoproveedor?» = SI, marítimo, solo «País Destino» = Argentina, por ETD · reservados (contenedores reales del "
                 "embarque en Reservas, separados según tengan o no «ETD OK FFWW» del agente) + por reservar (estimados por proveedor y ETD: m³ / "
                 f"{settings.CAPACIDAD_CTNR.get('40 HQ', 68)} m³ de un 40 HQ, redondeado hacia arriba, porque un contenedor "
                 "monoproveedor no se comparte con otro proveedor)")

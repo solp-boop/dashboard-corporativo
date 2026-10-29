@@ -59,7 +59,7 @@ def _agrupar(fecha: pd.Series, today: pd.Timestamp, meses: int) -> pd.Series:
 def base(res: pd.DataFrame | None, planif: pd.DataFrame | None, hist: pd.DataFrame | None) -> pd.DataFrame:
     """Una fila por línea de Planif: fuente, SO, embarque, etd, eta, contenedores, m³, FOB, estructura y medio."""
     cols = ["fuente", "id", "embarque", "etd", "eta", "contenedores", "m3", "fob", "estructura", "medio", "proveedor",
-            "etd_ok"]
+            "etd_ok", "destino"]
     if planif is None or planif.empty:
         return pd.DataFrame(columns=cols)
     p = planif
@@ -84,6 +84,7 @@ def base(res: pd.DataFrame | None, planif: pd.DataFrame | None, hist: pd.DataFra
         "m3": m3.to_numpy(), "fob": pd.to_numeric(fob, errors="coerce").fillna(0).to_numpy(),
         "estructura": p["estructura"].to_numpy(), "medio": np.where(mar, "Marítimo", "Otro"),
         "proveedor": p["proveedor"].to_numpy() if "proveedor" in p else None,
+        "destino": p["destino"].to_numpy() if "destino" in p else None,
     })
     # Estructura: si Planif no la tiene, la del embarque en Reservas.
     d["estructura"] = d["estructura"].where(d["estructura"].notna(), d["_k"].map(est_res))
@@ -142,8 +143,10 @@ def por_estructura(d: pd.DataFrame, today: pd.Timestamp, meses: int = 6, fecha: 
     return g.reset_index()
 
 
-def mono_por_periodo(d: pd.DataFrame, today: pd.Timestamp, por: str = "mes", n: int | None = None) -> pd.DataFrame:
-    """Contenedores que vamos a necesitar para lo MONOPROVEEDOR, por mes o semana de ETD (solo marítimo).
+def mono_por_periodo(d: pd.DataFrame, today: pd.Timestamp, por: str = "mes", n: int | None = None,
+                     destino: str | None = "Argentina") -> pd.DataFrame:
+    """Contenedores que vamos a necesitar para lo MONOPROVEEDOR, por mes o semana de ETD (solo marítimo y, por
+    defecto, solo «País Destino» = Argentina).
 
     Reservados = contenedores reales del embarque en Reservas; por reservar = estimados por proveedor y ETD,
     m³ / capacidad de un 40 HQ (68 m³) redondeado hacia arriba (un contenedor mono no se comparte con otro proveedor). Lo de períodos anteriores va a ANTERIOR, lo posterior a la ventana a MAS_ADELANTE y
@@ -155,6 +158,8 @@ def mono_por_periodo(d: pd.DataFrame, today: pd.Timestamp, por: str = "mes", n: 
     if d is None or d.empty:
         return pd.DataFrame(columns=cols)
     x = d[(d["estructura"] == "Monoproveedor") & (d["medio"] == "Marítimo") & (d["fuente"] != "Embarcado")]
+    if destino and "destino" in x:
+        x = x[x["destino"].map(lambda v: dc.fold(v) == dc.fold(destino) if isinstance(v, str) else False)]
     if x.empty:
         return pd.DataFrame(columns=cols)
     etd = pd.to_datetime(x["etd"])

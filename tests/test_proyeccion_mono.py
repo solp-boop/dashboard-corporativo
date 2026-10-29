@@ -12,7 +12,7 @@ def test_mono_por_mes_y_semana():
         "eta": pd.NaT, "contenedores": [2.0, 1.5, 0.5, 1.0, 3.0, 1.0], "m3": [120.0, 90, 30, 60, 180, 60],
         "fob": 0.0, "estructura": ["Monoproveedor"] * 4 + ["Consolidado", "Monoproveedor"],
         "medio": ["Marítimo"] * 6, "proveedor": ["P1", "P2", "P2", "P1", "P3", "P4"],
-        "etd_ok": [True, False, False, False, False, False],
+        "etd_ok": [True, False, False, False, False, False], "destino": ["Argentina"] * 6,
     })
     hoy = ts("2026-10-29")
     m = pr.mono_por_periodo(d, hoy, "mes").set_index("periodo")
@@ -26,3 +26,13 @@ def test_mono_por_mes_y_semana():
     w = pr.mono_por_periodo(d, hoy, "semana").set_index("periodo")
     assert w.loc[ts("2026-11-02"), "total"] == 4          # semana del lunes 02/11: 2 reservados + 2 estimados
     assert pr.etiqueta_semana(ts("2026-10-26"), hoy) == "Sem 26/10 – 01/11*"
+
+
+def test_mono_solo_argentina():
+    ts = pd.Timestamp
+    d = pd.DataFrame({"fuente": ["Por reservar"] * 3, "id": ["1", "2", "3"], "embarque": None,
+                      "etd": [ts("2026-11-05")] * 3, "eta": pd.NaT, "contenedores": 1.0, "m3": [60.0] * 3, "fob": 0.0,
+                      "estructura": ["Monoproveedor"] * 3, "medio": ["Marítimo"] * 3, "proveedor": ["A", "B", "C"],
+                      "etd_ok": False, "destino": ["Argentina", "Uruguay", "México"]})
+    t = pr.mono_por_periodo(d, ts("2026-10-29"))
+    assert t.iloc[-1]["so"] == 1 and t.iloc[-1]["total"] == 1
