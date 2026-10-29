@@ -143,7 +143,8 @@ def matriz(hist: pd.DataFrame, cot: pd.DataFrame | None, today: pd.Timestamp, cu
     (la mejor), su variación contra el período anterior y con quién negociar.
 
     Devuelve (tabla, agentes). Columnas fijas: puerto, tipo_ctnr, contenedores, agente (principal), menor,
-    menor_agente, menor_linea, menor_tt, anterior, var, tarifa_principal, negociar, estado; + una columna por agente."""
+    menor_agente, menor_linea, menor_tt, anterior, var, mediana (de la ruta), n_agentes, menor_vs_mediana,
+    tarifa_principal, negociar, estado; + una columna por agente."""
     act = _menores(periodo(cot, today, cual, destino))
     if act.empty:
         return pd.DataFrame(), []
@@ -181,6 +182,9 @@ def matriz(hist: pd.DataFrame, cot: pd.DataFrame | None, today: pd.Timestamp, cu
              "menor": float(best["flete"]), "menor_agente": best["forwarder"],
              "menor_linea": best.get("linea") if "linea" in g else None, "menor_tt": best.get("tt") if "tt" in g else None,
              "anterior": prev, "var": (best["flete"] / prev - 1) if prev == prev and prev else np.nan,
+             # Mediana de la ruta: de la menor tarifa de cada agente (un agente con muchas líneas no pesa más).
+             "mediana": float(g["flete"].median()), "n_agentes": int(g["forwarder"].nunique()),
+             "menor_vs_mediana": float(best["flete"] / g["flete"].median() - 1) if g["flete"].median() else np.nan,
              "tarifa_principal": tar_pr, "negociar": neg, "estado": est}
         for a in agentes:
             v = g.loc[g["forwarder"] == a, "flete"]

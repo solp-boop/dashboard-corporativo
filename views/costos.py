@@ -1021,7 +1021,9 @@ def _cotizaciones_cuadro(bundle, h, t, dias) -> None:
             "Tarifas de «Cotizaciones Maritimos Negociado» (destino Argentina) para las rutas que usamos en los "
             f"últimos {dias} días. La mejor tarifa es la menor. Verde = la menor de la ruta; ● = el agente con el que más "
             "embarcamos esa ruta. Por contenedor, en USD. Este cuadro compara todas las tarifas; la tabla de "
-            "oportunidades, solo las comparables.")
+            "oportunidades, solo las comparables. «Mediana de la ruta» = mediana de la menor tarifa de cada agente; "
+            f"si la menor queda más de {fmt.fmt_pct(settings.COT_MENOR_VS_MEDIANA)} por debajo, se resalta: revisar sus "
+            "condiciones (transbordo, línea, tránsito, días libres) antes de usarla para negociar.")
     with guard("Cotizaciones"):
         cur = negociar.periodo(cot, t, "curso")
         prox = negociar.periodo(cot, t, "proxima")
@@ -1045,6 +1047,8 @@ def _cotizaciones_cuadro(bundle, h, t, dias) -> None:
                           ColSpec("contenedores", f"Cont. {dias} d", "int"), ColSpec("agente", "Agente principal")]
                       + [ColSpec(a, a, "usd") for a in agentes]
                       + [ColSpec("menor", "Menor (USD)", "usd"), ColSpec("menor_agente", "La ofrece"),
+                         ColSpec("mediana", "Mediana de la ruta (USD)", "usd"),
+                         ColSpec("menor_vs_mediana", "Menor vs mediana", "pct"),
                          ColSpec("menor_linea", "Línea"), ColSpec("var", "vs anterior", "pct"),
                          ColSpec("negociar", "Con quién negociar")],
                       key=f"co_cot_{cual}", filename=f"cotizaciones_{cual}_{t:%Y%m%d}",

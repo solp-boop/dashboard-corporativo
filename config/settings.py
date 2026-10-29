@@ -287,6 +287,8 @@ OPORT_CONCENTRACION = 0.50     # alerta si un agente supera el 50 % de los conte
 OPORT_SUBA = 0.10              # alerta si la menor comparable de la ruta sube > 10 % vs el período anterior
 OPORT_SOBRE_HISTORICO = 0.15   # alerta si la mediana pagada del mes supera en > 15 % la de los 6 meses previos
 OPORT_ADHERENCIA_TOL = 0.02    # pagó más que su cotización si supera en > 2 %
+# Cotizaciones ruta × agente: la menor tarifa se resalta si queda más de esto por debajo de la mediana de la ruta.
+COT_MENOR_VS_MEDIANA = 0.15
 OPORT_MIN_N = 5                # menos observaciones = confianza baja (sin color)
 
 

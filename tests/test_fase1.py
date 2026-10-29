@@ -400,6 +400,8 @@ def test_cotizaciones_matriz_y_flete_mes():
     r = m.iloc[0]
     assert r["Delfin"] == 1400 and r["menor"] == 1200 and r["menor_agente"] == "Rhenus" and r["estado"] == "Negociar"
     assert r["anterior"] == 1600 and round(r["var"], 3) == -0.25 and "Delfin: pedir USD 1.200" in r["negociar"]
+    # mediana de la ruta = de la menor de cada agente (Delfin 1.400, Rhenus 1.200), no de las 3 tarifas
+    assert r["mediana"] == 1300 and r["n_agentes"] == 2 and round(r["menor_vs_mediana"], 3) == -0.077
     h = pd.DataFrame({"etd": [ts("2025-09-10"), ts("2026-08-10"), ts("2026-09-10")], "tipo_ctnr": ["40ST/40HQ"] * 3,
                       "flete_por_ctnr": [2000.0, 1000.0, 1500.0]})
     f = cs.flete_mes(h, "40ST/40HQ", 2026).set_index("mes")

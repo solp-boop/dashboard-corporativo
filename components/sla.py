@@ -605,7 +605,8 @@ def cotizaciones_matrix(t: pd.DataFrame, agentes: list[str]) -> None:
         st.markdown('<div class="empty">No hay cotizaciones para este período en nuestras rutas.</div>',
                     unsafe_allow_html=True)
         return
-    head = ["Ruta", "Cont. 60 d"] + agentes + ["Menor tarifa", "vs período anterior", "Con quién negociar"]
+    head = ["Ruta", "Cont. 60 d"] + agentes + ["Menor tarifa", "Mediana de la ruta", "Menor vs mediana",
+                                                "vs período anterior", "Con quién negociar"]
     body = []
     for _, r in t.iterrows():
         cells = [f"<th class='rowh'>{html.escape(str(r['puerto']))} · {html.escape(str(r['tipo_ctnr']))}</th>",
@@ -625,6 +626,17 @@ def cotizaciones_matrix(t: pd.DataFrame, agentes: list[str]) -> None:
         extra = " · ".join(x for x in (linea, tt) if x)
         cells.append(f"<td class='hl'>USD {fmt.fmt_int(r['menor'])}<span class='n'>{html.escape(str(r['menor_agente']))}"
                      f"{' · ' + html.escape(extra) if extra else ''}</span></td>")
+        med, gap, n_ag = r.get("mediana"), r.get("menor_vs_mediana"), r.get("n_agentes")
+        cells.append("<td class='na'>—</td>" if med != med or med is None else
+                     f"<td>USD {fmt.fmt_int(med)}<span class='n'>{fmt.fmt_int(n_ag)} agente"
+                     f"{'s' if n_ag != 1 else ''}</span></td>")
+        if gap != gap or gap is None or not n_ag or n_ag < 2:
+            cells.append("<td class='na'>—</td>")
+        else:
+            alerta = gap < -settings.COT_MENOR_VS_MEDIANA
+            cells.append(f"<td class='{'warn' if alerta else ''}' title='"
+                         f"{'Muy por debajo del resto: revisar condiciones (transbordo, línea, tránsito, días libres)' if alerta else ''}'>"
+                         f"{fmt.fmt_pct(gap, signed=True)}</td>")
         cells.append(_var_td(r["var"]))
         cls = {"Negociar": "bad", "Pedir": "", "OK": "ok"}.get(r["estado"], "")
         cells.append(f"<td class='{cls}' style='text-align:left;white-space:normal;min-width:16rem'>"
