@@ -58,7 +58,7 @@ def _agrupar(fecha: pd.Series, today: pd.Timestamp, meses: int) -> pd.Series:
 
 def base(res: pd.DataFrame | None, planif: pd.DataFrame | None, hist: pd.DataFrame | None) -> pd.DataFrame:
     """Una fila por línea de Planif: fuente, SO, embarque, etd, eta, contenedores, m³, FOB, estructura y medio."""
-    cols = ["fuente", "id", "embarque", "etd", "eta", "contenedores", "m3", "fob", "estructura", "medio"]
+    cols = ["fuente", "id", "embarque", "etd", "eta", "contenedores", "m3", "fob", "estructura", "medio", "proveedor"]
     if planif is None or planif.empty:
         return pd.DataFrame(columns=cols)
     p = planif
@@ -80,6 +80,7 @@ def base(res: pd.DataFrame | None, planif: pd.DataFrame | None, hist: pd.DataFra
         "etd": p["etd"].to_numpy(), "eta": p["eta"].to_numpy() if "eta" in p else pd.NaT,
         "m3": m3.to_numpy(), "fob": pd.to_numeric(fob, errors="coerce").fillna(0).to_numpy(),
         "estructura": p["estructura"].to_numpy(), "medio": np.where(mar, "Marítimo", "Otro"),
+        "proveedor": p["proveedor"].to_numpy() if "proveedor" in p else None,
     })
     # Estructura: si Planif no la tiene, la del embarque en Reservas.
     d["estructura"] = d["estructura"].where(d["estructura"].notna(), d["_k"].map(est_res))
@@ -134,3 +135,63 @@ def por_estructura(d: pd.DataFrame, today: pd.Timestamp, meses: int = 6, fecha: 
     g = x.groupby(["mes", "estructura"]).agg(contenedores=("contenedores", "sum"), m3=("m3", "sum"),
                                              fob=("fob", "sum"))
     return g.reset_index()
+
+
+def mono_por_periodo(d: pd.DataFrame, today: pd.Timestamp, por: str = "mes", n: int | None = None) -> pd.DataFrame:
+    """Contenedores que vamos a necesitar para lo MONOPROVEEDOR, por mes o semana de ETD (solo marítimo).
+
+    Reservados = contenedores reales del embarque en Reservas; por reservar = estimados por proveedor y ETD,
+    m³ / capacidad de un 40 HQ (68 m³) redondeado hacia arriba (un contenedor mono no se comparte con otro proveedor). Lo de períodos anteriores va a ANTERIOR, lo posterior a la ventana a MAS_ADELANTE y
+    lo que no tiene ETD a SIN_FECHA. Última fila (periodo NaT): total.
+    Columnas: periodo, so, so_por_reservar, embarques, reservados, por_reservar, total, m3."""
+    cols = ["periodo", "so", "so_por_reservar", "embarques", "reservados", "por_reservar", "total", "m3"]
+    if d is None or d.empty:
+        return pd.DataFrame(columns=cols)
+    x = d[(d["estructura"] == "Monoproveedor") & (d["medio"] == "Marítimo") & (d["fuente"] != "Embarcado")]
+    if x.empty:
+        return pd.DataFrame(columns=cols)
+    etd = pd.to_datetime(x["etd"])
+    if por == "semana":
+        n = n or 12
+        ini = (today - pd.Timedelta(days=today.weekday())).normalize()          # lunes de esta semana
+        per = (etd - pd.to_timedelta(etd.dt.weekday, unit="D")).dt.normalize()
+        fin = ini + pd.Timedelta(weeks=n)
+    else:
+        n = n or 6
+        ini = today.to_period("M").to_timestamp()
+        per = calc.month_start(etd)
+        fin = ini + pd.DateOffset(months=n)
+    per = per.mask(per < ini, ANTERIOR).mask(per >= fin, MAS_ADELANTE).fillna(SIN_FECHA)
+    x = x.assign(periodo=per.to_numpy())
+    # Por reservar: un contenedor monoproveedor no se comparte con otro proveedor. Se estima por proveedor y ETD
+    # (lo del mismo proveedor que sale el mismo día va junto): m³ / capacidad de un 40 HQ, redondeado hacia arriba.
+    pr_all = x[x["fuente"] == "Por reservar"]
+    if len(pr_all):
+        prov = pr_all["proveedor"].fillna(pr_all["id"]) if "proveedor" in pr_all else pr_all["id"]
+        grp = pr_all.assign(_prov=prov.astype(str), _etd=pd.to_datetime(pr_all["etd"]).fillna(SIN_FECHA))
+        est = grp.groupby(["periodo", "_prov", "_etd"])["m3"].sum()
+        cap = settings.CAPACIDAD_CTNR.get("40 HQ", 68)
+        est = np.ceil(est / cap).groupby(level="periodo").sum()
+    else:
+        est = pd.Series(dtype=float)
+
+    def fila(g, periodo=None):
+        rv, pr_ = g[g["fuente"] == "Reservado"], g[g["fuente"] == "Por reservar"]
+        por_res = float(est.get(periodo, 0.0)) if periodo is not None else float(est.sum())
+        r = {"so": int(g["id"].nunique()), "so_por_reservar": int(pr_["id"].nunique()),
+             "embarques": int(rv["embarque"].nunique()), "reservados": float(rv["contenedores"].sum()),
+             "por_reservar": por_res, "m3": float(g["m3"].sum())}
+        r["total"] = r["reservados"] + r["por_reservar"]
+        return r
+    rows = [{"periodo": p, **fila(g, p)} for p, g in x.groupby("periodo")]
+    rows.append({"periodo": pd.NaT, **fila(x)})
+    return pd.DataFrame(rows, columns=cols)
+
+
+def etiqueta_semana(p: pd.Timestamp, today: pd.Timestamp) -> str:
+    """«Sem 03/11 – 09/11» (con * la semana en curso) o Anterior / Más adelante / Sin fecha."""
+    especiales = {ANTERIOR: "Anterior", MAS_ADELANTE: "Más adelante", SIN_FECHA: "Sin fecha"}
+    if p in especiales:
+        return especiales[p]
+    actual = p == (today - pd.Timedelta(days=today.weekday())).normalize()
+    return f"Sem {p:%d/%m} – {p + pd.Timedelta(days=6):%d/%m}" + ("*" if actual else "")

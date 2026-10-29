@@ -922,3 +922,54 @@ def render_proyeccion(bundle, filters) -> None:
             ColSpec("pct_cons", "% Consolidado", "pct"),
         ], key="proyeccion", filename=f"proyeccion_{t:%Y%m%d}", search=False, row_styles=styles,
             caption="% mono / consolidado sobre m³")
+
+    with guard("Proyección monoproveedor"):
+        _proyeccion_mono(d, t)
+
+
+def _proyeccion_mono(d, t) -> None:
+    """Contenedores que vamos a necesitar para lo monoproveedor, por mes o por semana de ETD."""
+    import plotly.graph_objects as go
+
+    from components import charts
+    from utils import proyeccion as pr
+    chart_title("¿Cuántos contenedores monoproveedor vamos a necesitar?",
+                "Planif cargas con «¿Es monoproveedor?» = SI, marítimo, por ETD · reservados (contenedores reales del "
+                "embarque en Reservas) + por reservar (estimados por proveedor y ETD: m³ / "
+                f"{settings.CAPACIDAD_CTNR.get('40 HQ', 68)} m³ de un 40 HQ, redondeado hacia arriba, porque un contenedor "
+                "monoproveedor no se comparte con otro proveedor)")
+    por = st.segmented_control("Ver por", ["Mes", "Semana"], default="Mes", key="proy_mono_por",
+                               label_visibility="collapsed") or "Mes"
+    tab = pr.mono_por_periodo(d, t, "semana" if por == "Semana" else "mes")
+    if tab.empty:
+        empty("Sin SO monoproveedor marítimas en Planif cargas.")
+        return
+    etiq = (lambda p: pr.etiqueta_semana(p, t)) if por == "Semana" else (lambda p: pr.etiqueta(p, t))
+    cuerpo = tab[tab["periodo"].notna()]
+    labels = [etiq(p) for p in cuerpo["periodo"]]
+    fig = go.Figure()
+    fig.add_bar(x=labels, y=cuerpo["reservados"].round(1), name="Reservados",
+                marker=dict(color=settings.SERIES[0], cornerradius=3),
+                hovertemplate="%{x} · reservados: %{y:,.0f} cont.<extra></extra>")
+    fig.add_bar(x=labels, y=cuerpo["por_reservar"].round(1), name="Por reservar (estimado)",
+                marker=dict(color=settings.SERIES[1], cornerradius=3),
+                hovertemplate="%{x} · por reservar: %{y:,.0f} cont.<extra></extra>")
+    fig.add_scatter(x=labels, y=cuerpo["total"], mode="text", showlegend=False, hoverinfo="skip",
+                    text=[fmt.fmt_int(v) for v in cuerpo["total"]], textposition="top center",
+                    textfont=dict(size=11, color=settings.COLORS["slate"]))
+    fig.update_layout(barmode="stack")
+    charts.theme(fig, height=320, y_title="contenedores")
+    charts.show(fig, key="proy_mono_chart")
+    show = tab.copy()
+    show["periodo_txt"] = ["Total" if pd.isna(p) else etiq(p) for p in show["periodo"]]
+    styles = pd.Series("", index=show.index)
+    styles.iloc[-1] = "font-weight: 600; background-color: rgba(120,130,150,0.10)"
+    data_table(show, [
+        ColSpec("periodo_txt", f"{por} ETD", width="medium"), ColSpec("so", "SO", "int"),
+        ColSpec("embarques", "Embarques reservados", "int"), ColSpec("reservados", "Cont. reservados", "int"),
+        ColSpec("so_por_reservar", "SO por reservar", "int"), ColSpec("por_reservar", "Cont. por reservar", "int"),
+        ColSpec("total", "Contenedores necesarios", "int"), ColSpec("m3", "M3", "num"),
+    ], key=f"proy_mono_{por.lower()}", filename=f"proyeccion_monoproveedor_{por.lower()}_{t:%Y%m%d}", search=False,
+        row_styles=styles, caption=(("Con * la semana" if por == "Semana" else "Con * el mes")
+                                    + " en curso · Anterior = ETD ya pasada y todavía por reservar · contenedores "
+                                    "por reservar estimados por proveedor y ETD"))
