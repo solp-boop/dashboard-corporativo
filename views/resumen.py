@@ -935,7 +935,7 @@ def _proyeccion_mono(d, t) -> None:
     from utils import proyeccion as pr
     chart_title("¿Cuántos contenedores monoproveedor vamos a necesitar?",
                 "Planif cargas con «¿Es monoproveedor?» = SI, marítimo, por ETD · reservados (contenedores reales del "
-                "embarque en Reservas) + por reservar (estimados por proveedor y ETD: m³ / "
+                "embarque en Reservas, separados según tengan o no «ETD OK FFWW» del agente) + por reservar (estimados por proveedor y ETD: m³ / "
                 f"{settings.CAPACIDAD_CTNR.get('40 HQ', 68)} m³ de un 40 HQ, redondeado hacia arriba, porque un contenedor "
                 "monoproveedor no se comparte con otro proveedor)")
     por = st.segmented_control("Ver por", ["Mes", "Semana"], default="Mes", key="proy_mono_por",
@@ -948,9 +948,12 @@ def _proyeccion_mono(d, t) -> None:
     cuerpo = tab[tab["periodo"].notna()]
     labels = [etiq(p) for p in cuerpo["periodo"]]
     fig = go.Figure()
-    fig.add_bar(x=labels, y=cuerpo["reservados"].round(1), name="Reservados",
+    fig.add_bar(x=labels, y=cuerpo["confirmados"].round(1), name="Reservados · con OK del agente",
                 marker=dict(color=settings.SERIES[0], cornerradius=3),
-                hovertemplate="%{x} · reservados: %{y:,.0f} cont.<extra></extra>")
+                hovertemplate="%{x} · con ETD OK FFWW: %{y:,.0f} cont.<extra></extra>")
+    fig.add_bar(x=labels, y=cuerpo["sin_confirmar"].round(1), name="Reservados · sin OK del agente",
+                marker=dict(color=settings.SERIES[2], cornerradius=3),
+                hovertemplate="%{x} · reservados sin ETD OK: %{y:,.0f} cont.<extra></extra>")
     fig.add_bar(x=labels, y=cuerpo["por_reservar"].round(1), name="Por reservar (estimado)",
                 marker=dict(color=settings.SERIES[1], cornerradius=3),
                 hovertemplate="%{x} · por reservar: %{y:,.0f} cont.<extra></extra>")
@@ -966,7 +969,8 @@ def _proyeccion_mono(d, t) -> None:
     styles.iloc[-1] = "font-weight: 600; background-color: rgba(120,130,150,0.10)"
     data_table(show, [
         ColSpec("periodo_txt", f"{por} ETD", width="medium"), ColSpec("so", "SO", "int"),
-        ColSpec("embarques", "Embarques reservados", "int"), ColSpec("reservados", "Cont. reservados", "int"),
+        ColSpec("embarques", "Embarques reservados", "int"), ColSpec("confirmados", "Cont. con OK del agente", "int"),
+        ColSpec("sin_confirmar", "Cont. reservados sin OK", "int"),
         ColSpec("so_por_reservar", "SO por reservar", "int"), ColSpec("por_reservar", "Cont. por reservar", "int"),
         ColSpec("total", "Contenedores necesarios", "int"), ColSpec("m3", "M3", "num"),
     ], key=f"proy_mono_{por.lower()}", filename=f"proyeccion_monoproveedor_{por.lower()}_{t:%Y%m%d}", search=False,

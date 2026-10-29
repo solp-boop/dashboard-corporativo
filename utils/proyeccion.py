@@ -58,16 +58,19 @@ def _agrupar(fecha: pd.Series, today: pd.Timestamp, meses: int) -> pd.Series:
 
 def base(res: pd.DataFrame | None, planif: pd.DataFrame | None, hist: pd.DataFrame | None) -> pd.DataFrame:
     """Una fila por línea de Planif: fuente, SO, embarque, etd, eta, contenedores, m³, FOB, estructura y medio."""
-    cols = ["fuente", "id", "embarque", "etd", "eta", "contenedores", "m3", "fob", "estructura", "medio", "proveedor"]
+    cols = ["fuente", "id", "embarque", "etd", "eta", "contenedores", "m3", "fob", "estructura", "medio", "proveedor",
+            "etd_ok"]
     if planif is None or planif.empty:
         return pd.DataFrame(columns=cols)
     p = planif
     k = id_key(p["embarque"].fillna(""))
-    cnt, est_res = {}, {}
+    cnt, est_res, ok_res = {}, {}, {}
     if res is not None and len(res):
         r = res.assign(_k=id_key(res["embarque"]))
         cnt = dict(zip(r["_k"], r["contenedores"].fillna(0)))
         est_res = dict(zip(r["_k"], r["estructura"]))
+        if "etd_ok" in r:
+            ok_res = dict(zip(r["_k"], r["etd_ok"].fillna(False).astype(bool)))
     en_hist = set(id_key(hist["embarque"])) if hist is not None and len(hist) else set()
     reservado = (p["embarque"].notna() & k.isin(cnt.keys())).to_numpy()
     embarcado = (p["embarque"].notna() & k.isin(en_hist)).to_numpy() & ~reservado
@@ -84,6 +87,8 @@ def base(res: pd.DataFrame | None, planif: pd.DataFrame | None, hist: pd.DataFra
     })
     # Estructura: si Planif no la tiene, la del embarque en Reservas.
     d["estructura"] = d["estructura"].where(d["estructura"].notna(), d["_k"].map(est_res))
+    # «ETD OK FFWW» del embarque en Reservas: el agente confirmó la salida.
+    d["etd_ok"] = (d["fuente"] == "Reservado") & d["_k"].map(ok_res).fillna(False).astype(bool)
     # Contenedores reales del embarque, repartidos por m³ entre sus líneas.
     rv = d["fuente"] == "Reservado"
     tot = d[rv].groupby("_k")["m3"].transform("sum")
@@ -143,8 +148,10 @@ def mono_por_periodo(d: pd.DataFrame, today: pd.Timestamp, por: str = "mes", n: 
     Reservados = contenedores reales del embarque en Reservas; por reservar = estimados por proveedor y ETD,
     m³ / capacidad de un 40 HQ (68 m³) redondeado hacia arriba (un contenedor mono no se comparte con otro proveedor). Lo de períodos anteriores va a ANTERIOR, lo posterior a la ventana a MAS_ADELANTE y
     lo que no tiene ETD a SIN_FECHA. Última fila (periodo NaT): total.
-    Columnas: periodo, so, so_por_reservar, embarques, reservados, por_reservar, total, m3."""
-    cols = ["periodo", "so", "so_por_reservar", "embarques", "reservados", "por_reservar", "total", "m3"]
+    Reservados se abren en confirmados (el embarque tiene «ETD OK FFWW») y sin confirmar.
+    Columnas: periodo, so, so_por_reservar, embarques, reservados, confirmados, sin_confirmar, por_reservar, total, m3."""
+    cols = ["periodo", "so", "so_por_reservar", "embarques", "reservados", "confirmados", "sin_confirmar",
+            "por_reservar", "total", "m3"]
     if d is None or d.empty:
         return pd.DataFrame(columns=cols)
     x = d[(d["estructura"] == "Monoproveedor") & (d["medio"] == "Marítimo") & (d["fuente"] != "Embarcado")]
@@ -181,6 +188,9 @@ def mono_por_periodo(d: pd.DataFrame, today: pd.Timestamp, por: str = "mes", n: 
         r = {"so": int(g["id"].nunique()), "so_por_reservar": int(pr_["id"].nunique()),
              "embarques": int(rv["embarque"].nunique()), "reservados": float(rv["contenedores"].sum()),
              "por_reservar": por_res, "m3": float(g["m3"].sum())}
+        ok = rv["etd_ok"].fillna(False).astype(bool) if "etd_ok" in rv else pd.Series(False, index=rv.index)
+        r["confirmados"] = float(rv.loc[ok, "contenedores"].sum())
+        r["sin_confirmar"] = r["reservados"] - r["confirmados"]
         r["total"] = r["reservados"] + r["por_reservar"]
         return r
     rows = [{"periodo": p, **fila(g, p)} for p, g in x.groupby("periodo")]
