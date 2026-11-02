@@ -467,6 +467,13 @@ CASOS_AER = [
 ]
 
 
+def _entregado(d: pd.DataFrame) -> pd.Series:
+    """Aéreos con estadio ENTREGADO en Seguimiento Aéreos."""
+    if "estadio" not in d:
+        return pd.Series(True, index=d.index)
+    return d["estadio"].map(lambda v: dc.fold(v).upper() == "ENTREGADO" if isinstance(v, str) else False).astype(bool)
+
+
 def _aereo(bundle, filters, ventana) -> None:
     if bundle.get("aereos") is None:
         empty("Sin datos de Seguimiento Aéreos.")
@@ -511,12 +518,14 @@ def _aereo(bundle, filters, ventana) -> None:
     with guard("Tipo de negocio por mes"):
         section("Mes a mes por tipo de negocio",
                 "Mes de ETD. Verde = dentro del SLA del tipo; rojo = fuera. En gris e itálica, los meses anteriores al "
-                f"{desde:%d/%m/%Y} (el SLA todavía no regía: solo referencia). La cantidad cuenta los embarques "
-                "zarpados con «Total» cargado. * mes en curso.")
+                f"{desde:%d/%m/%Y} (el SLA todavía no regía: solo referencia). Solo embarques entregados (estadio "
+                "ENTREGADO) con «Total» cargado: lo que está en tránsito no entra con su ETA Caldas estimada. "
+                "* mes en curso.")
         medida = st.segmented_control("Medida", ["Días (mediana)", "% dentro del SLA", "Cantidad de embarques"],
                                       default="Días (mediana)", key="tm_aer_medida",
                                       label_visibility="collapsed") or "Días (mediana)"
-        tabla = tm.tipo_por_mes(a.assign(_sla_tipo=a["sla_aereo"] if "sla_aereo" in a else np.nan),
+        ent = a[_entregado(a)]
+        tabla = tm.tipo_por_mes(ent.assign(_sla_tipo=ent["sla_aereo"] if "sla_aereo" in ent else np.nan),
                                 sla="_sla_tipo")
         sla_view.tipo_mes_matrix(tabla, t, "pct" if medida.startswith("%") else
                                  "cant" if medida.startswith("Cantidad") else "dias")
@@ -540,8 +549,7 @@ def _aereo(bundle, filters, ventana) -> None:
                 "packeo en «Revisar»). Punta a punta = columna «Total». Resaltado y última columna: la etapa más "
                 "larga del mes. Un valor negativo indica fechas inconsistentes en el seguimiento.")
         ent = _aereo_ops(a_all[a_all["etd"].notna() & (a_all["etd"] <= t)])
-        if "estadio" in ent:
-            ent = ent[ent["estadio"].map(lambda v: dc.fold(v).upper() == "ENTREGADO" if isinstance(v, str) else False)]
+        ent = ent[_entregado(ent)]
         if elegido != "Todos":
             ent = ent[ent["tipo_label"] == elegido]
         te = tm.tramos_entregados(ent, t)
