@@ -49,17 +49,31 @@ def _ventana_anterior(filters, t: pd.Timestamp):
 def _datos(bundle, filters):
     t = today()
     h = filtered(bundle, "historicas", filters)
-    z = eq.zarpados(h, t)
     h_all = filtered(bundle, "historicas", filters, use_period=False)
+    res = filtered(bundle, "reservas", filters) if bundle.get("reservas") is not None else None
+    # Zarpados = Reservas Históricas + lo que ya salió y sigue en Reservas porque todavía no llegó (si no, un
+    # analista nuevo o lo zarpado en las últimas semanas no aparece hasta que el embarque pasa a Históricas).
+    rz = eq.zarpados_en_reservas(res, h_all, t)
+    z = eq.zarpados(pd.concat([x for x in (h, rz) if x is not None and len(x)], ignore_index=True, sort=False)
+                    if (h is not None and len(h)) or len(rz) else h, t)
     v = _ventana_anterior(filters, t)
     z_prev = eq.zarpados(h_all[h_all["etd"].between(*v)], t) if v is not None and h_all is not None else None
     act, _ = en_curso(bundle, filters)
+    res_all = filtered(bundle, "reservas", filters, use_period=False) if bundle.get("reservas") is not None else None
+    resp = eq.responsables(h_all, res_all)
+    if len(act) and "responsable" in act:
+        # Seguimiento Aéreos no tiene responsable: se toma el de Reservas / Reservas Históricas del mismo embarque.
+        from utils.data_cleaning import id_key
+        act = act.assign(responsable=act["responsable"].where(act["responsable"].notna(),
+                                                               id_key(act["embarque"]).map(resp)))
+    a_per = filtered(bundle, "aereos", filters) if bundle.get("aereos") is not None else None
+    aer = eq.aereos_por_analista(a_per, h_all, res_all, t)
     from views.accion import casos as casos_bandeja
     casos = casos_bandeja(bundle, filters)
     if len(casos):
         casos = casos.assign(quien=[eq.quien_resuelve(tp, ac) for tp, ac in zip(casos["tipo"], casos["accion"])])
     so = memo(bundle, "so_por_embarque", lambda: _so_por_embarque(bundle))
-    return t, z, z_prev, act, casos, so
+    return t, z, z_prev, act, casos, so, aer
 
 
 def _so_por_embarque(bundle) -> pd.Series | None:
@@ -80,8 +94,8 @@ def render() -> None:
     vista = st.segmented_control("Vista", list(VISTAS), format_func=VISTAS.get, key="eq_vista",
                                  label_visibility="collapsed") or "resumen"
     with guard("Datos del equipo"):
-        t, z, z_prev, act, casos, so = _datos(bundle, filters)
-    an = eq.por_analista(z, act, casos, so)
+        t, z, z_prev, act, casos, so, aer = _datos(bundle, filters)
+    an = eq.por_analista(z, act, casos, so, aer)
     ag = eq.por_agente(z, act, z_prev)
     {"resumen": _resumen, "analistas": _analistas, "agentes": _agentes, "alertas": _alertas,
      "evolucion": _evolucion}[vista](bundle=bundle, filters=filters, t=t, z=z, z_prev=z_prev, act=act, casos=casos,
@@ -186,7 +200,9 @@ def _resumen(*, bundle, filters, t, z, act, casos, an, ag, **_) -> None:
 def _analistas(*, bundle, filters, t, z, act, casos, an, **_) -> None:
     section("Analistas · comparativa",
             "Cuatro dimensiones separadas, sin puntaje único: carga, resultado del proceso, gestión propia y "
-            "seguimiento. Histórico = marítimos zarpados del período; los aéreos no tienen responsable en la planilla. "
+            "seguimiento. Zarpados = marítimos que salieron en el período (Reservas Históricas y los que ya salieron y "
+            "siguen en Reservas). Aéreos = entregados del período, con el responsable de Reservas / Reservas "
+            "Históricas y el SLA de su tipo de negocio. "
             f"No se muestran {', '.join(settings.EQ_ANALISTAS_EXCLUIDOS)} (no son analistas del equipo); sus embarques "
             "siguen contando en los totales.")
     filter_notes(bundle.get("historicas"), filters, "Reservas Históricas")
@@ -205,6 +221,8 @@ def _analistas(*, bundle, filters, t, z, act, casos, an, **_) -> None:
             ColSpec("casos", "Casos abiertos", "int"), ColSpec("casos_analista", "Los resuelve el analista", "int"),
             ColSpec("casos_alta", "Con prioridad alta", "int"),
             ColSpec("fuera_sin_causa", "Fuera SLA sin causa", "int"),
+            ColSpec("aereos", "Aéreos entregados", "int"), ColSpec("cumple_aereo", "% SLA aéreo", "pct"),
+            ColSpec("med_aereo", "Punta a punta aéreo (d)", "days"),
         ], key="eq_an_tabla", filename="analistas", search=False,
             caption="Carga: en curso, zarpados, SO y mezcla (un consolidado es más complejo) · Resultado: % SLA y cuántos "
                     "fuera de SLA tienen causa externa (proveedor, naviera / puerto / clima, agente) · Gestión propia: "
@@ -228,6 +246,11 @@ def _analistas(*, bundle, filters, t, z, act, casos, an, **_) -> None:
                 sub=f"equipo {_pct(eq_med['cumple'])} · n={fmt.fmt_int(r.get('n_cumple', 0))}"),
             KPI("Instrucción tardía", _pct(r.get("pct_tarde", np.nan)),
                 sub=f"equipo {_pct(eq_med['pct_tarde'])} · atraso mediano {_dias(r.get('med_atraso', np.nan))}"),
+            KPI("Aéreos entregados", fmt.fmt_int(r.get("aereos", 0)),
+                sub=(f"% SLA {_pct(r.get('cumple_aereo', np.nan))} (n={fmt.fmt_int(r.get('n_sla_aereo', 0))}) · "
+                     f"punta a punta {_dias(r.get('med_aereo', np.nan))}") if r.get("aereos", 0) else "sin aéreos en el período",
+                help="Aéreos ENTREGADOS del período con este responsable en Reservas / Reservas Históricas. % SLA = "
+                     "punta a punta («Total») dentro del SLA de su tipo de negocio, desde que el SLA rige."),
             KPI("Casos abiertos", fmt.fmt_int(r["casos"]), status="warn" if r["casos_alta"] else "",
                 sub=f"<b>{fmt.fmt_int(r['casos_analista'])}</b> los resuelve el analista · "
                     f"<b>{fmt.fmt_int(r['casos_alta'])}</b> con prioridad alta",

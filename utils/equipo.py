@@ -58,6 +58,54 @@ def _pct(mask: pd.Series) -> float:
     return float(m.astype(bool).mean()) if len(m) else np.nan
 
 
+def zarpados_en_reservas(res: pd.DataFrame | None, hist: pd.DataFrame | None, today: pd.Timestamp) -> pd.DataFrame:
+    """Embarques que ya zarparon (ETD ≤ hoy) pero siguen en Reservas porque todavía no llegaron. Se miden con el SLA
+    de consolidación de su puerto (en curso se usa el tope fijo; una vez zarpado corresponde el del puerto)."""
+    from utils.data_cleaning import id_key
+    if res is None or res.empty:
+        return pd.DataFrame()
+    r = res[res["etd"].notna() & (res["etd"] <= today)]
+    r = r[~r["embarque"].map(lambda v: fold(v).startswith("air"))]
+    if hist is not None and len(hist):
+        r = r[~id_key(r["embarque"]).isin(set(id_key(hist["embarque"])))]
+    if r.empty:
+        return r
+    r = r.copy()
+    if "sla_cons_puerto" in r:
+        r["sla_consolidacion"] = r["sla_cons_puerto"]
+        r["cumple_consolidacion"] = (r["dias_consolidacion"] <= r["sla_consolidacion"]).where(
+            r["dias_consolidacion"].notna())
+    return r
+
+
+def aereos_por_analista(aer: pd.DataFrame | None, hist: pd.DataFrame | None, res: pd.DataFrame | None,
+                        today: pd.Timestamp) -> pd.DataFrame:
+    """Aéreos entregados (Seguimiento Aéreos) con el analista de «Responsable de la carga» de Reservas Históricas o
+    Reservas (Seguimiento Aéreos no tiene responsable). Columnas: embarque, responsable, etd, dias_aereo, sla_vig."""
+    from utils.data_cleaning import id_key
+    cols = ["embarque", "responsable", "etd", "dias_aereo", "sla_vig"]
+    if aer is None or aer.empty:
+        return pd.DataFrame(columns=cols)
+    a = aer[aer["etd"].notna() & (aer["etd"] <= today)]
+    if "estadio" in a:
+        a = a[a["estadio"].map(lambda v: fold(v).upper() == "ENTREGADO" if isinstance(v, str) else False)]
+    a = a.assign(responsable=id_key(a["embarque"]).map(responsables(hist, res)))
+    vig = a["sla_vigente"].fillna(False).astype(bool) if "sla_vigente" in a else pd.Series(True, index=a.index)
+    a = a.assign(sla_vig=a["sla_aereo"].where(vig) if "sla_aereo" in a else np.nan)
+    return a[[c for c in cols if c in a]]
+
+
+def responsables(hist: pd.DataFrame | None, res: pd.DataFrame | None) -> dict:
+    """id de embarque → «Responsable de la carga» (Reservas manda sobre Históricas)."""
+    from utils.data_cleaning import id_key
+    out = {}
+    for d in (hist, res):
+        if d is not None and len(d) and "responsable" in d:
+            x = d.dropna(subset=["responsable"])
+            out.update(dict(zip(id_key(x["embarque"]), x["responsable"])))
+    return out
+
+
 def zarpados(h: pd.DataFrame | None, today: pd.Timestamp) -> pd.DataFrame:
     """Marítimos zarpados (una fila por embarque) con columnas auxiliares para los indicadores."""
     from config.mappings import MODOS_MARITIMOS
@@ -93,7 +141,7 @@ def _comun(g: pd.DataFrame) -> dict:
 
 
 def por_analista(z: pd.DataFrame, act: pd.DataFrame | None, casos: pd.DataFrame | None,
-                 so_por_emb: pd.Series | None = None) -> pd.DataFrame:
+                 so_por_emb: pd.Series | None = None, aer: pd.DataFrame | None = None) -> pd.DataFrame:
     """Una fila por analista. Productividad (activos, zarpados, SO, contenedores), eficiencia controlable
     (packeo → instrucción), resultado (cumplimiento SLA) y calidad de seguimiento (casos abiertos)."""
     nombres = set()
@@ -101,6 +149,8 @@ def por_analista(z: pd.DataFrame, act: pd.DataFrame | None, casos: pd.DataFrame 
         nombres |= set(z["responsable"].dropna())
     if act is not None and len(act):
         nombres |= set(act["responsable"].dropna())
+    if aer is not None and len(aer):
+        nombres |= set(aer["responsable"].dropna())
     rows = []
     for a in sorted(x for x in nombres if not excluido(x)):
         g = z[z["responsable"] == a] if len(z) else z
@@ -118,6 +168,13 @@ def por_analista(z: pd.DataFrame, act: pd.DataFrame | None, casos: pd.DataFrame 
         r["casos"] = int(cc["embarque"].nunique()) if len(cc) else 0
         quien = cc["quien"] if len(cc) and "quien" in cc else pd.Series(dtype=object)
         r["casos_analista"] = int(cc.loc[quien == "Analista", "embarque"].nunique()) if len(cc) else 0
+        ga = aer[aer["responsable"] == a] if aer is not None and len(aer) else pd.DataFrame()
+        r["aereos"] = int(ga["embarque"].nunique()) if len(ga) else 0
+        con_tot = ga[ga["dias_aereo"].notna()] if len(ga) else ga
+        r["med_aereo"] = _med(con_tot["dias_aereo"]) if len(con_tot) else np.nan
+        c_sla = con_tot[con_tot["sla_vig"].notna()] if len(con_tot) else con_tot
+        r["n_sla_aereo"] = int(len(c_sla))
+        r["cumple_aereo"] = float((c_sla["dias_aereo"] <= c_sla["sla_vig"]).mean()) if len(c_sla) else np.nan
         rows.append(r)
     t = pd.DataFrame(rows)
     if t.empty:

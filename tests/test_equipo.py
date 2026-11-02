@@ -54,3 +54,25 @@ def test_analistas_agentes_y_salud():
     assert comp["Cumplimiento SLA consolidación"][1] == 1 / 3
     assert comp["Activos con caso de prioridad alta"][1] == 1 / 3 and s["general"] == "bad"
     assert eq.semaforo(0.05, (0.1, 0.2)) == "ok" and eq.semaforo(0.45, (0.5, 0.4), True) == "warn"
+
+
+def test_zarpados_en_reservas_y_aereos_por_analista():
+    import pandas as pd
+    from utils import equipo as eq
+    ts = pd.Timestamp
+    hoy = ts("2026-11-02")
+    res = pd.DataFrame({"embarque": ["FCL 1", "FCL 2", "FCL 3", "AIR 9"], "etd": [ts("2026-11-01"), ts("2026-11-10"),
+                        ts("2026-10-30"), ts("2026-10-30")], "responsable": ["Lu"] * 4,
+                        "dias_consolidacion": [10.0, 5.0, 30.0, 3.0], "sla_cons_puerto": [25.0, 25.0, 25.0, 25.0],
+                        "sla_consolidacion": [25.0] * 4})
+    hist = pd.DataFrame({"embarque": ["FCL 3", "AIR 50"], "responsable": ["Lu", "Azul"]})
+    rz = eq.zarpados_en_reservas(res, hist, hoy)
+    assert list(rz["embarque"]) == ["FCL 1"]          # FCL 2 no salió, FCL 3 ya está en Históricas, AIR afuera
+    assert bool(rz["cumple_consolidacion"].iloc[0])
+    aer = pd.DataFrame({"embarque": ["AIR 50", "AIR 51"], "etd": [ts("2026-10-01"), ts("2026-10-05")],
+                        "estadio": ["ENTREGADO", "EN TRANSITO"], "dias_aereo": [20.0, 10.0],
+                        "sla_aereo": [25.0, 25.0], "sla_vigente": [True, True]})
+    a = eq.aereos_por_analista(aer, hist, res, hoy)
+    assert list(a["embarque"]) == ["AIR 50"] and a["responsable"].iloc[0] == "Azul"
+    an = eq.por_analista(pd.DataFrame(), None, None, None, a).set_index("analista")
+    assert an.loc["Azul", "aereos"] == 1 and an.loc["Azul", "cumple_aereo"] == 1.0
