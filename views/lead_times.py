@@ -533,11 +533,13 @@ def _aereo(bundle, filters, ventana) -> None:
     with guard("Tramos por mes"):
         section("¿En qué tramo se va el tiempo? · mes a mes",
                 "Mediana de cada tramo por mes de ETD; resaltado, el tramo más largo del mes. Los tramos se miden por "
-                "separado, así que no suman exactamente el total.")
+                "separado, así que no suman exactamente el total. Solo embarques entregados con «Total» cargado, igual "
+                "que «Mes a mes por tipo de negocio»: el punta a punta de cada mes coincide con ese cuadro.")
         tipos = ["Todos"] + [x for x in [sla_view.TIPO_LABEL.get(k, k.title()) for k in settings.SLA_AEREO_POR_TIPO]
                              if x in set(a["tipo_label"])]
         elegido = st.selectbox("Tipo de negocio", tipos, key="tm_aer_tramo_tipo")
-        sub = a if elegido == "Todos" else a[a["tipo_label"] == elegido]
+        a_ent = a[_entregado(a)]
+        sub = a_ent if elegido == "Todos" else a_ent[a_ent["tipo_label"] == elegido]
         cols = [(c, lbl) for c, lbl in TRAMOS_AEREO if c in a]
         tab = tm.por_mes(sub, [c for c, _ in cols] + ["dias_aereo"])
         sla_view.mes_matrix(tab, cols, t, resaltar=[c for c, _ in cols], extra=[("dias_aereo", "Total punta a punta")])
