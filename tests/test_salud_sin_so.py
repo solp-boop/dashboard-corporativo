@@ -32,8 +32,8 @@ def test_destino_excluido_y_casos():
 def test_errores_de_formula_sin_shipper():
     from types import SimpleNamespace
     from utils import salud
-    q = SimpleNamespace(error_cells={"Shipper": (3, "#N/A", ""), "ETA": (2, "#REF!", "")}, invalid_values={},
+    q = SimpleNamespace(error_cells={"Shipper": (3, "#N/A", ""), "ETD": (1, "#N/A", ""), "ETD estimada": (1, "#N/A", ""), "ETA": (2, "#REF!", "")}, invalid_values={},
                         out_of_range={}, issue_rows={}, tab="Reservas", title="Reservas")
     b = SimpleNamespace(quality={"reservas": q}, get=lambda k: None)
     f = salud.formato(b)
-    assert list(f["campo"]) == ["ETA"]
+    assert list(f["campo"]) == ["ETD estimada", "ETA"]
