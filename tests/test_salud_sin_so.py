@@ -27,3 +27,13 @@ def test_destino_excluido_y_casos():
                        "etd": pd.to_datetime(["2026-09-01"] * 4)})
     assert salud.destino_excluido(df).tolist() == [True, True, False, False]
     assert salud._casos(df, "Reservas", "x")["registro"].tolist() == ["FCL 3", "FCL 4"]
+
+
+def test_errores_de_formula_sin_shipper():
+    from types import SimpleNamespace
+    from utils import salud
+    q = SimpleNamespace(error_cells={"Shipper": (3, "#N/A", ""), "ETA": (2, "#REF!", "")}, invalid_values={},
+                        out_of_range={}, issue_rows={}, tab="Reservas", title="Reservas")
+    b = SimpleNamespace(quality={"reservas": q}, get=lambda k: None)
+    f = salud.formato(b)
+    assert list(f["campo"]) == ["ETA"]

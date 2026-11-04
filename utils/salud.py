@@ -151,7 +151,8 @@ def formato(bundle) -> pd.DataFrame:
         if df is not None and "_fila" in df:
             _, prob = alcance(key, df)
             ok = set(df.loc[prob, "_fila"].astype(int))
-        fuentes = [("error", c, n, v) for c, (n, v, _) in q.error_cells.items()]
+        ignorar = {fold(x) for x in settings.SALUD_ERRORES_IGNORAR}
+        fuentes = [("error", c, n, v) for c, (n, v, _) in q.error_cells.items() if fold(c) not in ignorar]
         fuentes += [("invalido", c, n, None) for c, n in q.invalid_values.items()]
         fuentes += [("rango", c, n, None) for c, n in q.out_of_range.items()]
         for tipo, campo, n, valores in fuentes:
