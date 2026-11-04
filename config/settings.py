@@ -235,8 +235,8 @@ SALUD_DIAS_SIN_SO = 15                  # un embarque zarpado hace más de esto 
 # Operaciones sin SO (no van a Embarques Históricos): si «Empresa» o «Tipo de envío aéreo» contiene alguno de
 # estos textos (sin importar mayúsculas, acentos ni espacios), no se alerta «Embarque sin SO».
 SALUD_SIN_SO_EXCLUIR = ["RC Online", "Baynal", "Aeropix"]
-# Columnas cuyos errores de fórmula no son alerta (Shipper y ETD: el #N/A aparece mientras todavía no hay dato).
-SALUD_ERRORES_IGNORAR = ["Shipper", "ETD"]
+# Columnas cuyos errores de fórmula no son alerta (Shipper, ETD e índice de carga: el #N/A aparece mientras todavía no hay dato).
+SALUD_ERRORES_IGNORAR = ["Shipper", "ETD", "Índice de carga completa"]
 # Destinos que no generan alertas (Bandeja de acción y Salud de datos).
 ALERTAS_DESTINOS_EXCLUIR = ["México", "Uruguay"]
 SALUD_SIN_SO_DESTINOS_EXCLUIR = ALERTAS_DESTINOS_EXCLUIR
