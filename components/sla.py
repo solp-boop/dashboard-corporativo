@@ -653,8 +653,9 @@ _EST_CLS = {"Cumple": "ok", "Reduce, sin llegar": "warn", "No reduce": "bad"}
 _MESES_C = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
 
 
-def objetivo_kpis(res: dict, unidad: str) -> None:
-    """Tres tarjetas: reducción mono, conso y total ponderada (acumulado del año contra el año anterior)."""
+def objetivo_kpis(res: dict, unidad: str, solo_total: bool = False) -> None:
+    """Tres tarjetas: reducción mono, conso y total ponderada (acumulado del año contra el año anterior).
+    solo_total=True (aéreo, que no se separa en mono / consolidado): una tarjeta con el total sin separar."""
     from components.kpi_cards import KPI, kpi_row
     y, ult = res["anio"], res["ult_mes"]
     tramo = f"{_MESES_C[0].lower()}–{_MESES_C[ult - 1].lower()}" if ult >= 1 else ""
@@ -662,6 +663,17 @@ def objetivo_kpis(res: dict, unidad: str) -> None:
     st_map = {"Cumple": "ok", "Reduce, sin llegar": "warn", "No reduce": "bad"}
     cards = []
     ac = res["acumulado"].set_index("estructura") if len(res["acumulado"]) else pd.DataFrame()
+    if solo_total:
+        if "Total" not in ac.index or ac.loc["Total", "var"] != ac.loc["Total", "var"]:
+            kpi_row([KPI(f"Total · vs {y - 1}", "—", sub=f"Sin datos de {y - 1} para comparar")], columns=3)
+            return
+        r = ac.loc["Total"]
+        kpi_row([KPI(f"Total · vs {y - 1} · objetivo −{fmt.fmt_pct(obj)}", fmt.fmt_pct(r["var"], signed=True),
+                     status=st_map.get(r["estado"], ""), badge=r["estado"] if r["estado"] in st_map else "",
+                     sub=f"mediana {fmt.fmt_num(r['ant'], 1)} → <b>{fmt.fmt_num(r['act'], 1)} d</b> · objetivo "
+                         f"{fmt.fmt_num(r['objetivo'], 1)} d · {tramo} · n={fmt.fmt_int(r['n_ant'])} / "
+                         f"{fmt.fmt_int(r['n_act'])} {unidad}")], columns=3)
+        return
     for e, lbl in (("Monoproveedor", "Monoproveedor"), ("Consolidado", "Consolidado")):
         if e not in ac.index or ac.loc[e, "var"] != ac.loc[e, "var"]:
             cards.append(KPI(f"{lbl} · vs {y - 1}", "—", sub=f"Sin datos de {y - 1} para comparar"))
@@ -685,7 +697,7 @@ def objetivo_kpis(res: dict, unidad: str) -> None:
     kpi_row(cards, columns=3)
 
 
-def objetivo_matrix(res: dict, today: pd.Timestamp) -> None:
+def objetivo_matrix(res: dict, today: pd.Timestamp, solo_total: bool = False) -> None:
     """Mes × (mono, conso): mediana del año anterior, objetivo (−15 %), mediana de este año y variación."""
     m = res["mensual"]
     if m.empty:
@@ -694,15 +706,17 @@ def objetivo_matrix(res: dict, today: pd.Timestamp) -> None:
     y = res["anio"]
     ests = [("Monoproveedor", "Monoproveedor"), ("Consolidado", "Consolidado"),
             ("Total", "Total · mono + consolidado sin separar")]
+    if solo_total:                                   # aéreo: no se separa en mono / consolidado
+        ests = [("Total", "Total")]
     sep = "border-left: 3px solid var(--ink-3)"                         # separa los bloques (se ve en claro y oscuro)
 
     def n_cols(e) -> int:
-        return 3 if e == "Total" else 4                               # el total no lleva objetivo
+        return 4 if solo_total else (3 if e == "Total" else 4)        # junto a mono / conso, el total va sin objetivo
 
     head1 = "<tr><th rowspan='2'>Mes ETD</th>" + "".join(
         f"<th colspan='{n_cols(e)}' style='{sep}'>{l}</th>" for e, l in ests) + "</tr>"
     head2 = "<tr>" + "".join(
-        f"<th style='{sep}'>{y - 1}</th>" + ("<th>Objetivo</th>" if e != "Total" else "") + f"<th>{y}</th><th>Variación</th>"
+        f"<th style='{sep}'>{y - 1}</th>" + ("<th>Objetivo</th>" if n_cols(e) == 4 else "") + f"<th>{y}</th><th>Variación</th>"
         for e, _ in ests) + "</tr>"
 
     def celdas(r, e) -> str:
@@ -714,7 +728,7 @@ def objetivo_matrix(res: dict, today: pd.Timestamp) -> None:
         var = fmt.fmt_pct(r["var"], signed=True) if r["var"] == r["var"] else "—"
         if r["estado"] == "Muestra chica":
             var += "<span class='n'>muestra chica</span>"
-        obj = ("" if e == "Total" else
+        obj = ("" if n_cols(e) == 3 else
                f"<td>{fmt.fmt_num(r['objetivo'], 1) + ' d' if r['objetivo'] == r['objetivo'] else '—'}</td>")
         return (f"<td style='{sep}'>{d(r['ant'], r['n_ant'])}</td>{obj}"
                 f"<td class='hl'>{d(r['act'], r['n_act'])}</td><td class='{cls}'>{var}</td>")
@@ -732,8 +746,10 @@ def objetivo_matrix(res: dict, today: pd.Timestamp) -> None:
                     + "".join(celdas(ac.loc[e] if e in ac.index else None, e) for e, _ in ests) + "</tr>")
     st.markdown("<div class='scorecard compact matriz'><table><thead>" + head1 + head2 + "</thead><tbody>"
                 + "".join(body) + "</tbody></table></div>", unsafe_allow_html=True)
-    st.caption(f"«Total · mono + consolidado sin separar» = mediana de todas las SO juntas (para comparar con la planilla); "
-               "la tarjeta «Total ponderado» de arriba, en cambio, pondera la variación de mono y de consolidado. "
+    st.caption(("Aéreo: no se separa en monoproveedor y consolidado. " if solo_total else
+                "«Total · mono + consolidado sin separar» = mediana de todas las SO juntas (para comparar con la "
+                "planilla); la tarjeta «Total ponderado» de arriba, en cambio, pondera la variación de mono y de "
+                "consolidado. ") +
                f"Objetivo = mediana del mismo mes de {y - 1} × {1 - settings.REDUCCION_OBJETIVO:.2f}. Verde = bajó "
                f"{fmt.fmt_pct(settings.REDUCCION_OBJETIVO)} o más; amarillo = bajó menos; rojo = subió. Sin color si "
                f"algún año tiene menos de {settings.OBJ_MIN_N} casos. * mes en curso (no se califica).")

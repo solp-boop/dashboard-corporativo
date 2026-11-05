@@ -651,8 +651,9 @@ def _time_to_market(bundle, filters, ventana) -> None:
             "oficial (incluye las SO sin dato de monoproveedor); mono y consolidado son una apertura extra del "
             f"dashboard. La tarjeta «Total ponderado» pondera mono y consolidado por el volumen de {t.year}.")
     with guard("Objetivo −15 %"):
-        sla_view.objetivo_kpis(res, "SO")
-        sla_view.objetivo_matrix(res, t)
+        solo_total = medio == "Aéreo"                 # en aéreo no se separa mono / consolidado
+        sla_view.objetivo_kpis(res, "SO", solo_total)
+        sla_view.objetivo_matrix(res, t, solo_total)
 
     with guard("Descarga time to market"):
         ini = pd.Timestamp(filters.start) if filters.start else pd.Timestamp(t.year, 1, 1)
