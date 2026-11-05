@@ -143,8 +143,8 @@ def time_to_market(res: dict) -> Indicador:
     """res = utils.objetivo.vs_anio_anterior(...) de todas las SO: reducción ponderada mono + conso."""
     obj = settings.REDUCCION_OBJETIVO
     y = res["anio"]
-    ayuda = ("Mediana de días de consolidación por SO por envío (todas las SO, marítimas y aéreas, sin muestras ni "
-             f"repuestos), monoproveedor y consolidado contra el mismo mes de {y - 1}. El total pondera las dos por el "
+    ayuda = ("Mediana de días de consolidación por línea de SO, con las reglas del indicador oficial (marítimas y "
+             f"aéreas, sin muestras, repuestos, DJI Baynal ni RC Online), monoproveedor y consolidado contra el mismo mes de {y - 1}. El total pondera las dos por el "
              f"volumen de {y}. Objetivo: bajar un {fmt.fmt_pct(obj)}.")
     t = res["total"]
     if t["var"] != t["var"]:

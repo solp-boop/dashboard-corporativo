@@ -20,7 +20,26 @@ def test_total_mono_mas_conso_sin_separar():
     assert r["total"]["n_ant"] == 3
 
 
-def test_destino_vacio_cuenta_como_argentina():
+def test_destino_oficial_emb_hist_o_reservas_historicas():
     from utils.productos import _solo_destino
-    d = pd.DataFrame({"destino": ["Argentina", None, "", "Uruguay", "México", "argentina"]})
-    assert _solo_destino(d).index.tolist() == [0, 1, 2, 5]
+    d = pd.DataFrame({"embarque": ["FCL 1", "FCL 2", "FCL 3", "FCL 4", "FCL 5", "FCL 6"],
+                      "destino": ["Argentina", None, "", "Uruguay", None, "argentina"]})
+    hist = pd.DataFrame({"embarque": ["FCL 2", "FCL 3", "FCL 4"], "destino": ["Argentina", "Uruguay", "Argentina"]})
+    # FCL 2 toma Argentina de Históricas; FCL 3 dice Uruguay; FCL 4 manda Emb Hist (Uruguay); FCL 5 sin destino: afuera
+    assert _solo_destino(d, hist).index.tolist() == [0, 1, 5]
+
+
+def test_tiempo_oficial_recalculado():
+    from services.data_loader import prepare_emb_hist
+    ts = pd.Timestamp
+    eh = pd.DataFrame({"embarque": ["FCL 1"] * 4, "so": ["S1", "S2", "S3", "S4"],
+                       "etd": [ts("2026-03-20")] * 4,
+                       "fin_produccion": [ts("2026-03-01"), pd.NaT, pd.NaT, ts("2026-03-25")],
+                       "f_packeo_act": [ts("2026-02-01"), ts("2026-03-10"), pd.NaT, pd.NaT],
+                       "tiempo_consolidacion": [99.0, 99.0, 0.0, 5.0],
+                       "sku_nuevo": None, "ranking": None, "estructura_eh": "CONSOLIDADO"})
+    prepare_emb_hist(eh, None)
+    t = eh["tiempo_consolidacion"].tolist()
+    assert t[0] == 19 and t[1] == 10            # fin de producción; si falta, packeo actualizada
+    assert t[2] == 0                            # sin fechas: la columna de la planilla (0 cuenta)
+    assert pd.isna(t[3])                        # negativo: afuera

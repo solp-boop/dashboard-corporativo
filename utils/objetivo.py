@@ -47,15 +47,16 @@ def vs_anio_anterior(d: pd.DataFrame, today: pd.Timestamp, fecha: str = "etd", v
     y = today.year
     x = d.dropna(subset=[fecha, valor]).copy() if d is not None and len(d) else pd.DataFrame(
         columns=[fecha, valor, "estructura"])
-    x = x[x["estructura"].isin(ESTRUCTURAS)] if len(x) else x
     x["_y"] = pd.to_datetime(x[fecha]).dt.year if len(x) else []
     x["_m"] = pd.to_datetime(x[fecha]).dt.month if len(x) else []
     x = x[x["_y"].isin([y - 1, y])] if len(x) else x
+    todo = x                                                   # el Total incluye las SO sin estructura
+    x = x[x["estructura"].isin(ESTRUCTURAS)] if len(x) else x
     ult = today.month - 1                                    # último mes cerrado
     rows, acum = [], []
     for e in ESTRUCTURAS + [TOTAL]:
         # TOTAL = mono + consolidado juntos, sin separar (solo para mostrar: no entra al total ponderado).
-        s = x if e == TOTAL else (x[x["estructura"] == e] if len(x) else x)
+        s = todo if e == TOTAL else (x[x["estructura"] == e] if len(x) else x)
         for m in range(1, today.month + 1):
             v0 = s[(s["_y"] == y - 1) & (s["_m"] == m)][valor] if len(s) else pd.Series(dtype=float)
             v1 = s[(s["_y"] == y) & (s["_m"] == m)][valor] if len(s) else pd.Series(dtype=float)

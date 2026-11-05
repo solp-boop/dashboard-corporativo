@@ -312,9 +312,9 @@ def test_ttm_por_medio_cierra():
     aer = pd.DataFrame({"embarque": ["AIR 3"], "tipo_negocio": ["DJI BAYNAL"]})
     du = productos.base_universo(eh, ts("2026-10-10"), aer, None)
     m = productos.mes_a_mes(du, 2026).iloc[-1]
-    # S1 viajó en 2 embarques: cuenta 2 (SO por envío). AIR 3 (Baynal) y LCL 4 quedan en «otro».
-    assert m["todas|todos|so"] == 5 and m["todas|Marítimo|so"] == 2 and m["todas|Aéreo|so"] == 1
-    assert m["todas|otro|so"] == 2 and m["es_nuevo|Marítimo|so"] == 1
+    # Indicador oficial: cuenta cada línea (FCL 1 tiene 2); AIR 3 (Baynal) sale de todo; LCL 4 queda en «otro».
+    assert m["todas|todos|so"] == 5 and m["todas|Marítimo|so"] == 3 and m["todas|Aéreo|so"] == 1
+    assert m["todas|otro|so"] == 1 and m["es_nuevo|Marítimo|so"] == 2
 
 
 def test_tiempos_mes_tipo_y_etapas():

@@ -94,7 +94,8 @@ DURATION_RANGES: dict[str, tuple[int, int]] = {
     "dias_etd_eta": (0, 45),
     "dias_eta_caldas": (0, 45),
     "dias_total_aereo": (0, 240),
-    "tiempo_consolidacion_so": (1, 365),   # negativos y 0 = sin dato   # 0 = la planilla no lo calculó (sin dato)
+    # Indicador oficial (oct-2026): los 0 cuentan y no hay tope; solo los negativos quedan afuera.
+    "tiempo_consolidacion_so": (0, float("inf")),
 }
 
 # --------------------------------------------------------------------------
@@ -221,7 +222,8 @@ PRIORIDAD_JUSTIFICA = {"si", "alta", "urgente", "prioritaria", "prioridad", "cri
 PRODUCTOS_DESTINO = "Argentina"
 # Time to market · aéreos: tipos de negocio que no cuentan como aéreo (además de muestras y repuestos).
 # Se buscan en Seguimiento Aéreos y, si el embarque no está ahí, en «Tipo de envio aereo» de Reservas Historicas.
-TTM_TIPOS_AEREOS_EXCLUIR = ["dji baynal", "dji rconline", "dji rc online", "aeropix"]
+# Indicador oficial: DJI Baynal y RC Online salen de todo el time to market; Aeropix queda adentro.
+TTM_TIPOS_AEREOS_EXCLUIR = ["dji baynal", "dji rconline", "dji rc online"]
 
 
 # Shippers (Resumen · FOB por mes de ETA): valores que no son un trader y se sacan del cuadro.

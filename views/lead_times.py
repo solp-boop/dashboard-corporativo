@@ -635,7 +635,8 @@ def _time_to_market(bundle, filters, ventana) -> None:
     du = memo(bundle, ("ttm_universo", t), lambda: productos.base_universo(
             bundle.get("emb_hist"), t, bundle.get("aereos"), bundle.get("planif"), bundle.get("historicas")))
     section(f"Time to market · mes a mes {t.year}*",
-            "* Universo completo de SO con destino Argentina, marítimas y aéreas, sin muestras ni repuestos. Los "
+            "* Reglas del indicador oficial: líneas de SO con destino Argentina, marítimas y aéreas, sin muestras, "
+            "repuestos, DJI Baynal ni RC Online. Los "
             "botones de grupo y medio mandan sobre toda la sección: tabla, objetivo −15 % y descarga.")
     grupo, medio = sla_view.ttm_botones()
     with guard("Time to market mes a mes"):
@@ -645,9 +646,10 @@ def _time_to_market(bundle, filters, ventana) -> None:
     sub_g = sel[sel[grupo].fillna(False).astype(bool)] if grupo in sel else sel
     res = objetivo.vs_anio_anterior(productos.por_envio(sub_g), t, "etd", "tiempo")
     section(f"Time to market · objetivo −{fmt.fmt_pct(settings.REDUCCION_OBJETIVO)} vs {t.year - 1} · {nombre}",
-            "Por SO (columna «Tiempo de consolidación» de Embarques Historicos), monoproveedor y consolidado por "
-            f"separado, contra el mismo mes de {t.year - 1}. El total pondera las dos por el volumen de {t.year}. Cada "
-            "combinación de botones tiene su cuadro igual en la hoja Envío mensual («TIME TO MARKET · … · OBJETIVO»).")
+            "Mismas reglas que el indicador oficial (cada línea de SO, «Tiempo de consolidación» de Embarques "
+            f"Historicos), contra el mismo mes de {t.year - 1}. «Total · mono + consolidado sin separar» es el indicador "
+            "oficial (incluye las SO sin dato de monoproveedor); mono y consolidado son una apertura extra del "
+            f"dashboard. La tarjeta «Total ponderado» pondera mono y consolidado por el volumen de {t.year}.")
     with guard("Objetivo −15 %"):
         sla_view.objetivo_kpis(res, "SO")
         sla_view.objetivo_matrix(res, t)

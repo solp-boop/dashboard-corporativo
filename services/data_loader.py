@@ -364,7 +364,15 @@ def add_air_sla(df: pd.DataFrame, q: DatasetQuality) -> pd.DataFrame:
 def prepare_emb_hist(eh: pd.DataFrame, hist: pd.DataFrame | None) -> None:
     """Marca SKU nuevo y top ranking y toma la estructura (mono/consolidado) de Reservas Históricas."""
     lo, hi = settings.DURATION_RANGES["tiempo_consolidacion_so"]
+    # Indicador oficial: días = ETD − fin de producción real (si falta, Fecha Packeo Actualizada). Si no hay ninguna
+    # de las dos fechas, queda el «Tiempo de consolidacion» de la planilla.
     t = eh["tiempo_consolidacion"]
+    if "etd" in eh and "fin_produccion" in eh:
+        ini = pd.to_datetime(eh["fin_produccion"])
+        if "f_packeo_act" in eh:
+            ini = ini.fillna(pd.to_datetime(eh["f_packeo_act"]))
+        recalc = (pd.to_datetime(eh["etd"]) - ini).dt.days
+        t = recalc.astype(float).where(recalc.notna(), t)
     eh["tiempo_consolidacion"] = t.where(t.between(lo, hi))
     nuevo = eh["sku_nuevo"].map(lambda v: dc.fold(v) if v else "")
     # La columna trae "SI"/"NO" o, en los SKU nuevos, el código del producto.

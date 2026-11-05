@@ -276,6 +276,7 @@ EMB_HIST = DatasetSchema(
         C("fin_produccion", "Fecha de fin de produccion real", "Fecha de fin de producción real",
           kind="date", required=True),
         C("etd", "ETD", kind="date"),
+        C("f_packeo_act", "Fecha Packeo Actualizada", kind="date"),
         C("codigo", "Código", "Codigo", kind="text"),
         C("ranking", "Demanda Efectiva -Ranking Utilidad Total", kind="text"),
         C("sku_nuevo", "¿SKU nuevo?", "SKU nuevo", kind="text"),

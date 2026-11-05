@@ -221,7 +221,7 @@ def productos_mes_table(t: pd.DataFrame, today: pd.Timestamp, elegido: str = "to
         txt = f"{fmt.fmt_int(v)} d"
         return f"<td><b>{txt}</b></td>" if bold else f"<td>{txt}</td>"
 
-    head = ["Mes ETD", "SO", "% del universo", "Mín.", "Mediana", "Máx."]
+    head = ["Mes ETD", "Líneas SO", "% del universo", "Mín.", "Mediana", "Máx."]
     rows = []
     for _, r in t.iterrows():
         total = pd.isna(r["mes"])
@@ -239,16 +239,16 @@ def productos_mes_table(t: pd.DataFrame, today: pd.Timestamp, elegido: str = "to
     mar, aer, otro = (int(tot.get(f"{elegido}|{m}|so", 0)) for m in ("Marítimo", "Aéreo", "otro"))
     tod = int(tot.get(f"{elegido}|todos|so", 0))
     cierra = "cierra" if mar + aer + otro == tod else "no cierra"
-    st.caption(f"Control {today.year} · {labels[elegido]}: {fmt.fmt_int(tod)} SO = {fmt.fmt_int(mar)} marítimas + "
-               f"{fmt.fmt_int(aer)} aéreas + {fmt.fmt_int(otro)} fuera de ambos (AIR DJI Baynal / RC Online / Aeropix "
-               f"u otro código) → {cierra}.")
-    st.caption(f"\\* Universo completo: SO de Embarques Historicos ya zarpadas, con destino "
-               f"{settings.PRODUCTOS_DESTINO or 'todos'}, sin muestras ni repuestos (tipo de negocio aéreo MUESTRAS / "
-               f"REPUESTOS y SO «Muestras» / «Repuestos» en Planificación). {fmt.fmt_int(tot_so)} SO en el año, por mes "
-               "de ETD. SO = SO por envío (una SO que viajó en 2 embarques cuenta 2). Marítimo = embarques FCL; "
-               "aéreo = embarques AIR sin DJI Baynal / RC Online / Aeropix. Días de consolidación por SO («Tiempo de "
-               "consolidacion»): mínimo, mediana y máximo; 0 días o negativos son sin dato. «% del universo» = SO del "
-               "cuadro / todas las SO del mes. El total toma todas las SO del año (no es la suma de los meses).")
+    st.caption(f"Control {today.year} · {labels[elegido]}: {fmt.fmt_int(tod)} líneas = {fmt.fmt_int(mar)} marítimas + "
+               f"{fmt.fmt_int(aer)} aéreas + {fmt.fmt_int(otro)} con otro código → {cierra}.")
+    st.caption(f"\\* Reglas del indicador oficial (datos gobernados): líneas de SO de Embarques Historicos ya zarpadas, "
+               f"por mes de ETD, solo destino {settings.PRODUCTOS_DESTINO or 'todos'} (de Embarques Historicos o, si "
+               "falta, de Reservas Históricas; sin destino quedan afuera), sin muestras ni repuestos (marca de Reservas "
+               "Históricas) y sin DJI Baynal / RC Online. Cada línea cuenta por separado (una SO con varias líneas pesa "
+               f"más). {fmt.fmt_int(tot_so)} líneas en el año. Marítimo = FCL; aéreo = AIR, o FCL que en Reservas "
+               "Históricas figura como avión / courier. Días = «Tiempo de consolidacion»: los 0 cuentan, los negativos "
+               "no, sin tope. «% del universo» = líneas del cuadro / todas las del mes. El total toma todo el año (no "
+               "es la suma de los meses).")
 
 
 def productos_q_chart(summary: pd.DataFrame, grupo_label: str, today: pd.Timestamp, key: str) -> None:
