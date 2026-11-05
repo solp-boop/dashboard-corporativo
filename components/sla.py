@@ -692,7 +692,8 @@ def objetivo_matrix(res: dict, today: pd.Timestamp) -> None:
         st.markdown('<div class="empty">Sin datos para comparar con el año anterior.</div>', unsafe_allow_html=True)
         return
     y = res["anio"]
-    ests = [("Monoproveedor", "Monoproveedor"), ("Consolidado", "Consolidado")]
+    ests = [("Monoproveedor", "Monoproveedor"), ("Consolidado", "Consolidado"),
+            ("Total", "Total · mono + consolidado sin separar")]
     head1 = "<tr><th rowspan='2'>Mes ETD</th>" + "".join(f"<th colspan='4'>{l}</th>" for _, l in ests) + "</tr>"
     head2 = "<tr>" + "".join(f"<th>{y - 1}</th><th>Objetivo</th><th>{y}</th><th>Variación</th>" for _ in ests) + "</tr>"
 
@@ -721,7 +722,9 @@ def objetivo_matrix(res: dict, today: pd.Timestamp) -> None:
                     + "".join(celdas(ac.loc[e] if e in ac.index else None) for e, _ in ests) + "</tr>")
     st.markdown("<div class='scorecard compact matriz'><table><thead>" + head1 + head2 + "</thead><tbody>"
                 + "".join(body) + "</tbody></table></div>", unsafe_allow_html=True)
-    st.caption(f"Objetivo = mediana del mismo mes de {y - 1} × {1 - settings.REDUCCION_OBJETIVO:.2f}. Verde = bajó "
+    st.caption(f"«Total · mono + consolidado sin separar» = mediana de todas las SO juntas (para comparar con la planilla); "
+               "la tarjeta «Total ponderado» de arriba, en cambio, pondera la variación de mono y de consolidado. "
+               f"Objetivo = mediana del mismo mes de {y - 1} × {1 - settings.REDUCCION_OBJETIVO:.2f}. Verde = bajó "
                f"{fmt.fmt_pct(settings.REDUCCION_OBJETIVO)} o más; amarillo = bajó menos; rojo = subió. Sin color si "
                f"algún año tiene menos de {settings.OBJ_MIN_N} casos. * mes en curso (no se califica).")
 

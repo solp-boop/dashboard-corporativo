@@ -18,6 +18,7 @@ import pandas as pd
 from config import settings
 
 ESTRUCTURAS = ["Monoproveedor", "Consolidado"]
+TOTAL = "Total"          # mono + consolidado sin separar
 
 
 def _estado(var: float, n0: int, n1: int) -> str:
@@ -52,8 +53,9 @@ def vs_anio_anterior(d: pd.DataFrame, today: pd.Timestamp, fecha: str = "etd", v
     x = x[x["_y"].isin([y - 1, y])] if len(x) else x
     ult = today.month - 1                                    # último mes cerrado
     rows, acum = [], []
-    for e in ESTRUCTURAS:
-        s = x[x["estructura"] == e] if len(x) else x
+    for e in ESTRUCTURAS + [TOTAL]:
+        # TOTAL = mono + consolidado juntos, sin separar (solo para mostrar: no entra al total ponderado).
+        s = x if e == TOTAL else (x[x["estructura"] == e] if len(x) else x)
         for m in range(1, today.month + 1):
             v0 = s[(s["_y"] == y - 1) & (s["_m"] == m)][valor] if len(s) else pd.Series(dtype=float)
             v1 = s[(s["_y"] == y) & (s["_m"] == m)][valor] if len(s) else pd.Series(dtype=float)
@@ -70,12 +72,12 @@ def vs_anio_anterior(d: pd.DataFrame, today: pd.Timestamp, fecha: str = "etd", v
     mensual = pd.DataFrame(rows, columns=["estructura", "mes", "en_curso", "ant", "n_ant", "objetivo", "act", "n_act",
                                           "var", "estado"])
     acumulado = pd.DataFrame(acum, columns=["estructura", "ant", "n_ant", "objetivo", "act", "n_act", "var", "estado"])
-    ok = acumulado.dropna(subset=["var"])
+    ok = acumulado[acumulado["estructura"].isin(ESTRUCTURAS)].dropna(subset=["var"])
     # Una estructura con muestra chica (menos de OBJ_MIN_N casos en algún año) no entra al total: con 1 caso
     # en el año anterior arrastraría el total sin representar nada (ej. aéreo monoproveedor 2025).
     ok = ok[(ok["n_act"] >= settings.OBJ_MIN_N) & (ok["n_ant"] >= settings.OBJ_MIN_N)]
     total = float((ok["var"] * ok["n_act"]).sum() / ok["n_act"].sum()) if len(ok) else np.nan
-    n0 = int(acumulado["n_ant"].sum()) if len(acumulado) else 0
+    n0 = int(acumulado.loc[acumulado["estructura"].isin(ESTRUCTURAS), "n_ant"].sum()) if len(acumulado) else 0
     n1 = int(ok["n_act"].sum()) if len(ok) else 0
     return {"mensual": mensual, "acumulado": acumulado, "anio": y, "ult_mes": ult,
             "total": {"var": total, "n_act": n1, "n_ant": n0, "estado": _estado(total, n0, n1),
