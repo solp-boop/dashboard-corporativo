@@ -18,3 +18,9 @@ def test_total_mono_mas_conso_sin_separar():
     # el total ponderado sigue saliendo solo de mono y conso
     assert set(r["total"]["pesos"]) <= {"Monoproveedor", "Consolidado"}
     assert r["total"]["n_ant"] == 3
+
+
+def test_destino_vacio_cuenta_como_argentina():
+    from utils.productos import _solo_destino
+    d = pd.DataFrame({"destino": ["Argentina", None, "", "Uruguay", "México", "argentina"]})
+    assert _solo_destino(d).index.tolist() == [0, 1, 2, 5]

@@ -35,7 +35,10 @@ def _solo_destino(d: pd.DataFrame) -> pd.DataFrame:
         return d
     if settings.PRODUCTOS_DESTINO and "destino" in d:
         from utils.data_cleaning import fold
-        return d[d["destino"].map(lambda v: fold(v) == fold(settings.PRODUCTOS_DESTINO) if isinstance(v, str) else False)]
+        # Destino vacío = Argentina: en Embarques Historicos la columna recién se completa desde nov-2025; si se
+        # exigiera el dato, 2025 (la base del objetivo −15 %) quedaría casi vacío. Sale solo lo que dice otro destino.
+        return d[d["destino"].map(lambda v: fold(v) == fold(settings.PRODUCTOS_DESTINO)
+                                  if isinstance(v, str) and v.strip() else True)]
     return d
 
 
