@@ -694,32 +694,42 @@ def objetivo_matrix(res: dict, today: pd.Timestamp) -> None:
     y = res["anio"]
     ests = [("Monoproveedor", "Monoproveedor"), ("Consolidado", "Consolidado"),
             ("Total", "Total · mono + consolidado sin separar")]
-    head1 = "<tr><th rowspan='2'>Mes ETD</th>" + "".join(f"<th colspan='4'>{l}</th>" for _, l in ests) + "</tr>"
-    head2 = "<tr>" + "".join(f"<th>{y - 1}</th><th>Objetivo</th><th>{y}</th><th>Variación</th>" for _ in ests) + "</tr>"
+    sep = "border-left: 3px solid var(--ink-3)"                         # separa los bloques (se ve en claro y oscuro)
 
-    def celdas(r) -> str:
+    def n_cols(e) -> int:
+        return 3 if e == "Total" else 4                               # el total no lleva objetivo
+
+    head1 = "<tr><th rowspan='2'>Mes ETD</th>" + "".join(
+        f"<th colspan='{n_cols(e)}' style='{sep}'>{l}</th>" for e, l in ests) + "</tr>"
+    head2 = "<tr>" + "".join(
+        f"<th style='{sep}'>{y - 1}</th>" + ("<th>Objetivo</th>" if e != "Total" else "") + f"<th>{y}</th><th>Variación</th>"
+        for e, _ in ests) + "</tr>"
+
+    def celdas(r, e) -> str:
         if r is None:
-            return "<td class='na'>—</td>" * 4
+            return f"<td class='na' style='{sep}'>—</td>" + "<td class='na'>—</td>" * (n_cols(e) - 1)
         d = lambda v, n: (f"{fmt.fmt_num(v, 1)} d<span class='n'>n={fmt.fmt_int(n)}</span>"  # noqa: E731
                           if v == v else "—")
         cls = _EST_CLS.get(r["estado"], "pre" if r["estado"] == "En curso" else "")
         var = fmt.fmt_pct(r["var"], signed=True) if r["var"] == r["var"] else "—"
         if r["estado"] == "Muestra chica":
             var += "<span class='n'>muestra chica</span>"
-        return (f"<td>{d(r['ant'], r['n_ant'])}</td><td>{fmt.fmt_num(r['objetivo'], 1) + ' d' if r['objetivo'] == r['objetivo'] else '—'}</td>"
+        obj = ("" if e == "Total" else
+               f"<td>{fmt.fmt_num(r['objetivo'], 1) + ' d' if r['objetivo'] == r['objetivo'] else '—'}</td>")
+        return (f"<td style='{sep}'>{d(r['ant'], r['n_ant'])}</td>{obj}"
                 f"<td class='hl'>{d(r['act'], r['n_act'])}</td><td class='{cls}'>{var}</td>")
     body = []
     for mes in sorted(m["mes"].unique()):
         fila = f"<tr><th class='rowh'>{_MESES_C[mes - 1]}{'*' if mes == today.month else ''}</th>"
         for e, _ in ests:
             x = m[(m["mes"] == mes) & (m["estructura"] == e)]
-            fila += celdas(x.iloc[0] if len(x) else None)
+            fila += celdas(x.iloc[0] if len(x) else None, e)
         body.append(fila + "</tr>")
     ac = res["acumulado"].set_index("estructura") if len(res["acumulado"]) else pd.DataFrame()
     if len(ac):
         lbl = f"Acumulado ene–{_MESES_C[res['ult_mes'] - 1].lower()}"
         body.append(f"<tr class='tot'><th class='rowh'>{lbl}</th>"
-                    + "".join(celdas(ac.loc[e] if e in ac.index else None) for e, _ in ests) + "</tr>")
+                    + "".join(celdas(ac.loc[e] if e in ac.index else None, e) for e, _ in ests) + "</tr>")
     st.markdown("<div class='scorecard compact matriz'><table><thead>" + head1 + head2 + "</thead><tbody>"
                 + "".join(body) + "</tbody></table></div>", unsafe_allow_html=True)
     st.caption(f"«Total · mono + consolidado sin separar» = mediana de todas las SO juntas (para comparar con la planilla); "
