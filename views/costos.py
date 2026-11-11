@@ -1028,8 +1028,14 @@ def _cotizaciones_cuadro(bundle, h, t, dias) -> None:
     with guard("Cotizaciones"):
         cur = negociar.periodo(cot, t, "curso")
         prox = negociar.periodo(cot, t, "proxima")
-        rango = lambda c: (f"{c['validez_desde'].min():%d/%m} – {c['validez_hasta'].max():%d/%m}"  # noqa: E731
-                           if len(c) else "sin tarifas")
+        def rango(c) -> str:
+            # Una tarifa puede venir sin «Validez hasta» (NaT): no hay que formatear esa fecha.
+            if not len(c):
+                return "sin tarifas"
+            d, h_ = c["validez_desde"].min(), c["validez_hasta"].max()
+            if pd.isna(d):
+                return "sin fecha"
+            return f"{d:%d/%m} – {h_:%d/%m}" if pd.notna(h_) else f"desde {d:%d/%m}"
         opciones = {"curso": f"En curso ({rango(cur)})", "proxima": f"Próximas ({rango(prox)})"}
         cual = st.segmented_control("Período", list(opciones), default="curso", format_func=opciones.get,
                                     key="co_cot_periodo", label_visibility="collapsed") or "curso"
