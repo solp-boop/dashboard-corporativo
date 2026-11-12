@@ -313,6 +313,27 @@ def mensual(z: pd.DataFrame, por: str | None = None) -> pd.DataFrame:
     }).reset_index()
 
 
+def mensual_analista(z: pd.DataFrame | None, aer: pd.DataFrame | None) -> pd.DataFrame:
+    """Mes a mes de un analista: marítimos zarpados (mensual) + aéreos entregados (cantidad, % SLA, punta a punta)."""
+    mar = mensual(z) if z is not None and len(z) else pd.DataFrame(columns=["mes"])
+    if aer is not None and len(aer):
+        a = aer.assign(mes=aer["etd"].dt.to_period("M").dt.to_timestamp())
+        c = a[a["dias_aereo"].notna() & a["sla_vig"].notna()]
+        g = a.groupby("mes")
+        ae = pd.DataFrame({"aereos": g["embarque"].nunique(), "med_aereo": g["dias_aereo"].median()})
+        ae["cumple_aereo"] = (c["dias_aereo"] <= c["sla_vig"]).groupby(c["mes"]).mean()
+        ae = ae.reset_index()
+    else:
+        ae = pd.DataFrame(columns=["mes", "aereos", "med_aereo", "cumple_aereo"])
+    if mar.empty and ae.empty:
+        return pd.DataFrame()
+    m = mar.merge(ae, on="mes", how="outer") if len(mar) else ae
+    for c in ("embarques", "aereos"):
+        if c in m:
+            m[c] = m[c].fillna(0)
+    return m.sort_values("mes").reset_index(drop=True)
+
+
 def semanal(z: pd.DataFrame, today: pd.Timestamp, semanas: int = 13) -> pd.DataFrame:
     """% dentro de SLA por semana de ETD (lunes), últimas `semanas` semanas."""
     if z is None or z.empty:

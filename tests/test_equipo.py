@@ -76,3 +76,16 @@ def test_zarpados_en_reservas_y_aereos_por_analista():
     assert list(a["embarque"]) == ["AIR 50"] and a["responsable"].iloc[0] == "Azul"
     an = eq.por_analista(pd.DataFrame(), None, None, None, a).set_index("analista")
     assert an.loc["Azul", "aereos"] == 1 and an.loc["Azul", "cumple_aereo"] == 1.0
+
+
+def test_mensual_analista_suma_aereos():
+    import pandas as pd
+    from utils import equipo as eq
+    ts = pd.Timestamp
+    aer = pd.DataFrame({"embarque": ["AIR 1", "AIR 2", "AIR 3"], "responsable": "Azul",
+                        "etd": [ts("2026-03-10"), ts("2026-09-02"), ts("2026-09-20")],
+                        "dias_aereo": [20.0, 30.0, 10.0], "sla_vig": [25.0, 25.0, 25.0]})
+    m = eq.mensual_analista(pd.DataFrame(), aer)
+    assert list(m["mes"].dt.month) == [3, 9]
+    sep = m.iloc[1]
+    assert sep["aereos"] == 2 and sep["cumple_aereo"] == 0.5 and sep["med_aereo"] == 20

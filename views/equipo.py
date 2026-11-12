@@ -99,7 +99,7 @@ def render() -> None:
     ag = eq.por_agente(z, act, z_prev)
     {"resumen": _resumen, "analistas": _analistas, "agentes": _agentes, "alertas": _alertas,
      "evolucion": _evolucion}[vista](bundle=bundle, filters=filters, t=t, z=z, z_prev=z_prev, act=act, casos=casos,
-                                     an=an, ag=ag)
+                                     an=an, ag=ag, aer=aer)
 
 
 # ---------------------------------------------------------------------------
@@ -197,7 +197,7 @@ def _resumen(*, bundle, filters, t, z, act, casos, an, ag, **_) -> None:
 
 
 # ---------------------------------------------------------------------------
-def _analistas(*, bundle, filters, t, z, act, casos, an, **_) -> None:
+def _analistas(*, bundle, filters, t, z, act, casos, an, aer=None, **_) -> None:
     section("Analistas · comparativa",
             "Cuatro dimensiones separadas, sin puntaje único: carga, resultado del proceso, gestión propia y "
             "seguimiento. Zarpados = marítimos que salieron en el período (Reservas Históricas y los que ya salieron y "
@@ -257,14 +257,17 @@ def _analistas(*, bundle, filters, t, z, act, casos, an, **_) -> None:
                 help="Embarques con al menos un caso en la Bandeja de acción. Los demás los resuelve el agente o el "
                      "proveedor (ver columna «Resuelve»)."),
         ])
-        if len(zz):
-            m = eq.mensual(zz)
-            chart_title(f"{quien} · mes a mes", "Mes de ETD · marítimos zarpados")
+        aa = aer[aer["responsable"] == quien] if aer is not None and len(aer) else pd.DataFrame()
+        m = eq.mensual_analista(zz, aa)
+        if len(m):
+            chart_title(f"{quien} · mes a mes", "Mes de ETD · marítimos zarpados y aéreos entregados")
             data_table(m.assign(mes=m["mes"].dt.strftime("%m/%Y")), [
-                ColSpec("mes", "Mes"), ColSpec("embarques", "Zarpados", "int"), ColSpec("cumple", "% SLA", "pct"),
-                ColSpec("n_cumple", "n SLA", "int"), ColSpec("med_consol", "Consolidación (d)", "days"),
+                ColSpec("mes", "Mes"), ColSpec("embarques", "Marítimos zarpados", "int"),
+                ColSpec("cumple", "% SLA marítimo", "pct"), ColSpec("med_consol", "Consolidación (d)", "days"),
                 ColSpec("pct_tarde", "% instrucción tardía", "pct"),
-            ], key="eq_an_mes", filename=f"analista_{quien}_mensual", search=False, height=min(420, 38 + 35 * len(m)))
+                ColSpec("aereos", "Aéreos entregados", "int"), ColSpec("cumple_aereo", "% SLA aéreo", "pct"),
+                ColSpec("med_aereo", "Punta a punta aéreo (d)", "days"),
+            ], key="eq_an_mes", filename=f"analista_{quien}_mensual", search=False, height=min(460, 38 + 35 * len(m)))
         cc = casos[(casos["responsable"] == quien)] if len(casos) else casos
         if len(cc):
             chart_title(f"Casos abiertos de {quien}", "De la Bandeja de acción · quién resuelve cada uno")
