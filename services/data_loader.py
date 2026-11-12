@@ -364,6 +364,14 @@ def add_air_sla(df: pd.DataFrame, q: DatasetQuality) -> pd.DataFrame:
 def prepare_emb_hist(eh: pd.DataFrame, hist: pd.DataFrame | None) -> None:
     """Marca SKU nuevo y top ranking y toma la estructura (mono/consolidado) de Reservas Históricas."""
     lo, hi = settings.DURATION_RANGES["tiempo_consolidacion_so"]
+    # La ETD de Embarques Historicos sale de una fórmula que a veces se lee vacía (mientras la planilla recalcula):
+    # si falta, se toma la ETD del mismo embarque en Reservas Históricas, para no perder líneas del indicador.
+    if hist is not None and not hist.empty and "etd" in hist and "etd" in eh:
+        h_etd = (hist.assign(_k=dc.id_key(hist["embarque"])).dropna(subset=["etd"])
+                     .drop_duplicates("_k").set_index("_k")["etd"])
+        falta = eh["etd"].isna()
+        if falta.any():
+            eh.loc[falta, "etd"] = pd.to_datetime(dc.id_key(eh.loc[falta, "embarque"]).map(h_etd), errors="coerce")
     # Indicador oficial: días = ETD − fin de producción real (si falta, Fecha Packeo Actualizada). Si no hay ninguna
     # de las dos fechas, queda el «Tiempo de consolidacion» de la planilla.
     t = eh["tiempo_consolidacion"]
