@@ -590,6 +590,12 @@ def process_dataset(key: str, raw: pd.DataFrame, q: DatasetQuality) -> pd.DataFr
     before = len(df)
     if key in ("reservas", "historicas", "aereos"):
         df = df.assign(_k=dc.id_key(df["embarque"])).drop_duplicates("_k").drop(columns="_k")
+    elif key == "emb_hist":
+        # Una fila repetida en Embarques Historicos es la misma SO mandada dos veces: cuenta dos veces,
+        # igual que en el indicador gobernado. Solo se informa en la calidad de datos.
+        q.duplicates = int(df.duplicated().sum())
+        df["_fila"] = df.index + FILA_OFFSET
+        return df.reset_index(drop=True)
     else:
         df = df.drop_duplicates()
     q.duplicates = before - len(df)
